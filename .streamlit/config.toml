@@ -1,5 +1,6 @@
 # .streamlit/config.toml
 
-[browser]
-# Esta línea oculta las páginas de la carpeta 'pages/' en el menú lateral de Streamlit
-serverPageDisplayMode = "none"
+[general]
+# Esto oculta la navegación automática de páginas.
+# Solo se verá el menú que usted programa en main.py.
+pages = false
