@@ -48,7 +48,7 @@ def main():
 
     if not st.session_state['authenticated']:
         # Muestra el formulario de LOGIN
-        st.title("🔐 Sistema SGVO - Iniciar Sesión")
+        st.title("🔐 Sistema VCP - Iniciar Sesión")
         st.warning("Ingrese la contraseña de su área para acceder .")
         
         with st.form("login_form"):
@@ -60,7 +60,7 @@ def main():
     # --- 3. Lógica Principal de Navegación (para autenticados) ---
     rol = st.session_state['user_role']
     
-    st.sidebar.title("Navegación SGVO")
+    st.sidebar.title("Navegación")
     st.sidebar.write(f"**Rol Actual:** {rol}")
 
     paginas_permitidas = MODULOS_VISIBLES.get(rol, [])
