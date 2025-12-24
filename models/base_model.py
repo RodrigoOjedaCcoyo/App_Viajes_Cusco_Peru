@@ -1,28 +1,26 @@
-# controllers/venta_controller.py
-# 🛑 IMPORTACIÓN CRÍTICA: La ruta ABSOLUTA es más confiable en Streamlit Cloud
-from models.venta_model import Venta 
+# models/base_model.py
 import streamlit as st
-import pandas as pd
-import numpy as np 
+# from supabase import create_client, Client # 🛑 Estas líneas se activarán más tarde
 
-class VentaController:
+class BaseModel:
+    """
+    Clase base para todos los modelos de datos (Venta, Operaciones, etc.).
+    Actualmente simula la conexión a la base de datos (Supabase).
+    """
+    
     def __init__(self):
-        # Inicializa el modelo de venta simplificado
-        self.model = Venta()
-        self.ESTADOS = ['COTIZACIÓN', 'CONFIRMADO - PENDIENTE DATA', 'LISTO PARA OPERAR', 'EJECUTADO/PENDIENTE PAGO FINAL', 'CERRADO CONTABLEMENTE']
+        # En el futuro, aquí se leerán las claves de Supabase y se creará el cliente.
+        self.db = "Simulación de Conexión a Supabase"
+        self.table_name = None # Se define en cada modelo hijo
 
-    # --- SIMULACIÓN DE DATOS (Gerencia) ---
-    def get_kpi_dashboard_data(self):
-        data = {
-            'id_venta': range(1, 101),
-            'estado_venta': np.random.choice(self.ESTADOS, 100, p=[0.1, 0.2, 0.4, 0.1, 0.2]),
-            'precio_total_cierre': np.random.randint(1000, 5000, 100),
-            'margen_bruto': np.random.randint(500, 2500, 100),
-            'canal_venta': np.random.choice(['WEB', 'AGENCIA', 'DIRECTO'], 100),
-        }
-        return pd.DataFrame(data)
+    def get_all(self):
+        """Simula la obtención de todos los registros."""
+        st.info(f"Simulación: Obteniendo todos los datos de la tabla {self.table_name}")
+        # En el futuro:
+        # return self.db.from_(self.table_name).select('*').execute()
+        return []
 
-    # --- SIMULACIÓN DE ACCIONES ---
-    def cerrar_expediente(self, id_venta):
-        # Simula la llamada al modelo para actualizar el estado
-        return self.model.update_estado(id_venta, 'CERRADO CONTABLEMENTE', 'user_id_placeholder')
+    def get_by_id(self, id_registro):
+        """Simula la obtención de un registro por ID."""
+        st.info(f"Simulación: Obteniendo {self.table_name} con ID {id_registro}")
+        return None
