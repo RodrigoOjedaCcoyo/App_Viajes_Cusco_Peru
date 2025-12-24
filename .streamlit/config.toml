@@ -1,0 +1,5 @@
+# .streamlit/config.toml
+
+[browser]
+# Esta línea oculta las páginas de la carpeta 'pages/' en el menú lateral de Streamlit
+serverPageDisplayMode = "none"
