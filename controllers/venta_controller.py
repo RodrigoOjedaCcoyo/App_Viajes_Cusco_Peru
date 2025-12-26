@@ -1,5 +1,5 @@
 # controllers/venta_controller.py
-from models.venta_model import VentaModel
+from venta_model import VentaModel
 # NOTA: En un futuro, importaremos un servicio de almacenamiento (Drive/S3/Supabase Storage)
 # from services.storage_service import StorageService 
 
