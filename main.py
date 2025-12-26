@@ -20,10 +20,10 @@ sys.path.append(os.path.join(BASE_DIR, 'vistas'))
 
 # Mapeo de roles a los módulos que pueden ver (RBAC)
 MODULOS_VISIBLES = {
-    "VENTAS": [("Ventas", "1_Ventas")],
-    "OPERACIONES": [("Ventas", "1_Ventas"), ("Operaciones", "2_Operaciones")],
-    "CONTABLE": [("Ventas", "1_Ventas"), ("Operaciones", "2_Operaciones"), ("Contabilidad", "3_Contabilidad")],
-    "GERENCIA": [("Ventas", "1_Ventas"), ("Operaciones", "2_Operaciones"), ("Contabilidad", "3_Contabilidad"), ("Gerencia", "4_Gerencia")]
+    "VENTAS": [("Ventas", "page_ventas")],
+    "OPERACIONES": [("Ventas", "page_ventas"), ("Operaciones", "page_operaciones")],
+    "CONTABLE": [("Ventas", "page_ventas"), ("Operaciones", "page_operaciones"), ("Contabilidad", "page_contabilidad")],
+    "GERENCIA": [("Ventas", "page_ventas"), ("Operaciones", "page_operaciones"), ("Contabilidad", "page_contabilidad"), ("Gerencia", "page_gerencia")]
 }
 
 # --- 2. Lógica de Autenticación y Estado ---
