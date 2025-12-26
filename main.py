@@ -17,13 +17,28 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # Añadir la carpeta raíz al PATH para que Python encuentre 'controllers' y 'models'
 # ESTO ES CRÍTICO. Si su aplicación está en un subdirectorio, esta línea ayuda.
 sys.path.append(os.path.join(BASE_DIR, 'vistas'))
+sys.path.append(os.path.join(BASE_DIR, 'controllers')) 
+sys.path.append(os.path.join(BASE_DIR, 'models'))
 
 # Mapeo de roles a los módulos que pueden ver (RBAC)
 MODULOS_VISIBLES = {
-    "VENTAS": [("Ventas", "page_ventas")],
-    "OPERACIONES": [("Ventas", "page_ventas"), ("Operaciones", "page_operaciones")],
-    "CONTABLE": [("Ventas", "page_ventas"), ("Operaciones", "page_operaciones"), ("Contabilidad", "page_contabilidad")],
-    "GERENCIA": [("Ventas", "page_ventas"), ("Operaciones", "page_operaciones"), ("Contabilidad", "page_contabilidad"), ("Gerencia", "page_gerencia")]
+"VENTAS": [
+        ("Registro de Leads", "page_ventas"),    # Apuntará a la sección de Leads en page_ventas
+        ("Seguimiento de Leads", "page_ventas"), # Apuntará a la sección de Seguimiento en page_ventas
+        ("Registro de Ventas", "page_ventas")    # Apuntará a la sección de Registro en page_ventas
+    ],
+    "OPERACIONES": [
+        ("Seguimiento de Tours", "page_operaciones"), # Para Operaciones
+        ("Actualización de Ventas", "page_operaciones") # Para Operaciones
+    ],
+    "CONTABLE": [
+        ("Reporte de Montos", "page_contabilidad"), 
+        ("Auditoría de Pagos", "page_contabilidad")
+    ],
+    "GERENCIA": [
+        ("Dashboard Ejecutivo", "page_gerencia"), 
+        ("Auditoría Completa", "page_gerencia")
+    ]
 }
 
 # --- 2. Lógica de Autenticación y Estado ---
@@ -71,23 +86,25 @@ def main():
         # Seleccion de página en el sidebar
         index_seleccionado = st.sidebar.selectbox(
             "Seleccione Módulo", 
-            range(len(nombres_modulos)), 
-            format_func=lambda i: nombres_modulos[i]
+            range(len(nombres_funcionalidades)), 
+            format_func=lambda i: nombres_funcionalidades[i]
         )
         
-        pagina_seleccionada = paginas_permitidas[index_seleccionado][1]
+        funcionalidad_selccionada = paginas_permitidas[index_seleccionado][0]
+        pagina_seleccionada_archivo = paginas_permitidas[index_seleccionado][1]
 
         try:
             # Importa y ejecuta la función principal del módulo seleccionado
-            modulo = importlib.import_module(pagina_seleccionada)
-            modulo.mostrar_pagina() 
+            modulo = importlib.import_module(pagina_seleccionada_archivo)
+            modulo.mostrar_pagina(funcionalidad_selccionada) 
         except ImportError as e:
             # Este error es lo que hemos estado viendo.
-            st.error(f"Error de Carga: No se pudo importar el módulo {pagina_seleccionada}. La arquitectura MVC está incompleta o con errores de ruta.")
+            st.error(f"Error de Carga: No se pudo importar el módulo {pagina_seleccionada_archivo}. La arquitectura MVC está incompleta o con errores de ruta.")
             st.code(e)
         except AttributeError:
-             st.error(f"Error: La función 'mostrar_pagina()' no está definida en el módulo {pagina_seleccionada}.")
+             st.error(f"Error: La función 'mostrar_pagina()' no está definida en el módulo {pagina_seleccionada_archivo}.")
 
+    st.sidebar.markdown("---")
     st.sidebar.button("Cerrar Sesión", on_click=lambda: st.session_state.clear())
     
 if __name__ == "__main__":
