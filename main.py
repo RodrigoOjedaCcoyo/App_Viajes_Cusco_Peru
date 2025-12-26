@@ -5,7 +5,7 @@ import os
 import importlib
 
 # --- 1. Configuración de Roles y Rutas ---
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # Definición de ROLES (Contraseñas de ejemplo para el acceso)
 ROLES = {
     "VENTAS": "1234",
@@ -13,17 +13,17 @@ ROLES = {
     "CONTABLE": "9012",
     "GERENCIA": "0000"
 }
-
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # Añadir la carpeta raíz al PATH para que Python encuentre 'controllers' y 'models'
 # ESTO ES CRÍTICO. Si su aplicación está en un subdirectorio, esta línea ayuda.
-sys.path.append(os.path.join(BASE_DIR, 'App_VCP'))
+sys.path.append(os.path.join(BASE_DIR, 'vistas'))
 
 # Mapeo de roles a los módulos que pueden ver (RBAC)
 MODULOS_VISIBLES = {
-    "VENTAS": [("Ventas", "vistas.1_Ventas")],
-    "OPERACIONES": [("Ventas", "vistas.1_Ventas"), ("Operaciones", "vistas.2_Operaciones")],
-    "CONTABLE": [("Ventas", "vistas.1_Ventas"), ("Operaciones", "vistas.2_Operaciones"), ("Contabilidad", "vistas.3_Contabilidad")],
-    "GERENCIA": [("Ventas", "vistas.1_Ventas"), ("Operaciones", "vistas.2_Operaciones"), ("Contabilidad", "vistas.3_Contabilidad"), ("Gerencia", "vistas.4_Gerencia")]
+    "VENTAS": [("Ventas", "1_Ventas")],
+    "OPERACIONES": [("Ventas", "1_Ventas"), ("Operaciones", "2_Operaciones")],
+    "CONTABLE": [("Ventas", "1_Ventas"), ("Operaciones", "2_Operaciones"), ("Contabilidad", "3_Contabilidad")],
+    "GERENCIA": [("Ventas", "1_Ventas"), ("Operaciones", "2_Operaciones"), ("Contabilidad", "3_Contabilidad"), ("Gerencia", "4_Gerencia")]
 }
 
 # --- 2. Lógica de Autenticación y Estado ---
