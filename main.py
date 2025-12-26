@@ -44,8 +44,6 @@ if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = False
 if 'user_role' not in st.session_state:
     st.session_state['user_role'] = None
-if 'vendedor_actual' not in st.session_state: # CRÍTICO: Necesario para el filtrado en page_ventas
-    st.session_state['vendedor_actual'] = None 
 
 
 def handle_login(password):
@@ -54,18 +52,12 @@ def handle_login(password):
         if password == clave:
             st.session_state['authenticated'] = True
             st.session_state['user_role'] = role
-            
-            # 💡 PUNTO DE MEJORA: Asignación de Vendedor al hacer login
-            if role == "VENTAS":
-                # Asumimos que el vendedor es "Angel" para el rol VENTAS (usado en la simulación)
-                st.session_state['vendedor_actual'] = "Angel" 
-            
             st.rerun() 
             return
     st.error("Contraseña incorrecta. Acceso denegado.")
 
 def main():
-    st.set_page_config(page_title="SGVO - Cusco", layout="wide")
+    st.set_page_config(page_title="SGVO - Cusco", layout="wide") # Nombre de la pestaña
 
     if not st.session_state['authenticated']:
         # ... Lógica de Login (Correcta) ...

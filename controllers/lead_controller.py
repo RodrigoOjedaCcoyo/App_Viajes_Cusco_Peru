@@ -2,25 +2,26 @@
 from models.lead_model import LeadModel
 
 class LeadController:
+    """Controlador para manejar la lógica de negocio de los Leads."""
+    
     def __init__(self):
         self.model = LeadModel()
-
-    def registrar_nuevo_lead(self, datos: dict):
-        # Aquí se puede añadir lógica de validación extra si es necesario
-        if not datos.get('numero') or not datos.get('vendedor'):
-            raise ValueError("Número y vendedor son requeridos.")
         
-        # Llama al modelo para la inserción en la "BD"
-        return self.model.insert_new_lead(datos)
-
-    def obtener_leads_activos(self, vendedor: str):
-        """ Obtiene leads para el seguimiento. """
-        return self.model.get_active_leads(vendedor)
-
-    def registrar_seguimiento(self, datos: dict):
-        """ Actualiza el estado del lead y registra el historial. """
-        numero = datos.get('numero')
-        estado = datos.get('estado_lead')
-        detalle = datos.get('detalle')
+    def registrar_nuevo_lead(self, nombre, email, telefono, origen, vendedor):
+        """Valida los datos y llama al modelo para guardar el lead."""
         
-        return self.model.update_lead_state(numero, estado, detalle)
+        # Lógica de Validación (Controlador)
+        if not nombre or not email or not telefono:
+            return False, "Todos los campos (Nombre, Email, Teléfono) son obligatorios."
+            
+        # Llamada al Modelo para persistir los datos
+        new_id = self.model.create_lead(nombre, email, telefono, origen, vendedor)
+        
+        if new_id:
+            return True, f"Lead registrado con éxito. ID asignado: {new_id}"
+        else:
+            return False, "Error desconocido al registrar el Lead."
+
+    def obtener_leads_del_vendedor(self, vendedor):
+        """Devuelve todos los leads asignados a un vendedor específico."""
+        return self.model.get_leads_by_vendedor(vendedor)
