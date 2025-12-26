@@ -1,5 +1,5 @@
 # models/venta_model.py
-from .base_model import BaseModel
+from base_model import BaseModel
 
 class VentaModel(BaseModel):
     def __init__(self):
