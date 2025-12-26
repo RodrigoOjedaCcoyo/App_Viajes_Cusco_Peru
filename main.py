@@ -23,7 +23,7 @@ MODULOS_VISIBLES = {
     "VENTAS": [
         ("Registro de Leads", "page_ventas"),    
         ("Seguimiento de Leads", "page_ventas"), 
-        ("Registro de Ventas", "page_ventas")    
+        ("Registro de Ventas", "page_ventas")
     ],
     "OPERACIONES": [
         ("Seguimiento de Tours", "page_operaciones"), 
@@ -38,7 +38,6 @@ MODULOS_VISIBLES = {
         ("Auditoría Completa", "page_gerencia")
     ]
 }
-
 # --- 2. Lógica de Autenticación y Estado (Punto de Mejora Añadido) ---
 
 if 'authenticated' not in st.session_state:
