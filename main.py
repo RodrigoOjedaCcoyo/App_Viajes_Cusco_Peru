@@ -14,9 +14,7 @@ ROLES = {
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Aseguramos que Python encuentre las carpetas (Correcto)
-sys.path.append(os.path.join(BASE_DIR, 'vistas'))
-sys.path.append(os.path.join(BASE_DIR, 'controllers')) 
-sys.path.append(os.path.join(BASE_DIR, 'models'))
+sys.path.append(BASE_DIR)
 
 # Mapeo de roles a las funcionalidades (Correcto)
 MODULOS_VISIBLES = {
