@@ -1,6 +1,6 @@
 # controllers/reporte_controller.py
-from ..models.venta_model import VentaModel
-from ..models.lead_model import LeadModel
+from models.venta_model import VentaModel
+from models.lead_model import LeadModel
 
 class ReporteController:
     """
