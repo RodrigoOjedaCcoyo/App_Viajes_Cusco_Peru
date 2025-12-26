@@ -1,26 +1,15 @@
 # models/base_model.py
-import streamlit as st
-# from supabase import create_client, Client # 🛑 Estas líneas se activarán más tarde
 
 class BaseModel:
     """
-    Clase base para todos los modelos de datos (Venta, Operaciones, etc.).
-    Actualmente simula la conexión a la base de datos (Supabase).
+    Clase base para manejar la conexión a Supabase.
+    Por ahora, solo simula el estado de la conexión.
     """
-    
     def __init__(self):
-        # En el futuro, aquí se leerán las claves de Supabase y se creará el cliente.
-        self.db = "Simulación de Conexión a Supabase"
-        self.table_name = None # Se define en cada modelo hijo
+        # Aquí se inicializaría la conexión a Supabase en el futuro
+        print("BaseModel inicializado. Conexión pendiente.")
 
-    def get_all(self):
-        """Simula la obtención de todos los registros."""
-        st.info(f"Simulación: Obteniendo todos los datos de la tabla {self.table_name}")
-        # En el futuro:
-        # return self.db.from_(self.table_name).select('*').execute()
-        return []
-
-    def get_by_id(self, id_registro):
-        """Simula la obtención de un registro por ID."""
-        st.info(f"Simulación: Obteniendo {self.table_name} con ID {id_registro}")
-        return None
+    def get_db_client(self):
+        # En el futuro, devolvería el cliente Supabase
+        # Por ahora, devolvemos un objeto de simulación
+        return "SimulacionDBClient"

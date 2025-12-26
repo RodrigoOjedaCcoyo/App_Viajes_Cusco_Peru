@@ -1,20 +1,13 @@
 # models/venta_model.py
-import streamlit as st
-from .base_model import BaseModel # 🛑 Importación relativa desde el mismo paquete
+from .base_model import BaseModel
 
-class Venta(BaseModel):
-    """Representa la entidad Venta, sin lógica de BD real."""
-    
+class VentaModel(BaseModel):
     def __init__(self):
         super().__init__()
-        self.table_name = 'Venta' # Nombre de la tabla simulada
 
-    def insert_new(self, data):
-        """Simula la inserción, retornando un ID falso."""
-        st.warning("Simulación: Venta insertada.")
-        return 101 # ID de ejemplo
-        
-    def update_estado(self, id_venta, nuevo_estado, user_id):
-        """Simula la actualización del estado."""
-        st.warning(f"Simulación: Venta {id_venta} actualizada a '{nuevo_estado}'.")
-        return True
+    def insert_new_sale(self, datos: dict, documentos_url: str):
+        """ Simula el registro de una nueva venta (como registrarVenta en .gs) """
+        # Aquí se insertaría la fila en la tabla 'Ventas'
+        print(f"MODEL: Insertando nueva Venta para {datos.get('nombre')}")
+        print(f"MODEL: URL de documentos (Drive/Storage): {documentos_url}")
+        return {"status": "success", "venta_id": 101}
