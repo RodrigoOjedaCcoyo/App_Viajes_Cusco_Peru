@@ -1,45 +1,43 @@
 # controllers/venta_controller.py
+
 from models.venta_model import VentaModel
-from models.lead_model import LeadModel 
+from controllers.lead_controller import LeadController # Necesario para actualizar el Lead
 
 class VentaController:
     """Controlador para manejar la lógica de negocio de las Ventas."""
     
     def __init__(self):
         self.venta_model = VentaModel()
-        self.lead_model = LeadModel() 
-        
+        self.lead_controller = LeadController() # Usamos el LeadController para actualizar el estado
+
     def registrar_nueva_venta(self, lead_id, monto_total, tour_paquete, fecha_tour, vendedor):
         """
-        Registra la venta y marca el lead asociado como 'Convertido'.
+        Registra una venta y marca el Lead asociado como 'Convertido'.
         """
         
-        # 1. Validación de Datos (Controlador)
-        if not lead_id or monto_total <= 0:
-            return False, "ID de Lead y Monto Total deben ser válidos y mayores que cero."
+        # 1. Validación simple
+        if not monto_total or not tour_paquete:
+            return False, "Monto y nombre del Tour son obligatorios para la venta."
             
-        # 2. Creación de la Venta (Llama al VentaModel)
-        new_id = self.venta_model.create_venta(
+        # 2. Registrar la venta
+        venta_id = self.venta_model.create_venta(
             lead_id, 
             monto_total, 
             tour_paquete, 
             fecha_tour, 
             vendedor
         )
-        
-        # 3. Actualizar el estado del Lead (Llama al LeadModel)
-        if new_id:
-            try:
-                leads = self.lead_model.get_all()
-                for lead in leads:
-                    # Busca el lead y actualiza su estado
-                    if lead.get('id') == lead_id:
-                        lead['estado'] = 'Convertido (Venta ID: ' + str(new_id) + ')'
-                        break
-            except Exception as e:
-                # La venta se creó, pero la actualización del lead falló
-                print(f"Advertencia: No se pudo actualizar el lead {lead_id}: {e}")
-                
-            return True, f"Venta registrada con éxito. Venta ID: {new_id}. Lead actualizado."
+
+        if venta_id:
+            # 3. Marcar el Lead como Convertido (¡El paso clave!)
+            exito_lead, mensaje_lead = self.lead_controller.actualizar_estado_lead(
+                lead_id, 
+                "Convertido (Vendido)"
+            )
+            
+            if exito_lead:
+                return True, f"Venta registrada (ID: {venta_id}) y Lead ID {lead_id} marcado como vendido."
+            else:
+                return True, f"Venta registrada (ID: {venta_id}), pero falló la actualización del estado del Lead."
         else:
             return False, "Error desconocido al registrar la Venta."

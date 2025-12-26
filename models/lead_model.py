@@ -1,36 +1,33 @@
 # models/lead_model.py
+
 from .base_model import BaseModel
-import pandas as pd
+from datetime import datetime
 
 class LeadModel(BaseModel):
+    """Modelo para la gestión de Leads (Clientes Potenciales)."""
+
     def __init__(self):
-        super().__init__()
-        # Simulación de la tabla de Leads (estructura del Apps Script)
-        self.leads_data = [
-            {'numero': '51987654321', 'vendedor': 'Angel', 'estado': 'Interesado', 'whatsapp': '51987654321'},
-            {'numero': '51999888777', 'vendedor': 'Angel', 'estado': 'Seguimiento', 'whatsapp': '51999888777'},
-            {'numero': '51555444333', 'vendedor': 'Abel', 'estado': 'Nuevo', 'whatsapp': ''},
-            {'numero': '51111222333', 'vendedor': 'Abel', 'estado': 'Vendido', 'whatsapp': '51111222333'},
-        ]
+        # Usamos 'leads' como clave para el almacenamiento en sesión
+        super().__init__(key="leads") 
 
-    def get_active_leads(self, vendedor: str):
-        """ Simula la obtención de leads activos por vendedor (como obtenerLeadsActivos en .gs) """
-        activos = []
-        for lead in self.leads_data:
-            if lead['vendedor'] == vendedor and lead['estado'] not in ['Vendido', 'Perdido']:
-                activos.append(lead)
-        return activos
-
-    def insert_new_lead(self, datos: dict):
-        """ Simula el registro de un nuevo vendedor (como registrarVendedor en .gs) """
-        # La tabla se actualizaría aquí
-        print(f"MODEL: Insertando nuevo Lead: {datos}")
-        return {"status": "success", "id": 1}
-
-    def update_lead_state(self, numero: str, estado: str, detalle: str):
-        """ Simula la actualización del estado y registro de historial (como registrarSeguimiento en .gs) """
-        # 1. Actualizar estado del lead
-        print(f"MODEL: Actualizando estado de {numero} a {estado}")
-        # 2. Insertar en tabla de historial
-        print(f"MODEL: Registrando historial de seguimiento: {detalle}")
-        return {"status": "success"}
+    # Implementación simplificada para el formulario de 3 campos
+    def create_lead(self, telefono, origen, vendedor):
+        """Guarda un nuevo lead en el sistema con información básica."""
+        lead_data = {
+            # Valores predeterminados ya que no los pedimos en el formulario:
+            "nombre": f"Lead Tel: {telefono}",
+            "email": "sin_email@app.com",
+            
+            "telefono": telefono,
+            "origen": origen,
+            "vendedor": vendedor,
+            "estado": "Nuevo", 
+            "fecha_creacion": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        return self.save(lead_data)
+        
+    def get_leads_by_vendedor(self, vendedor):
+        """Obtiene todos los leads asignados a un vendedor/rol."""
+        all_leads = self.get_all()
+        # Nota: Aquí se usa el rol del usuario logueado. Puedes cambiar la lógica si necesitas ver todos.
+        return [lead for lead in all_leads if lead['vendedor'] == vendedor]

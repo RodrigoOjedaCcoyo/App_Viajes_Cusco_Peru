@@ -1,4 +1,4 @@
-# vistas/page_ventas.py
+# vistas/page_ventas.py (CÓDIGO COMPLETO FINAL)
 import streamlit as st
 import pandas as pd
 from controllers.lead_controller import LeadController
@@ -13,84 +13,134 @@ venta_controller = VentaController()
 
 def get_vendedor_id():
     """Función auxiliar para obtener el ID del usuario/rol logueado."""
-    # Usamos el rol como ID de vendedor, ya que eliminamos la variable específica.
     return st.session_state.get('user_role', 'Rol Desconocido')
 
 def formulario_registro_leads():
     """1. Sub-función para la funcionalidad 'Registro de Leads'."""
-    st.subheader("📝 Registro de Nuevo Lead")
-    
+    st.title("📝 Registro de Nuevo Lead")
+    st.markdown("---")
+
     vendedor_actual = get_vendedor_id()
     st.info(f"Registrando a cargo de: **{vendedor_actual}**")
         
     with st.form("form_nuevo_lead"):
-        nombre = st.text_input("Nombre Completo del Cliente")
-        email = st.text_input("Email")
-        telefono = st.text_input("Teléfono / WhatsApp")
-        origen = st.selectbox("Origen del Lead", ["Instagram", "Facebook", "Web", "Referido", "Otro"])
-        
+        telefono = st.text_input("Número de Celular", help="Ingrese el número de contacto principal")
+        Red_Social_Origen = st.selectbox(
+            "Seleccione Red Social",
+            ["Instagram", "Facebook", "Tik Tok", "Web", "Otro"],
+            help= "Medio por el cual ingreso el Lead"
+        )
+        # Opciones de vendedores: Puedes cambiar esto para que filtre por rol si lo prefieres.
+        vendedor_seleccionado = st.selectbox(
+            "Seleccione vendedor",
+            ["Angel", "Abel"]
+        )
+
         submitted = st.form_submit_button("Guardar Lead")
         
         if submitted:
-            # Llama al controlador para procesar los datos
             exito, mensaje = lead_controller.registrar_nuevo_lead(
-                nombre, 
-                email, 
-                telefono, 
-                origen, 
-                vendedor_actual
+                telefono,
+                Red_Social_Origen,
+                vendedor_seleccionado
             )
             
             if exito:
                 st.success(mensaje)
-                # Opcional: recargar para limpiar formulario
                 st.rerun() 
             else:
                 st.error(mensaje)
                 
+# ----------------------------------------------------------------------
+# FUNCIONALIDAD DE SEGUIMIENTO DE LEADS (Incluye formulario de actualización)
+# ----------------------------------------------------------------------
+
 def seguimiento_leads():
     """2. Sub-función para la funcionalidad 'Seguimiento de Leads'."""
-    st.subheader("🔎 Seguimiento de Leads (Mis Pendientes)")
+    st.title("🔎 Seguimiento de Cliente")
+    st.markdown("---")
     
     vendedor_actual = get_vendedor_id()
     
-    # Llama al controlador para obtener los leads activos
-    # Solo mostrar leads que NO están en estado 'Convertido'
     todos_los_leads = lead_controller.obtener_leads_del_vendedor(vendedor_actual)
-    leads_activos = [l for l in todos_los_leads if 'Convertido' not in l['estado']]
+    # Solo leads que el vendedor puede seguir o convertir
+    leads_a_seguir = [l for l in todos_los_leads if l['estado'] not in ["Convertido (Vendido)", "No Interesado"]]
     
-    if leads_activos:
-        df_leads = pd.DataFrame(leads_activos)
-        
-        # Columnas a mostrar para el seguimiento
-        columnas_a_mostrar = ['id', 'nombre', 'email', 'telefono', 'origen', 'estado', 'fecha_creacion']
+    if leads_a_seguir:
+        # --- Creación del Formulario de Seguimiento ---
+        with st.form("form_seguimiento_lead"):
+            
+            st.subheader("Actualizar Estado de Lead")
+            
+            # Mapeo de leads para el selector: 'ID - Número de Celular'
+            opciones_leads = [f"ID {l['id']} - {l['telefono']} (Estado: {l['estado']})" for l in leads_a_seguir]
+            
+            lead_seleccionado_str = st.selectbox(
+                "Seleccione Lead por Número de Celular",
+                opciones_leads,
+                help="Seleccione el cliente a quien actualizará el estado."
+            )
+            
+            # Extracción del ID del Lead
+            lead_id = int(lead_seleccionado_str.split(' ')[1])
+
+            nuevo_estado = st.selectbox(
+                "Nuevo Estado del Lead",
+                ["Nuevo", "Seguimiento (Llamada)", "Seguimiento (Email)", "Cotización Enviada", "No Interesado"]
+            )
+            
+            submitted = st.form_submit_button("Guardar")
+            
+            if submitted:
+                exito, mensaje = lead_controller.actualizar_estado_lead(lead_id, nuevo_estado)
+                
+                if exito:
+                    st.success(mensaje)
+                    st.rerun() 
+                else:
+                    st.error(mensaje)
+    else:
+        st.info(f"No tienes leads pendientes de seguimiento o activos.")
+                
+    st.markdown("---")
+    
+    # --- Mostrar la Tabla de Referencia ---
+    st.subheader("Tabla de Leads Activos")
+    if leads_a_seguir:
+        df_leads = pd.DataFrame(leads_a_seguir)
+        columnas_a_mostrar = ['id', 'telefono', 'origen', 'estado', 'vendedor', 'fecha_creacion']
         st.dataframe(
-            df_leads[columnas_a_mostrar].sort_values(by='id', ascending=False), # Mostrar el más reciente primero
+            df_leads[columnas_a_mostrar].sort_values(by='id', ascending=False), 
             use_container_width=True, 
             hide_index=True
         )
-        
-        st.markdown(f"**Total de Leads en Seguimiento:** `{len(leads_activos)}`")
-        
+    elif todos_los_leads:
+         st.info("No hay leads activos, revisa los leads 'Convertido (Vendido)' o 'No Interesado'.")
     else:
-        st.info(f"No tienes leads activos en seguimiento. ¡Hora de registrar uno!")
+         st.info("No hay leads registrados en el sistema.")
+
+
+# ----------------------------------------------------------------------
+# FUNCIONALIDAD DE REGISTRO DE VENTA (Conversión)
+# ----------------------------------------------------------------------
 
 def registro_ventas():
     """3. Sub-función para la funcionalidad 'Registro de Ventas' (Conversión)."""
-    st.subheader("💰 Conversión y Registro de Venta")
+    st.title("💰 Conversión y Registro de Venta")
+    st.markdown("---")
     
     vendedor_actual = get_vendedor_id()
     
-    # 1. Obtener Leads disponibles para la conversión (no convertidos)
+    # Obtener Leads disponibles para la conversión (solo los que no están convertidos o no interesados)
     todos_los_leads = lead_controller.obtener_leads_del_vendedor(vendedor_actual)
-    leads_activos = [l for l in todos_los_leads if 'Convertido' not in l['estado']]
+    leads_convertibles = [l for l in todos_los_leads if l['estado'] not in ["Convertido (Vendido)", "No Interesado"]]
     
-    if not leads_activos:
-        st.warning("No tienes Leads activos en estado 'Nuevo' o 'Seguimiento' para convertir en venta.")
+    if not leads_convertibles:
+        st.warning("No tienes Leads activos (Nuevos o en Seguimiento) para convertir en venta.")
         return
 
-    # Mapeo de leads para el selector: 'ID 1 - Nombre (Email)'
-    opciones_leads = [f"ID {l['id']} - {l['nombre']} ({l['email']})" for l in leads_activos]
+    # Mapeo de leads para el selector: 'ID - Teléfono (Estado)'
+    opciones_leads = [f"ID {l['id']} - {l['telefono']} ({l['estado']})" for l in leads_convertibles]
     
     with st.form("form_registro_venta"):
         st.write(f"Registrando Venta a cargo de: **{vendedor_actual}**")
@@ -125,7 +175,6 @@ def registro_ventas():
             
             if exito:
                 st.success(mensaje)
-                # Recarga para actualizar las tablas de seguimiento (ya no aparecerá el lead)
                 st.rerun() 
             else:
                 st.error(mensaje)
@@ -143,9 +192,6 @@ def mostrar_pagina(funcionalidad_seleccionada: str):
     st.title(f"Módulo de Ventas / {funcionalidad_seleccionada}")
     st.markdown("---")
     
-    # 💡 La lógica de main.py nos garantiza que la cadena 'funcionalidad_seleccionada'
-    # solo contendrá uno de los tres nombres definidos en MODULOS_VISIBLES.
-    
     if funcionalidad_seleccionada == "Registro de Leads":
         formulario_registro_leads()
     elif funcionalidad_seleccionada == "Seguimiento de Leads":
@@ -153,5 +199,4 @@ def mostrar_pagina(funcionalidad_seleccionada: str):
     elif funcionalidad_seleccionada == "Registro de Ventas":
         registro_ventas()
     else:
-        # Esto no debería ocurrir si main.py está bien configurado
         st.error("Funcionalidad de Ventas no encontrada.")
