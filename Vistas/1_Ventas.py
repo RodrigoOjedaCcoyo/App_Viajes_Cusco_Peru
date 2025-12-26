@@ -1,4 +1,4 @@
-# pages/1_Ventas.py
+# vistas/1_Ventas.py
 import streamlit as st
 
 def mostrar_pagina():

@@ -1,4 +1,4 @@
-# pages/2_Operaciones.py
+# vistas/2_Operaciones.py
 import streamlit as st
 
 def mostrar_pagina():

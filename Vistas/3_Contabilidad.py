@@ -1,4 +1,4 @@
-# pages/3_Contabilidad.py
+# vistas/3_Contabilidad.py
 import streamlit as st
 
 def mostrar_pagina():
