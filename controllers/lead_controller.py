@@ -1,6 +1,6 @@
 # controllers/lead_controller.py
 
-from ..models.lead_model import LeadModel
+from models.lead_model import LeadModel
 
 class LeadController:
     """Controlador para manejar la lógica de negocio de los Leads."""

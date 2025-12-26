@@ -1,7 +1,7 @@
 # controllers/venta_controller.py
 
-from ..models.venta_model import VentaModel
-from .lead_controller import LeadController # Necesario para actualizar el Lead
+from models.venta_model import VentaModel
+from controllers.lead_controller import LeadController # Necesario para actualizar el Lead
 
 class VentaController:
     """Controlador para manejar la lógica de negocio de las Ventas."""
