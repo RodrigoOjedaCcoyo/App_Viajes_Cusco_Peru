@@ -5,7 +5,7 @@ import os
 import importlib
 
 # --- 1. Configuración de Roles y Rutas ---
-
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # Definición de ROLES (Contraseñas de ejemplo para el acceso)
 ROLES = {
     "VENTAS": "1234",
@@ -16,7 +16,7 @@ ROLES = {
 
 # Añadir la carpeta raíz al PATH para que Python encuentre 'controllers' y 'models'
 # ESTO ES CRÍTICO. Si su aplicación está en un subdirectorio, esta línea ayuda.
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.join(BASE_DIR, 'App_VCP'))
 
 # Mapeo de roles a los módulos que pueden ver (RBAC)
 MODULOS_VISIBLES = {
