@@ -1,5 +1,5 @@
 # controllers/lead_controller.py
-from lead_model import LeadModel
+from models.lead_model import LeadModel
 
 class LeadController:
     def __init__(self):
