@@ -1,6 +1,6 @@
 # controllers/operacion_controller.py
-from models.venta_model import VentaModel
-from models.lead_model import LeadModel # Para referencia, si se necesitara
+from ..models.venta_model import VentaModel
+from ..models.lead_model import LeadModel # Para referencia, si se necesitara
 
 class OperacionController:
     """
