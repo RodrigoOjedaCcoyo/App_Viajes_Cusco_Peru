@@ -19,21 +19,21 @@ sys.path.append(BASE_DIR)
 # Mapeo de roles a las funcionalidades (Correcto)
 MODULOS_VISIBLES = {
     "VENTAS": [
-        ("Registro de Leads", "page_ventas"),    
-        ("Seguimiento de Leads", "page_ventas"), 
-        ("Registro de Ventas", "page_ventas")
+        ("Registro de Leads", "vistas.page_ventas"),    
+        ("Seguimiento de Leads", "vistas.page_ventas"), 
+        ("Registro de Ventas", "vistas.page_ventas")
     ],
     "OPERACIONES": [
-        ("Seguimiento de Tours", "page_operaciones"), 
-        ("Actualización de Ventas", "page_operaciones") 
+        ("Seguimiento de Tours", "vistas.page_operaciones"), 
+        ("Actualización de Ventas", "vistas.page_operaciones") 
     ],
     "CONTABLE": [
-        ("Reporte de Montos", "page_contabilidad"), 
-        ("Auditoría de Pagos", "page_contabilidad")
+        ("Reporte de Montos", "vistas.page_contabilidad"), 
+        ("Auditoría de Pagos", "vistas.page_contabilidad")
     ],
     "GERENCIA": [
-        ("Dashboard Ejecutivo", "page_gerencia"), 
-        ("Auditoría Completa", "page_gerencia")
+        ("Dashboard Ejecutivo", "vistas.page_gerencia"), 
+        ("Auditoría Completa", "vistas.page_gerencia")
     ]
 }
 # --- 2. Lógica de Autenticación y Estado (Punto de Mejora Añadido) ---
