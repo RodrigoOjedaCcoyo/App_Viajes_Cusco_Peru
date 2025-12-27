@@ -182,9 +182,10 @@ def registro_ventas():
             key="img_Hotel"
         )
 
-        # Campo de Inicio y fin del Tour
+        # Campo de Inicio y fin del Tour y entrada a Machu Picchu
         n_fecha_inicio = st.date_input("Fecha de Inicio (dd/mm/aaaa)",date.today(), label_visibility="collapsed",key="img_fecha_inicio")
         n_fecha_fin = st.date_input("Fecha de Fin (dd/mm/aaaa)",date.today(), label_visibility="collapsed",key="img_fecha_fin")
+        n_fecha_Entrada_Machu = st.date_input("Fecha de Entrada a Machu Picchu",date.today(), label_visibility="collapsed",key="img_fecha_MachuPicchu")
 
         # Campo de Monto Total
         n_monto_total = st.number_input(
