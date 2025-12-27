@@ -13,8 +13,12 @@ ROLES = {
 }
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Aseguramos que Python encuentre las carpetas (Correcto)
-sys.path.append(BASE_DIR)
+# 🚨 CORRECCIÓN CLAVE: REEMPLAZA sys.path.append(BASE_DIR) por ESTE BLOQUE 🚨
+# 1. Aseguramos que Python encuentre las carpetas, dándole la MÁXIMA PRIORIDAD
+if BASE_DIR in sys.path:
+    sys.path.remove(BASE_DIR)
+# 2. Insertamos la ruta en la posición 0 (el primer lugar donde buscar)
+sys.path.insert(0, BASE_DIR)
 
 # Mapeo de roles a las funcionalidades (Correcto)
 MODULOS_VISIBLES = {
