@@ -11,9 +11,6 @@ venta_controller = VentaController()
 
 # --- Funcionalidades Internas ---
 
-def get_vendedor_id():
-    """Función auxiliar para obtener el ID del usuario/rol logueado."""
-    return st.session_state.get('user_role', 'Rol Desconocido')
 
 def formulario_registro_leads():
     """1. Sub-función para la funcionalidad 'Registro de Leads'."""

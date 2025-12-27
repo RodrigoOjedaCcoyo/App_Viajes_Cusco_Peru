@@ -24,8 +24,7 @@ MODULOS_VISIBLES = {
         ("Registro de Ventas", "vistas.page_ventas")
     ],
     "OPERACIONES": [
-        ("Seguimiento de Tours", "vistas.page_operaciones"), 
-        ("Actualización de Ventas", "vistas.page_operaciones") 
+        ("Dashboard Operaciones", "vistas.page_operaciones")
     ],
     "CONTABLE": [
         ("Reporte de Montos", "vistas.page_contabilidad"), 
@@ -94,16 +93,20 @@ def main():
         try:
             # Importa y ejecuta la función principal del módulo seleccionado
             modulo = importlib.import_module(pagina_seleccionada_archivo)
-            
-            # Pasamos la funcionalidad seleccionada a la vista
-            modulo.mostrar_pagina(funcionalidad_seleccionada) 
+            if pagina_seleccionada_archivo == "vistas.page_operaciones":
+                modulo.main_operaciones() # Llama a la función principal del dashboard
+            # Si es otro módulo (como page_ventas), usa la lógica original con el argumento funcionalidad.
+            elif hasattr(modulo, 'mostrar_pagina'):
+                modulo.mostrar_pagina(funcionalidad_seleccionada) 
+            else:
+                 st.error(f"Error: El módulo {pagina_seleccionada_archivo} no tiene la función de entrada esperada.")
+ 
             
         except ImportError as e:
             st.error(f"Error de Carga: No se pudo importar el módulo {pagina_seleccionada_archivo}. Revise la estructura de carpetas y el nombre del archivo.")
-            st.code(e)
         except AttributeError:
-             st.error(f"Error: La función 'mostrar_pagina()' no está definida en el módulo {pagina_seleccionada_archivo}.")
-
+            st.error(f"Error: La función 'mostrar_pagina()' no está definida en el módulo {pagina_seleccionada_archivo}.")
+            st.code(e)
     st.sidebar.markdown("---")
     st.sidebar.button("Cerrar Sesión", on_click=lambda: st.session_state.clear())
     
