@@ -97,6 +97,7 @@ def main():
         try:
             # Importa y ejecuta la función principal del módulo seleccionado
             modulo = importlib.import_module(pagina_seleccionada_archivo)
+            
             if pagina_seleccionada_archivo == "vistas.page_operaciones":
                 modulo.main_operaciones() # Llama a la función principal del dashboard
             # Si es otro módulo (como page_ventas), usa la lógica original con el argumento funcionalidad.
@@ -108,9 +109,9 @@ def main():
             
         except ImportError as e:
             st.error(f"Error de Carga: No se pudo importar el módulo {pagina_seleccionada_archivo}. Revise la estructura de carpetas y el nombre del archivo.")
-        except AttributeError:
-            st.error(f"Error: La función 'mostrar_pagina()' no está definida en el módulo {pagina_seleccionada_archivo}.")
-            st.code(e)
+        except AttributeError as e:
+            st.error(f"Error General Inesperado durante la ejecución del módulo: {e}")
+            
     st.sidebar.markdown("---")
     st.sidebar.button("Cerrar Sesión", on_click=lambda: st.session_state.clear())
     
