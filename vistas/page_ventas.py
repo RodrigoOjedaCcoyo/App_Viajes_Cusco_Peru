@@ -153,12 +153,12 @@ def registro_ventas():
         )
 
         # Campo Seleccion del Tour
-        tour_opciones = ['Seleccione Tour', 'Machu Picchu Full Day', 'Valles Sagrado', 'Ausangate', 'Otro']
+        tour_opciones = ['Seleccione Tour', 'Machu Picchu Full Day', 'Valle Sagrado', 'Ausangate', 'Otro']
         n_tour = st.selectbox(
-            "Tour"
+            "Tour",
             options=tour_opciones,
             index=0,
-            label_visibility="Collapsed",
+            label_visibility="collapsed",
             key="img_tour_select"
         )
 
@@ -184,7 +184,7 @@ def registro_ventas():
 
         # Campo de Inicio y fin del Tour
         n_fecha_inicio = st.date_input("Fecha de Inicio (dd/mm/aaaa)",date.today(), label_visibility="collapsed",key="img_fecha_inicio")
-        n_fecha_fin = st.date_input("Fecha de Fin (dd/mm/aaaa)",date.today(), label_visibility="collapsed",key="img_fecha_inicio")
+        n_fecha_fin = st.date_input("Fecha de Fin (dd/mm/aaaa)",date.today(), label_visibility="collapsed",key="img_fecha_fin")
 
         # Campo de Monto Total
         n_monto_total = st.number_input(
@@ -200,7 +200,7 @@ def registro_ventas():
         n_monto_depositado = st.number_input(
             "Monto Depositado",
             min_value=0.0,
-            sept=1.0,
+            step=1.0,
             label_visibility="collapsed",
             placeholder="Monto depositado",
             key="img_monto_depositado"
@@ -213,7 +213,7 @@ def registro_ventas():
             options=Comprobante_opciones,
             index=0,
             label_visibility="collapsed",
-            key= 'img_comprobante"
+            key= 'img_comprobante'
         )
         
         # Campo de Carga de archivos
@@ -227,21 +227,21 @@ def registro_ventas():
 
         if submitted:
             # --- Logica de validacion y envio minimo ---
-            if not n_celular or n_vendedor = 'Seleccione vendedor' or n_monto_total <=0:
+            if not n_celular or n_vendedor =='Seleccione vendedor' or n_monto_total <=0:
                 st.error('Los campos Celular, Vendedor y Monto Total son obligatorios')
             elif n_tour == 'Seleccione Tour':
                 st.error('Debe seleccionar un Tour Valido')
             else:
-                exito, mensaje = venta_controller.registro_venta_directa(
+                exito, mensaje = venta_controller.registrar_venta_directa(
                     telefono=n_celular,
                     origen=n_tour,
-                    Monto=n_monto_total,
-                    Tour=n_tour,
+                    monto=n_monto_total,
+                    tour=n_tour,
                     fecha_tour = n_fecha_inicio.strftime("%Y-%m-%d"),
                     vendedor=n_vendedor
                 )
             if exito:
-                std.success(mensaje)
+                st.success(mensaje)
                 st.rerun()
             else:
                 st.error(mensaje)
