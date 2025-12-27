@@ -135,54 +135,54 @@ def registro_ventas():
     with st.form("form_registro_venta"):
 
         # Campo Numero de Celular
-        n_celular = st.text_input("Numero de Celular", help="Ingrese el numero de celular de se contacto")
+        n_celular = st.text_input("**Numero de Celular**", help="Ingrese el numero de celular de se contacto")
 
         # Campo Seleccion de Vendedor
         n_vendedor = st.selectbox(
-            "Seleccione al Vendedor",
+            "**Seleccione al Vendedor**",
             ["Angel", "Abel"]
         )
 
         # Campo Seleccion del Tour
         n_tour = st.selectbox(
-            "Seleccione el Tour",
+            "**Seleccione el Tour**",
             ["Cusco", "Lima", "Machu Picchu", "Puno"]
         )
 
         # Campo Seleccion del Idioma
         n_idioma = st.selectbox(
-            "Idioma",
+            "**Idioma**",
             ['Español','Ingles','Portugues','Otro']
         )
 
         # Campo Seleccion del Hotel
         n_Hotel = st.selectbox(
-            "Hotel",
+            "**Hotel**",
             ["Sin Hotel", "Con Hotel"]
         )
 
         # Campo de Inicio y fin del Tour y entrada a Machu Picchu
-        n_fecha_inicio = st.date_input("Fecha de Inicio (dd/mm/aaaa)",date.today())
-        n_fecha_fin = st.date_input("Fecha de Fin (dd/mm/aaaa)",date.today())
-        n_fecha_Entrada_Machu = st.date_input("Fecha de Entrada a Machu Picchu",date.today())
+        n_fecha_inicio = st.date_input("***Fecha de Inicio***",date.today())
+        n_fecha_fin = st.date_input("***Fecha de Fin***",date.today())
+        n_fecha_Entrada_Machu = st.date_input("***Fecha de Entrada a Machu Picchu***",date.today())
 
         # Campo de Monto Total
         n_monto_total = st.number_input(
-            "Monto Total",
+            "**Monto Total**",
             min_value=0.0,
             step=1.0
         )
         
         #Campo de Monto Depositado
         n_monto_depositado = st.number_input(
-            "Monto Depositado",
+            "**Monto Depositado**",
             min_value=0.0,
             step=1.0,
         )
 
         # Campo de Seleccion de Comprobante
         n_comprobante = st.selectbox(
-            "Comprobante",
+            "**Comprobante**",
             ['Factura', 'Boleta']
         )
         
