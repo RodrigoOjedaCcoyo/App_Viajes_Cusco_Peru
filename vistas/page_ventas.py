@@ -126,59 +126,125 @@ def seguimiento_leads():
 
 def registro_ventas():
     """3. Sub-función para la funcionalidad 'Registro de Ventas' (Conversión)."""
-    st.title("💰 Conversión y Registro de Venta")
+    st.title("💰 Registro de Venta")
     st.markdown("---")
     
     vendedor_actual = get_vendedor_id()
-    
-    # Obtener Leads disponibles para la conversión (solo los que no están convertidos o no interesados)
-    todos_los_leads = lead_controller.obtener_leads_del_vendedor(vendedor_actual)
-    leads_convertibles = [l for l in todos_los_leads if l['estado'] not in ["Convertido (Vendido)", "No Interesado"]]
-    
-    if not leads_convertibles:
-        st.warning("No tienes Leads activos (Nuevos o en Seguimiento) para convertir en venta.")
-        return
+    # st.write(f"Registrando Venta a cargo de: **{vendedor_actual}**")
 
-    # Mapeo de leads para el selector: 'ID - Teléfono (Estado)'
-    opciones_leads = [f"ID {l['id']} - {l['telefono']} ({l['estado']})" for l in leads_convertibles]
-    
     with st.form("form_registro_venta"):
-        st.write(f"Registrando Venta a cargo de: **{vendedor_actual}**")
-        
-        # Selector de Lead
-        lead_seleccionado_str = st.selectbox(
-            "Seleccione el Lead a convertir en Venta",
-            opciones_leads
+
+        # Campo Numero de Celular
+        n_celular = st.text_input(
+            "Numero de Celular (11 digitos)",
+            label_visibility="collapsed",
+            placeholder = "Numero de Celular",
+            key = "img_tel"
+        )
+
+        # Campo Seleccion de Vendedor
+        vendedores_opciones = ['Seleccione vendedor', 'Angel', 'Abel']
+        n_vendedor = st.selectbox(
+            "Vendedor",
+            options=vendedores_opciones,
+            index=0,
+            label_visibility="Collapsed",
+            key="img_vendedor"
+        )
+
+        # Campo Seleccion del Tour
+        tour_opciones = ['Seleccione Tour', 'Machu Picchu Full Day', 'Valles Sagrado', 'Ausangate', 'Otro']
+        n_tour = st.selectbox(
+            "Tour"
+            options=tour_opciones,
+            index=0,
+            label_visibility="Collapsed",
+            key="img_tour_select"
+        )
+
+        # Campo Seleccion del Idioma
+        Idioma_opciones = ['Seleccione idioma','Español','Ingles','Portugues','Otro']
+        n_idioma = st.selectbox(
+            "Idioma",
+            options=Idioma_opciones,
+            index=0,
+            label_visibility="collapsed",
+            key="img_idioma"
+        )
+
+        # Campo Seleccion del Hotel
+        Hotel_opciones = ["Seleccione Hotel", "Sin Hotel", "Con Hotel"]
+        n_Hotel = st.selectbox(
+            "Hotel",
+            options=Hotel_opciones,
+            index=0,
+            label_visibility="collapsed",
+            key="img_Hotel"
+        )
+
+        # Campo de Inicio y fin del Tour
+        n_fecha_inicio = st.date_input("Fecha de Inicio (dd/mm/aaaa)",date.today(), label_visibility="collapsed",key="img_fecha_inicio")
+        n_fecha_fin = st.date_input("Fecha de Fin (dd/mm/aaaa)",date.today(), label_visibility="collapsed",key="img_fecha_inicio")
+
+        # Campo de Monto Total
+        n_monto_total = st.number_input(
+            "Monto Total",
+            min_value=0.0,
+            step=1.0,
+            label_visibility="collapsed",
+            placeholder="Monto Total",
+            key="img_monto_total"
         )
         
-        # Extracción del ID del Lead
-        lead_id = int(lead_seleccionado_str.split(' ')[1])
+        #Campo de Monto Depositado
+        n_monto_depositado = st.number_input(
+            "Monto Depositado",
+            min_value=0.0,
+            sept=1.0,
+            label_visibility="collapsed",
+            placeholder="Monto depositado",
+            key="img_monto_depositado"
+        )
 
-        # Campos de la Venta
-        col1, col2 = st.columns(2)
-        with col1:
-            monto_total = st.number_input("Monto Total de la Venta (USD)", min_value=10.0, step=1.0, key="monto_venta")
-            tour_paquete = st.text_input("Nombre del Tour o Paquete Vendido", key="tour_nombre")
-        with col2:
-            fecha_tour = st.date_input("Fecha de Inicio del Tour", date.today(), key="fecha_tour_venta")
+        # Campo de Seleccion de Comprobante
+        Comprobante_opciones = ['Seleccione comprobante', 'Factura', 'Boleta']
+        n_comprobante = st.selectbox(
+            "Comprobante",
+            options=Comprobante_opciones,
+            index=0,
+            label_visibility="collapsed",
+            key= 'img_comprobante"
+        )
         
-        submitted = st.form_submit_button("Confirmar Venta y Marcar Lead como Convertido")
-        
+        # Campo de Carga de archivos
+        st.markdown("**Documentos**")
+        n_archivos = st.file_uploader("Elegir archivo", type=['pdf','jpg','png'],accept_multiple_files=True, label_visibility='collapsed', key='img_archivos')
+
+        st.markdown("---")
+
+        # Botón REGISTRAR
+        submitted = st.form_submit_button("REGISTRAR", type="primary", use_container_width=True)
+
         if submitted:
-            exito, mensaje = venta_controller.registrar_nueva_venta(
-                lead_id, 
-                monto_total, 
-                tour_paquete, 
-                fecha_tour.strftime("%Y-%m-%d"), 
-                vendedor_actual
-            )
-            
+            # --- Logica de validacion y envio minimo ---
+            if not n_celular or n_vendedor = 'Seleccione vendedor' or n_monto_total <=0:
+                st.error('Los campos Celular, Vendedor y Monto Total son obligatorios')
+            elif n_tour == 'Seleccione Tour':
+                st.error('Debe seleccionar un Tour Valido')
+            else:
+                exito, mensaje = venta_controller.registro_venta_directa(
+                    telefono=n_celular,
+                    origen=n_tour,
+                    Monto=n_monto_total,
+                    Tour=n_tour,
+                    fecha_tour = n_fecha_inicio.strftime("%Y-%m-%d"),
+                    vendedor=n_vendedor
+                )
             if exito:
-                st.success(mensaje)
-                st.rerun() 
+                std.success(mensaje)
+                st.rerun()
             else:
                 st.error(mensaje)
-
 
 # ----------------------------------------------------------------------
 # FUNCIÓN PRINCIPAL DE LA VISTA (Llamada por main.py)
