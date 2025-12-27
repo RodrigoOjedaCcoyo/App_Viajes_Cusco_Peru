@@ -148,7 +148,7 @@ def registro_ventas():
             "Vendedor",
             options=vendedores_opciones,
             index=0,
-            label_visibility="Collapsed",
+            label_visibility="collapsed",
             key="img_vendedor"
         )
 
