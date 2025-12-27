@@ -10,7 +10,13 @@ lead_controller = LeadController()
 venta_controller = VentaController()
 
 # --- Funcionalidades Internas ---
-
+def get_vendedor_id():
+    """
+    Retorna el rol del usuario logueado, que se utiliza como identificador
+    para el vendedor o el operador que realiza la acción.
+    """
+    # La clave 'user_role' se establece durante el inicio de sesión en main.py.
+    return st.session_state.get('user_role', 'Desconocido')
 
 def formulario_registro_leads():
     """1. Sub-función para la funcionalidad 'Registro de Leads'."""
