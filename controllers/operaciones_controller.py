@@ -1,5 +1,4 @@
 # controllers/operaciones_controller.py
-
 from models.operaciones_model import VentaModel, PasajeroModel, DocumentacionModel, TareaModel
 from datetime import date, timedelta
 import pandas as pd
