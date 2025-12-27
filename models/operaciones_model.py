@@ -1,6 +1,6 @@
 # models/operaciones_model.py
 
-from .base_model import BaseModel 
+from models.base_model import BaseModel 
 # Asegúrate de que 'models/base_model.py' está en tu directorio de modelos
 from datetime import date
 
