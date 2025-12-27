@@ -125,7 +125,7 @@ def seguimiento_leads():
 # ----------------------------------------------------------------------
 
 def registro_ventas():
-    """3. Sub-función para la funcionalidad 'Registro de Ventas' (Conversión)."""
+    """3. Sub-función para la funcionalidad 'Registro de Ventas'."""
     st.title("💰 Registro de Venta")
     st.markdown("---")
     
@@ -135,66 +135,42 @@ def registro_ventas():
     with st.form("form_registro_venta"):
 
         # Campo Numero de Celular
-        n_celular = st.text_input(
-            "Numero de Celular (11 digitos)",
-            label_visibility="collapsed",
-            placeholder = "Numero de Celular",
-            key = "img_tel"
-        )
+        n_celular = st.text_input("Numero de Celular", help="Ingrese el numero de celular de se contacto")
 
         # Campo Seleccion de Vendedor
-        vendedores_opciones = ['Seleccione vendedor', 'Angel', 'Abel']
         n_vendedor = st.selectbox(
-            "Vendedor",
-            options=vendedores_opciones,
-            index=0,
-            label_visibility="collapsed",
-            key="img_vendedor"
+            "Seleccione al Vendedor",
+            ["Angel", "Abel"]
         )
 
         # Campo Seleccion del Tour
-        tour_opciones = ['Seleccione Tour', 'Machu Picchu Full Day', 'Valle Sagrado', 'Ausangate', 'Otro']
         n_tour = st.selectbox(
-            "Tour",
-            options=tour_opciones,
-            index=0,
-            label_visibility="collapsed",
-            key="img_tour_select"
+            "Seleccione el Tour",
+            ["Cusco", "Lima", "Machu Picchu", "Puno"]
         )
 
         # Campo Seleccion del Idioma
-        Idioma_opciones = ['Seleccione idioma','Español','Ingles','Portugues','Otro']
         n_idioma = st.selectbox(
             "Idioma",
-            options=Idioma_opciones,
-            index=0,
-            label_visibility="collapsed",
-            key="img_idioma"
+            ['Español','Ingles','Portugues','Otro']
         )
 
         # Campo Seleccion del Hotel
-        Hotel_opciones = ["Seleccione Hotel", "Sin Hotel", "Con Hotel"]
         n_Hotel = st.selectbox(
             "Hotel",
-            options=Hotel_opciones,
-            index=0,
-            label_visibility="collapsed",
-            key="img_Hotel"
+            ["Sin Hotel", "Con Hotel"]
         )
 
         # Campo de Inicio y fin del Tour y entrada a Machu Picchu
-        n_fecha_inicio = st.date_input("Fecha de Inicio (dd/mm/aaaa)",date.today(), label_visibility="collapsed",key="img_fecha_inicio")
-        n_fecha_fin = st.date_input("Fecha de Fin (dd/mm/aaaa)",date.today(), label_visibility="collapsed",key="img_fecha_fin")
-        n_fecha_Entrada_Machu = st.date_input("Fecha de Entrada a Machu Picchu",date.today(), label_visibility="collapsed",key="img_fecha_MachuPicchu")
+        n_fecha_inicio = st.date_input("Fecha de Inicio (dd/mm/aaaa)",date.today())
+        n_fecha_fin = st.date_input("Fecha de Fin (dd/mm/aaaa)",date.today())
+        n_fecha_Entrada_Machu = st.date_input("Fecha de Entrada a Machu Picchu",date.today())
 
         # Campo de Monto Total
         n_monto_total = st.number_input(
             "Monto Total",
             min_value=0.0,
-            step=1.0,
-            label_visibility="collapsed",
-            placeholder="Monto Total",
-            key="img_monto_total"
+            step=1.0
         )
         
         #Campo de Monto Depositado
@@ -202,23 +178,16 @@ def registro_ventas():
             "Monto Depositado",
             min_value=0.0,
             step=1.0,
-            label_visibility="collapsed",
-            placeholder="Monto depositado",
-            key="img_monto_depositado"
         )
 
         # Campo de Seleccion de Comprobante
-        Comprobante_opciones = ['Seleccione comprobante', 'Factura', 'Boleta']
         n_comprobante = st.selectbox(
             "Comprobante",
-            options=Comprobante_opciones,
-            index=0,
-            label_visibility="collapsed",
-            key= 'img_comprobante'
+            ['Factura', 'Boleta']
         )
         
         # Campo de Carga de archivos
-        st.markdown("**Documentos**")
+        st.markdown("**Itinerario y Boleta**")
         n_archivos = st.file_uploader("Elegir archivo", type=['pdf','jpg','png'],accept_multiple_files=True, label_visibility='collapsed', key='img_archivos')
 
         st.markdown("---")
