@@ -3,7 +3,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from datetime import date
+from datetime import date, timedelta
 from controllers.operaciones_controller import OperacionesController
 
 # Inicializar el controlador para usar la lógica de negocio
