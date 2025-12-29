@@ -78,12 +78,6 @@ def fetch_app_role(user_uuid):
 def handle_login_supabase(email, password):
     """Maneja el inicio de sesion"""
 
-    DOMINIO_PERMITIDO = "ojedaccoyorodrigo@gmail.com"
-
-    if DOMINIO_PERMITIDO not in email.lower():
-        st.error(f'Acceso restringido. Solo se permite correos del dominio {DOMINIO_PERMITIDO}')  
-        return
-
     try:
         # 1. Autneticacion de Supabase Auth (CLAVE para RLS)
         user_session = supabase.auth.sign_in_with_password({
@@ -96,7 +90,7 @@ def handle_login_supabase(email, password):
         # 2. Determinar el rol de la aplicacion usando el UUID
         app_role = fetch_app_role(user_uuid)
 
-        if app_role == 'SIN ROL':
+        if app_role == 'SIN_ROL':
             st.error("Su correo esta en la base de datos, pero no esta asignado a un rol")
             supabase.auth.sign_out()
             return
