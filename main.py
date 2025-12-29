@@ -78,7 +78,7 @@ def fetch_app_role(user_uuid):
 def handle_login_supabase(email, password):
     """Maneja el inicio de sesion"""
 
-    DOMINIO_PERMITIDO = "@suempresa.com"
+    DOMINIO_PERMITIDO = "ojedaccoyorodrigo@gmail.com"
 
     if DOMINIO_PERMITIDO not in email.lower():
         st.error(f'Acceso restringido. Solo se permite correos del dominio {DOMINIO_PERMITIDO}')  
