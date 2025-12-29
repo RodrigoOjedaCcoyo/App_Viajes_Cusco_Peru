@@ -1,8 +1,9 @@
-# main.py (Corregido)
+# main.py 
 import streamlit as st
 import sys
 import os
 import importlib
+import Supabase
 
 # --- 1. Configuración de Roles y Rutas ---
 ROLES = {

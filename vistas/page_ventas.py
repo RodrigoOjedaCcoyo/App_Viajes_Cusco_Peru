@@ -3,7 +3,10 @@ import streamlit as st
 import pandas as pd
 from controllers.lead_controller import LeadController
 from controllers.venta_controller import VentaController
+import plotly.express as px
+import matplotlib.pyplot as plt
 from datetime import date
+import matplotlib as mp
 
 # Inicializar controladores
 lead_controller = LeadController()

@@ -3,6 +3,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import matplotlib.pyplot as plt
 from datetime import date, timedelta
 from controllers.operaciones_controller import OperacionesController
 
