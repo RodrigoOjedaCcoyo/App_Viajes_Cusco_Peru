@@ -113,7 +113,7 @@ def logout_user():
     """Cierra la sesion del usuario y limpia el estado."""
     supabase.auth.sign_out()
     st.session_state.clear()
-    st.experimental_rerun()
+    st.rerun()
 
 def main():
     st.set_page_config(page_title="SGVO - Cusco", layout="wide") # Nombre de la pestaña
