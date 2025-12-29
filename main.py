@@ -73,7 +73,7 @@ def fetch_app_role(user_uuid):
         return 'CONTABLE'
     if supabase.from('Gerente_Mapeo').select('id_gerente_int').eq('id_supabase_uuid', user_uuid).execute().data:
         return 'GERENCIA'
-    return 'SIN ROL'
+    return 'SIN_ROL'
 
 def handle_login_supabase(email, password):
     """Maneja el inicio de sesion"""
