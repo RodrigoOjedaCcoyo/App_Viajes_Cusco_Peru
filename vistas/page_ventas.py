@@ -143,25 +143,29 @@ def registro_ventas():
         # Campo Seleccion de Vendedor
         n_vendedor = st.selectbox(
             "**Seleccione al Vendedor**",
-            ["Angel", "Abel"]
+            ["---Seleccione---","Angel", "Abel"]
+            index=0
         )
 
         # Campo Seleccion del Tour
         n_tour = st.selectbox(
             "**Seleccione el Tour**",
-            ["Cusco", "Lima", "Machu Picchu", "Puno"]
+            ["---Seleccione---","Cusco", "Lima", "Machu Picchu", "Puno"]
+            index=0
         )
 
         # Campo Seleccion del Idioma
         n_idioma = st.selectbox(
             "**Idioma**",
-            ['Español','Ingles','Portugues','Otro']
+            ['---Seleccione---','Español','Ingles','Portugues','Otro']
+            index=0
         )
 
         # Campo Seleccion del Hotel
         n_Hotel = st.selectbox(
             "**Hotel**",
-            ["Sin Hotel", "Con Hotel"]
+            ["---Seleccione---","Sin Hotel", "Con Hotel"]
+            index=0
         )
 
         # Campo de Inicio y fin del Tour y entrada a Machu Picchu
@@ -186,7 +190,8 @@ def registro_ventas():
         # Campo de Seleccion de Comprobante
         n_comprobante = st.selectbox(
             "**Comprobante**",
-            ['Factura', 'Boleta']
+            ['---Seleccione---','Factura', 'Boleta']
+            index=0
         )
         
         # Campo de Carga de archivos
