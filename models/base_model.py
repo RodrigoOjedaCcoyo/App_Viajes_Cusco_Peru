@@ -22,7 +22,7 @@ class BaseModel:
             if item.get('id') == item_id:
                 return item
         return None 
-        
+
     def save(self, data: dict):
         new_id = st.session_state[f"{self.key}_next_id"]
         data['id'] = new_id
