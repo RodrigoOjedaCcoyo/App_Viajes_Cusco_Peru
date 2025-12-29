@@ -39,10 +39,10 @@ MODULOS_VISIBLES = {
 # -- 2. Inicializacion de Supabase (CLAVE por RLS)
 try:
     SUPABASE_URL = st.secrets["supabase"]["URL"]
-    SUPABASE_ANON_KEY = st.secrets["supabase"]["ANOM_KEY"]
+    SUPABASE_ANON_KEY = st.secrets["supabase"]["ANON_KEY"]
 except KeyError:
     st.error("Error: Las credenciales de Supabase no estan configurado en st.secrets.")
-    st.top()
+    st.stop()
 
 @st.cache_resource
 def init_supabase_client() -> Client:
@@ -65,13 +65,13 @@ def fetch_app_role(user_uuid):
     """
     Busca el UUID del usuario en las tablas de mapeo para determinar el rol de la aplicación.
     """
-    if supabase.from('Vendedor_Mapeo').select('id_vendedor_init').eq('id_supabase_uuid', user_uuid).execute().data:
+    if supabase.from('Vendedor_Mapeo').select('id_vendedor_int').eq('id_supabase_uuid', user_uuid).execute().data:
         return 'VENTAS'
-    if supabase.from('Operador_Mapeo').select('id_operador_init').eq('id_supabase_uuid', user_uuid).execute().data:
+    if supabase.from('Operador_Mapeo').select('id_operador_int').eq('id_supabase_uuid', user_uuid).execute().data:
         return 'OPERACIONES'
-    if supabase.from('Contador_Mapeo').select('id_contador_init').eq('id_supabase_uuid', user_uuid).execute().data:
+    if supabase.from('Contador_Mapeo').select('id_contador_int').eq('id_supabase_uuid', user_uuid).execute().data:
         return 'CONTABLE'
-    if supabase.from('Gerente_Mapeo').select('id_gerente_init').eq('id_supabase_uuid', user_uuid).execute().data:
+    if supabase.from('Gerente_Mapeo').select('id_gerente_int').eq('id_supabase_uuid', user_uuid).execute().data:
         return 'GERENCIA'
     return 'SIN ROL'
 
@@ -162,7 +162,7 @@ def main():
             
             if hasattr(modulo, 'mostrar_pagina'):
                 # Pasamos el cliente Supabase para que las vistas puedan hacer consultas seguras 
-                modulo.mostrar_pagina(funcionalidad_seleccionada, rol_actual= rol, init_supabase_client=supabase) 
+                modulo.mostrar_pagina(funcionalidad_seleccionada, rol_actual= rol, supabase_client=supabase)   
             else:
                  st.error(f"Error: El módulo {pagina_seleccionada_archivo} no tiene la función de entrada esperada.")
  
