@@ -3,7 +3,7 @@ import streamlit as st
 import sys
 import os
 import importlib
-import Supabase import create_client, Client
+import supabase import create_client, Client
 
 # --- 1. Configuración de Roles y Rutas ---
 ROLES = ["VENTAS", "OPERACIONES", "CONTABLE", "GERENCIA"]
