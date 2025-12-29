@@ -30,13 +30,15 @@ def formulario_registro_leads():
         telefono = st.text_input("Número de Celular", help="Ingrese el número de contacto principal")
         Red_Social_Origen = st.selectbox(
             "Seleccione Red Social",
-            ["Instagram", "Facebook", "Tik Tok", "Web", "Otro"],
-            help= "Medio por el cual ingreso el Lead"
+            ["---Seleccione---","Instagram", "Facebook", "Tik Tok", "Web", "Otro"],
+            help= "Medio por el cual ingreso el Lead",
+            index=0
         )
         # Opciones de vendedores: Puedes cambiar esto para que filtre por rol si lo prefieres.
         vendedor_seleccionado = st.selectbox(
             "Seleccione vendedor",
-            ["Angel", "Abel"]
+            ["---Seleccione---","Angel", "Abel"],
+            index=0
         )
 
         submitted = st.form_submit_button("Guardar Lead")
@@ -143,28 +145,28 @@ def registro_ventas():
         # Campo Seleccion de Vendedor
         n_vendedor = st.selectbox(
             "**Seleccione al Vendedor**",
-            ["---Seleccione---","Angel", "Abel"]
+            ["---Seleccione---","Angel", "Abel"],
             index=0
         )
 
         # Campo Seleccion del Tour
         n_tour = st.selectbox(
             "**Seleccione el Tour**",
-            ["---Seleccione---","Cusco", "Lima", "Machu Picchu", "Puno"]
+            ["---Seleccione---","Cusco", "Lima", "Machu Picchu", "Puno"],
             index=0
         )
 
         # Campo Seleccion del Idioma
         n_idioma = st.selectbox(
             "**Idioma**",
-            ['---Seleccione---','Español','Ingles','Portugues','Otro']
+            ['---Seleccione---','Español','Ingles','Portugues','Otro'],
             index=0
         )
 
         # Campo Seleccion del Hotel
         n_Hotel = st.selectbox(
             "**Hotel**",
-            ["---Seleccione---","Sin Hotel", "Con Hotel"]
+            ["---Seleccione---","Sin Hotel", "Con Hotel"],
             index=0
         )
 
@@ -190,7 +192,7 @@ def registro_ventas():
         # Campo de Seleccion de Comprobante
         n_comprobante = st.selectbox(
             "**Comprobante**",
-            ['---Seleccione---','Factura', 'Boleta']
+            ['---Seleccione---','Factura', 'Boleta'],
             index=0
         )
         
