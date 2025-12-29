@@ -10,12 +10,21 @@ class BaseModel:
     def __init__(self, key: str):
         self.key = key 
         if self.key not in st.session_state:
-            st.session_state[self.key] = [] 
+            st.session_state[self.key] = []
             st.session_state[f"{self.key}_next_id"] = 1 
 
     def get_all(self):
         return st.session_state[self.key]
 
+    def get_by_id(self, item_id: int):
+        """Busca un ítem en la lista por su ID."""
+        for item in st.session_state[self.key]:
+            if item.get('id') == item_id:
+                return item
+        return None 
+        
+    def update_by_id(self, item_id: int, data: dict):
+        
     def save(self, data: dict):
         new_id = st.session_state[f"{self.key}_next_id"]
         data['id'] = new_id
