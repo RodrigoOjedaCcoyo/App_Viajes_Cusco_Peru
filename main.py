@@ -3,21 +3,16 @@ import streamlit as st
 import sys
 import os
 import importlib
-import Supabase
+import Supabase import create_client, Client
 
 # --- 1. Configuración de Roles y Rutas ---
-ROLES = {
-    "VENTAS": "1234",
-    "OPERACIONES": "5678",
-    "CONTABLE": "9012",
-    "GERENCIA": "0000"
-}
+ROLES = ["VENTAS", "OPERACIONES", "CONTABLE", "GERENCIA"]
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# 🚨 CORRECCIÓN CLAVE: REEMPLAZA sys.path.append(BASE_DIR) por ESTE BLOQUE 🚨
 # 1. Aseguramos que Python encuentre las carpetas, dándole la MÁXIMA PRIORIDAD
 if BASE_DIR in sys.path:
     sys.path.remove(BASE_DIR)
+
 # 2. Insertamos la ruta en la posición 0 (el primer lugar donde buscar)
 sys.path.insert(0, BASE_DIR)
 
@@ -40,23 +35,85 @@ MODULOS_VISIBLES = {
         ("Auditoría Completa", "vistas.page_gerencia")
     ]
 }
-# --- 2. Lógica de Autenticación y Estado (Punto de Mejora Añadido) ---
 
+# -- 2. Inicializacion de Supabase (CLAVE por RLS)
+try:
+    SUPABASE_URL = st.secrets["supabase"]["URL"]
+    SUPABASE_ANON_KEY = st.secrets["supabase"]["ANOM_KEY"]
+except KeyError:
+    st.error("Error: Las credenciales de Supabase no estan configurado en st.secrets.")
+    st.top()
+
+@st.cache_resource
+def init_supabase_client() -> Client:
+    """Inicializa y cachea el cliente se Supabase."""
+    return create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+supabase: Client = init_supabase_client()
+
+# --- 3. Logica de Autenticación y Estado ---
 if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = False
 if 'user_role' not in st.session_state:
     st.session_state['user_role'] = None
+if 'user_email' not in st.session_state:
+    st.session_state['user_email'] = None
 
+# Modificacion añadimiento de los roles
+@st.cache_data
+def fetch_app_role(user_uuid):
+    """
+    Busca el UUID del usuario en las tablas de mapeo para determinar el rol de la aplicación.
+    """
+    if supabase.from('Vendedor_Mapeo').select('id_vendedor_init').eq('id_supabase_uuid', user_uuid).execute().data:
+        return 'VENTAS'
+    if supabase.from('Operador_Mapeo').select('id_operador_init').eq('id_supabase_uuid', user_uuid).execute().data:
+        return 'OPERACIONES'
+    if supabase.from('Contador_Mapeo').select('id_contador_init').eq('id_supabase_uuid', user_uuid).execute().data:
+        return 'CONTABLE'
+    if supabase.from('Gerente_Mapeo').select('id_gerente_init').eq('id_supabase_uuid', user_uuid).execute().data:
+        return 'GERENCIA'
+    return 'SIN ROL'
 
-def handle_login(password):
-    """Verifica la contraseña y establece el rol en el estado de la sesión."""
-    for role, clave in ROLES.items():
-        if password == clave:
-            st.session_state['authenticated'] = True
-            st.session_state['user_role'] = role
-            st.rerun() 
+def handle_login_supabase(email, password):
+    """Maneja el inicio de sesion"""
+
+    DOMINIO_PERMITIDO = "@suempresa.com"
+
+    if DOMINIO_PERMITIDO not in email.lower():
+        st.error(f'Acceso restringido. Solo se permite correos del dominio {DOMINIO_PERMITIDO}')  
+        return
+
+    try:
+        # 1. Autneticacion de Supabase Auth (CLAVE para RLS)
+        user_session = supabase.auth.sign_in_with_password({
+            "email": email,
+            "password" : password,
+        })
+
+        user_uuid = user_session.user.id
+
+        # 2. Determinar el rol de la aplicacion usando el UUID
+        app_role = fetch_app_role(user_uuid)
+
+        if app_role == 'SIN ROL':
+            st.error("Su correo esta en la base de datos, pero no esta asignado a un rol")
+            supabase.auth.sign_out()
             return
-    st.error("Contraseña incorrecta. Acceso denegado.")
+
+        # 3. Establecer el estado
+        st.session_state['authenticated'] = True
+        st.session_state['user_role'] = app_role
+        st.session_state['user_email'] = email
+        st.experimental_rerun()
+    except Exception as e:
+        st.error(f'Error de autenticacion. Verifique su correo electronico y contraseña: {e}')
+
+def logout_user():
+    """Cierra la sesion del usuario y limpia el estado."""
+    supabase.auth.sign_out()
+    st.session_state.clear()
+    st.experimental_rerun()
 
 def main():
     st.set_page_config(page_title="SGVO - Cusco", layout="wide") # Nombre de la pestaña
@@ -64,12 +121,13 @@ def main():
     if not st.session_state['authenticated']:
         # ... Lógica de Login (Correcta) ...
         st.title("🔐 Sistema VCP - Iniciar Sesión")
-        st.warning("Ingrese la contraseña de su área para acceder .")
+        st.warning("Ingrese su correo y su contraseña de su área para acceder .")
         
         with st.form("login_form"):
-            password = st.text_input("Contraseña de Acceso", type="password")
+            email = st.text_input("Correo Electronico")
+            password = st.text_input("Contraseña", type="password")
             if st.form_submit_button("Entrar"):
-                handle_login(password)
+                handle_login_supabase(email, password)
         return
 
     # --- 3. Lógica Principal de Navegación (para autenticados) ---
@@ -83,6 +141,9 @@ def main():
     if paginas_permitidas:
         # Se renombra 'nombres_modulos' a 'nombres_funcionalidades' para claridad
         nombres_funcionalidades = [nombre for nombre, _ in paginas_permitidas] 
+        
+        st.sidebar.markdown("---")
+        st.sidebar.info(f"Usuario: {st.session_state['user_email']}")
         
         # Seleccion de página en el sidebar
         index_seleccionado = st.sidebar.selectbox(
@@ -99,22 +160,20 @@ def main():
             # Importa y ejecuta la función principal del módulo seleccionado
             modulo = importlib.import_module(pagina_seleccionada_archivo)
             
-            if pagina_seleccionada_archivo == "vistas.page_operaciones":
-                modulo.main_operaciones() # Llama a la función principal del dashboard
-            # Si es otro módulo (como page_ventas), usa la lógica original con el argumento funcionalidad.
-            elif hasattr(modulo, 'mostrar_pagina'):
-                modulo.mostrar_pagina(funcionalidad_seleccionada) 
+            if hasattr(modulo, 'mostrar_pagina'):
+                # Pasamos el cliente Supabase para que las vistas puedan hacer consultas seguras 
+                modulo.mostrar_pagina(funcionalidad_seleccionada, rol_actual= rol, init_supabase_client=supabase) 
             else:
                  st.error(f"Error: El módulo {pagina_seleccionada_archivo} no tiene la función de entrada esperada.")
  
             
         except ImportError as e:
             st.error(f"Error de Carga: No se pudo importar el módulo {pagina_seleccionada_archivo}. Revise la estructura de carpetas y el nombre del archivo.")
-        except AttributeError as e:
+        except Exception as e:
             st.error(f"Error General Inesperado durante la ejecución del módulo: {e}")
             
     st.sidebar.markdown("---")
-    st.sidebar.button("Cerrar Sesión", on_click=lambda: st.session_state.clear())
+    st.sidebar.button("Cerrar Sesión", on_click=logout_user)
     
 if __name__ == "__main__":
     main()
