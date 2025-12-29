@@ -23,8 +23,6 @@ class BaseModel:
                 return item
         return None 
         
-    def update_by_id(self, item_id: int, data: dict):
-        
     def save(self, data: dict):
         new_id = st.session_state[f"{self.key}_next_id"]
         data['id'] = new_id
