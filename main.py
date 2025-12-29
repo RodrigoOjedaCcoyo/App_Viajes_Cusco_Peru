@@ -65,13 +65,13 @@ def fetch_app_role(user_uuid):
     """
     Busca el UUID del usuario en las tablas de mapeo para determinar el rol de la aplicación.
     """
-    if supabase.table('Vendedor_Mapeo').select('id_vendedor_int').eq('id_supabase_uuid', user_uuid).execute().data:
+    if supabase.table('vendedor_mapeo').select('id_vendedor_int').eq('id_supabase_uuid', user_uuid).execute().data:
         return 'VENTAS'
-    if supabase.table('Operador_Mapeo').select('id_operador_int').eq('id_supabase_uuid', user_uuid).execute().data:
+    if supabase.table('operador_mapeo').select('id_operador_int').eq('id_supabase_uuid', user_uuid).execute().data:
         return 'OPERACIONES'
-    if supabase.table('Contador_Mapeo').select('id_contador_int').eq('id_supabase_uuid', user_uuid).execute().data:
+    if supabase.table('contador_mapeo').select('id_contador_int').eq('id_supabase_uuid', user_uuid).execute().data:
         return 'CONTABLE'
-    if supabase.table('Gerente_Mapeo').select('id_gerente_int').eq('id_supabase_uuid', user_uuid).execute().data:
+    if supabase.table('gerente_mapeo').select('id_gerente_int').eq('id_supabase_uuid', user_uuid).execute().data:
         return 'GERENCIA'
     return 'SIN_ROL'
 
