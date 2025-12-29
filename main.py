@@ -105,7 +105,7 @@ def handle_login_supabase(email, password):
         st.session_state['authenticated'] = True
         st.session_state['user_role'] = app_role
         st.session_state['user_email'] = email
-        st.experimental_rerun()
+        st.rerun()
     except Exception as e:
         st.error(f'Error de autenticacion. Verifique su correo electronico y contraseña: {e}')
 
