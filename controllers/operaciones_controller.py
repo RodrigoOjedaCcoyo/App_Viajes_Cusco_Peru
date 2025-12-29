@@ -56,7 +56,7 @@ class OperacionesController:
         """Actualiza el estado de un documento a VALIDADO."""
         doc = self.doc_model.get_by_id(id_doc)
         if doc:
-            self.doc_model.update(id_doc, {'estado_entrega': 'VALIDADO'})
+            self.doc_model.update_by_id(id_doc, {'estado_entrega': 'VALIDADO'})
             return True, f"Documento ID {id_doc} validado exitosamente."
         return False, "Documento no encontrado."
 
@@ -118,6 +118,6 @@ class OperacionesController:
         """Actualiza el estado de una tarea a COMPLETADO."""
         tarea = self.tarea_model.get_by_id(id_tarea)
         if tarea:
-            self.tarea_model.update(id_tarea, {'estado_cumplimiento': 'COMPLETADO', 'fecha_completado': date.today()})
+            self.tarea_model.update_by_id(id_tarea, {'estado_cumplimiento': 'COMPLETADO', 'fecha_completado': date.today()})
             return True, f"Tarea ID {id_tarea} marcada como COMPLETADA."
         return False, "Tarea no encontrada."
