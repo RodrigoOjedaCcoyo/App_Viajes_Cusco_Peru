@@ -120,7 +120,10 @@ def main():
         with st.form("login_form"):
             email = st.text_input("Correo Electronico")
             password = st.text_input("Contraseña", type="password")
-            if st.form_submit_button("Entrar"):
+
+            submitted = st.form_submit_button("Entrar")
+
+        if submitted:
                 handle_login_supabase(email, password)
         return
 
