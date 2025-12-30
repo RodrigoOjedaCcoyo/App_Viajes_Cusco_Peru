@@ -1,6 +1,6 @@
 # controllers/venta_controller.py (Nuevo archivo)
 
-from ..models.base_model import BaseModel
+from models.base_model import BaseModel
 from supabase import Client
 from typing import Optional
 
