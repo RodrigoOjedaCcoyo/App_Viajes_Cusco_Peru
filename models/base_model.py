@@ -2,7 +2,7 @@
 
 import streamlit as st
 import pandas as pd
-import Supabase 
+#import Supabase 
 
 class BaseModel:
     """Clase base para manejar la conexión a Supabase (simulada con st.session_state)."""
