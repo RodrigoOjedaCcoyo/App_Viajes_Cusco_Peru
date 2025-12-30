@@ -59,8 +59,7 @@ def formulario_registro_leads():
             )
             
             if exito:
-                st.success(mensaje)
-                st.rerun() 
+                st.success(mensaje) 
             else:
                 st.error(mensaje)
                 
@@ -139,7 +138,6 @@ def registro_ventas():
             )
         if exito:
             st.success(mensaje)
-            st.rerun()
         else:
             st.error(mensaje)
 
