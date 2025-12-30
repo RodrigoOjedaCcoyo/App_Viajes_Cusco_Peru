@@ -155,7 +155,7 @@ def main():
         pagina_seleccionada_archivo = paginas_permitidas[index_seleccionado][1]
 
         try:
-            nombres_modulo_completo = f'views.{pagina_seleccionada_archivo}'
+            nombres_modulo_completo = f'vistas.{pagina_seleccionada_archivo}'
 
             # 🚨 AÑADIR ESTA LÍNEA DE DIAGNÓSTICO TEMPORAL 🚨
             st.warning(f"Intentando importar el módulo: {nombres_modulo_completo}")
