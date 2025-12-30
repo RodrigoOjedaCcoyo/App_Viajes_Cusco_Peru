@@ -37,4 +37,4 @@ class LeadController:
         if exito:
             return True, f"Lead ID {lead_id} actualizado a estado: {nuevo_estado}"
         else:
-            return False, f"Erro al actualizar o Lead ID {lead_id} no encontrado"x
+            return False, f"Erro al actualizar o Lead ID {lead_id} no encontrado"
