@@ -10,7 +10,7 @@ ROLES = ["VENTAS", "OPERACIONES", "CONTABLE", "GERENCIA"]
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # 1. Aseguramos que Python encuentre las carpetas, dándole la MÁXIMA PRIORIDAD
-if BASE_DIR in sys.path:
+if BASE_DIR not in sys.path:
        sys.path.append(BASE_DIR)
 
 # 2. Insertamos la ruta en la posición 0 (el primer lugar donde buscar)
