@@ -2,13 +2,15 @@
 
 from models.venta_model import VentaModel
 from controllers.lead_controller import LeadController # Necesario para actualizar el Lead
+from supabase import Client
 
 class VentaController:
     """Controlador para manejar la lógica de negocio de las Ventas."""
     
-    def __init__(self):
-        self.venta_model = VentaModel()
-        self.lead_controller = LeadController() # Usamos el LeadController para actualizar el estado
+    def __init__(self, supabase_client: Client):
+        self.supabase = supabase_client
+        self.venta_model = VentaModel(supabase_client)
+        self.lead_controller = LeadController(supabase_client) # Usamos el LeadController para actualizar el estado
 
     def registrar_nueva_venta(self, lead_id, monto_total, tour_paquete, fecha_tour, vendedor):
         """

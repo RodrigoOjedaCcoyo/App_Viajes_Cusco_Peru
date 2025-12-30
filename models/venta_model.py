@@ -2,12 +2,13 @@
 
 from .base_model import BaseModel
 from datetime import datetime
+from supabase import Client
 
 class VentaModel(BaseModel):
     """Modelo para la gestión de Ventas (Conversiones de Leads)."""
 
-    def __init__(self):
-        super().__init__(key="ventas") 
+    def __init__(self, supabase_client:Client):
+        super().__init__(key="ventas", supabase_client=supabase_client) 
 
     def create_venta(self, lead_id, monto_total, tour_paquete, fecha_tour, vendedor):
         """Guarda un nuevo registro de venta."""

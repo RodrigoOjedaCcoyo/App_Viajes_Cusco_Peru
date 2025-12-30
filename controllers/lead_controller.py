@@ -1,12 +1,14 @@
 # controllers/lead_controller.py
 
 from models.lead_model import LeadModel
+from supabase import Client
 
 class LeadController:
     """Controlador para manejar la lógica de negocio de los Leads."""
     
-    def __init__(self):
-        self.model = LeadModel()
+    def __init__(self, supabase_client:Client):
+        self.supabase = supabase_client
+        self.model = LeadModel(self.supabase)
         
     # Función de Registro (Ajustada a 3 argumentos)
     def registrar_nuevo_lead(self, telefono, origen, vendedor):
