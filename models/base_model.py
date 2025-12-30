@@ -1,6 +1,5 @@
 # models/base_model.py
 
-import pandas as pd
 # Mantenemos las importaciones de tipos
 from supabase import Client as SupabaseClient
 from typing import Optional, List, Dict, Any
