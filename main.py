@@ -4,7 +4,21 @@ import sys
 import os
 import importlib
 from supabase import create_client, Client
-
+# --- 🚨 BLOQUE DE PRUEBA DE IMPORTACIÓN 🚨 ---
+try:
+    import test_import
+    # Si la importación tiene éxito, podemos confiar en la ruta
+    st.success("✅ Prueba de Importación Exitosa.")
+    # Si esta línea se ejecuta, el problema es en la lógica de 'vistas.page_ventas'
+    
+except ImportError as e:
+    # Si falla, el problema es definitivamente la ruta base
+    st.error(f"❌ Falló al importar test_import.py. El problema de ruta persiste: {e}")
+    st.stop()
+except Exception as e:
+    st.error(f"❌ Error durante la ejecución del test: {e}")
+    st.stop()
+# ----------------
 # --- 1. Configuración de Roles y Rutas ---
 ROLES = ["VENTAS", "OPERACIONES", "CONTABLE", "GERENCIA"]
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
