@@ -1,8 +1,6 @@
 # vistas/page_ventas.py (CÓDIGO FINAL CORREGIDO)
 import streamlit as st
 import pandas as pd
-from controllers.lead_controller import LeadController
-from controllers.venta_controller import VentaController
 import plotly.express as px
 import matplotlib.pyplot as plt
 from datetime import date
@@ -152,6 +150,9 @@ def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual=
     Punto de entrada para el módulo de Ventas.
     Inicializa los controladores con la dependencia inyectada.
     """
+
+    from controllers.lead_controller import LeadController
+    from controllers.venta_controller import VentaController
     # 1. Inicializar e inyectar dependencias (CORRECTO)
     lead_controller = LeadController(supabase_client=supabase_client)
     venta_controller = VentaController(supabase_client=supabase_client)
