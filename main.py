@@ -11,10 +11,19 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # 1. Aseguramos que Python encuentre las carpetas, dándole la MÁXIMA PRIORIDAD
 if BASE_DIR not in sys.path:
-    sys.path.append(BASE_DIR)
+    sys.path.insert(0, BASE_DIR)
 
 # 2. Insertamos la ruta en la posición 0 (el primer lugar donde buscar)
-sys.path.insert(0, BASE_DIR)
+controllers_path = os.path.join(BASE_DIR, 'controllers')
+vistas_path = os.path.join(BASE_DIR, 'vistas')
+models_path = os.path.join(BASE_DIR, 'models')
+
+if controllers_path not in sys.path:
+    sys.path.insert(1, controllers_path)
+if vistas_path not in sys.path:
+    sys.path.insert(1, vistas_path)
+if models_path not in sys.path:
+    sys.path.insert(1, models_path)
 
 # Mapeo de roles a las funcionalidades (Correcto)
 MODULOS_VISIBLES = {
