@@ -10,29 +10,29 @@ ROLES = ["VENTAS", "OPERACIONES", "CONTABLE", "GERENCIA"]
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # 1. Aseguramos que Python encuentre las carpetas, dándole la MÁXIMA PRIORIDAD
-#if BASE_DIR in sys.path:
-#       sys.path.remove(BASE_DIR)
+if BASE_DIR in sys.path:
+       sys.path.remove(BASE_DIR)
 
 # 2. Insertamos la ruta en la posición 0 (el primer lugar donde buscar)
-#sys.path.insert(0, BASE_DIR)
+sys.path.insert(0, BASE_DIR)
 
 # Mapeo de roles a las funcionalidades (Correcto)
 MODULOS_VISIBLES = {
     "VENTAS": [
-        ("Registro de Leads", "vistas.page_ventas"),    
-        ("Seguimiento de Leads", "vistas.page_ventas"), 
-        ("Registro de Ventas", "vistas.page_ventas")
+        ("Registro de Leads", "page_ventas"),    
+        ("Seguimiento de Leads", "page_ventas"), 
+        ("Registro de Ventas", "page_ventas")
     ],
     "OPERACIONES": [
-        ("Dashboard Operaciones", "vistas.page_operaciones")
+        ("Dashboard Operaciones", "page_operaciones")
     ],
     "CONTABLE": [
-        ("Reporte de Montos", "vistas.page_contabilidad"), 
-        ("Auditoría de Pagos", "vistas.page_contabilidad")
+        ("Reporte de Montos", "page_contabilidad"), 
+        ("Auditoría de Pagos", "page_contabilidad")
     ],
     "GERENCIA": [
-        ("Dashboard Ejecutivo", "vistas.page_gerencia"), 
-        ("Auditoría Completa", "vistas.page_gerencia")
+        ("Dashboard Ejecutivo", "page_gerencia"), 
+        ("Auditoría Completa", "page_gerencia")
     ]
 }
 
@@ -154,8 +154,9 @@ def main():
         pagina_seleccionada_archivo = paginas_permitidas[index_seleccionado][1]
 
         try:
-            # Importa y ejecuta la función principal del módulo seleccionado
-            modulo = importlib.import_module(pagina_seleccionada_archivo)
+            
+            nombres_modulo_completo = f'vistas'.{pagina_seleccionada_archivo}
+            modulo = importlib.import_module(nombres_modulo_completo)
             
             if hasattr(modulo, 'mostrar_pagina'):
                 # Pasamos el cliente Supabase para que las vistas puedan hacer consultas seguras 
