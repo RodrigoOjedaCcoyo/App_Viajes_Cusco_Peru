@@ -19,19 +19,19 @@ sys.path.insert(0, BASE_DIR)
 # Mapeo de roles a las funcionalidades (Correcto)
 MODULOS_VISIBLES = {
     "VENTAS": [
-        ("Registro de Leads", "page_ventas"),    
-        ("Seguimiento de Leads", "page_ventas"), 
+        ("Registro de Leads", "page_ventas"),
+        ("Seguimiento de Leads", "page_ventas"),
         ("Registro de Ventas", "page_ventas")
     ],
     "OPERACIONES": [
         ("Dashboard Operaciones", "page_operaciones")
     ],
     "CONTABLE": [
-        ("Reporte de Montos", "page_contabilidad"), 
+        ("Reporte de Montos", "page_contabilidad"),
         ("Auditoría de Pagos", "page_contabilidad")
     ],
     "GERENCIA": [
-        ("Dashboard Ejecutivo", "page_gerencia"), 
+        ("Dashboard Ejecutivo", "page_gerencia"),
         ("Auditoría Completa", "page_gerencia")
     ]
 }
@@ -129,54 +129,52 @@ def main():
 
     # --- 3. Lógica Principal de Navegación (para autenticados) ---
     rol = st.session_state['user_role']
-    
+
     st.session_state['rol_actual'] = rol
     st.sidebar.title("Navegación")
     st.sidebar.write(f"**Rol Actual:** {rol}")
 
     paginas_permitidas = MODULOS_VISIBLES.get(rol, [])
-    
+
     if paginas_permitidas:
         # Se renombra 'nombres_modulos' a 'nombres_funcionalidades' para claridad
-        nombres_funcionalidades = [nombre for nombre, _ in paginas_permitidas] 
+        nombres_funcionalidades = [nombre for nombre, _ in paginas_permitidas]
         
         st.sidebar.markdown("---")
         st.sidebar.info(f"Usuario: {st.session_state['user_email']}")
         
         # Seleccion de página en el sidebar
         index_seleccionado = st.sidebar.selectbox(
-            "Seleccione Módulo", 
+            "Seleccione Módulo",
             range(len(nombres_funcionalidades)), # <<-- CORRECCIÓN A: nombres_funcionalidades
             format_func=lambda i: nombres_funcionalidades[i]
         )
-        
+
         # Capturamos el nombre de la funcionalidad (Ej. "Registro de Leads")
-        funcionalidad_seleccionada = paginas_permitidas[index_seleccionado][0] # <<-- CORRECCIÓN A: funcionalidad_seleccionada
+        funcionalidad_seleccionada = paginas_permitidas[index_seleccionado][0]# <<-- CORRECCIÓN A: funcionalidad_seleccionada
         pagina_seleccionada_archivo = paginas_permitidas[index_seleccionado][1]
 
         try:
-            
             nombres_modulo_completo = f'vistas.{pagina_seleccionada_archivo}'
 
             # 🚨 AÑADIR ESTA LÍNEA DE DIAGNÓSTICO TEMPORAL 🚨
             st.warning(f"Intentando importar el módulo: {nombres_modulo_completo}")
-            
+
             modulo = importlib.import_module(nombres_modulo_completo)
-            
+
             if hasattr(modulo, 'mostrar_pagina'):
-                # Pasamos el cliente Supabase para que las vistas puedan hacer consultas seguras 
-                modulo.mostrar_pagina(funcionalidad_seleccionada, rol_actual= rol, supabase_client=supabase)   
+                # Pasamos el cliente Supabase para que las vistas puedan hacer consultas seguras
+                modulo.mostrar_pagina(funcionalidad_seleccionada, rol_actual= rol, supabase_client=supabase)
             else:
                  st.error(f"Error: El módulo {pagina_seleccionada_archivo} no tiene la función de entrada esperada.")
  
-            
         except ImportError as e:
             st.error(f"Error de Carga: No se pudo importar el módulo {pagina_seleccionada_archivo}. Revise la estructura de carpetas y el nombre del archivo.")
         except Exception as e:
             st.error(f"Error General Inesperado durante la ejecución del módulo: {e}")
-            
+
     st.sidebar.markdown("---")
     st.sidebar.button("Cerrar Sesión", on_click=logout_user)
-    
+
 if __name__ == "__main__":
     main()
