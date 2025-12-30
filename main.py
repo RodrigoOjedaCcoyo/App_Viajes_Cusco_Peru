@@ -130,6 +130,7 @@ def main():
     # --- 3. Lógica Principal de Navegación (para autenticados) ---
     rol = st.session_state['user_role']
     
+    st.session_state['rol_actual'] = rol
     st.sidebar.title("Navegación")
     st.sidebar.write(f"**Rol Actual:** {rol}")
 
