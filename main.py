@@ -157,6 +157,10 @@ def main():
         try:
             
             nombres_modulo_completo = f'vistas.{pagina_seleccionada_archivo}'
+
+            # 🚨 AÑADIR ESTA LÍNEA DE DIAGNÓSTICO TEMPORAL 🚨
+            st.warning(f"Intentando importar el módulo: {nombres_modulo_completo}")
+            
             modulo = importlib.import_module(nombres_modulo_completo)
             
             if hasattr(modulo, 'mostrar_pagina'):
