@@ -27,6 +27,16 @@ def dashboard_riesgo_documental(controller):
         {'ID Venta': v['id'], 'Destino': v['destino'], 'Fecha Salida': v['fecha_salida'], 'Vendedor': v['vendedor']}
         for v in ventas_en_riesgo
     ])
+    
+    # --- CORRECCIÓN CRÍTICA DE TIPOS ---
+    # Asegurar que 'Fecha Salida' sea datetime.date (y manejar NaT/None)
+    if not df_resumen.empty and 'Fecha Salida' in df_resumen.columns:
+        df_resumen['Fecha Salida'] = pd.to_datetime(df_resumen['Fecha Salida'], errors='coerce').dt.date
+    
+    # --- CORRECCIÓN CRÍTICA DE TIPOS ---
+    # Asegurar que 'Fecha Salida' sea datetime.date (y manejar NaT/None)
+    if not df_resumen.empty and 'Fecha Salida' in df_resumen.columns:
+        df_resumen['Fecha Salida'] = pd.to_datetime(df_resumen['Fecha Salida'], errors='coerce').dt.date
 
     # Utiliza st.data_editor para seleccionar una fila
     st.markdown("##### Selecciona una venta para ver el detalle de los documentos:")
