@@ -1,6 +1,6 @@
 # controllers/lead_controller.py
 
-from ..models.lead_model import LeadModel
+from models.lead_model import LeadModel
 from supabase import Client
 from typing import List, Dict, Any
 

@@ -178,7 +178,7 @@ def main():
                  st.error(f"Error: El módulo {pagina_seleccionada_archivo} no tiene la función de entrada esperada.")
  
         except ImportError as e:
-            st.error(f"Error de Carga: No se pudo importar el módulo {pagina_seleccionada_archivo}. Revise la estructura de carpetas y el nombre del archivo.")
+            st.error(f"Error de Carga: No se pudo importar el módulo {pagina_seleccionada_archivo}. Detalle del error: {e}")
         except Exception as e:
             st.error(f"Error General Inesperado durante la ejecución del módulo: {e}")
 
