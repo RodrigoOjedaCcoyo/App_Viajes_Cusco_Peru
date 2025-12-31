@@ -46,6 +46,16 @@ class LeadModel(BaseModel):
             print(f'Error al obtener todos los leads: {e}')
             return []
             
+    def get_vendedores_mapping(self) -> Dict[int, str]:
+        """Retorna un diccionario {id: nombre} de todos los vendedores activos."""
+        try:
+            # Nota: Tabla 'vendedor' en minúsculas según corrección reciente
+            response = self.client.table('vendedor').select('id_vendedor, nombre').execute()
+            return {v['id_vendedor']: v['nombre'] for v in response.data}
+        except Exception as e:
+            print(f"Error obteniendo vendedores: {e}")
+            return {}
+            
     # --- MÉTODO FALTANTE 1: Búsqueda de Lead Activo (para evitar duplicados) ---
     def find_by_phone_active(self, telefono: str) -> Optional[Dict[str, Any]]:
         """Busca un lead por teléfono que no esté 'Convertido' o 'No Interesado'."""

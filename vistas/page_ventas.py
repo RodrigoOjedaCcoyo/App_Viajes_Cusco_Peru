@@ -77,7 +77,6 @@ def seguimiento_leads():
     # Obtener leads
     # Obtener leads (VISTA GENERAL - TODOS LOS LEADS)
     # Obtener leads (VISTA GENERAL - TODOS LOS LEADS)
-    # st.info(f"Modo Vista General: Mostrando todos los leads del sistema.") # Info reducida
     leads_a_seguir = lead_controller.obtener_todos_leads()
     
     if leads_a_seguir:
@@ -86,23 +85,30 @@ def seguimiento_leads():
         df = pd.DataFrame(leads_a_seguir)
 
         if not df.empty:
+            # Obtener mapeo de vendedores {id: nombre}
+            mapeo_vendedores = lead_controller.obtener_mapeo_vendedores()
+            
+            # Crear nueva columna 'Vendedor' mapeando el ID
+            # Si no encuentra el ID, pone 'Desconocido'
+            df['Vendedor'] = df['id_vendedor'].map(mapeo_vendedores).fillna('Desconocido')
+
             # --- SECCIÓN DE FILTROS (SEGMENTADORES) ---
             st.subheader("Filtros de Búsqueda")
             col_f1, col_f2 = st.columns(2)
             
-            # Obtener valores únicos para los filtros
-            vendedores_unicos = sorted(df['id_vendedor'].unique().astype(str))
+            # Obtener valores únicos para los filtros (NOMBRES, no IDs)
+            vendedores_unicos = sorted(df['Vendedor'].unique().astype(str))
             estados_unicos = sorted(df['estado_lead'].unique().astype(str))
 
             with col_f1:
-                filtro_vendedor = st.multiselect("Filtrar por Vendedor (ID)", options=vendedores_unicos)
+                filtro_vendedor = st.multiselect("Filtrar por Vendedor", options=vendedores_unicos)
             
             with col_f2:
                 filtro_estado = st.multiselect("Filtrar por Estado", options=estados_unicos)
 
-            # Aplicar filtros si existen selecciones
+            # Aplicar filtros
             if filtro_vendedor:
-                df = df[df['id_vendedor'].astype(str).isin(filtro_vendedor)]
+                df = df[df['Vendedor'].isin(filtro_vendedor)]
             
             if filtro_estado:
                 df = df[df['estado_lead'].astype(str).isin(filtro_estado)]
@@ -110,18 +116,21 @@ def seguimiento_leads():
             st.write(f"Resultados: {len(df)} registros.")
 
             # --- SELECCIÓN DE COLUMNAS A MOSTRAR ---
-            # Columnas a excluir: Id_Lead, Id_Vendedor, Fecha de Creacion, whatsapp
+            # Columnas a excluir
             columnas_excluir = ['id_lead', 'id_vendedor', 'fecha_creacion', 'whatsapp']
             
-            # Filtrar columnas que existen en el DF para evitar errores
-            display_cols = [c for c in df.columns if c not in columnas_excluir]
-            
-            st.dataframe(df[display_cols], use_container_width=True)
+            # Reordenar: Poner 'Vendedor' al principio o donde sea lógico
+            cols = [c for c in df.columns if c not in columnas_excluir]
+            # Mover 'Vendedor' al principio si existe
+            if 'Vendedor' in cols:
+                cols.insert(0, cols.pop(cols.index('Vendedor')))
 
-        # SE ELIMINÓ EL FORMULARIO DE ACTUALIZACIÓN (SOLICITUD USUARIO)
+            st.dataframe(df[cols], use_container_width=True)
+
+        # Sin formulario (modificado a petición)
             
     else:
-        st.info(f"No hay leads registrados en el sistema.")
+        st.info(f"No hay leads registrados.")
 
 
 # ----------------------------------------------------------------------

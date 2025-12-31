@@ -36,6 +36,10 @@ class LeadController:
         """Devuelve TODOS los leads del sistema (Vista General)."""
         return self.model.get_all_leads()
 
+    def obtener_mapeo_vendedores(self):
+        """Devuelve diccionario {id: nombre} de vendedores."""
+        return self.model.get_vendedores_mapping()
+
     def actualizar_estado_lead(self, lead_id, nuevo_estado): 
         """Busca el lead por ID y actualiza su estado."""
         
