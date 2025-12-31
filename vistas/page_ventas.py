@@ -74,28 +74,45 @@ def seguimiento_leads():
     
     vendedor_actual = get_vendedor_id()
     
-    # Uso de lead_controller corregido
-    todos_los_leads = lead_controller.obtener_leads_del_vendedor(vendedor_actual)
-    # ... (el resto de la función es correcto) ...
+    # Obtener leads
+    leads_a_seguir = lead_controller.obtener_leads_del_vendedor(vendedor_actual)
     
     if leads_a_seguir:
-        # ... (Creación del Formulario de Seguimiento) ...
-        # ... (extracción de lead_id) ...
-            
-        submitted = st.form_submit_button("Guardar")
+        st.write(f"Total de leads encontrados: {len(leads_a_seguir)}")
         
-        if submitted:
-            # Uso de lead_controller corregido
-            exito, mensaje = lead_controller.actualizar_estado_lead(lead_id, nuevo_estado)
+        # Mostrar tabla de datos
+        df = pd.DataFrame(leads_a_seguir)
+        if not df.empty:
+            st.dataframe(df)
+
+        st.markdown("### Actualizar Estado de Lead")
+        with st.form("form_seguimiento"):
+            # Crear diccionario para selectbox: ID -> Texto
+            opciones_leads = {l['id']: f"{l.get('nombre', 'Sin Nombre')} - {l.get('telefono', 'Sin Tlfn')}" for l in leads_a_seguir}
             
-            if exito:
-                st.success(mensaje)
-                st.rerun() 
-            else:
-                st.error(mensaje)
+            lead_id_selec = st.selectbox(
+                "Seleccione Lead a Actualizar",
+                options=list(opciones_leads.keys()),
+                format_func=lambda x: opciones_leads[x]
+            )
+            
+            nuevo_estado = st.selectbox(
+                "Nuevo Estado",
+                ["Nuevo", "Contactado", "En Negociación", "Cierre Ganado", "Cierre Perdido"]
+            )
+            
+            submitted = st.form_submit_button("Actualizar Estado")
+            
+            if submitted:
+                exito, mensaje = lead_controller.actualizar_estado_lead(lead_id_selec, nuevo_estado)
+                
+                if exito:
+                    st.success(mensaje)
+                    st.rerun() 
+                else:
+                    st.error(mensaje)
     else:
-        st.info(f"No tienes leads pendientes de seguimiento o activos.")
-        # ... (Resto de la función) ...
+        st.info(f"No tienes leads asignados actualmente.")
 
 
 # ----------------------------------------------------------------------
@@ -111,31 +128,41 @@ def registro_ventas():
     st.title("💰 Registro de Venta")
     st.markdown("---")
     
-    # ... (Lógica de formulario) ...
+    with st.form("form_registro_venta"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            n_celular = st.text_input("Celular Cliente")
+            n_vendedor = st.selectbox("Vendedor", ["---Seleccione---", "Angel", "Abel", "Otro"])
+            n_monto_total = st.number_input("Monto Total (USD)", min_value=0.0, step=10.0)
+            
+        with col2:
+            n_tour = st.selectbox("Tour", ["---Seleccione---", "Machu Picchu Full Day", "Montaña 7 Colores", "Laguna Humantay", "Valle Sagrado"])
+            n_fecha_inicio = st.date_input("Fecha Tour", value=date.today())
 
-    # Botón REGISTRAR
-    submitted = st.form_submit_button("REGISTRAR", type="primary", use_container_width=True)
+        # Botón REGISTRAR
+        submitted = st.form_submit_button("REGISTRAR", type="primary", use_container_width=True)
 
-    if submitted:
-        # --- Logica de validacion y envio minimo ---
-        if not n_celular or n_vendedor =='Seleccione vendedor' or n_monto_total <=0:
-            st.error('Los campos Celular, Vendedor y Monto Total son obligatorios')
-        elif n_tour == 'Seleccione Tour':
-            st.error('Debe seleccionar un Tour Valido')
-        else:
-            # Uso de venta_controller corregido
-            exito, mensaje = venta_controller.registrar_venta_directa(
-                telefono=n_celular,
-                origen=n_tour,
-                monto=n_monto_total,
-                tour=n_tour,
-                fecha_tour = n_fecha_inicio.strftime("%Y-%m-%d"),
-                vendedor=n_vendedor
-            )
-        if exito:
-            st.success(mensaje)
-        else:
-            st.error(mensaje)
+        if submitted:
+            # --- Logica de validacion y envio minimo ---
+            if not n_celular or n_vendedor =='---Seleccione---' or n_monto_total <=0:
+                st.error('Los campos Celular, Vendedor y Monto Total son obligatorios')
+            elif n_tour == '---Seleccione---':
+                st.error('Debe seleccionar un Tour Valido')
+            else:
+                # Uso de venta_controller corregido
+                exito, mensaje = venta_controller.registrar_venta_directa(
+                    telefono=n_celular,
+                    origen=n_tour,
+                    monto=n_monto_total,
+                    tour=n_tour,
+                    fecha_tour = n_fecha_inicio.strftime("%Y-%m-%d"),
+                    vendedor=n_vendedor
+                )
+                if exito:
+                    st.success(mensaje)
+                else:
+                    st.error(mensaje)
 
 # ----------------------------------------------------------------------
 # FUNCIÓN PRINCIPAL DE LA VISTA (Llamada por main.py)
