@@ -10,21 +10,19 @@ class LeadModel(BaseModel):
 
     def __init__(self, table_name: str, supabase_client: Client):
         # El constructor de BaseModel guarda table_name y supabase_client (como self.client)
-        super().__init__(table_name, supabase_client) 
+        super().__init__('Lead', supabase_client) 
 
     # Implementación simplificada para el formulario de 3 campos
     def create_lead(self, telefono: str, origen: str, vendedor: str) -> Optional[int]:
         """Guarda un nuevo lead en el sistema con información básica."""
         lead_data = {
-            # Valores predeterminados para campos no solicitados:
-            "nombre": f"Lead Tel: {telefono}",
-            "email": "sin_email@app.com",
-            
-            "telefono": telefono,
-            "origen": origen,
-            "vendedor": vendedor,
-            "estado": "Nuevo", 
-            "fecha_creacion": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # Valores adaptados al Esquema SQL
+            "numero_celular": telefono,   # SQL: numero_celular
+            "red_social": origen,         # SQL: red_social
+            "id_vendedor": vendedor,      # SQL: id_vendedor (Must be INT)
+            "estado_lead": "NUEVO",       # SQL: estado_lead
+            "fecha_creacion": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "whatsapp": True # Default
         }
         # Delega el guardado a BaseModel
         return self.save(lead_data)
@@ -32,8 +30,8 @@ class LeadModel(BaseModel):
     def get_leads_by_vendedor(self, vendedor: str) -> List[Dict[str, Any]]:
         """Obtiene todos los leads asignados a un vendedor específico."""
         try:
-            # Filtra por vendedor
-            response = self.client.table(self.table_name).select('*').eq('vendedor', vendedor).execute()
+            # Filtra por ID de vendedor (Schema Match)
+            response = self.client.table(self.table_name).select('*').eq('id_vendedor', vendedor).execute()
             return response.data
         except Exception as e:
             print(f'Error al filtrar leads por vendedor: {e}')
@@ -46,9 +44,9 @@ class LeadModel(BaseModel):
             response = (
                 self.client.table(self.table_name)
                 .select('*')
-                .eq('telefono', telefono)
-                .not_.eq('estado', 'Convertido (Vendido)') # Excluye vendidos
-                .not_.eq('estado', 'No Interesado')       # Excluye descartados
+                .eq('numero_celular', telefono)
+                .not_.eq('estado_lead', 'CONVERTIDO') # Excluye vendidos
+                .not_.eq('estado_lead', 'DESCARTADO')       # Excluye descartados
                 .limit(1)
                 .execute()
             )
