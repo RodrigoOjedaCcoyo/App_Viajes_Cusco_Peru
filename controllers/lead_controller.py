@@ -32,6 +32,10 @@ class LeadController:
         """Devuelve todos los leads asignados a un vendedor específico."""
         return self.model.get_leads_by_vendedor(vendedor)
 
+    def obtener_todos_leads(self):
+        """Devuelve TODOS los leads del sistema (Vista General)."""
+        return self.model.get_all_leads()
+
     def actualizar_estado_lead(self, lead_id, nuevo_estado): 
         """Busca el lead por ID y actualiza su estado."""
         

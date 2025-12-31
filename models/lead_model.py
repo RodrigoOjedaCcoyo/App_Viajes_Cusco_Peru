@@ -36,6 +36,15 @@ class LeadModel(BaseModel):
         except Exception as e:
             print(f'Error al filtrar leads por vendedor: {e}')
             return []
+
+    def get_all_leads(self) -> List[Dict[str, Any]]:
+        """Obtiene TODOS los leads registrados (Vista General)."""
+        try:
+            response = self.client.table(self.table_name).select('*').order('fecha_creacion', desc=True).execute()
+            return response.data
+        except Exception as e:
+            print(f'Error al obtener todos los leads: {e}')
+            return []
             
     # --- MÉTODO FALTANTE 1: Búsqueda de Lead Activo (para evitar duplicados) ---
     def find_by_phone_active(self, telefono: str) -> Optional[Dict[str, Any]]:

@@ -75,8 +75,9 @@ def seguimiento_leads():
     vendedor_actual = get_vendedor_id()
     
     # Obtener leads
-    st.info(f"Debug: Buscando leads para Vendedor ID: {vendedor_actual}") # DEBUG TEMPORAL
-    leads_a_seguir = lead_controller.obtener_leads_del_vendedor(vendedor_actual)
+    # Obtener leads (VISTA GENERAL - TODOS LOS LEADS)
+    st.info(f"Modo Vista General: Mostrando todos los leads del sistema.") 
+    leads_a_seguir = lead_controller.obtener_todos_leads()
     
     if leads_a_seguir:
         st.write(f"Total de leads encontrados: {len(leads_a_seguir)}")
