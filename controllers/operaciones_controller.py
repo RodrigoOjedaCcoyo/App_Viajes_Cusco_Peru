@@ -96,18 +96,26 @@ class OperacionesController:
                     # Fallback si falla el join complejo
                     pass
 
+                # Convertir fecha_venta a date
+                fecha_salida_obj = date.today()
+                if v.get('fecha_venta'):
+                    try:
+                        fecha_salida_obj = date.fromisoformat(v['fecha_venta'])
+                    except ValueError: pass
+
                 datos_ui.append({
                     'id': v['id_venta'],
                     'destino': destinos,
-                    'fecha_salida': v['fecha_venta'], # OJO: Fecha Venta no es Salida. Buscamos fecha_servicio en Venta_Tour
+                    'fecha_salida': fecha_salida_obj, 
                     'vendedor': nombre_vendedor
                 })
                 
                 # Corrección Fecha Salida: Buscar la min(fecha_servicio) en Venta_Tour
                 try:
                     res_fecha = self.client.table('venta_tour').select('fecha_servicio').eq('id_venta', v['id_venta']).order('fecha_servicio').limit(1).execute()
-                    if res_fecha.data:
-                        datos_ui[-1]['fecha_salida'] = res_fecha.data[0]['fecha_servicio']
+                    if res_fecha.data and res_fecha.data[0]['fecha_servicio']:
+                        # Sobrescribir con la fecha real del tour convertida
+                        datos_ui[-1]['fecha_salida'] = date.fromisoformat(res_fecha.data[0]['fecha_servicio'])
                 except: pass
 
             return datos_ui
