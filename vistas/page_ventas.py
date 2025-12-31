@@ -76,46 +76,52 @@ def seguimiento_leads():
     
     # Obtener leads
     # Obtener leads (VISTA GENERAL - TODOS LOS LEADS)
-    st.info(f"Modo Vista General: Mostrando todos los leads del sistema.") 
+    # Obtener leads (VISTA GENERAL - TODOS LOS LEADS)
+    # st.info(f"Modo Vista General: Mostrando todos los leads del sistema.") # Info reducida
     leads_a_seguir = lead_controller.obtener_todos_leads()
     
     if leads_a_seguir:
-        st.write(f"Total de leads encontrados: {len(leads_a_seguir)}")
         
-        # Mostrar tabla de datos
+        # 1. Convertir a DataFrame
         df = pd.DataFrame(leads_a_seguir)
-        if not df.empty:
-            st.dataframe(df)
 
-        st.markdown("### Actualizar Estado de Lead")
-        with st.form("form_seguimiento"):
-            # Crear diccionario para selectbox: ID -> Texto
-            # Corrección de claves: 'id' -> 'id_lead', 'telefono' -> 'numero_celular'
-            opciones_leads = {l['id_lead']: f"Lead #{l['id_lead']} - {l.get('numero_celular', 'Sin Celular')}" for l in leads_a_seguir}
+        if not df.empty:
+            # --- SECCIÓN DE FILTROS (SEGMENTADORES) ---
+            st.subheader("Filtros de Búsqueda")
+            col_f1, col_f2 = st.columns(2)
             
-            lead_id_selec = st.selectbox(
-                "Seleccione Lead a Actualizar",
-                options=list(opciones_leads.keys()),
-                format_func=lambda x: opciones_leads[x]
-            )
+            # Obtener valores únicos para los filtros
+            vendedores_unicos = sorted(df['id_vendedor'].unique().astype(str))
+            estados_unicos = sorted(df['estado_lead'].unique().astype(str))
+
+            with col_f1:
+                filtro_vendedor = st.multiselect("Filtrar por Vendedor (ID)", options=vendedores_unicos)
             
-            nuevo_estado = st.selectbox(
-                "Nuevo Estado",
-                ["Nuevo", "Contactado", "En Negociación", "Cierre Ganado", "Cierre Perdido"]
-            )
+            with col_f2:
+                filtro_estado = st.multiselect("Filtrar por Estado", options=estados_unicos)
+
+            # Aplicar filtros si existen selecciones
+            if filtro_vendedor:
+                df = df[df['id_vendedor'].astype(str).isin(filtro_vendedor)]
             
-            submitted = st.form_submit_button("Actualizar Estado")
+            if filtro_estado:
+                df = df[df['estado_lead'].astype(str).isin(filtro_estado)]
+
+            st.write(f"Resultados: {len(df)} registros.")
+
+            # --- SELECCIÓN DE COLUMNAS A MOSTRAR ---
+            # Columnas a excluir: Id_Lead, Id_Vendedor, Fecha de Creacion, whatsapp
+            columnas_excluir = ['id_lead', 'id_vendedor', 'fecha_creacion', 'whatsapp']
             
-            if submitted:
-                exito, mensaje = lead_controller.actualizar_estado_lead(lead_id_selec, nuevo_estado)
-                
-                if exito:
-                    st.success(mensaje)
-                    st.rerun() 
-                else:
-                    st.error(mensaje)
+            # Filtrar columnas que existen en el DF para evitar errores
+            display_cols = [c for c in df.columns if c not in columnas_excluir]
+            
+            st.dataframe(df[display_cols], use_container_width=True)
+
+        # SE ELIMINÓ EL FORMULARIO DE ACTUALIZACIÓN (SOLICITUD USUARIO)
+            
     else:
-        st.info(f"No tienes leads asignados actualmente.")
+        st.info(f"No hay leads registrados en el sistema.")
 
 
 # ----------------------------------------------------------------------
