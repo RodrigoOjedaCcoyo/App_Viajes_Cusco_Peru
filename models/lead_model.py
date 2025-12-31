@@ -75,7 +75,7 @@ class LeadModel(BaseModel):
             response = (
                 self.client.table(self.table_name)
                 .update(datos_a_actualizar)
-                .eq('id', lead_id)
+                .eq('id_lead', lead_id)
                 .execute()
             )
             return len(response.data) > 0 # Retorna True si al menos una fila fue actualizada

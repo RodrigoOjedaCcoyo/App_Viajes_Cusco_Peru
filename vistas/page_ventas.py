@@ -90,7 +90,8 @@ def seguimiento_leads():
         st.markdown("### Actualizar Estado de Lead")
         with st.form("form_seguimiento"):
             # Crear diccionario para selectbox: ID -> Texto
-            opciones_leads = {l['id']: f"{l.get('nombre', 'Sin Nombre')} - {l.get('telefono', 'Sin Tlfn')}" for l in leads_a_seguir}
+            # Corrección de claves: 'id' -> 'id_lead', 'telefono' -> 'numero_celular'
+            opciones_leads = {l['id_lead']: f"Lead #{l['id_lead']} - {l.get('numero_celular', 'Sin Celular')}" for l in leads_a_seguir}
             
             lead_id_selec = st.selectbox(
                 "Seleccione Lead a Actualizar",
