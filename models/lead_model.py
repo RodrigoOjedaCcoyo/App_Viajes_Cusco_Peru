@@ -10,7 +10,7 @@ class LeadModel(BaseModel):
 
     def __init__(self, table_name: str, supabase_client: Client):
         # El constructor de BaseModel guarda table_name y supabase_client (como self.client)
-        super().__init__('Lead', supabase_client) 
+        super().__init__('lead', supabase_client) 
 
     # Implementación simplificada para el formulario de 3 campos
     def create_lead(self, telefono: str, origen: str, vendedor: str) -> Optional[int]:

@@ -175,6 +175,7 @@ def main():
             st.warning(f"Intentando importar el módulo: {nombres_modulo_completo}")
 
             modulo = importlib.import_module(nombres_modulo_completo)
+            importlib.reload(modulo) # <--- FORZAR RECARGA PARA DESARROLLO
 
             if hasattr(modulo, 'mostrar_pagina'):
                 # Pasamos el cliente Supabase para que las vistas puedan hacer consultas seguras
