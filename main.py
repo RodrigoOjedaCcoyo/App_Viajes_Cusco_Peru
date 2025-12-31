@@ -72,17 +72,21 @@ if 'user_email' not in st.session_state:
 @st.cache_data
 def fetch_app_role(user_uuid):
     """
-    Busca el UUID del usuario en las tablas de mapeo para determinar el rol de la aplicación.
+    Busca el UUID en las tablas de mapeo y retorna (Rol, ID_Interno).
     """
-    if supabase.table('vendedor_mapeo').select('id_vendedor_int').eq('id_supabase_uuid', user_uuid).execute().data:
-        return 'VENTAS'
-    if supabase.table('operador_mapeo').select('id_operador_int').eq('id_supabase_uuid', user_uuid).execute().data:
-        return 'OPERACIONES'
-    if supabase.table('contador_mapeo').select('id_contador_int').eq('id_supabase_uuid', user_uuid).execute().data:
-        return 'CONTABLE'
-    if supabase.table('gerente_mapeo').select('id_gerente_int').eq('id_supabase_uuid', user_uuid).execute().data:
-        return 'GERENCIA'
-    return 'SIN_ROL'
+    res = supabase.table('vendedor_mapeo').select('id_vendedor_int').eq('id_supabase_uuid', user_uuid).execute().data
+    if res: return 'VENTAS', res[0]['id_vendedor_int']
+    
+    res = supabase.table('operador_mapeo').select('id_operador_int').eq('id_supabase_uuid', user_uuid).execute().data
+    if res: return 'OPERACIONES', res[0]['id_operador_int']
+    
+    res = supabase.table('contador_mapeo').select('id_contador_int').eq('id_supabase_uuid', user_uuid).execute().data
+    if res: return 'CONTABLE', res[0]['id_contador_int']
+    
+    res = supabase.table('gerente_mapeo').select('id_gerente_int').eq('id_supabase_uuid', user_uuid).execute().data
+    if res: return 'GERENCIA', res[0]['id_gerente_int']
+    
+    return 'SIN_ROL', None
 
 def handle_login_supabase(email, password):
     """Maneja el inicio de sesion"""
@@ -96,8 +100,8 @@ def handle_login_supabase(email, password):
 
         user_uuid = user_session.user.id
 
-        # 2. Determinar el rol de la aplicacion usando el UUID
-        app_role = fetch_app_role(user_uuid)
+        # 2. Determinar el rol y ID de la aplicacion
+        app_role, user_db_id = fetch_app_role(user_uuid)
 
         if app_role == 'SIN_ROL':
             st.error("Su correo esta en la base de datos, pero no esta asignado a un rol")
@@ -107,6 +111,7 @@ def handle_login_supabase(email, password):
         # 3. Establecer el estado
         st.session_state['authenticated'] = True
         st.session_state['user_role'] = app_role
+        st.session_state['user_id'] = user_db_id # Guardar ID numérico
         st.session_state['user_email'] = email
         st.rerun()
     except Exception as e:
@@ -173,7 +178,7 @@ def main():
 
             if hasattr(modulo, 'mostrar_pagina'):
                 # Pasamos el cliente Supabase para que las vistas puedan hacer consultas seguras
-                modulo.mostrar_pagina(funcionalidad_seleccionada, rol_actual= rol, supabase_client=supabase)
+                modulo.mostrar_pagina(funcionalidad_seleccionada, rol_actual=rol, user_id=st.session_state.get('user_id'), supabase_client=supabase)
             else:
                  st.error(f"Error: El módulo {pagina_seleccionada_archivo} no tiene la función de entrada esperada.")
  

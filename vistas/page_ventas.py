@@ -15,7 +15,7 @@ def get_vendedor_id():
     """
     Retorna el rol del usuario logueado.
     """
-    return st.session_state.get('user_role', 'Desconocido')
+    return st.session_state.get('user_id')
 
 def formulario_registro_leads():
     """1. Sub-función para la funcionalidad 'Registro de Leads'."""
@@ -205,7 +205,7 @@ def registro_ventas():
 
 # Se asume que main.py pasa rol_actual, aunque no esté en la firma original.
 # La función debe aceptar todos los argumentos que le pasa main.py.
-def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual='Desconocido'): 
+def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual='Desconocido', user_id=None): 
     """
     Punto de entrada para el módulo de Ventas.
     Inicializa los controladores con la dependencia inyectada.
@@ -221,6 +221,7 @@ def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual=
     st.session_state['lead_controller'] = lead_controller
     st.session_state['venta_controller'] = venta_controller
     st.session_state['user_role'] = rol_actual
+    st.session_state['user_id'] = user_id
 
     st.title(f'Modulo de Ventas / {funcionalidad_seleccionada}')
 
