@@ -6,10 +6,10 @@ import plotly.express as px
 from datetime import date, timedelta
 from controllers.operaciones_controller import OperacionesController
 
-# Inicializar el controlador para usar la lógica de negocio
-controller = OperacionesController()
+# NOTA: EL controlador se inicializa dentro de mostrar_pagina para evitar ejecucion temprana
+# controller = OperacionesController() 
 
-def dashboard_riesgo_documental():
+def dashboard_riesgo_documental(controller):
     """Implementa el Dashboard 1: Riesgo de Bloqueo Documental."""
     st.subheader("1️⃣ Dashboard de Riesgo Documental (Bloqueo de Tareas)", divider='blue')
 
@@ -82,7 +82,7 @@ def dashboard_riesgo_documental():
                     list(opciones_validar.keys())
                 )
                 
-                if st.button("🔴 Validar Documento (Desbloquear)"):
+                if st.button("🔴 Validar Documento"):
                     id_doc_a_validar = opciones_validar[selected_doc_key]
                     success, message = controller.validar_documento(id_doc_a_validar)
                     if success:
@@ -93,7 +93,7 @@ def dashboard_riesgo_documental():
             else:
                  st.info("Todos los documentos PENDIENTES/RECIBIDOS ya están validados para esta venta.")
 
-def dashboard_ejecucion_logistica():
+def dashboard_ejecucion_logistica(controller):
     """Implementa el Dashboard 2: Ejecución de Tareas Logísticas."""
     st.subheader("2️⃣ Dashboard de Ejecución Logística (Prioridad)", divider='green')
 
@@ -194,23 +194,27 @@ def dashboard_ejecucion_logistica():
             else:
                 st.error(f"Error al completar: {message}")
 
-def main_operaciones():
-    """Función principal que dibuja la página de Operaciones."""
+def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
+    """Función principal (Entrada) del módulo de Operaciones."""
     st.title("🎯 Dashboards de Control de Operaciones")
     st.markdown("Esta sección consolida el riesgo documental y la ejecución logística priorizada.")
     st.markdown("---")
     
+    # Inicializamos el controlador AQUI (Mock, no usa client pero lo recibimos por interfaz)
+    controller = OperacionesController()
+
     # Uso de pestañas (tabs) para organizar los dashboards
     tab1, tab2 = st.tabs(["🚦 Riesgo Documental", "🚀 Ejecución Logística"])
     
     with tab1:
-        dashboard_riesgo_documental()
+        dashboard_riesgo_documental(controller)
         
     with tab2:
-        dashboard_ejecucion_logistica()
+        dashboard_ejecucion_logistica(controller)
         
     st.sidebar.markdown("---")
     st.sidebar.caption("Datos simulados en Session State.")
 
 if __name__ == "__main__":
-    main_operaciones()
+    # Test local
+    mostrar_pagina("Operaciones", "OPERACIONES", 1, None)

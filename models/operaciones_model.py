@@ -1,7 +1,6 @@
 # models/operaciones_model.py
 
-from .base_model import BaseModel
-# Asegúrate de que 'models/base_model.py' está en tu directorio de modelos
+# Asegúrate de que 'models/base_model.py' está en tu directorio de modelos (si se usa en otros lados)
 from datetime import date
 
 # ----------------------------------------------------------------------
@@ -69,26 +68,56 @@ TAREAS_INICIALES = [
 
 
 # ----------------------------------------------------------------------
-# CLASES MODELO ADAPTADAS
+# CLASES MODELO ADAPTADAS (MOCK / SESSION STATE)
 # ----------------------------------------------------------------------
 
-import streamlit as st # Necesario para la inicialización
+import streamlit as st 
 
-class OperacionesBaseModel(BaseModel):
+class OperacionesBaseModel:
     """
-    Clase base para modelos operativos. 
-    Asegura que los datos de inicialización se carguen una sola vez.
+    Clase base para modelos operativos (MOCK).
+    Gestiona datos en st.session_state en lugar de Supabase.
     """
     def __init__(self, key: str, initial_data: list):
-        super().__init__(key)
+        self.key = key
         
+        # Inicializar lista en session_state si no existe
+        if self.key not in st.session_state:
+            st.session_state[self.key] = []
+
         # Cargar datos iniciales SOLO si la lista está vacía
         if not st.session_state[self.key]:
             # Establecer el contador de ID un poco más alto para los datos de prueba
             st.session_state[f"{self.key}_next_id"] = NEXT_ID_INICIAL + len(initial_data)
-            
             # Añadir todos los registros iniciales a la lista
             st.session_state[self.key].extend(initial_data)
+
+    def get_all(self):
+        """Retorna todos los registros de la lista en memoria."""
+        return st.session_state[self.key]
+
+    def get_by_id(self, item_id: int):
+        """Busca un ítem por ID."""
+        for item in st.session_state[self.key]:
+            if item['id'] == item_id:
+                return item
+        return None
+
+    def update_by_id(self, item_id: int, updates: dict):
+        """Actualiza un ítem por ID."""
+        for item in st.session_state[self.key]:
+            if item['id'] == item_id:
+                item.update(updates)
+                return True
+        return False
+        
+    def save(self, data: dict):
+        """Guarda un nuevo registro (simulado)."""
+        new_id = st.session_state.get(f"{self.key}_next_id", 1)
+        data['id'] = new_id
+        st.session_state[self.key].append(data)
+        st.session_state[f"{self.key}_next_id"] = new_id + 1
+        return new_id
 
 class VentaModel(OperacionesBaseModel):
     def __init__(self):
