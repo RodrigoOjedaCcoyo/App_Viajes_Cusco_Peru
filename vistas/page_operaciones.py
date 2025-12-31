@@ -200,8 +200,8 @@ def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
     st.markdown("Esta sección consolida el riesgo documental y la ejecución logística priorizada.")
     st.markdown("---")
     
-    # Inicializamos el controlador AQUI (Mock, no usa client pero lo recibimos por interfaz)
-    controller = OperacionesController()
+    # Inicializamos el controlador AQUI (CON INYECCIÓN REAL)
+    controller = OperacionesController(supabase_client)
 
     # Uso de pestañas (tabs) para organizar los dashboards
     tab1, tab2 = st.tabs(["🚦 Riesgo Documental", "🚀 Ejecución Logística"])
