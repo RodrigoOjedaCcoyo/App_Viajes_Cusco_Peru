@@ -115,19 +115,77 @@ def seguimiento_leads():
 
             st.write(f"Resultados: {len(df)} registros.")
 
-            # --- SELECCIÓN DE COLUMNAS A MOSTRAR ---
-            # Columnas a excluir
-            columnas_excluir = ['id_lead', 'id_vendedor', 'fecha_creacion', 'whatsapp']
+            # --- CONFIGURACIÓN DE COLUMNAS PARA EDITOR ---
+            # Definimos estados permitidos (Normalizados según DB)
+            opciones_estado = ["NUEVO", "CONTACTADO", "COTIZACION", "SEGUIMIENTO", "CIERRE GANADO", "CIERRE PERDIDO", "DESCARTADO", "CONVERTIDO"]
+
+            column_config = {
+                "estado_lead": st.column_config.SelectboxColumn(
+                    "Estado (Editable)",
+                    help="Seleccione el nuevo estado",
+                    width="medium",
+                    options=opciones_estado,
+                    required=True
+                ),
+                "Vendedor": st.column_config.TextColumn(
+                    "Vendedor Asignado",
+                    width="medium",
+                    disabled=True # Solo lectura
+                ),
+                "numero_celular": st.column_config.TextColumn("Celular", disabled=True),
+                "red_social": st.column_config.TextColumn("Red Social", disabled=True),
+            }
+
+            # Columnas a ocultar VISUALMENTE (pero mantener en datos para índices)
+            # Usamos column_order para definir qué mostrar y en qué orden
+            # Ocultamos: id_lead, id_vendedor, fecha_creacion, whatsapp
             
-            # Reordenar: Poner 'Vendedor' al principio o donde sea lógico
-            cols = [c for c in df.columns if c not in columnas_excluir]
-            # Mover 'Vendedor' al principio si existe
-            if 'Vendedor' in cols:
-                cols.insert(0, cols.pop(cols.index('Vendedor')))
+            cols_mostrar = ['Vendedor', 'estado_lead', 'numero_celular', 'red_social'] 
+            # Añadimos cualquier otra columna que venga del DF y no sea de las ocultas explícitamente ni de las ya listadas
+            extras = [c for c in df.columns if c not in cols_mostrar and c not in ['id_lead', 'id_vendedor', 'fecha_creacion', 'whatsapp']]
+            column_order = cols_mostrar + extras
 
-            st.dataframe(df[cols], use_container_width=True)
+            # --- DATA EDITOR ---
+            edited_df = st.data_editor(
+                df,
+                column_config=column_config,
+                column_order=column_order,
+                use_container_width=True,
+                hide_index=True,
+                key="editor_leads",
+                disabled=extras # Deshabilitar edición en columnas extra por defecto
+            )
 
-        # Sin formulario (modificado a petición)
+            # --- DETECCIÓN DE CAMBIOS Y GUARDADO ---
+            # Verificamos si hubo cambios en la sesión
+            if "editor_leads" in st.session_state and st.session_state["editor_leads"]["edited_rows"]:
+                updates = st.session_state["editor_leads"]["edited_rows"]
+                
+                cambios_realizados = False
+                for idx_str, cambios in updates.items():
+                    idx = int(idx_str) # El índice viene como int en versiones nuevas, pero aseguramos
+                    
+                    if 'estado_lead' in cambios:
+                        nuevo_estado = cambios['estado_lead']
+                        # Recuperar ID del Lead original usando el índice del DF filtrado
+                        # IMPORTANTE: df es el dataframe filtrado actual, por lo que el índice idx corresponde a él
+                        id_lead_actual = df.iloc[idx]['id_lead']
+                        
+                        exito, msg = lead_controller.actualizar_estado_lead(int(id_lead_actual), nuevo_estado)
+                        if exito:
+                            st.toast(f"✅ Lead #{id_lead_actual}: {nuevo_estado}")
+                            cambios_realizados = True
+                        else:
+                            st.error(f"Error actualizando Lead #{id_lead_actual}: {msg}")
+                
+                if cambios_realizados:
+                    # Esperar brevemente y recargar para refrescar datos limpios
+                    import time
+                    time.sleep(0.5)
+                    st.rerun()
+
+    else:
+        st.info(f"No hay leads registrados.")
             
     else:
         st.info(f"No hay leads registrados.")
