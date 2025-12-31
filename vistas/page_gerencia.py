@@ -3,7 +3,6 @@ import streamlit as st
 import pandas as pd
 from controllers.reporte_controller import ReporteController
 import plotly.express as px
-import matplotlib.pyplot as plt
 
 from models.lead_model import LeadModel # Para métricas de Leads
 

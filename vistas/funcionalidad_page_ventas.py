@@ -2,9 +2,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import matplotlib.pyplot as plt
 from datetime import date
-#import matplotlib as mp
 
 # --- INICIALIZACIONES GLOBALES ELIMINADAS ---
 # Estas líneas causaban un TypeError porque LeadController ya no acepta 0 argumentos.

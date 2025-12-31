@@ -1,7 +1,6 @@
 # vistas/page_contabilidad.py
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
 from controllers.reporte_controller import ReporteController
 
 # Inicializar controladores
