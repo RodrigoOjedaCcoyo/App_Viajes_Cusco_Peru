@@ -186,9 +186,7 @@ def seguimiento_leads():
 
     else:
         st.info(f"No hay leads registrados.")
-            
-    else:
-        st.info(f"No hay leads registrados.")
+
 
 
 # ----------------------------------------------------------------------
