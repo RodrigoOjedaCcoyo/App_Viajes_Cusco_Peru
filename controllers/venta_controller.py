@@ -2,7 +2,7 @@
 
 from models.venta_model import VentaModel
 from supabase import Client
-from typing import Optional
+from typing import Optional, Any
 
 class VentaController:
     """Controlador para manejar la lógica de Ventas."""

@@ -3,7 +3,7 @@
 from .base_model import BaseModel
 from datetime import datetime
 from supabase import Client
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 class VentaModel(BaseModel):
     """Modelo para la gestión de Ventas (Conversiones de Leads)."""
