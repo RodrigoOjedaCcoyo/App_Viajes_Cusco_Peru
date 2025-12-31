@@ -179,7 +179,10 @@ class OperacionesController:
                         # Intentar sacar fecha servicio
                         try:
                             res_f = self.client.table('venta_tour').select('fecha_servicio').eq('id_venta', tarea['id_venta']).limit(1).execute()
-                            if res_f.data: fecha_salida = res_f.data[0]['fecha_servicio']
+                            if res_f.data: 
+                                # Convertir string ISO a objeto date
+                                fecha_str = res_f.data[0]['fecha_servicio']
+                                fecha_salida = date.fromisoformat(fecha_str)
                         except: pass
                         
                     tareas_ejecutables.append({
@@ -187,13 +190,18 @@ class OperacionesController:
                         'ID Venta': tarea['id_venta'],
                         'Descripción': tarea['descripcion'],
                         'Destino': destino_str, # Simplificado
-                        'Fecha Salida': fecha_salida,
+                        'Fecha Salida': fecha_salida, # Ahora es objeto date, compatible con st.column_config
                         'Fecha Límite': tarea['fecha_limite'],
                         'Responsable': tarea['responsable_ejecucion'],
                         'Estado': tarea['estado_cumplimiento']
                     })
                     
-        return pd.DataFrame(tareas_ejecutables)
+        df = pd.DataFrame(tareas_ejecutables)
+        # Asegurar conversión explícita si el DF se crea vacío o mixto
+        if not df.empty and 'Fecha Salida' in df.columns:
+            df['Fecha Salida'] = pd.to_datetime(df['Fecha Salida']).dt.date
+            
+        return df
 
     def completar_tarea(self, id_tarea):
         return self.tarea_model.update_by_id(id_tarea, {'estado_cumplimiento': 'COMPLETADO', 'fecha_completado': date.today().isoformat()}), "Tarea completada."
