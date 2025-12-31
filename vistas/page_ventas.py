@@ -128,39 +128,74 @@ def registro_ventas():
     st.title("💰 Registro de Venta")
     st.markdown("---")
     
-    with st.form("form_registro_venta"):
+    with st.form("form_registro_venta", clear_on_submit=False):
+        st.subheader("1. Datos del Cliente")
         col1, col2 = st.columns(2)
+        n_nombre = col1.text_input("Nombre Completo Cliente")
+        n_celular = col1.text_input("Celular Cliente")
+        n_origen = col2.selectbox("Red Social Origen", ["---Seleccione---", "Facebook", "Instagram", "TikTok", "Web", "Recomendado", "Otro"])
+        n_vendedor = st.selectbox("Vendedor Responsable", ["---Seleccione---", "Angel", "Abel", "Otro"])
+
+        st.subheader("2. Detalle del Viaje")
+        c1, c2, c3 = st.columns(3)
+        n_tour = c1.selectbox("Tour Principal", ["---Seleccione---", "Machu Picchu Full Day", "Montaña 7 Colores", "Laguna Humantay", "Valle Sagrado", "City Tour", "Paquete Personalizado"])
+        n_tipo_hotel = c2.radio("¿Incluye Hotel?", ["Sin Hotel", "Con Hotel"], horizontal=True)
+        # Placeholder para fechas (inicio/fin)
+        n_fecha_inicio = c1.date_input("Fecha Inicio Viaje", value=date.today())
+        n_fecha_fin = c2.date_input("Fecha Fin Viaje", value=date.today())
+
+        st.subheader("3. Pagos y Comprobantes")
+        pc1, pc2, pc3 = st.columns(3)
+        n_monto_total = pc1.number_input("Monto Total (USD)", min_value=0.0, step=10.0, format="%.2f")
+        n_monto_depositado = pc2.number_input("Monto Depositado (USD)", min_value=0.0, step=10.0, format="%.2f")
         
-        with col1:
-            n_celular = st.text_input("Celular Cliente")
-            n_vendedor = st.selectbox("Vendedor", ["---Seleccione---", "Angel", "Abel", "Otro"])
-            n_monto_total = st.number_input("Monto Total (USD)", min_value=0.0, step=10.0)
-            
-        with col2:
-            n_tour = st.selectbox("Tour", ["---Seleccione---", "Machu Picchu Full Day", "Montaña 7 Colores", "Laguna Humantay", "Valle Sagrado"])
-            n_fecha_inicio = st.date_input("Fecha Tour", value=date.today())
+        # Calculo visual del saldo (solo informativo aquí, real en backend)
+        saldo_visual = n_monto_total - n_monto_depositado
+        pc3.metric("Saldo Pendiente", f"${saldo_visual:.2f}")
+
+        n_tipo_comprobante = st.selectbox("Tipo de Comprobante", ["Boleta", "Factura", "Recibo Simple"])
+
+        st.subheader("4. Evidencias y Archivos")
+        f1, f2 = st.columns(2)
+        file_itinerario = f1.file_uploader("Cargar Itinerario (PDF/Img)", type=['png', 'jpg', 'jpeg', 'pdf'])
+        file_pago = f2.file_uploader("Cargar Comprobante Pago (PDF/Img)", type=['png', 'jpg', 'jpeg', 'pdf'])
 
         # Botón REGISTRAR
-        submitted = st.form_submit_button("REGISTRAR", type="primary", use_container_width=True)
+        st.markdown("---")
+        submitted = st.form_submit_button("REGISTRAR VENTA", type="primary", use_container_width=True)
 
         if submitted:
-            # --- Logica de validacion y envio minimo ---
-            if not n_celular or n_vendedor =='---Seleccione---' or n_monto_total <=0:
-                st.error('Los campos Celular, Vendedor y Monto Total son obligatorios')
-            elif n_tour == '---Seleccione---':
-                st.error('Debe seleccionar un Tour Valido')
+            # --- Logica de validacion y envio ---
+            errores = []
+            if not n_nombre: errores.append("Falta Nombre del Cliente")
+            if not n_celular: errores.append("Falta Celular del Cliente")
+            if n_vendedor =='---Seleccione---': errores.append("Seleccione un Vendedor")
+            if n_tour == '---Seleccione---': errores.append("Seleccione un Tour")
+            if n_monto_total <= 0: errores.append("El Monto Total debe ser mayor a 0")
+            if n_fecha_fin < n_fecha_inicio: errores.append("La fecha fin no puede ser anterior a la fecha inicio")
+
+            if errores:
+                for e in errores: st.error(e)
             else:
                 # Uso de venta_controller corregido
                 exito, mensaje = venta_controller.registrar_venta_directa(
+                    nombre_cliente=n_nombre,
                     telefono=n_celular,
-                    origen=n_tour,
-                    monto=n_monto_total,
+                    origen=n_origen,
+                    vendedor=n_vendedor,
                     tour=n_tour,
-                    fecha_tour = n_fecha_inicio.strftime("%Y-%m-%d"),
-                    vendedor=n_vendedor
+                    tipo_hotel=n_tipo_hotel,
+                    fecha_inicio=str(n_fecha_inicio),
+                    fecha_fin=str(n_fecha_fin),
+                    monto_total=n_monto_total,
+                    monto_depositado=n_monto_depositado,
+                    tipo_comprobante=n_tipo_comprobante,
+                    file_itinerario=file_itinerario,
+                    file_pago=file_pago
                 )
                 if exito:
                     st.success(mensaje)
+                    st.balloons()
                 else:
                     st.error(mensaje)
 
