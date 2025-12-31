@@ -158,6 +158,10 @@ def dashboard_ejecucion_logistica(controller):
     hoy = date.today()
     proximo_riesgo = hoy + timedelta(days=7) # Definir riesgo como 'próximos 7 días'
 
+    # --- CORRECCIÓN DE TIPO FECHA LÍMITE ---
+    if 'Fecha Límite' in df_tareas_ejecutables.columns:
+        df_tareas_ejecutables['Fecha Límite'] = pd.to_datetime(df_tareas_ejecutables['Fecha Límite'], errors='coerce').dt.date
+
     df_tareas_ejecutables['Riesgo Fecha'] = df_tareas_ejecutables['Fecha Límite'].apply(
         lambda x: "🟥 CRÍTICO" if x <= hoy else ("🟨 ALERTA" if x <= proximo_riesgo else "🟢 Normal")
     )
