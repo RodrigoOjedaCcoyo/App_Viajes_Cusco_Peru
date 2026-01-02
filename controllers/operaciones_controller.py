@@ -1,6 +1,6 @@
 # controllers/operaciones_controller.py
 from models.operaciones_model import VentaModel, PasajeroModel, DocumentacionModel, TareaModel
-from datetime import date
+from datetime import date, timedelta
 from supabase import Client
 import pandas as pd
 
@@ -266,19 +266,15 @@ class OperacionesController:
         Retorna una lista de diccionarios planos para el Dashboard.
         """
         try:
-            fecha_str = fecha_filtro.isoformat()
-            
-            # 1. Obtener Venta_Tour para la fecha
-            # Relaciones: Venta_Tour -> Venta (Cliente, Pago)
-            #           -> Tour (Nombre)
-            # Supabase permite nested selects:
-            # select = *, venta:id_venta(id_cliente, estado_venta, precio_total_cierre, pago(monto_pagado)), tour:id_tour(nombre)
-            # NOTA: La sintaxis de Supabase-py nested puede ser compleja. Haremos fetch manual si falla.
+            # Uso rango para evitar problemas de timestamp vs date
+            start_date = fecha_filtro
+            end_date = fecha_filtro + timedelta(days=1)
             
             res_servicios = (
                 self.client.table('venta_tour')
-                .select('id, id_venta, id_tour, fecha_servicio, cantidad_pasajeros, guia_asignado') # Asumiendo columna 'guia_asignado' mock/real
-                .eq('fecha_servicio', fecha_str)
+                .select('id, id_venta, id_tour, fecha_servicio, cantidad_pasajeros, guia_asignado')
+                .gte('fecha_servicio', start_date.isoformat())
+                .lt('fecha_servicio', end_date.isoformat())
                 .execute()
             )
             
