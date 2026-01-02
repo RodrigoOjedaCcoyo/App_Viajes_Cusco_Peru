@@ -30,10 +30,12 @@ MODULOS_VISIBLES = {
     "VENTAS": [
         ("Registro de Leads", "page_ventas"),
         ("Seguimiento de Leads", "page_ventas"),
-        ("Registro de Ventas", "page_ventas")
+        ("Registro de Ventas", "page_ventas"),
+        ("Automatización e Itinerarios", "page_itinerarios")
     ],
     "OPERACIONES": [
-        ("Dashboard Operaciones", "page_operaciones")
+        ("Dashboard Operaciones", "page_operaciones"),
+        ("Automatización e Itinerarios", "page_itinerarios")
     ],
     "CONTABLE": [
         ("Reporte de Montos", "page_contabilidad"),

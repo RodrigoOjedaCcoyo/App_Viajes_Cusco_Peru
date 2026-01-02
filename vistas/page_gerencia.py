@@ -1,100 +1,107 @@
 # vistas/page_gerencia.py
 import streamlit as st
 import pandas as pd
-from controllers.reporte_controller import ReporteController
 import plotly.express as px
+from controllers.gerencia_controller import GerenciaController
+from datetime import date
 
-from models.lead_model import LeadModel # Para métricas de Leads
+def dashboard_ejecutivo(controller):
+    """Interfaz del Dashboard Principal de Gerencia."""
+    st.subheader("📊 Panel de Control Ejecutivo", divider='rainbow')
 
-# Inicializar controladores y modelos
-reporte_controller = ReporteController()
-lead_model = LeadModel()
+    # --- 1. OBTENER DATOS ---
+    with st.spinner("Calculando métricas..."):
+        finan = controller.get_kpis_financieros()
+        comer = controller.get_metricas_comerciales()
+        pax_tot = controller.get_pax_totales()
+        alertas = controller.get_alertas_gestion()
+        ventas_mes = controller.get_ventas_mensuales()
 
-def dashboard_ejecutivo():
-    """Sub-función para la funcionalidad 'Dashboard Ejecutivo'."""
-    st.subheader("📊 Resumen de Indicadores Clave (KPIs)")
-    
-    # --- 1. Obtener Datos ---
-    resumen_ventas = reporte_controller.obtener_resumen_ventas()
-    todas_las_ventas = resumen_ventas['detalle_ventas']
-    todos_los_leads = lead_model.get_all()
-    
-    # --- 2. Cálculos Ejecutivos ---
-    total_leads = len(todos_los_leads)
-    leads_convertidos = sum(1 for lead in todos_los_leads if 'Convertido' in lead['estado'])
-    total_ventas = resumen_ventas['total_ventas_registradas']
-    
-    # Tasa de Conversión (simple)
-    tasa_conversion = (leads_convertidos / total_leads * 100) if total_leads > 0 else 0
-    
-    monto_total_usd = resumen_ventas['monto_total_acumulado']
-    
-    # --- 3. Presentación de Métricas (KPIs) ---
-    st.markdown("### Metas y Conversión")
+    # --- 2. KPIs FINANCIEROS (Fila 1) ---
+    st.markdown("#### 💰 Resumen Financiero")
     col1, col2, col3 = st.columns(3)
     
-    col1.metric("Total Ingresos (USD)", f"${monto_total_usd:,.2f}")
-    col2.metric("Leads Registrados", total_leads)
-    col3.metric("Tasa de Conversión", f"{tasa_conversion:.1f}%")
+    col1.metric("Ventas Totales", f"S/ {finan['ventas_totales']:,.0f}", delta="Cifra Bruta")
+    col2.metric("Recaudado Real", f"S/ {finan['total_recaudado']:,.0f}", delta="En Banco", delta_color="normal")
+    col3.metric("Saldo Pendiente", f"S/ {finan['total_pendiente']:,.0f}", delta="- Deuda Clientes", delta_color="inverse")
 
     st.markdown("---")
 
-    # --- 4. Gráfico de Tendencia (Simulado) ---
-    st.write("### Ventas por Vendedor (Impacto)")
+    # --- 3. KPIs COMERCIALES (Fila 2) ---
+    st.markdown("#### 📈 Rendimiento Comercial y Operativo")
+    c1, c2, c3, c4 = st.columns(4)
     
-    if todas_las_ventas:
-        df_ventas = pd.DataFrame(todas_las_ventas)
-        
-        # Agrupamos los datos por vendedor y calculamos el monto total
-        df_vendedor = df_ventas.groupby('vendedor').agg(
-            monto_vendido=('monto_total', 'sum'),
-            conteo_ventas=('id', 'count')
-        ).reset_index()
+    c1.metric("Leads Totales", comer['total_leads'], help="Personas que consultaron")
+    c2.metric("Ratio Conversión", f"{comer['tasa_conversion']:.1f}%", help="Leads que se volvieron Venta")
+    c3.metric("Ventas Cerradas", comer['total_convertidos'], delta="Confirmados")
+    c4.metric("Pasajeros Totales", pax_tot, help="Total PAX en sistema", delta="Operación")
 
-        # Gráfico simple de barras de Streamlit
-        st.bar_chart(df_vendedor, x='vendedor', y='monto_vendido')
-        
-    else:
-        st.info("No hay datos de ventas para mostrar en el dashboard.")
-
-def auditoria_completa():
-    """Sub-función para la funcionalidad 'Auditoría Completa'."""
-    st.subheader("🔒 Acceso a Registros Maestros")
-    st.warning("Esta sección es para el control de la información y la revisión exhaustiva de todos los movimientos.")
-    
-    # --- 1. Auditoría de Ventas ---
-    st.markdown("#### Detalle Completo de Ventas")
-    todas_las_ventas = reporte_controller.obtener_detalle_auditoria()
-    if todas_las_ventas:
-        df_ventas = pd.DataFrame(todas_las_ventas)
-        st.dataframe(df_ventas, use_container_width=True, hide_index=True)
-    else:
-        st.info("No hay ventas registradas.")
-        
     st.markdown("---")
 
-    # --- 2. Auditoría de Leads ---
-    st.markdown("#### Detalle Completo de Leads")
-    todos_los_leads = lead_model.get_all()
-    if todos_los_leads:
-        df_leads = pd.DataFrame(todos_los_leads)
-        st.dataframe(df_leads, use_container_width=True, hide_index=True)
+    # --- 4. GRÁFICAS (Fila 3) ---
+    g1, g2 = st.columns([2, 1])
+
+    with g1:
+        st.markdown("##### Ventas por Mes")
+        if not ventas_mes.empty:
+            fig_bar = px.bar(
+                ventas_mes, x="Mes", y="Ventas",
+                color_discrete_sequence=["#1E88E5"],
+                text_auto='.2s'
+            )
+            fig_bar.update_layout(height=350, margin=dict(l=0, r=0, t=20, b=0))
+            st.plotly_chart(fig_bar, use_container_width=True)
+        else:
+            st.info("Sin histórico de ventas.")
+
+    with g2:
+        st.markdown("##### Canales de Venta")
+        dist = comer['distribucion_medios']
+        if dist:
+            df_dist = pd.DataFrame(list(dist.items()), columns=['Canal', 'Cantidad'])
+            fig_pie = px.pie(
+                df_dist, values='Cantidad', names='Canal',
+                hole=0.4, color_discrete_sequence=px.colors.qualitative.Safe
+            )
+            fig_pie.update_layout(height=350, margin=dict(l=0, r=0, t=20, b=0), showlegend=False)
+            st.plotly_chart(fig_pie, use_container_width=True)
+        else:
+            st.info("Sin datos de origen.")
+
+    st.markdown("---")
+
+    # --- 5. ALERTAS CRÍTICAS ---
+    st.markdown("#### ⚠️ Alertas de Gestión Operativa")
+    if alertas:
+        st.error(f"Hay {len(alertas)} documentos críticos PENDIENTES que podrían bloquear operaciones.")
+        df_al = pd.DataFrame(alertas)
+        st.table(df_al)
     else:
-        st.info("No hay leads registrados.")
+        st.success("✅ No hay riesgos críticos detectados por ahora.")
 
+def auditoria_maestra(controller):
+    """Vista de auditoría para ver tablas crudas."""
+    st.subheader("🔒 Auditoría de Datos del Sistema")
+    
+    with st.expander("Ver todas las Ventas (Tabla Cruda)"):
+        res = controller.client.table('venta').select('*').execute()
+        if res.data:
+            st.dataframe(pd.DataFrame(res.data), use_container_width=True)
+            
+    with st.expander("Ver todos los Leads"):
+        res = controller.client.table('lead').select('*').execute()
+        if res.data:
+            st.dataframe(pd.DataFrame(res.data), use_container_width=True)
 
-# ----------------------------------------------------------------------
-# FUNCIÓN PRINCIPAL DE LA VISTA (Llamada por main.py)
-# ----------------------------------------------------------------------
-
-def mostrar_pagina(funcionalidad_seleccionada: str):
+def mostrar_pagina(funcionalidad_seleccionada, supabase_client):
     """Punto de entrada para el módulo de Gerencia."""
-    st.title(f"Módulo de Gerencia / {funcionalidad_seleccionada}")
-    st.markdown("---")
+    # st.title se llama en main.py usualmente, pero aquí lo personalizamos
+    
+    controller = GerenciaController(supabase_client)
     
     if funcionalidad_seleccionada == "Dashboard Ejecutivo":
-        dashboard_ejecutivo()
+        dashboard_ejecutivo(controller)
     elif funcionalidad_seleccionada == "Auditoría Completa":
-        auditoria_completa()
+        auditoria_maestra(controller)
     else:
-        st.error("Funcionalidad de Gerencia no encontrada.")
+        st.info("Seleccione una opción del menú lateral.")
