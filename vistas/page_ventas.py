@@ -273,6 +273,96 @@ def registro_ventas():
                 else:
                     st.error(mensaje)
 
+def crear_itinerario_automatico():
+    """4. Sub-función para la funcionalidad 'Automatización e Itinerarios'."""
+    from controllers.itinerario_controller import ItinerarioController
+    supabase_client = st.session_state.get('supabase_client_ventas')
+    user_id = st.session_state.get('user_id')
+    
+    controller = ItinerarioController(supabase_client)
+    
+    st.subheader("📝 Generador de Itinerario con Cotización", divider='green')
+    st.info("Complete las 9 preguntas básicas para generar la propuesta comercial.")
+
+    # --- CARGA DE CATÁLOGOS ---
+    df_leads = controller.get_leads_activos()
+    df_catalogo = controller.get_catalogo_paquetes()
+    
+    # 1. Formulario Principal (Basic)
+    with st.container(border=True):
+        st.subheader("🟢 Formulario Básico")
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            lead_sel = st.selectbox("1. Lead / Prospecto", options=df_leads['id_lead'].tolist() if not df_leads.empty else [0], 
+                                  format_func=lambda x: f"Lead #{x}" if x != 0 else "No hay leads disponibles")
+            
+            paquete_sel = st.selectbox("3. Paquete Base Inicial", options=df_catalogo['nombre'].tolist())
+            row_paquete = df_catalogo[df_catalogo['nombre'] == paquete_sel].iloc[0]
+            
+        with c2:
+            st.info(f"👨‍💼 Vendedor: **{user_id}**")
+            fecha_vi = st.date_input("4. Fecha Tentativa de Llegada", date.today())
+            
+        st.divider()
+        
+        c3, c4 = st.columns(2)
+        with c3:
+            tipo_t = st.radio("5. ¿Nacionales o Extranjeros?", ["Nacional", "Extranjero"], horizontal=True)
+            adultos = st.number_input("6. Número de Adultos", min_value=1, value=1)
+        with c4:
+            ninos_text = st.text_input("7. Edades de Niños (Separe por coma)", help="Ej: 5, 8")
+            ninos_lista = [int(e.strip()) for e in ninos_text.split(',') if e.strip().isdigit()]
+            
+        st.divider()
+        
+        c5, c6 = st.columns(2)
+        with c5:
+            alojamiento = st.selectbox("8. Categoría de Alojamiento", ["Económico", "Turista", "Superior", "Lujo", "Sin Alojamiento"])
+        with c6:
+            tren = st.selectbox("9. Tipo de Tren (Machu Picchu)", ["Vistadome", "Expedition", "Hiram Bingham", "Local (Solo DNI)"])
+
+    # --- SECCIÓN DE COMPLEJIDAD ---
+    with st.expander("⚙️ Personalización Avanzada y Margen"):
+        st.subheader("🔴 Control de Ajustes")
+        col_p1, col_p2 = st.columns(2)
+        with col_p1:
+            st.markdown("##### V. Servicios Extra")
+            st.multiselect("Añadir/Quitar del Paquete", ["+ Montaña 7 Colores", "- Tour Valle Sur", "+ Cena Show"])
+        with col_p2:
+            st.markdown("##### VI. Ajuste de Ganancia")
+            margen = st.slider("Margen (%)", 0, 100, 20)
+            ajuste_manual = st.number_input("Opcional: Ajuste Fijo ($)", value=0.0)
+
+    # --- CÁLCULOS ---
+    datos_cotizacion = {
+        "costo_base_paquete": row_paquete.get('costo_base', 0),
+        "num_adultos": adultos,
+        "edades_ninos_json": ninos_lista,
+        "tipo_turista": tipo_t,
+        "fecha_llegada": fecha_vi,
+        "margen_ganancia": margen,
+        "ajuste_manual_fijo": ajuste_manual
+    }
+    
+    res = controller.calcular_presupuesto(datos_cotizacion)
+    
+    st.divider()
+    res_col1, res_col2, res_col3 = st.columns(3)
+    res_col1.metric("Costo Base", f"${res['subtotal_costo']:,.2f}")
+    
+    if res['sobrecosto_fiestas'] > 0:
+        res_col2.metric("Recargo Feriado", f"${res['sobrecosto_fiestas']:,.2f}", delta="Temp. Alta", delta_color="inverse")
+    else:
+        res_col2.metric("Precio Venta", f"${res['total_venta']:,.2f}", delta=f"Ganancia: ${res['ganancia_estimada']:,.2f}")
+    
+    if res['sobrecosto_fiestas'] > 0:
+        res_col3.metric("Precio Venta Final", f"${res['total_venta']:,.2f}", delta=f"Ganancia: ${res['ganancia_estimada']:,.2f}")
+
+    if st.button("🚀 Crear Itinerario y Ver PDF", use_container_width=True, type="primary"):
+        st.success("¡Cotización procesada! El sistema está generando el itinerario...")
+        st.balloons()
+
 # ----------------------------------------------------------------------
 # FUNCIÓN PRINCIPAL DE LA VISTA (Llamada por main.py)
 # ----------------------------------------------------------------------
@@ -296,6 +386,7 @@ def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual=
     st.session_state['venta_controller'] = venta_controller
     st.session_state['user_role'] = rol_actual
     st.session_state['user_id'] = user_id
+    st.session_state['supabase_client_ventas'] = supabase_client
 
     st.title(f'Modulo de Ventas / {funcionalidad_seleccionada}')
 
