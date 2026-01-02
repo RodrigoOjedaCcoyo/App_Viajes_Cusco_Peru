@@ -369,7 +369,7 @@ def crear_itinerario_automatico():
     
     st.download_button(
         label="🚀 Descargar Itinerario y Cotización (PDF)",
-        data=pdf_bytes,
+        data=bytes(pdf_bytes),
         file_name=f"Itinerario_Lead_{lead_sel}_{date.today()}.pdf",
         mime="application/pdf",
         use_container_width=True,

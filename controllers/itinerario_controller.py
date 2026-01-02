@@ -139,4 +139,4 @@ class ItinerarioController:
         pdf.ln(5)
         pdf.cell(0, 10, f"TOTAL A PAGAR: ${res_cotizacion['total_venta']:,.2f}", 0, 1, "R")
 
-        return pdf.output()
+        return bytes(pdf.output())
