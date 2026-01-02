@@ -8,9 +8,9 @@ class ReporteController:
     para las áreas de Gerencia y Contabilidad.
     """
     
-    def __init__(self):
-        self.venta_model = VentaModel()
-        self.lead_model = LeadModel()
+    def __init__(self, supabase_client):
+        self.venta_model = VentaModel('Venta', supabase_client)
+        self.lead_model = LeadModel('lead', supabase_client)
         
     def obtener_resumen_ventas(self):
         """Devuelve todas las ventas con información clave para reportes."""

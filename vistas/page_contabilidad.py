@@ -3,11 +3,15 @@ import streamlit as st
 import pandas as pd
 from controllers.reporte_controller import ReporteController
 
-# Inicializar controladores
-reporte_controller = ReporteController()
+# Inicializar controladores (Se hace dentro de mostrar_pagina ahora)
 
 def reporte_de_montos():
     """Sub-función para la funcionalidad 'Reporte de Montos'."""
+    reporte_controller = st.session_state.get('reporte_controller')
+    if not reporte_controller:
+        st.error("Error: Controlador no inicializado.")
+        return
+
     st.subheader("💰 Reporte de Ingresos Totales")
     
     data_reporte = reporte_controller.obtener_resumen_ventas()
@@ -45,6 +49,11 @@ def reporte_de_montos():
 
 def auditoria_de_pagos():
     """Sub-función para la funcionalidad 'Auditoría de Pagos'."""
+    reporte_controller = st.session_state.get('reporte_controller')
+    if not reporte_controller:
+        st.error("Error: Controlador no inicializado.")
+        return
+
     st.subheader("🏦 Auditoría de Pagos y Estados")
     
     # Llama a la función que devuelve el detalle de ventas (por ahora)
@@ -70,6 +79,10 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, su
     Función que main.py usa para cargar el módulo. 
     Redirige a la función de sub-página correcta según la selección del sidebar.
     """
+    # Inicialización del controlador con dependencia inyectada
+    if supabase_client:
+        st.session_state['reporte_controller'] = ReporteController(supabase_client)
+
     st.title(f"Módulo de Contabilidad / {funcionalidad_seleccionada}")
     st.markdown("---")
     
