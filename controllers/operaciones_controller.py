@@ -346,6 +346,8 @@ class OperacionesController:
             return resultado
 
         except Exception as e:
+            import streamlit as st
+            st.error(f"🚨 Error Técnico en Tablero: {e}")
             print(f"Error en Tablero Diario: {e}")
             return []
 
