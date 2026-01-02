@@ -396,5 +396,7 @@ def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual=
         seguimiento_leads()
     elif funcionalidad_seleccionada == "Registro de Ventas":
         registro_ventas()
+    elif funcionalidad_seleccionada == "Automatización e Itinerarios":
+        crear_itinerario_automatico()
     else:
         st.error("Funcionalidad de Ventas no encontrada.")
