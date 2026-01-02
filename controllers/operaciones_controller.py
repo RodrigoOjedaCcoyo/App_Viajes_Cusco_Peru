@@ -75,12 +75,20 @@ class OperacionesController:
             # Mapeo para UI
             datos_ui = []
             for v in ventas:
-                # Buscar nombre vendedor (Optimizable con cache o mapeo global)
+                # Buscar nombre vendedor
                 nombre_vendedor = "Desconocido"
                 if v.get('id_vendedor'):
                     try:
                         res_vend = self.client.table('vendedor').select('nombre').eq('id_vendedor', v['id_vendedor']).single().execute()
                         if res_vend.data: nombre_vendedor = res_vend.data['nombre']
+                    except: pass
+                
+                # Buscar nombre cliente principal
+                nombre_cliente = "Desconocido"
+                if v.get('id_cliente'):
+                    try:
+                        res_cli = self.client.table('cliente').select('nombre').eq('id_cliente', v['id_cliente']).single().execute()
+                        if res_cli.data: nombre_cliente = res_cli.data['nombre']
                     except: pass
                 
                 # Buscar destino (en tabla Venta no hay destino directo en MASTER SCHEMA, está en Venta_Tour -> Tour)
@@ -105,6 +113,7 @@ class OperacionesController:
 
                 datos_ui.append({
                     'id': v['id_venta'],
+                    'cliente': nombre_cliente, # <--- NUEVO
                     'destino': destinos,
                     'fecha_salida': fecha_salida_obj, 
                     'vendedor': nombre_vendedor

@@ -36,17 +36,18 @@ def dashboard_riesgo_documental(controller):
     # Muestra la tabla informativa (sin selección interactiva compleja)
     st.dataframe(
         df_resumen,
-        column_order=('ID Venta', 'Destino', 'Fecha Salida', 'Vendedor'),
+        column_order=('ID Venta', 'Cliente', 'Destino', 'Fecha Salida', 'Vendedor'),
         hide_index=True,
         column_config={
             "Fecha Salida": st.column_config.DateColumn(format="YYYY-MM-DD")
         },
         height=200,
+        use_container_width=True
     )
 
     # Selector Principal (Segmentador)
     opciones_venta = {
-        f"ID: {v['id']} - {v['destino']} ({v['fecha_salida']})": v['id']
+        f"ID: {v['id']} - {v['cliente']} - {v['destino']} ({v['fecha_salida']})": v['id']
         for v in ventas_en_riesgo
     }
     
