@@ -164,3 +164,63 @@ class GerenciaController:
         except Exception as e:
             print(f"Error Distribución Leads: {e}")
             return pd.DataFrame()
+    def get_ventas_por_canal(self):
+        """Obtiene el monto total de ventas por cada canal (WEB, DIRECTO, etc.)."""
+        try:
+            res = self.client.table('venta').select('canal_venta, precio_total_cierre').execute()
+            df = pd.DataFrame(res.data or [])
+            if df.empty: return pd.DataFrame()
+            
+            resumen = df.groupby('canal_venta')['precio_total_cierre'].sum().reset_index()
+            resumen.columns = ['Canal', 'Monto']
+            return resumen.sort_values('Monto', ascending=False)
+        except Exception as e:
+            print(f"Error Ventas por Canal: {e}")
+            return pd.DataFrame()
+
+    def get_ventas_por_estado(self):
+        """Obtiene la distribución de ventas por estado actual."""
+        try:
+            res = self.client.table('venta').select('estado').execute()
+            df = pd.DataFrame(res.data or [])
+            if df.empty: return pd.DataFrame()
+            
+            resumen = df.groupby('estado').size().reset_index()
+            resumen.columns = ['Estado', 'Cantidad']
+            return resumen.sort_values('Cantidad', ascending=False)
+        except Exception as e:
+            print(f"Error Ventas por Estado: {e}")
+            return pd.DataFrame()
+
+    def get_detalle_ventas_limpio(self):
+        """Retorna el DataFrame de ventas con nombres de clientes y vendedores para la tabla."""
+        try:
+            # 1. Ventas
+            res_v = self.client.table('venta').select('*').execute()
+            df_v = pd.DataFrame(res_v.data or [])
+            if df_v.empty: return df_v
+
+            # 2. Clientes
+            res_c = self.client.table('cliente').select('id_cliente, nombre').execute()
+            cli_map = {c['id_cliente']: c['nombre'] for c in res_c.data}
+
+            # 3. Vendedores
+            res_vend = self.client.table('vendedor').select('id_vendedor, nombre').execute()
+            vend_map = {v['id_vendedor']: v['nombre'] for v in res_vend.data}
+
+            # Aplicar mapeos
+            df_v['Cliente'] = df_v['id_cliente'].map(cli_map).fillna('Desconocido')
+            df_v['Vendedor'] = df_v['id_vendedor'].map(vend_map).fillna('Desconocido')
+            
+            # Ordenar columnas para Gerencia
+            cols = ['fecha_venta', 'Cliente', 'Vendedor', 'canal_venta', 'precio_total_cierre', 'moneda', 'estado']
+            return df_v[cols].rename(columns={
+                'fecha_venta': 'Fecha',
+                'canal_venta': 'Canal',
+                'precio_total_cierre': 'Monto',
+                'moneda': 'Divisa',
+                'estado': 'Estado'
+            })
+        except Exception as e:
+            print(f"Error Detalle Ventas Limpio: {e}")
+            return pd.DataFrame()

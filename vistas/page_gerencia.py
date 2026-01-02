@@ -80,62 +80,80 @@ def dashboard_ejecutivo(controller):
         st.success("✅ No hay riesgos críticos detectados por ahora.")
 
 def auditoria_maestra(controller):
-    """Vista de auditoría visual y estratégica."""
-    st.subheader("🕵️ Auditoría Estratégica de Operaciones", divider='orange')
+    """Vista de auditoría visual avanzada y control de integridad."""
+    st.subheader("🕵️ Centro de Control de Auditoría", divider='orange')
     
-    with st.spinner("Generando reportes de auditoría..."):
+    with st.spinner("Generando análisis de integridad..."):
+        df_v_canal = controller.get_ventas_por_canal()
+        df_v_estado = controller.get_ventas_por_estado()
+        df_ventas_limpio = controller.get_detalle_ventas_limpio()
+        # Reutilizamos los de la auditoría anterior para no perder el funnel
         df_desempeno = controller.get_desempeno_vendedores()
         df_leads_estados = controller.get_distribucion_estados_leads()
 
-    # --- 1. DESEMPEÑO DE VENDEDORES (Visual) ---
-    st.markdown("#### 🏆 Efectividad por Vendedor")
-    if not df_desempeno.empty:
-        fig_des = px.bar(
-            df_desempeno, x='Vendedor', y=['Leads', 'Ventas'],
-            barmode='group',
-            title="Comparativa: Leads Capturados vs Ventas Cerradas",
-            color_discrete_map={'Leads': '#64B5F6', 'Ventas': '#43A047'}
-        )
-        st.plotly_chart(fig_des, use_container_width=True)
-    else:
-        st.info("No hay datos suficientes para el ranking de vendedores.")
+    # --- 1. RESUMEN EJECUTIVO DE AUDITORÍA (Métricas Rápidas) ---
+    m1, m2, m3 = st.columns(3)
+    with m1:
+        top_canal = df_v_canal.iloc[0]['Canal'] if not df_v_canal.empty else "N/A"
+        st.metric("Canal Líder", top_canal)
+    with m2:
+        monto_avg = df_ventas_limpio['Monto'].mean() if not df_ventas_limpio.empty else 0
+        st.metric("Ticket Promedio", f"S/ {monto_avg:,.2f}")
+    with m3:
+        pax_total = controller.get_pax_totales()
+        st.metric("Operación Actual", f"{pax_total} PAX")
 
     st.markdown("---")
 
-    # --- 2. EMBUDO DE CONVERSIÓN (Funnel) ---
-    col_a, col_b = st.columns([1, 1])
+    # --- 2. GRÁFICAS ANALÍTICAS ---
+    g1, g2 = st.columns(2)
     
-    with col_a:
-        st.markdown("#### 🌪️ Embudo de Leads (Funnel)")
-        if not df_leads_estados.empty:
-            fig_funnel = px.funnel(
-                df_leads_estados, x='Cantidad', y='Estado',
-                color='Estado', color_discrete_sequence=px.colors.sequential.YlOrRd_r
-            )
-            st.plotly_chart(fig_funnel, use_container_width=True)
-        else:
-            st.info("Sin datos de estados de leads.")
-
-    with col_b:
-        st.markdown("#### 📋 Resumen de Estados")
-        if not df_leads_estados.empty:
-            st.dataframe(df_leads_estados, use_container_width=True, hide_index=True)
+    with g1:
+        st.markdown("##### Distribución Económica por Canal")
+        if not df_v_canal.empty:
+            fig_canal = px.bar(df_v_canal, x='Canal', y='Monto', color='Canal', 
+                             color_discrete_sequence=px.colors.qualitative.Pastel)
+            fig_canal.update_layout(showlegend=False, height=300, margin=dict(l=0,r=0,t=0,b=0))
+            st.plotly_chart(fig_canal, use_container_width=True)
+            
+    with g2:
+        st.markdown("##### Volumen de Ventas por Estado")
+        if not df_v_estado.empty:
+            fig_est = px.pie(df_v_estado, values='Cantidad', names='Estado', hole=0.5,
+                           color_discrete_sequence=px.colors.sequential.RdBu)
+            fig_est.update_layout(height=300, margin=dict(l=0,r=0,t=0,b=0))
+            st.plotly_chart(fig_est, use_container_width=True)
 
     st.markdown("---")
 
-    # --- 3. DATOS CRUDOS (Solo bajo demanda) ---
-    with st.expander("🔍 Ver Tablas de Auditoría Cruda (Solo Control)"):
-        tab1, tab2 = st.tabs(["Ventas Reales", "Leads Registrados"])
-        
-        with tab1:
-            res_v = controller.client.table('venta').select('*').execute()
-            if res_v.data:
-                st.dataframe(pd.DataFrame(res_v.data), use_container_width=True)
-        
-        with tab2:
-            res_l = controller.client.table('lead').select('*').execute()
-            if res_l.data:
-                st.dataframe(pd.DataFrame(res_l.data), use_container_width=True)
+    # --- 3. TABLA DE AUDITORÍA ESTILIZADA (El "Libro Diario") ---
+    st.markdown("#### 📖 Registro Maestro de Ventas (Auditoría)")
+    if not df_ventas_limpio.empty:
+        st.dataframe(
+            df_ventas_limpio,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Fecha": st.column_config.DateColumn("📆 Fecha", format="DD/MM/YYYY"),
+                "Monto": st.column_config.NumberColumn("💰 Monto", format="S/ %.2f"),
+                "Divisa": st.column_config.TextColumn("💱"),
+                "Estado": st.column_config.TextColumn("📌 Estado"),
+                "Cliente": st.column_config.TextColumn("👤 Cliente"),
+                "Vendedor": st.column_config.TextColumn("👨‍💼 Vendedor")
+            }
+        )
+    else:
+        st.info("No hay ventas para auditar.")
+
+    # --- 4. FUNNEL Y DESEMPEÑO (Se mantiene en expanders para no saturar) ---
+    with st.expander("📊 Ver Análisis de Prospección (Leads & Funnel)"):
+        c1, c2 = st.columns(2)
+        with c1:
+            if not df_desempeno.empty:
+                st.plotly_chart(px.bar(df_desempeno, x='Vendedor', y='Ventas', title="Cierre por Vendedor"), use_container_width=True)
+        with c2:
+            if not df_leads_estados.empty:
+                st.plotly_chart(px.funnel(df_leads_estados, x='Cantidad', y='Estado', title="Embudo Comercial"), use_container_width=True)
 
 def mostrar_pagina(funcionalidad_seleccionada, rol_actual, user_id, supabase_client):
     """Punto de entrada para el módulo de Gerencia."""
