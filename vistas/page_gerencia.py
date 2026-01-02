@@ -80,18 +80,62 @@ def dashboard_ejecutivo(controller):
         st.success("✅ No hay riesgos críticos detectados por ahora.")
 
 def auditoria_maestra(controller):
-    """Vista de auditoría para ver tablas crudas."""
-    st.subheader("🔒 Auditoría de Datos del Sistema")
+    """Vista de auditoría visual y estratégica."""
+    st.subheader("🕵️ Auditoría Estratégica de Operaciones", divider='orange')
     
-    with st.expander("Ver todas las Ventas (Tabla Cruda)"):
-        res = controller.client.table('venta').select('*').execute()
-        if res.data:
-            st.dataframe(pd.DataFrame(res.data), use_container_width=True)
-            
-    with st.expander("Ver todos los Leads"):
-        res = controller.client.table('lead').select('*').execute()
-        if res.data:
-            st.dataframe(pd.DataFrame(res.data), use_container_width=True)
+    with st.spinner("Generando reportes de auditoría..."):
+        df_desempeno = controller.get_desempeno_vendedores()
+        df_leads_estados = controller.get_distribucion_estados_leads()
+
+    # --- 1. DESEMPEÑO DE VENDEDORES (Visual) ---
+    st.markdown("#### 🏆 Efectividad por Vendedor")
+    if not df_desempeno.empty:
+        fig_des = px.bar(
+            df_desempeno, x='Vendedor', y=['Leads', 'Ventas'],
+            barmode='group',
+            title="Comparativa: Leads Capturados vs Ventas Cerradas",
+            color_discrete_map={'Leads': '#64B5F6', 'Ventas': '#43A047'}
+        )
+        st.plotly_chart(fig_des, use_container_width=True)
+    else:
+        st.info("No hay datos suficientes para el ranking de vendedores.")
+
+    st.markdown("---")
+
+    # --- 2. EMBUDO DE CONVERSIÓN (Funnel) ---
+    col_a, col_b = st.columns([1, 1])
+    
+    with col_a:
+        st.markdown("#### 🌪️ Embudo de Leads (Funnel)")
+        if not df_leads_estados.empty:
+            fig_funnel = px.funnel(
+                df_leads_estados, x='Cantidad', y='Estado',
+                color='Estado', color_discrete_sequence=px.colors.sequential.YlOrRd_r
+            )
+            st.plotly_chart(fig_funnel, use_container_width=True)
+        else:
+            st.info("Sin datos de estados de leads.")
+
+    with col_b:
+        st.markdown("#### 📋 Resumen de Estados")
+        if not df_leads_estados.empty:
+            st.dataframe(df_leads_estados, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+
+    # --- 3. DATOS CRUDOS (Solo bajo demanda) ---
+    with st.expander("🔍 Ver Tablas de Auditoría Cruda (Solo Control)"):
+        tab1, tab2 = st.tabs(["Ventas Reales", "Leads Registrados"])
+        
+        with tab1:
+            res_v = controller.client.table('venta').select('*').execute()
+            if res_v.data:
+                st.dataframe(pd.DataFrame(res_v.data), use_container_width=True)
+        
+        with tab2:
+            res_l = controller.client.table('lead').select('*').execute()
+            if res_l.data:
+                st.dataframe(pd.DataFrame(res_l.data), use_container_width=True)
 
 def mostrar_pagina(funcionalidad_seleccionada, rol_actual, user_id, supabase_client):
     """Punto de entrada para el módulo de Gerencia."""

@@ -113,3 +113,54 @@ class GerenciaController:
         except Exception as e:
             print(f"Error Gerencia Mensual: {e}")
             return pd.DataFrame()
+
+    def get_desempeno_vendedores(self):
+        """Calcula Leads vs Ventas por cada vendedor."""
+        try:
+            # 1. Obtener Leads con vendedor
+            res_leads = self.client.table('lead').select('id_vendedor, estado_lead').execute()
+            df_leads = pd.DataFrame(res_leads.data or [])
+            
+            # 2. Obtener Ventas con vendedor
+            res_ventas = self.client.table('venta').select('id_vendedor').execute()
+            df_ventas = pd.DataFrame(res_ventas.data or [])
+            
+            # 3. Mapeo de Nombres de Vendedores
+            res_vend = self.client.table('vendedor').select('id_vendedor, nombre').execute()
+            vend_map = {v['id_vendedor']: v['nombre'] for v in res_vend.data}
+            
+            # Procesamiento
+            leads_count = {}
+            if not df_leads.empty:
+                leads_count = df_leads.groupby('id_vendedor').size().to_dict()
+                
+            ventas_count = {}
+            if not df_ventas.empty:
+                ventas_count = df_ventas.groupby('id_vendedor').size().to_dict()
+            
+            data = []
+            for vid, nombre in vend_map.items():
+                data.append({
+                    'Vendedor': nombre,
+                    'Leads': leads_count.get(vid, 0),
+                    'Ventas': ventas_count.get(vid, 0)
+                })
+            
+            return pd.DataFrame(data)
+        except Exception as e:
+            print(f"Error Desempeño Vendedores: {e}")
+            return pd.DataFrame()
+
+    def get_distribucion_estados_leads(self):
+        """Obtiene la cantidad de leads en cada estado para un Funnel."""
+        try:
+            res = self.client.table('lead').select('estado_lead').execute()
+            df = pd.DataFrame(res.data or [])
+            if df.empty: return pd.DataFrame()
+            
+            resumen = df.groupby('estado_lead').size().reset_index()
+            resumen.columns = ['Estado', 'Cantidad']
+            return resumen.sort_values('Cantidad', ascending=False)
+        except Exception as e:
+            print(f"Error Distribución Leads: {e}")
+            return pd.DataFrame()
