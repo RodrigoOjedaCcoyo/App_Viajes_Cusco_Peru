@@ -150,8 +150,12 @@ def dashboard_tablero_diario(controller):
     # --- CONTROLES DE NAVEGACIÓN MES ---
     col_nav_1, col_nav_2, col_nav_3 = st.columns([1, 4, 1])
     
+    # Mapeo manual de Meses a Español
+    nombres_meses = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
+                     "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+    
     with col_nav_1:
-        if st.button("◀ Prev"):
+        if st.button("◀ Ant"):
             # Restar un mes
             new_month = month - 1
             new_year = year
@@ -163,11 +167,11 @@ def dashboard_tablero_diario(controller):
 
     with col_nav_2:
         # Título del Mes Centrado
-        month_name = calendar.month_name[month]
+        month_name = nombres_meses[month]
         st.markdown(f"<h3 style='text-align: center; margin: 0;'>{month_name} {year}</h3>", unsafe_allow_html=True)
 
     with col_nav_3:
-        if st.button("Next ▶"):
+        if st.button("Sig ▶"):
              # Sumar un mes
             new_month = month + 1
             new_year = year
@@ -185,7 +189,7 @@ def dashboard_tablero_diario(controller):
     # 1. Obtener fechas con carga (servicios/tours) para este mes
     fechas_con_servicios = controller.get_fechas_con_servicios(year, month)
     
-    # Encabezados de Días
+    # Encabezados de Días (Español)
     cols = st.columns(7)
     days_header = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
     for idx, col in enumerate(cols):
@@ -220,7 +224,8 @@ def dashboard_tablero_diario(controller):
                     
     # --- DETALLE DE LA FECHA SELECCIONADA ---
     fecha_seleccionada = st.session_state['cal_selected_date']
-    st.markdown(f"### 📅 Operaciones del: {fecha_seleccionada.strftime('%d de %B de %Y')}")
+    mes_espanol = nombres_meses[fecha_seleccionada.month]
+    st.markdown(f"### 📅 Operaciones del: {fecha_seleccionada.day} de {mes_espanol} de {fecha_seleccionada.year}")
     
     # Obtener Servicios del día
     servicios_dia = controller.get_servicios_por_fecha(fecha_seleccionada)
@@ -230,6 +235,14 @@ def dashboard_tablero_diario(controller):
     
     if not servicios_dia:
         st.warning(f"No hay servicios programados para el {fecha_seleccionada.strftime('%Y-%m-%d')}.")
+        
+        # --- SECCIÓN DE DEBUGGING (Solo visible si hay error aparente) ---
+        if fecha_seleccionada in fechas_con_servicios:
+            with st.expander("🛠️ Depuración (Solo visible si no carga datos)"):
+                st.write(f"Fecha Seleccionada: {fecha_seleccionada}")
+                st.write(f"Query Range: {fecha_seleccionada.isoformat()} <= X < {(fecha_seleccionada + timedelta(days=1)).isoformat()}")
+                st.write("Datos detectados por 'Puntos Verdes' (get_fechas_con_servicios) para este mes:")
+                st.write([d.isoformat() for d in fechas_con_servicios if d.month == month])
         return
 
     # Preparar DataFrame
