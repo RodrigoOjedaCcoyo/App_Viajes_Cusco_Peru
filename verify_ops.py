@@ -44,5 +44,13 @@ def test_controller():
     except Exception as e:
         print(f"FAILED actualizar_guia_servicio: {e}")
 
+    try:
+        file_mock = MagicMock()
+        file_mock.name = "passport.pdf"
+        success, msg = controller.subir_documento(1, file_mock)
+        print(f"subir_documento executed: {success} - {msg}")
+    except Exception as e:
+        print(f"FAILED subir_documento: {e}")
+
 if __name__ == "__main__":
     test_controller()

@@ -88,15 +88,42 @@ def dashboard_riesgo_documental(controller):
                 }
                 
                 selected_doc_key = st.selectbox(
-                    "Selecciona Documento a validar:", 
+                    "Selecciona Documento para gestionar:", 
                     list(opciones_validar.keys())
                 )
                 
-                if st.button("🔴 Validar Documento"):
-                    id_doc_a_validar = opciones_validar[selected_doc_key]
-                    success, message = controller.validar_documento(id_doc_a_validar)
+                id_doc_seleccionado = opciones_validar[selected_doc_key]
+                
+                # Obtener estado actual del doc seleccionado para saber si ya subió archivo
+                doc_info = doc_validables[doc_validables['ID Documento'] == id_doc_seleccionado].iloc[0]
+                estado_actual = doc_info['Estado']
+                
+                st.markdown("---")
+                st.markdown(" **1. Subir Evidencia**")
+                uploaded_file = st.file_uploader("Adjuntar documento (PDF/Imagen)", key=f"uploader_{id_doc_seleccionado}")
+                
+                archivo_listo = False
+                if uploaded_file is not None:
+                    # Simular subida inmediata al seleccionar
+                     with st.spinner("Subiendo archivo..."):
+                        success, msg = controller.subir_documento(id_doc_seleccionado, uploaded_file)
+                        if success:
+                            st.success("✅ Archivo cargado temporalmente.")
+                            archivo_listo = True
+                        else:
+                            st.error(msg)
+                elif estado_actual == 'RECIBIDO':
+                     # Si ya estaba recibido de antes, asumimos que tiene archivo
+                     st.info("📂 Este documento ya tiene un archivo adjunto previamente.")
+                     archivo_listo = True
+                
+                st.markdown(" **2. Validar**")
+                
+                # El botón solo se activa si hay archivo "listo" (subido ahora o antes)
+                if st.button("🔴 Validar y Aprobar Documento", disabled=not archivo_listo):
+                    success, message = controller.validar_documento(id_doc_seleccionado)
                     if success:
-                        st.success(f"Documento ID {id_doc_a_validar} validado. Recargando...")
+                        st.success(f"Documento ID {id_doc_seleccionado} VALIDADO correctamente. Recargando...")
                         st.rerun()
                     else:
                         st.error(f"Error al validar: {message}")

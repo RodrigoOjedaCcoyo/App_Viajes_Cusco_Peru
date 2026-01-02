@@ -148,6 +148,16 @@ class OperacionesController:
         # Actualizar usando BaseModel real
         return self.doc_model.update_by_id(id_doc, {'estado_entrega': 'VALIDADO'}), "Documento validado."
 
+    def subir_documento(self, id_doc, file_obj):
+        """Simula la subida de un documento y actualiza su estado a RECIBIDO."""
+        # En producción: Aquí subirías file_obj a S3/Supabase Storage
+        # Simulación: Solo actualizamos estado
+        try:
+            self.doc_model.update_by_id(id_doc, {'estado_entrega': 'RECIBIDO', 'ubicacion_archivo': f"mock_path/{file_obj.name}"})
+            return True, f"Archivo {file_obj.name} subido correctamente."
+        except Exception as e:
+             return False, f"Error al subir: {e}"
+
     # ------------------------------------------------------------------
     # LÓGICA DE EJECUCIÓN (Dashboard #2)
     # ------------------------------------------------------------------
