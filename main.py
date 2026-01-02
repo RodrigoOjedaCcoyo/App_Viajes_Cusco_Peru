@@ -29,9 +29,9 @@ if models_path not in sys.path:
 MODULOS_VISIBLES = {
     "VENTAS": [
         ("Registro de Leads", "page_ventas"),
+        ("Automatización e Itinerarios", "page_ventas"),
         ("Seguimiento de Leads", "page_ventas"),
-        ("Registro de Ventas", "page_ventas"),
-        ("Automatización e Itinerarios", "page_ventas")
+        ("Registro de Ventas", "page_ventas")
     ],
     "OPERACIONES": [
         ("Dashboard Operaciones", "page_operaciones")
