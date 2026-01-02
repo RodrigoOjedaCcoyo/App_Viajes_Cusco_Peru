@@ -52,5 +52,11 @@ def test_controller():
     except Exception as e:
         print(f"FAILED subir_documento: {e}")
 
+    try:
+        fechas = controller.get_fechas_con_servicios(2026, 1)
+        print(f"get_fechas_con_servicios executed. Result type: {type(fechas)}")
+    except Exception as e:
+        print(f"FAILED get_fechas_con_servicios: {e}")
+
 if __name__ == "__main__":
     test_controller()

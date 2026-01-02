@@ -159,8 +159,40 @@ class OperacionesController:
              return False, f"Error al subir: {e}"
 
     # ------------------------------------------------------------------
-    # LÓGICA DE EJECUCIÓN (Dashboard #2)
+    # LÓGICA DE TABLERO DE EJECUCIÓN DIARIA (Dashboard #2)
     # ------------------------------------------------------------------
+
+    def get_fechas_con_servicios(self, year: int, month: int):
+        """Devuelve un SET de objetos date que tienen servicios en el mes dado."""
+        try:
+            # Construir rango de fechas
+            start_date = date(year, month, 1)
+            if month == 12:
+                end_date = date(year + 1, 1, 1)
+            else:
+                end_date = date(year, month + 1, 1)
+                
+            # Query range
+            res = (
+                self.client.table('venta_tour')
+                .select('fecha_servicio')
+                .gte('fecha_servicio', start_date.isoformat())
+                .lt('fecha_servicio', end_date.isoformat())
+                .execute()
+            )
+            
+            fechas_activas = set()
+            if res.data:
+                for item in res.data:
+                    try:
+                        fechas_activas.add(date.fromisoformat(item['fecha_servicio']))
+                    except: pass
+            
+            return fechas_activas
+        except Exception as e:
+            print(f"Error fetching fechas activas: {e}")
+            return set()
+
 
     def es_viaje_documentalmente_desbloqueado(self, id_venta):
         # Verificar documentos de esta venta

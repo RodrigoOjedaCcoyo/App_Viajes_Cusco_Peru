@@ -182,6 +182,9 @@ def dashboard_tablero_diario(controller):
     # --- GRID DEL CALENDARIO ---
     cal = calendar.monthcalendar(year, month)
     
+    # 1. Obtener fechas con carga (servicios/tours) para este mes
+    fechas_con_servicios = controller.get_fechas_con_servicios(year, month)
+    
     # Encabezados de Días
     cols = st.columns(7)
     days_header = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
@@ -198,7 +201,13 @@ def dashboard_tablero_diario(controller):
                     # Estilo condicional para el día seleccionado
                     is_selected = (day_date == st.session_state['cal_selected_date'])
                     
+                    # Indicador de "Verde" (Tiene información)
+                    has_info = day_date in fechas_con_servicios
+                    
                     label = f"{day}"
+                    if has_info:
+                        label += " 🟢" # Indicador Visual Verde
+                    
                     if day_date == date.today():
                         label += " (Hoy)"
                         
