@@ -103,33 +103,100 @@ def dashboard_riesgo_documental(controller):
             else:
                  st.info("Todos los documentos PENDIENTES/RECIBIDOS ya están validados para esta venta.")
 
+import calendar
+
 def dashboard_tablero_diario(controller):
-    """Implementa el Dashboard 2: Tablero de Ejecución Diaria (Reemplazo de Pizarra)."""
+    """Implementa el Dashboard 2: Tablero de Ejecución Diaria con Calendario Visual."""
     st.subheader("2️⃣ Tablero de Ejecución Diaria", divider='green')
     
-    col_filtros, col_kpi = st.columns([2, 2])
-    
-    with col_filtros:
-        fecha_seleccionada = st.date_input("📅 Seleccionar Fecha de Operación", value=date.today())
+    # --- GESTIÓN DEL ESTADO DEL CALENDARIO ---
+    if 'cal_current_date' not in st.session_state:
+        st.session_state['cal_current_date'] = date.today()
+    if 'cal_selected_date' not in st.session_state:
+        st.session_state['cal_selected_date'] = date.today()
         
+    current_date = st.session_state['cal_current_date']
+    year = current_date.year
+    month = current_date.month
+    
+    # --- CONTROLES DE NAVEGACIÓN MES ---
+    col_nav_1, col_nav_2, col_nav_3 = st.columns([1, 4, 1])
+    
+    with col_nav_1:
+        if st.button("◀ Prev"):
+            # Restar un mes
+            new_month = month - 1
+            new_year = year
+            if new_month == 0:
+                new_month = 12
+                new_year -= 1
+            st.session_state['cal_current_date'] = date(new_year, new_month, 1)
+            st.rerun()
+
+    with col_nav_2:
+        # Título del Mes Centrado
+        month_name = calendar.month_name[month]
+        st.markdown(f"<h3 style='text-align: center; margin: 0;'>{month_name} {year}</h3>", unsafe_allow_html=True)
+
+    with col_nav_3:
+        if st.button("Next ▶"):
+             # Sumar un mes
+            new_month = month + 1
+            new_year = year
+            if new_month == 13:
+                new_month = 1
+                new_year += 1
+            st.session_state['cal_current_date'] = date(new_year, new_month, 1)
+            st.rerun()
+            
+    st.markdown("---")
+    
+    # --- GRID DEL CALENDARIO ---
+    cal = calendar.monthcalendar(year, month)
+    
+    # Encabezados de Días
+    cols = st.columns(7)
+    days_header = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+    for idx, col in enumerate(cols):
+        col.markdown(f"**{days_header[idx]}**")
+        
+    # Filas de Días
+    for week in cal:
+        cols = st.columns(7)
+        for idx, day in enumerate(week):
+            with cols[idx]:
+                if day != 0:
+                    day_date = date(year, month, day)
+                    # Estilo condicional para el día seleccionado
+                    is_selected = (day_date == st.session_state['cal_selected_date'])
+                    
+                    label = f"{day}"
+                    if day_date == date.today():
+                        label += " (Hoy)"
+                        
+                    # Botón por día
+                    if st.button(label, key=f"btn_day_{year}_{month}_{day}", use_container_width=True, type="primary" if is_selected else "secondary"):
+                        st.session_state['cal_selected_date'] = day_date
+                        st.rerun()
+                else:
+                    st.write("") # placeholder vacío para días fuera de mes
+                    
+    # --- DETALLE DE LA FECHA SELECCIONADA ---
+    fecha_seleccionada = st.session_state['cal_selected_date']
+    st.markdown(f"### 📅 Operaciones del: {fecha_seleccionada.strftime('%d de %B de %Y')}")
+    
     # Obtener Servicios del día
     servicios_dia = controller.get_servicios_por_fecha(fecha_seleccionada)
     
-    with col_kpi:
-        total_pax = sum([s['Pax'] for s in servicios_dia])
-        st.metric("Total Pax en Operación", f"{total_pax} 👤")
-        
-    st.markdown("---")
+    total_pax = sum([s['Pax'] for s in servicios_dia])
+    st.info(f"👥 Total Pax en Operación: {total_pax}")
     
     if not servicios_dia:
-        st.info(f"No hay servicios programados para el {fecha_seleccionada.strftime('%Y-%m-%d')}.")
+        st.warning(f"No hay servicios programados para el {fecha_seleccionada.strftime('%Y-%m-%d')}.")
         return
 
     # Preparar DataFrame
     df_servicios = pd.DataFrame(servicios_dia)
-    
-    # UI: Tabla principal con edición de Guía
-    st.markdown(f"##### Programación: {fecha_seleccionada.strftime('%d %B %Y')}")
     
     # Configuración de Columnas
     column_config = {
@@ -140,7 +207,6 @@ def dashboard_tablero_diario(controller):
         "Pax": st.column_config.NumberColumn(disabled=True),
         "Cliente": st.column_config.TextColumn(disabled=True, width="medium"),
         "Estado Pago": st.column_config.TextColumn(disabled=True),
-        # Guía es la única columna editable (Selectbox simulado con texto o Dropdown si tuviéramos lista)
         "Guía": st.column_config.TextColumn(
             "Guía Asignado ✏️",
             help="Escribe el nombre del guía para asignar",
@@ -155,21 +221,14 @@ def dashboard_tablero_diario(controller):
         column_config=column_config,
         hide_index=True,
         num_rows="fixed",
-        key="editor_tablero_diario"
+        key=f"editor_tablero_{fecha_seleccionada}" # Key dinámica para resetear si cambia la fecha
     )
     
-    # Detectar cambios y guardar (Simulación de Auto-Save al editar)
-    # Comparamos el DF editado con el original
-    # Nota: st.data_editor devuelve el DF final. Para detectar cambios específicos eficientemente
-    # deberíamos usar on_change, pero en streamlit simple comparamos iterando.
-    
-    if st.button("💾 Guardar Asignaciones de Guías"):
+    if st.button("💾 Guardar Asignaciones de Guías", key="btn_save_guides"):
         cambios_count = 0
         for index, row in edited_df.iterrows():
-            # Buscar el valor original en servicios_dia
             original = next((s for s in servicios_dia if s['ID Servicio'] == row['ID Servicio']), None)
             if original and original['Guía'] != row['Guía']:
-                # Hubo cambio
                 success, msg = controller.actualizar_guia_servicio(row['ID Servicio'], row['Guía'])
                 if success:
                     cambios_count += 1
