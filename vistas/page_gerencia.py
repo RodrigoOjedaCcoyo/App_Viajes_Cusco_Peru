@@ -93,7 +93,7 @@ def auditoria_maestra(controller):
         if res.data:
             st.dataframe(pd.DataFrame(res.data), use_container_width=True)
 
-def mostrar_pagina(funcionalidad_seleccionada, supabase_client):
+def mostrar_pagina(funcionalidad_seleccionada, rol_actual, user_id, supabase_client):
     """Punto de entrada para el módulo de Gerencia."""
     # st.title se llama en main.py usualmente, pero aquí lo personalizamos
     

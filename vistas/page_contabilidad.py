@@ -65,7 +65,7 @@ def auditoria_de_pagos():
 # FUNCIÓN PRINCIPAL DE LA VISTA (Llamada por main.py)
 # ----------------------------------------------------------------------
 
-def mostrar_pagina(funcionalidad_seleccionada: str):
+def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, supabase_client=None):
     """
     Función que main.py usa para cargar el módulo. 
     Redirige a la función de sub-página correcta según la selección del sidebar.
