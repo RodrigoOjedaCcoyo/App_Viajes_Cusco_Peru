@@ -336,11 +336,16 @@ def crear_itinerario_automatico():
 
     # --- CÁLCULOS ---
     datos_cotizacion = {
+        "id_lead": lead_sel,
+        "nombre_paquete": paquete_sel,
         "costo_base_paquete": row_paquete.get('costo_base', 0),
         "num_adultos": adultos,
         "edades_ninos_json": ninos_lista,
         "tipo_turista": tipo_t,
         "fecha_llegada": fecha_vi,
+        "alojamiento": alojamiento,
+        "tren": tren,
+        "servicios_extra": servicios_extra,
         "margen_ganancia": margen,
         "ajuste_manual_fijo": ajuste_manual
     }
@@ -359,9 +364,17 @@ def crear_itinerario_automatico():
     if res['sobrecosto_fiestas'] > 0:
         res_col3.metric("Precio Venta Final", f"${res['total_venta']:,.2f}", delta=f"Ganancia: ${res['ganancia_estimada']:,.2f}")
 
-    if st.button("🚀 Crear Itinerario y Ver PDF", use_container_width=True, type="primary"):
-        st.success("¡Cotización procesada! El sistema está generando el itinerario...")
-        st.balloons()
+    # --- GENERACIÓN DE PDF REAL ---
+    pdf_bytes = controller.generar_pdf_itinerario(datos_cotizacion, res)
+    
+    st.download_button(
+        label="🚀 Descargar Itinerario y Cotización (PDF)",
+        data=pdf_bytes,
+        file_name=f"Itinerario_Lead_{lead_sel}_{date.today()}.pdf",
+        mime="application/pdf",
+        use_container_width=True,
+        type="primary"
+    )
 
 # ----------------------------------------------------------------------
 # FUNCIÓN PRINCIPAL DE LA VISTA (Llamada por main.py)
