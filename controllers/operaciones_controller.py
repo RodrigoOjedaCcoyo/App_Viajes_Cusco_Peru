@@ -269,6 +269,86 @@ class OperacionesController:
     # LÓGICA DE TABLERO DE EJECUCIÓN DIARIA (Dashboard #2)
     # ------------------------------------------------------------------
 
+    def get_servicios_rango_fechas(self, start_date: date, end_date: date):
+        """
+        Obtiene todos los servicios en un rango de fechas (usado para vista semanal).
+        Retorna lista de diccionarios planos.
+        """
+        try:
+            res_servicios = (
+                self.client.table('venta_tour')
+                .select('*')
+                .gte('fecha_servicio', start_date.isoformat())
+                .lte('fecha_servicio', end_date.isoformat())
+                .execute()
+            )
+            
+            if not res_servicios.data:
+                return []
+                
+            servicios_data = res_servicios.data
+            ids_ventas = list(set([s['id_venta'] for s in servicios_data]))
+            ids_tours = list(set([s['id_tour'] for s in servicios_data]))
+            
+            # Reutilizamos la lógica de mapeo (Bulk fetch) para eficiencia
+            ventas_map = {}
+            if ids_ventas:
+                res_v = self.client.table('venta').select('*').in_('id_venta', ids_ventas).execute()
+                for v in res_v.data:
+                    ventas_map[v['id_venta']] = v
+                    
+            tours_map = {}
+            if ids_tours:
+                res_t = self.client.table('tour').select('id_tour, nombre').in_('id_tour', ids_tours).execute()
+                for t in res_t.data:
+                    tours_map[t['id_tour']] = t['nombre']
+                    
+            ids_clientes = list(set([v['id_cliente'] for v in ventas_map.values() if v.get('id_cliente')]))
+            clientes_map = {}
+            if ids_clientes:
+                res_c = self.client.table('cliente').select('id_cliente, nombre').in_('id_cliente', ids_clientes).execute()
+                for c in res_c.data:
+                    clientes_map[c['id_cliente']] = c['nombre']
+
+            pagos_map = {}
+            if ids_ventas:
+                res_p = self.client.table('pago').select('id_venta, monto_pagado').in_('id_venta', ids_ventas).execute()
+                for p in res_p.data:
+                    vid = p['id_venta']
+                    pagos_map[vid] = pagos_map.get(vid, 0) + (p['monto_pagado'] or 0)
+            
+            resultado = []
+            for s in servicios_data:
+                v = ventas_map.get(s['id_venta'], {})
+                id_cliente = v.get('id_cliente')
+                nombre_cliente = clientes_map.get(id_cliente, "Desconocido")
+                
+                precio_total = v.get('precio_total_cierre', 0) or 0
+                total_pagado = pagos_map.get(s['id_venta'], 0)
+                saldo = precio_total - total_pagado
+                estado_pago = "✅ SALDADO" if saldo <= 0.1 else "🔴 PENDIENTE"
+                
+                nombre_tour = tours_map.get(s['id_tour'], "Tour Desconocido")
+                id_serv = s.get('id') or s.get('id_venta_tour') or s.get('n_linea') or "N/A"
+                
+                resultado.append({
+                    'ID Servicio': id_serv, 
+                    'Fecha': s['fecha_servicio'], # Util para agrupar en vista semanal
+                    'Hora': "08:00 AM",
+                    'Servicio': nombre_tour,
+                    'Pax': s.get('cantidad_pasajeros', 1),
+                    'Cliente': nombre_cliente,
+                    'Guía': s.get('guia_asignado', 'Por Asignar'),
+                    'Estado Pago': estado_pago,
+                    'ID Venta': s['id_venta']
+                })
+                
+            return resultado
+
+        except Exception as e:
+            print(f"Error en Rango de Fechas: {e}")
+            return []
+
     def get_servicios_por_fecha(self, fecha_filtro: date):
         """
         Obtiene todos los servicios (Tours) programados para una fecha específica.

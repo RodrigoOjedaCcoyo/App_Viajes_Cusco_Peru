@@ -3,49 +3,45 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import calendar
 from datetime import date, timedelta
 from controllers.operaciones_controller import OperacionesController
 
-# NOTA: EL controlador se inicializa dentro de mostrar_pagina para evitar ejecucion temprana
-# controller = OperacionesController() 
-
 def dashboard_riesgo_documental(controller):
     """Implementa el Dashboard 1: Riesgo de Bloqueo Documental."""
-    st.subheader("1️⃣ Dashboard de Riesgo Documental (Bloqueo de Tareas)", divider='blue')
+    st.subheader("1️⃣ Dashboard de Riesgo Documental", divider='blue')
 
     # 1. Obtener el segmento inteligente de Ventas con riesgo
     ventas_en_riesgo = controller.get_ventas_con_documentos_pendientes()
 
     if not ventas_en_riesgo:
-        st.success("✅ ¡Excelente! No hay ventas con documentación crítica PENDIENTE o RECIBIDA. No hay riesgo de bloqueo.")
+        st.success("✅ ¡Excelente! No hay ventas con documentación crítica PENDIENTE o RECIBIDA.")
         return
 
     st.warning(f"🚨 ¡ATENCIÓN! Hay {len(ventas_en_riesgo)} viajes con riesgo de bloqueo logístico.")
     
-    # Prepara un DataFrame para la tabla principal (Resumen de Ventas)
-    df_resumen = pd.DataFrame([
-        {'ID Venta': v['id'], 'Destino': v['destino'], 'Fecha Salida': v['fecha_salida'], 'Vendedor': v['vendedor']}
-        for v in ventas_en_riesgo
-    ])
+    df_resumen = pd.DataFrame(ventas_en_riesgo)
     
-    # --- CORRECCIÓN CRÍTICA DE TIPOS ---
-    # Asegurar que 'Fecha Salida' sea datetime.date (y manejar NaT/None)
-    if not df_resumen.empty and 'Fecha Salida' in df_resumen.columns:
-        df_resumen['Fecha Salida'] = pd.to_datetime(df_resumen['Fecha Salida'], errors='coerce').dt.date
+    if not df_resumen.empty and 'fecha_salida' in df_resumen.columns:
+        df_resumen['fecha_salida'] = pd.to_datetime(df_resumen['fecha_salida'], errors='coerce').dt.date
 
-    # Muestra la tabla informativa (sin selección interactiva compleja)
+    # Muestra la tabla informativa
     st.dataframe(
         df_resumen,
-        column_order=('ID Venta', 'Cliente', 'Destino', 'Fecha Salida', 'Vendedor'),
+        column_order=('id', 'cliente', 'destino', 'fecha_salida', 'vendedor'),
         hide_index=True,
         column_config={
-            "Fecha Salida": st.column_config.DateColumn(format="YYYY-MM-DD")
+            "id": "ID Venta",
+            "cliente": "Cliente Principal",
+            "destino": "Destinos",
+            "fecha_salida": st.column_config.DateColumn("Salida", format="YYYY-MM-DD"),
+            "vendedor": "Vendedor"
         },
         height=200,
         use_container_width=True
     )
 
-    # Selector Principal (Segmentador)
+    # Selector Principal
     opciones_venta = {
         f"ID: {v['id']} - {v['cliente']} - {v['destino']} ({v['fecha_salida']})": v['id']
         for v in ventas_en_riesgo
@@ -55,262 +51,188 @@ def dashboard_riesgo_documental(controller):
     selected_venta_label = st.selectbox("📂 Seleccionar Venta para Gestionar Documentos:", list(opciones_venta.keys()))
     
     if selected_venta_label:
-        id_venta_seleccionada = opciones_venta[selected_venta_label]
-        # Obtener datos para mostrar en título (recuperar del dict original por ID)
-        venta_actual = next((v for v in ventas_en_riesgo if v['id'] == id_venta_seleccionada), None)
-        destino_actual = venta_actual['destino'] if venta_actual else "Desconocido"
+        id_venta_sel = opciones_venta[selected_venta_label]
+        venta_actual = next((v for v in ventas_en_riesgo if v['id'] == id_venta_sel), None)
         
-        st.markdown(f"#### 📄 Detalle Documental de Venta ID: {id_venta_seleccionada} ({destino_actual})")
+        st.markdown(f"#### 📄 Detalle Documental: {venta_actual['cliente']} (ID: {id_venta_sel})")
         
-        # 2. Obtener el detalle de la documentación
-        df_detalle = controller.get_detalle_documentacion_by_venta(id_venta_seleccionada)
+        df_detalle = controller.get_detalle_documentacion_by_venta(id_venta_sel)
         
         col1, col2 = st.columns([3, 1])
-
         with col1:
-            st.dataframe(
-                df_detalle,
-                column_config={
-                    "Fecha Entrega": st.column_config.DateColumn(format="YYYY-MM-DD")
-                },
-                hide_index=True,
-            )
+            st.dataframe(df_detalle, hide_index=True, use_container_width=True)
             
         with col2:
             st.markdown("##### Acciones")
-            
-            # Filtra solo los documentos que pueden ser validados (PENDIENTE o RECIBIDO)
             doc_validables = df_detalle[df_detalle['Estado'].isin(['PENDIENTE', 'RECIBIDO'])]
             
             if not doc_validables.empty:
-                # Selector para la acción de validar
                 opciones_validar = {
-                    f"{row['Tipo Documento']} ({row['Pasajero']}) - ID: {row['ID Documento']}": row['ID Documento']
-                    for index, row in doc_validables.iterrows()
+                    f"{row['Tipo Documento']} - {row['ID Documento']}": row['ID Documento']
+                    for _, row in doc_validables.iterrows()
                 }
                 
-                selected_doc_key = st.selectbox(
-                    "Selecciona Documento para gestionar:", 
-                    list(opciones_validar.keys())
-                )
+                sel_doc_id = st.selectbox("Documento:", list(opciones_validar.keys()))
+                id_doc = opciones_validar[sel_doc_id]
                 
-                id_doc_seleccionado = opciones_validar[selected_doc_key]
-                
-                # Obtener estado actual del doc seleccionado para saber si ya subió archivo
-                doc_info = doc_validables[doc_validables['ID Documento'] == id_doc_seleccionado].iloc[0]
+                doc_info = doc_validables[doc_validables['ID Documento'] == id_doc].iloc[0]
                 estado_actual = doc_info['Estado']
                 
-                st.markdown("---")
-                st.markdown(" **1. Subir Evidencia**")
-                uploaded_file = st.file_uploader("Adjuntar documento (PDF/Imagen)", key=f"uploader_{id_doc_seleccionado}")
+                uploaded_file = st.file_uploader("Adjuntar Evidencia", key=f"up_{id_doc}")
                 
-                archivo_listo = False
-                if uploaded_file is not None:
-                    # Simular subida inmediata al seleccionar
-                     with st.spinner("Subiendo archivo..."):
-                        success, msg = controller.subir_documento(id_doc_seleccionado, uploaded_file)
+                archivo_listo = (estado_actual == 'RECIBIDO')
+                if uploaded_file:
+                    with st.spinner("Subiendo..."):
+                        success, _ = controller.subir_documento(id_doc, uploaded_file)
                         if success:
-                            st.success("✅ Archivo cargado temporalmente.")
+                            st.success("✅ Recibido.")
                             archivo_listo = True
-                        else:
-                            st.error(msg)
-                elif estado_actual == 'RECIBIDO':
-                     # Si ya estaba recibido de antes, asumimos que tiene archivo
-                     st.info("📂 Este documento ya tiene un archivo adjunto previamente.")
-                     archivo_listo = True
-                
-                st.markdown(" **2. Validar**")
-                
-                # El botón solo se activa si hay archivo "listo" (subido ahora o antes)
-                if st.button("🔴 Validar y Aprobar Documento", disabled=not archivo_listo):
-                    success, message = controller.validar_documento(id_doc_seleccionado)
-                    if success:
-                        st.success(f"Documento ID {id_doc_seleccionado} VALIDADO correctamente. Recargando...")
-                        st.rerun()
-                    else:
-                        st.error(f"Error al validar: {message}")
-            else:
-                 st.info("Todos los documentos PENDIENTES/RECIBIDOS ya están validados para esta venta.")
 
-import calendar
+                if st.button("🔴 Validar Documento", disabled=not archivo_listo, key=f"val_{id_doc}"):
+                    success, _ = controller.validar_documento(id_doc)
+                    if success:
+                        st.success("¡Validado!")
+                        st.rerun()
+            else:
+                st.info("Todo validado.")
 
 def dashboard_tablero_diario(controller):
-    """Implementa el Dashboard 2: Tablero de Ejecución Diaria con Calendario Visual."""
-    st.subheader("2️⃣ Tablero de Ejecución Diaria", divider='green')
+    """Dashboard 2: Tablero con vistas Duplicadas (Mensual/Semanal)."""
+    st.subheader("2️⃣ Tablero de Planificación Logística", divider='green')
     
-    # --- GESTIÓN DEL ESTADO DEL CALENDARIO ---
     if 'cal_current_date' not in st.session_state:
         st.session_state['cal_current_date'] = date.today()
     if 'cal_selected_date' not in st.session_state:
         st.session_state['cal_selected_date'] = date.today()
-        
+    if 'view_mode' not in st.session_state:
+        st.session_state['view_mode'] = "Mensual"
+
+    v_mode = st.radio("Filtro de Vista:", ["Mensual", "Semanal"], 
+                      index=0 if st.session_state['view_mode'] == "Mensual" else 1, horizontal=True)
+    st.session_state['view_mode'] = v_mode
+
     current_date = st.session_state['cal_current_date']
-    year = current_date.year
-    month = current_date.month
-    
-    # --- CONTROLES DE NAVEGACIÓN MES ---
-    col_nav_1, col_nav_2, col_nav_3 = st.columns([1, 4, 1])
-    
-    # Mapeo manual de Meses a Español
+    year, month = current_date.year, current_date.month
     nombres_meses = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
                      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-    
-    with col_nav_1:
-        if st.button("◀ Ant"):
-            # Restar un mes
-            new_month = month - 1
-            new_year = year
-            if new_month == 0:
-                new_month = 12
-                new_year -= 1
-            st.session_state['cal_current_date'] = date(new_year, new_month, 1)
-            st.rerun()
 
-    with col_nav_2:
-        # Título del Mes Centrado
-        month_name = nombres_meses[month]
-        st.markdown(f"<h3 style='text-align: center; margin: 0;'>{month_name} {year}</h3>", unsafe_allow_html=True)
+    if st.session_state['view_mode'] == "Mensual":
+        # --- MES ---
+        c1, c2, c3 = st.columns([1, 2, 1])
+        with c1:
+            if st.button("◀ Mes Ant"):
+                m, y = (12, year-1) if month == 1 else (month-1, year)
+                st.session_state['cal_current_date'] = date(y, m, 1)
+                st.rerun()
+        with c2:
+            st.markdown(f"<h3 style='text-align:center;'>{nombres_meses[month]} {year}</h3>", unsafe_allow_html=True)
+        with c3:
+            if st.button("Mes Sig ▶"):
+                m, y = (1, year+1) if month == 12 else (month+1, year)
+                st.session_state['cal_current_date'] = date(y, m, 1)
+                st.rerun()
 
-    with col_nav_3:
-        if st.button("Sig ▶"):
-             # Sumar un mes
-            new_month = month + 1
-            new_year = year
-            if new_month == 13:
-                new_month = 1
-                new_year += 1
-            st.session_state['cal_current_date'] = date(new_year, new_month, 1)
-            st.rerun()
-            
-    st.markdown("---")
-    
-    # --- GRID DEL CALENDARIO ---
-    cal = calendar.monthcalendar(year, month)
-    
-    # 1. Obtener fechas con carga (servicios/tours) para este mes
-    fechas_con_servicios = controller.get_fechas_con_servicios(year, month)
-    
-    # Encabezados de Días (Español)
-    cols = st.columns(7)
-    days_header = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
-    for idx, col in enumerate(cols):
-        col.markdown(f"**{days_header[idx]}**")
+        st.markdown("---")
+        cal_grid = calendar.monthcalendar(year, month)
+        fechas_activas = controller.get_fechas_con_servicios(year, month)
         
-    # Filas de Días
-    for week in cal:
         cols = st.columns(7)
-        for idx, day in enumerate(week):
-            with cols[idx]:
+        headers = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+        for i, h in enumerate(headers): cols[i].markdown(f"<center><b>{h}</b></center>", unsafe_allow_html=True)
+            
+        for week in cal_grid:
+            cols = st.columns(7)
+            for i, day in enumerate(week):
                 if day != 0:
-                    day_date = date(year, month, day)
-                    # Estilo condicional para el día seleccionado
-                    is_selected = (day_date == st.session_state['cal_selected_date'])
-                    
-                    # Indicador de "Verde" (Tiene información)
-                    has_info = day_date in fechas_con_servicios
-                    
-                    label = f"{day}"
-                    if has_info:
-                        label += " 🟢" # Indicador Visual Verde
-                    
-                    if day_date == date.today():
-                        label += " (Hoy)"
-                        
-                    # Botón por día
-                    if st.button(label, key=f"btn_day_{year}_{month}_{day}", use_container_width=True, type="primary" if is_selected else "secondary"):
-                        st.session_state['cal_selected_date'] = day_date
+                    d_obj = date(year, month, day)
+                    sel = (d_obj == st.session_state['cal_selected_date'])
+                    act = d_obj in fechas_activas
+                    lbl = f"{day}{' 🟢' if act else ''}"
+                    if d_obj == date.today(): lbl += "\n(Hoy)"
+                    if cols[i].button(lbl, key=f"d_{d_obj}", use_container_width=True, type="primary" if sel else "secondary"):
+                        st.session_state['cal_selected_date'] = d_obj
                         st.rerun()
-                else:
-                    st.write("") # placeholder vacío para días fuera de mes
-                    
-    # --- DETALLE DE LA FECHA SELECCIONADA ---
-    fecha_seleccionada = st.session_state['cal_selected_date']
-    mes_espanol = nombres_meses[fecha_seleccionada.month]
-    st.markdown(f"### 📅 Operaciones del: {fecha_seleccionada.day} de {mes_espanol} de {fecha_seleccionada.year}")
-    
-    # Obtener Servicios del día
-    servicios_dia = controller.get_servicios_por_fecha(fecha_seleccionada)
-    
-    total_pax = sum([s['Pax'] for s in servicios_dia])
-    st.info(f"👥 Total Pax en Operación: {total_pax}")
-    
-    if not servicios_dia:
-        st.warning(f"No hay servicios programados para el {fecha_seleccionada.strftime('%Y-%m-%d')}.")
-        
-        # --- SECCIÓN DE DEBUGGING (Solo visible si hay error aparente) ---
-        if fecha_seleccionada in fechas_con_servicios:
-            with st.expander("🛠️ Depuración (Solo visible si no carga datos)"):
-                st.write(f"Fecha Seleccionada: {fecha_seleccionada}")
-                st.write(f"Query Range: {fecha_seleccionada.isoformat()} <= X < {(fecha_seleccionada + timedelta(days=1)).isoformat()}")
-                st.write("Datos detectados por 'Puntos Verdes' (get_fechas_con_servicios) para este mes:")
-                st.write([d.isoformat() for d in fechas_con_servicios if d.month == month])
-        return
 
-    # Preparar DataFrame
-    df_servicios = pd.DataFrame(servicios_dia)
-    
-    # Configuración de Columnas
-    column_config = {
-        "ID Servicio": st.column_config.NumberColumn(disabled=True),
-        "ID Venta": st.column_config.NumberColumn(disabled=True),
-        "Hora": st.column_config.TextColumn(disabled=True),
-        "Servicio": st.column_config.TextColumn(disabled=True, width="medium"),
-        "Pax": st.column_config.NumberColumn(disabled=True),
-        "Cliente": st.column_config.TextColumn(disabled=True, width="medium"),
-        "Estado Pago": st.column_config.TextColumn(disabled=True),
-        "Guía": st.column_config.TextColumn(
-            "Guía Asignado ✏️",
-            help="Escribe el nombre del guía para asignar",
-            max_chars=50,
-            required=True
-        )
-    }
-    
-    edited_df = st.data_editor(
-        df_servicios,
-        column_order=("Hora", "Servicio", "Pax", "Cliente", "Guía", "Estado Pago"),
-        column_config=column_config,
-        hide_index=True,
-        num_rows="fixed",
-        key=f"editor_tablero_{fecha_seleccionada}" # Key dinámica para resetear si cambia la fecha
-    )
-    
-    if st.button("💾 Guardar Asignaciones de Guías", key="btn_save_guides"):
-        cambios_count = 0
-        for index, row in edited_df.iterrows():
-            original = next((s for s in servicios_dia if s['ID Servicio'] == row['ID Servicio']), None)
-            if original and original['Guía'] != row['Guía']:
-                success, msg = controller.actualizar_guia_servicio(row['ID Servicio'], row['Guía'])
-                if success:
-                    cambios_count += 1
+    else:
+        # --- SEMANA ---
+        d_sel = st.session_state['cal_selected_date']
+        lunes = d_sel - timedelta(days=d_sel.weekday())
+        domingo = lunes + timedelta(days=6)
         
-        if cambios_count > 0:
-            st.success(f"✅ Se actualizaron {cambios_count} servicios correctamente.")
-            st.rerun()
-        else:
-            st.info("No se detectaron cambios en los guías.")
+        c1, c2, c3 = st.columns([1, 2, 1])
+        with c1:
+            if st.button("◀ Semana Ant"):
+                st.session_state['cal_selected_date'] -= timedelta(days=7)
+                st.rerun()
+        with c2:
+            st.markdown(f"<h3 style='text-align:center;'>Semana de {lunes.day} {nombres_meses[lunes.month]}</h3>", unsafe_allow_html=True)
+        with c3:
+            if st.button("Semana Sig ▶"):
+                st.session_state['cal_selected_date'] += timedelta(days=7)
+                st.rerun()
+        
+        st.markdown("---")
+        servicios_w = controller.get_servicios_rango_fechas(lunes, domingo)
+        cols_w = st.columns(7)
+        headers_w = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+        
+        for i in range(7):
+            f_dia = lunes + timedelta(days=i)
+            with cols_w[i]:
+                estilo = f"background:{'#1E88E5' if f_dia==date.today() else '#444'}; padding:5px; border-radius:5px; text-align:center; margin-bottom:5px;"
+                st.markdown(f"<div style='{estilo}'><small>{headers_w[i]}</small><br><b>{f_dia.day}</b></div>", unsafe_allow_html=True)
+                
+                s_dia = [s for s in servicios_w if s['Fecha'] == f_dia.isoformat()]
+                if not s_dia:
+                    st.markdown("<p style='text-align:center; color:gray; font-size:10px;'>Vacío</p>", unsafe_allow_html=True)
+                else:
+                    for s in s_dia:
+                        with st.container(border=True):
+                            st.markdown(f"<p style='font-size:11px; margin:0;'><b>{s['Servicio']}</b></p>", unsafe_allow_html=True)
+                            st.markdown(f"<p style='font-size:9px; margin:0; color:#aaa;'>{s['Cliente']}</p>", unsafe_allow_html=True)
+                            st.markdown(f"<p style='font-size:9px; margin:0;'>👮 {s['Guía']}</p>", unsafe_allow_html=True)
+                
+                if st.button("Ver", key=f"v_{f_dia}", use_container_width=True):
+                    st.session_state['cal_selected_date'] = f_dia
+                    st.rerun()
+
+    # --- DETALLE ---
+    st.markdown("---")
+    f_p = st.session_state['cal_selected_date']
+    st.markdown(f"### 📋 Detalle: {f_p.day} de {nombres_meses[f_p.month]} de {f_p.year}")
+    
+    servicios = controller.get_servicios_por_fecha(f_p)
+    if not servicios:
+        st.info("Sin operaciones este día.")
+    else:
+        st.success(f"Pax totales: {sum(s['Pax'] for s in servicios)}")
+        df = pd.DataFrame(servicios)
+        ed_df = st.data_editor(
+            df,
+            column_order=('Hora', 'Servicio', 'Pax', 'Cliente', 'Guía', 'Estado Pago'),
+            column_config={
+                "Guía": st.column_config.TextColumn("Asignar Guía ✏️"),
+                "Pax": st.column_config.NumberColumn(disabled=True),
+                "Servicio": st.column_config.TextColumn(disabled=True),
+                "Cliente": st.column_config.TextColumn(disabled=True),
+                "Estado Pago": st.column_config.TextColumn(disabled=True),
+            },
+            hide_index=True, use_container_width=True, key=f"ed_{f_p}"
+        )
+
+        if st.button("💾 Guardar Asignaciones"):
+            cc = 0
+            for i, r in ed_df.iterrows():
+                if r['Guía'] != df.iloc[i]['Guía']:
+                    if controller.actualizar_guia_servicio(r['ID Servicio'], r['Guía'])[0]: cc += 1
+            if cc > 0:
+                st.success(f"¡{cc} cambios guardados!")
+                st.rerun()
 
 def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
-    """Función principal (Entrada) del módulo de Operaciones."""
-    st.title("🎯 Dashboards de Control de Operaciones")
-    st.markdown("Esta sección consolida el riesgo documental y la ejecución logística priorizada.")
-    st.markdown("---")
-    
-    # Inicializamos el controlador AQUI (CON INYECCIÓN REAL)
+    """Punto de entrada de Streamlit."""
+    st.title("💼 Gestión de Operaciones")
     controller = OperacionesController(supabase_client)
-
-    # Uso de pestañas (tabs) para organizar los dashboards
-    tab1, tab2 = st.tabs(["🚦 Riesgo Documental", "🚀 Ejecución Logística"])
-    
-    with tab1:
-        dashboard_riesgo_documental(controller)
-        
-    with tab2:
-        dashboard_tablero_diario(controller)
-        
-    st.sidebar.markdown("---")
-    st.sidebar.caption("Datos simulados en Session State.")
-
-if __name__ == "__main__":
-    # Test local
-    mostrar_pagina("Operaciones", "OPERACIONES", 1, None)
+    t1, t2 = st.tabs(["🛡️ Riesgos", "📅 Planificación"])
+    with t1: dashboard_riesgo_documental(controller)
+    with t2: dashboard_tablero_diario(controller)
