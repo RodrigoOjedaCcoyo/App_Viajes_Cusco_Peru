@@ -328,7 +328,7 @@ def crear_itinerario_automatico():
         col_p1, col_p2 = st.columns(2)
         with col_p1:
             st.markdown("##### V. Servicios Extra")
-            st.multiselect("Añadir/Quitar del Paquete", ["+ Montaña 7 Colores", "- Tour Valle Sur", "+ Cena Show"])
+            servicios_extra = st.multiselect("Añadir/Quitar del Paquete", ["+ Montaña 7 Colores", "- Tour Valle Sur", "+ Cena Show"])
         with col_p2:
             st.markdown("##### VI. Ajuste de Ganancia")
             margen = st.slider("Margen (%)", 0, 100, 20)
