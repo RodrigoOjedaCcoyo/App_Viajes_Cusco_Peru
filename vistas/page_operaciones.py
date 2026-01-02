@@ -32,33 +32,34 @@ def dashboard_riesgo_documental(controller):
     # Asegurar que 'Fecha Salida' sea datetime.date (y manejar NaT/None)
     if not df_resumen.empty and 'Fecha Salida' in df_resumen.columns:
         df_resumen['Fecha Salida'] = pd.to_datetime(df_resumen['Fecha Salida'], errors='coerce').dt.date
-    
-    # --- CORRECCIÓN CRÍTICA DE TIPOS ---
-    # Asegurar que 'Fecha Salida' sea datetime.date (y manejar NaT/None)
-    if not df_resumen.empty and 'Fecha Salida' in df_resumen.columns:
-        df_resumen['Fecha Salida'] = pd.to_datetime(df_resumen['Fecha Salida'], errors='coerce').dt.date
 
-    # Utiliza st.data_editor para seleccionar una fila
-    st.markdown("##### Selecciona una venta para ver el detalle de los documentos:")
-    edited_df = st.data_editor(
+    # Muestra la tabla informativa (sin selección interactiva compleja)
+    st.dataframe(
         df_resumen,
         column_order=('ID Venta', 'Destino', 'Fecha Salida', 'Vendedor'),
         hide_index=True,
-        key='data_editor_riesgo',
-        # Configuración para hacer que la tabla sea seleccionable y más pequeña
         column_config={
             "Fecha Salida": st.column_config.DateColumn(format="YYYY-MM-DD")
         },
         height=200,
     )
 
-    # Identificar la fila seleccionada
-    selected_rows = edited_df[edited_df.apply(lambda x: tuple(x) in df_resumen.itertuples(index=False), axis=1)]
+    # Selector Principal (Segmentador)
+    opciones_venta = {
+        f"ID: {v['id']} - {v['destino']} ({v['fecha_salida']})": v['id']
+        for v in ventas_en_riesgo
+    }
     
-    if not selected_rows.empty:
-        id_venta_seleccionada = selected_rows.iloc[0]['ID Venta']
-        st.markdown(f"---")
-        st.markdown(f"#### Detalle Documental de Venta ID: {id_venta_seleccionada} ({selected_rows.iloc[0]['Destino']})")
+    st.markdown("---")
+    selected_venta_label = st.selectbox("📂 Seleccionar Venta para Gestionar Documentos:", list(opciones_venta.keys()))
+    
+    if selected_venta_label:
+        id_venta_seleccionada = opciones_venta[selected_venta_label]
+        # Obtener datos para mostrar en título (recuperar del dict original por ID)
+        venta_actual = next((v for v in ventas_en_riesgo if v['id'] == id_venta_seleccionada), None)
+        destino_actual = venta_actual['destino'] if venta_actual else "Desconocido"
+        
+        st.markdown(f"#### 📄 Detalle Documental de Venta ID: {id_venta_seleccionada} ({destino_actual})")
         
         # 2. Obtener el detalle de la documentación
         df_detalle = controller.get_detalle_documentacion_by_venta(id_venta_seleccionada)
