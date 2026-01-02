@@ -58,5 +58,16 @@ def test_controller():
     except Exception as e:
         print(f"FAILED get_fechas_con_servicios: {e}")
 
+    try:
+        # Test specific date known to have data (mock Jan 1 2026)
+        from datetime import date
+        test_date = date(2026, 1, 1)
+        servicios = controller.get_servicios_por_fecha(test_date)
+        print(f"get_servicios_por_fecha for {test_date}: Found {len(servicios)} records.")
+        if not servicios:
+            print("WARNING: Returned empty list for known active date.")
+    except Exception as e:
+        print(f"FAILED get_servicios_por_fecha: {e}")
+
 if __name__ == "__main__":
     test_controller()
