@@ -272,7 +272,7 @@ class OperacionesController:
             
             res_servicios = (
                 self.client.table('venta_tour')
-                .select('id, id_venta, id_tour, fecha_servicio, cantidad_pasajeros, guia_asignado')
+                .select('*') # Use wildcard to avoid crashing if 'guia_asignado' column is missing
                 .gte('fecha_servicio', start_date.isoformat())
                 .lt('fecha_servicio', end_date.isoformat())
                 .execute()
