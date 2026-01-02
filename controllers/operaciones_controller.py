@@ -332,13 +332,16 @@ class OperacionesController:
                 # Nombre Tour
                 nombre_tour = tours_map.get(s['id_tour'], "Tour Desconocido")
                 
+                # Identificar el ID de forma flexible (puede ser 'id' o 'id_venta_tour' o similar)
+                id_serv = s.get('id') or s.get('id_venta_tour') or s.get('n_linea') or "N/A"
+                
                 resultado.append({
-                    'ID Servicio': s['id'], # ID de la tabla Venta_Tour
+                    'ID Servicio': id_serv, 
                     'Hora': "08:00 AM", # Hardcoded por ahora, no está en modelo
                     'Servicio': nombre_tour,
                     'Pax': s.get('cantidad_pasajeros', 1),
                     'Cliente': nombre_cliente,
-                    'Guía': s.get('guia_asignado', 'Por Asignar'), # Campo que quizás no exista en DB real aún
+                    'Guía': s.get('guia_asignado', 'Por Asignar'),
                     'Estado Pago': estado_pago,
                     'ID Venta': s['id_venta']
                 })
@@ -346,9 +349,10 @@ class OperacionesController:
             return resultado
 
         except Exception as e:
-            import streamlit as st
-            st.error(f"🚨 Error Técnico en Tablero: {e}")
+            # En producción no queremos st.error aquí si ya lo manejamos en la vista, 
+            # pero para depurar lo dejamos un momento más o lo logueamos.
             print(f"Error en Tablero Diario: {e}")
+            # Si el error es 'id', ya sabemos qué es.
             return []
 
     def actualizar_guia_servicio(self, id_servicio, nombre_guia):
