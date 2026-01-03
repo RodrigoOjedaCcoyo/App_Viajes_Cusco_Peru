@@ -1,0 +1,129 @@
+<!-- templates/itinerario_template.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page {
+            size: A4;
+            margin: 0;
+        }
+        body {
+            font-family: 'Helvetica', 'Arial', sans-serif;
+            color: #333;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+        }
+        .header {
+            background-color: #1a5f7a;
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            letter-spacing: 2px;
+        }
+        .content {
+            padding: 40px;
+        }
+        .section-title {
+            color: #1a5f7a;
+            border-bottom: 2px solid #1a5f7a;
+            padding-bottom: 5px;
+            margin-top: 30px;
+            font-size: 18px;
+            text-transform: uppercase;
+        }
+        .info-grid {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .info-item {
+            font-size: 14px;
+        }
+        .tour-row {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #f9f9f9;
+            border-left: 5px solid #1a5f7a;
+        }
+        .tour-name {
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .tour-desc {
+            font-size: 13px;
+            color: #666;
+        }
+        .price-box {
+            margin-top: 50px;
+            text-align: right;
+            padding: 20px;
+            background: #1a5f7a;
+            color: white;
+        }
+        .price-total {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .footer {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            text-align: center;
+            font-size: 10px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>ITINERARIO DE VIAJE</h1>
+        <p>Viajes Cusco Perú - Experiencias Inolvidables</p>
+    </div>
+
+    <div class="content">
+        <div class="info-grid">
+            <div class="info-item">
+                <strong>CLIENTE:</strong> {{ cliente_nombre }}<br>
+                <strong>FECHA:</strong> {{ fecha_viaje }}
+            </div>
+            <div class="info-item" style="text-align: right;">
+                <strong>PAX:</strong> {{ num_adultos }} Adultos, {{ num_ninos }} Niños<br>
+                <strong>ORIGEN:</strong> {{ origen }}
+            </div>
+        </div>
+
+        <h2 class="section-title">Tu Itinerario Personalizado</h2>
+        {% for tour in itinerario %}
+        <div class="tour-row">
+            <div class="tour-name">Día {{ loop.index }}: {{ tour.nombre }}</div>
+            <div class="tour-desc">{{ tour.descripcion if tour.descripcion else 'Servicio programado según itinerario.' }}</div>
+            {% if tour.notas_operativas %}
+            <div style="font-style: italic; font-size: 11px; margin-top: 5px;">* {{ tour.notas_operativas }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+
+        <div class="price-box">
+            <div>PRECIO TOTAL (USD)</div>
+            <div class="price-total">${{ total|round(2) }}</div>
+            <div style="font-size: 12px;">* Precios sujetos a cambios según disponibilidad.</div>
+        </div>
+
+        <h2 class="section-title">Incluye / No Incluye</h2>
+        <div style="font-size: 13px;">
+            <p><strong>INCLUYE:</strong> Todos los traslados mencionados, entradas a los sitios turísticos especificados, guías profesionales bilíngües.</p>
+            <p><strong>NO INCLUYE:</strong> Vuelos internacionales, propinas, comidas no especificadas.</p>
+        </div>
+    </div>
+
+    <div class="footer">
+        Cusco, Perú | www.viajescuscoperu.com | +51 987 654 321
+    </div>
+</body>
+</html>
