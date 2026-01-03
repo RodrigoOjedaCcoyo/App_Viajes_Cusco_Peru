@@ -89,6 +89,16 @@ def flash_quote_view(controller):
         
         total_estimado = (costo * adultos) + (costo * 0.7 * ninos)
         st.metric("Precio Estimado (USD)", f"${total_estimado:,.2f}")
+        
+        if st.button("Registrar Interés Comercial"):
+            controller.registrar_consulta_pasiva('FLASH', {
+                "paquete": paquete_sel,
+                "adultos": adultos,
+                "ninos": ninos,
+                "total": total_estimado,
+                "vendedor_id": st.session_state.get('user_id')
+            })
+            st.success("Interés registrado para analítica comercial.")
 
 def itinerary_builder_view(controller):
     st.subheader("🧩 Constructor de Itinerario Modular")
@@ -100,35 +110,80 @@ def itinerary_builder_view(controller):
     paquete_init = st.selectbox("Cargar Plantilla", ["---Vacío---"] + df_p['nombre'].tolist() if not df_p.empty else ["---Vacío---"])
     if st.button("Cargar / Resetear") and paquete_init != "---Vacío---":
         row = df_p[df_p['nombre'] == paquete_init].iloc[0]
-        # Búsqueda flexible del ID (puede ser id, id_paquete, id_paquete_int, etc.)
-        id_p = row.get('id') or row.get('id_paquete') or row.get('id_paquete_int') or row.get('id_tour')
+        # Búsqueda flexible del ID
+        id_p = row.get('id') or row.get('id_paquete') or row.get('id_paquete_int')
         
         if id_p:
-            st.session_state.itinerario_piezas = controller.get_tours_de_paquete(id_p)
-            st.rerun()
+            tours = controller.get_tours_de_paquete(id_p)
+            if tours:
+                st.session_state.itinerario_piezas = tours
+                st.success(f"Se cargaron {len(tours)} servicios para {paquete_init}")
+                st.rerun()
+            else:
+                st.warning(f"El paquete '{paquete_init}' fue encontrado, pero no tiene tours vinculados en la tabla 'paquete_tour'. Verifica tu base de datos.")
         else:
-            st.error("No se pudo encontrar el Identificador del paquete en la base de datos.")
+            st.error("No se pudo detectar el ID del paquete. Revisa que la tabla 'paquete' tenga una columna 'id' o 'id_paquete'.")
+
+    # --- Buscador manual para añadir tours ---
+    st.write("---")
+    st.write("➕ **Añadir servicio extra al itinerario:**")
+    tour_nombres = df_t['nombre'].tolist() if not df_t.empty else []
+    tour_add = st.selectbox("Seleccionar Tour del Catálogo", ["---Seleccione---"] + tour_nombres)
+    
+    if st.button("Añadir al itineario") and tour_add != "---Seleccione---":
+        tour_data = df_t[df_t['nombre'] == tour_add].iloc[0].to_dict()
+        # Limpiar datos para evitar conflictos de tipos
+        tour_data['costo_base'] = float(tour_data.get('costo_base') or tour_data.get('precio') or 0)
+        st.session_state.itinerario_piezas.append(tour_data)
+        st.success(f"Añadido: {tour_add}")
+        st.rerun()
 
     if st.session_state.itinerario_piezas:
+        st.write("📋 **Itinerario actual (Edita aquí):**")
         df_edit = pd.DataFrame(st.session_state.itinerario_piezas)
-        if 'notas_operativas' not in df_edit.columns: df_edit['notas_operativas'] = ""
+        # Columnas mínimas necesarias
+        cols_necesarias = ['nombre', 'costo_base', 'notas_operativas', 'descripcion']
+        for col in cols_necesarias:
+            if col not in df_edit.columns: df_edit[col] = ""
         
-        new_df = st.data_editor(df_edit, use_container_width=True, num_rows="dynamic", key="it_editor")
+        new_df = st.data_editor(
+            df_edit, 
+            column_order=cols_necesarias,
+            column_config={
+                "nombre": st.column_config.TextColumn("Servicio", disabled=True),
+                "costo_base": st.column_config.NumberColumn("Costo (USD)", format="$%.2f"),
+                "notas_operativas": st.column_config.TextColumn("Notas PDF ✏️"),
+                "descripcion": st.column_config.TextColumn("Descripción corta")
+            },
+            use_container_width=True, 
+            num_rows="dynamic", 
+            key="it_editor"
+        )
         st.session_state.itinerario_piezas = new_df.to_dict('records')
         
         # Cálculos y PDF
         c1, c2 = st.columns(2)
-        margen = c1.slider("Margen (%)", 0, 100, 25)
+        margen = c1.slider("Margen Ganancia (%)", 0, 100, 25)
         adultos = c2.number_input("Adultos", 1, 10, 2, key="it_a")
         
         res = controller.calcular_presupuesto_modular(st.session_state.itinerario_piezas, 
                                                    {"adultos": adultos, "ninos": 0, "margen": margen, "ajuste_fijo": 0})
-        st.metric("TOTAL VENTA", f"${res['total_venta']:,.2f}")
+        st.metric("TOTAL VENTA SUGERIDO", f"${res['total_venta']:,.2f}")
         
         cliente = st.text_input("Nombre Cliente (PDF)")
         if st.button("Generar PDF Premium") and cliente:
-            pdf = controller.generar_pdf_premium({"cliente_nombre": cliente, "itinerario": st.session_state.itinerario_piezas, "total": res['total_venta'], "num_adultos": adultos, "num_ninos": 0, "fecha_viaje": date.today().isoformat(), "origen": "Ventas"})
-            if pdf: st.download_button("Descargar PDF", pdf, f"Itinerario_{cliente}.pdf", "application/pdf")
+            pdf = controller.generar_pdf_premium({
+                "cliente_nombre": cliente, 
+                "itinerario": st.session_state.itinerario_piezas, 
+                "total": res['total_venta'], 
+                "num_adultos": adultos, 
+                "num_ninos": 0, 
+                "fecha_viaje": date.today().isoformat(), 
+                "origen": "Ventas"
+            })
+            if pdf: st.download_button("Descargar PDF Itinerario", pdf, f"Itinerario_{cliente}.pdf", "application/pdf")
+    else:
+        st.info("El itinerario está vacío. Carga una plantilla o añade servicios manualmente arriba.")
 
 def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual='Desconocido', user_id=None): 
     # Inyectar controladores en session_state si no existen
