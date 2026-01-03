@@ -84,9 +84,11 @@ def flash_quote_view(controller):
         
     if not df_p.empty and paquete_sel != "No hay datos":
         row = df_p[df_p['nombre'] == paquete_sel].iloc[0]
-        costo = float(row['costo_base'])
-        total = (costo * adultos) + (costo * 0.7 * ninos)
-        st.metric("Precio Estimado (USD)", f"${total:,.2f}")
+        # Búsqueda flexible de costo (puede llamarse costo_base, precio o monto)
+        costo = float(row.get('costo_base') or row.get('precio') or row.get('monto') or 0)
+        
+        total_estimado = (costo * adultos) + (costo * 0.7 * ninos)
+        st.metric("Precio Estimado (USD)", f"${total_estimado:,.2f}")
 
 def itinerary_builder_view(controller):
     st.subheader("🧩 Constructor de Itinerario Modular")
