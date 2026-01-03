@@ -1,129 +1,173 @@
-<!-- templates/itinerario_template.html -->
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="UTF-8">
     <style>
         @page {
             size: A4;
-            margin: 0;
+            margin: 1cm;
+
+            @frame footer_frame {
+                -pdf-frame-content: footer_content;
+                left: 1cm;
+                width: 19cm;
+                bottom: 1cm;
+                height: 1cm;
+            }
         }
+
         body {
-            font-family: 'Helvetica', 'Arial', sans-serif;
+            font-family: Helvetica, Arial, sans-serif;
             color: #333;
-            line-height: 1.6;
-            margin: 0;
-            padding: 0;
+            line-height: 1.4;
         }
-        .header {
-            background-color: #1a5f7a;
-            color: white;
-            padding: 40px;
+
+        .cover {
             text-align: center;
+            padding-top: 5cm;
+            page-break-after: always;
         }
-        .header h1 {
-            margin: 0;
-            font-size: 28px;
-            letter-spacing: 2px;
-        }
-        .content {
-            padding: 40px;
-        }
-        .section-title {
-            color: #1a5f7a;
-            border-bottom: 2px solid #1a5f7a;
-            padding-bottom: 5px;
-            margin-top: 30px;
-            font-size: 18px;
+
+        .cover h1 {
+            color: #00ACC1;
+            font-size: 40px;
             text-transform: uppercase;
+            margin-bottom: 0.5cm;
         }
-        .info-grid {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 20px;
-        }
-        .info-item {
-            font-size: 14px;
-        }
-        .tour-row {
-            margin-bottom: 15px;
-            padding: 10px;
-            background: #f9f9f9;
-            border-left: 5px solid #1a5f7a;
-        }
-        .tour-name {
-            font-weight: bold;
-            font-size: 16px;
-        }
-        .tour-desc {
-            font-size: 13px;
-            color: #666;
-        }
-        .price-box {
-            margin-top: 50px;
-            text-align: right;
-            padding: 20px;
-            background: #1a5f7a;
-            color: white;
-        }
-        .price-total {
+
+        .cover h2 {
             font-size: 24px;
+            color: #555;
+        }
+
+        .day-header {
+            color: #00ACC1;
+            font-size: 22px;
+            text-transform: uppercase;
+            border-bottom: 2px solid #00ACC1;
+            margin-top: 1cm;
+            margin-bottom: 0.5cm;
+        }
+
+        .day-title {
+            color: #00ACC1;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 0.3cm;
+        }
+
+        .description {
+            font-size: 12px;
+            text-align: justify;
+            margin-bottom: 0.5cm;
+        }
+
+        .services-table {
+            width: 100%;
+            border-spacing: 10px;
+        }
+
+        .services-column {
+            width: 50%;
+            vertical-align: top;
+            background-color: #f1f8f9;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .services-title {
+            color: #00838F;
+            font-weight: bold;
+            font-size: 11px;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .service-item {
+            font-size: 10px;
+            margin-bottom: 3px;
+        }
+
+        .price-total-box {
+            margin-top: 1cm;
+            background-color: #00ACC1;
+            color: white;
+            padding: 15px;
+            text-align: right;
+            border-radius: 5px;
+        }
+
+        .price-label {
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+
+        .price-value {
+            font-size: 28px;
             font-weight: bold;
         }
-        .footer {
-            position: absolute;
-            bottom: 20px;
-            width: 100%;
+
+        #footer_content {
             text-align: center;
-            font-size: 10px;
-            color: #999;
+            color: #aaa;
+            font-size: 9px;
+        }
+
+        .icon {
+            font-weight: bold;
+            color: #00ACC1;
+            margin-right: 5px;
         }
     </style>
 </head>
+
 <body>
-    <div class="header">
-        <h1>ITINERARIO DE VIAJE</h1>
-        <p>Viajes Cusco Perú - Experiencias Inolvidables</p>
+    <div class="cover">
+        <h1>CUSCO <br> TRADICIONAL</h1>
+        <h2>ITINERARIO DE VIAJE</h2>
+        <p>Preparado para: <strong>{{ cliente_nombre }}</strong></p>
+        <p>Fecha: {{ fecha_viaje }} | PAX: {{ num_adultos }} Adultos {{ num_ninos }} Niños</p>
     </div>
 
-    <div class="content">
-        <div class="info-grid">
-            <div class="info-item">
-                <strong>CLIENTE:</strong> {{ cliente_nombre }}<br>
-                <strong>FECHA:</strong> {{ fecha_viaje }}
-            </div>
-            <div class="info-item" style="text-align: right;">
-                <strong>PAX:</strong> {{ num_adultos }} Adultos, {{ num_ninos }} Niños<br>
-                <strong>ORIGEN:</strong> {{ origen }}
-            </div>
-        </div>
+    {% for tour in itinerario %}
+    <div class="day-header">DÍA 0{{ loop.index }}:</div>
+    <div class="day-title">{{ tour.nombre }}</div>
 
-        <h2 class="section-title">Tu Itinerario Personalizado</h2>
-        {% for tour in itinerario %}
-        <div class="tour-row">
-            <div class="tour-name">Día {{ loop.index }}: {{ tour.nombre }}</div>
-            <div class="tour-desc">{{ tour.descripcion if tour.descripcion else 'Servicio programado según itinerario.' }}</div>
-            {% if tour.notas_operativas %}
-            <div style="font-style: italic; font-size: 11px; margin-top: 5px;">* {{ tour.notas_operativas }}</div>
-            {% endif %}
-        </div>
-        {% endfor %}
-
-        <div class="price-box">
-            <div>PRECIO TOTAL (USD)</div>
-            <div class="price-total">${{ total|round(2) }}</div>
-            <div style="font-size: 12px;">* Precios sujetos a cambios según disponibilidad.</div>
-        </div>
-
-        <h2 class="section-title">Incluye / No Incluye</h2>
-        <div style="font-size: 13px;">
-            <p><strong>INCLUYE:</strong> Todos los traslados mencionados, entradas a los sitios turísticos especificados, guías profesionales bilíngües.</p>
-            <p><strong>NO INCLUYE:</strong> Vuelos internacionales, propinas, comidas no especificadas.</p>
-        </div>
+    <div class="description">
+        {{ tour.descripcion if tour.descripcion else 'Disfrute de una experiencia inolvidable diseñada especialmente
+        para usted, recorriendo los lugares más emblemáticos y mágicos del Cusco con nuestro servicio personalizado.' }}
     </div>
 
-    <div class="footer">
-        Cusco, Perú | www.viajescuscoperu.com | +51 987 654 321
+    <table class="services-table">
+        <tr>
+            <td class="services-column">
+                <div class="services-title">✚ SERVICIOS QUE INCLUYE:</div>
+                <div class="service-item"><span class="icon">✓</span> Transporte Turístico</div>
+                <div class="service-item"><span class="icon">✓</span> Guía Profesional</div>
+                <div class="service-item"><span class="icon">✓</span> Boleto Turístico</div>
+                <div class="service-item"><span class="icon">✓</span> {{ tour.nombre }}</div>
+            </td>
+            <td class="services-column">
+                <div class="services-title">✖ SERVICIOS QUE NO INCLUYE:</div>
+                <div class="service-item"><span class="icon">✗</span> Alimentación (salvo mención)</div>
+                <div class="service-item"><span class="icon">✗</span> Gastos Extras</div>
+                {% if tour.notas_operativas %}
+                <div class="service-item"><span class="icon">!</span> {{ tour.notas_operativas }}</div>
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+    {% endfor %}
+
+    <div class="price-total-box">
+        <div class="price-label">PRECIO TOTAL DEL PAQUETE (USD)</div>
+        <div class="price-value">${{ total|round(2) }}</div>
+    </div>
+
+    <div id="footer_content">
+        Viajes Cusco Perú | Calle Mantas 123, Cusco | www.viajescuscoperu.com
     </div>
 </body>
+
 </html>
