@@ -99,9 +99,15 @@ def itinerary_builder_view(controller):
 
     paquete_init = st.selectbox("Cargar Plantilla", ["---Vacío---"] + df_p['nombre'].tolist() if not df_p.empty else ["---Vacío---"])
     if st.button("Cargar / Resetear") and paquete_init != "---Vacío---":
-        id_p = df_p[df_p['nombre'] == paquete_init].iloc[0]['id']
-        st.session_state.itinerario_piezas = controller.get_tours_de_paquete(id_p)
-        st.rerun()
+        row = df_p[df_p['nombre'] == paquete_init].iloc[0]
+        # Búsqueda flexible del ID (puede ser id, id_paquete, id_paquete_int, etc.)
+        id_p = row.get('id') or row.get('id_paquete') or row.get('id_paquete_int') or row.get('id_tour')
+        
+        if id_p:
+            st.session_state.itinerario_piezas = controller.get_tours_de_paquete(id_p)
+            st.rerun()
+        else:
+            st.error("No se pudo encontrar el Identificador del paquete en la base de datos.")
 
     if st.session_state.itinerario_piezas:
         df_edit = pd.DataFrame(st.session_state.itinerario_piezas)
