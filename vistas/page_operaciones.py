@@ -87,7 +87,7 @@ def dashboard_riesgo_documental(controller):
                         if success:
                             st.success("✅ Recibido.")
                             archivo_listo = True
-
+                
                 if st.button("🔴 Validar Documento", disabled=not archivo_listo, key=f"val_{id_doc}"):
                     success, _ = controller.validar_documento(id_doc)
                     if success:
@@ -229,10 +229,67 @@ def dashboard_tablero_diario(controller):
                 st.success(f"¡{cc} cambios guardados!")
                 st.rerun()
 
+def dashboard_requerimientos(controller):
+    """Implementa el Dashboard 3: Registro de Requerimientos."""
+    st.subheader("3️⃣ Registro de Requerimientos", divider='orange')
+    
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        st.markdown("#### 📝 Nuevo Requerimiento")
+        with st.form("form_requerimiento", clear_on_submit=True):
+            tipo_cliente = st.selectbox("Tipo de Cliente", ["B2B", "B2C"])
+            nombre = st.text_input("Nombre de la Persona")
+            motivo = st.text_area("Motivo")
+            total = st.number_input("Total", min_value=0.0, step=0.01)
+            n_cuenta = st.text_input("N° de Cuenta")
+            
+            submit = st.form_submit_button("Registrar Requerimiento")
+            
+            if submit:
+                if not nombre or not motivo:
+                    st.error("Por favor, complete los campos obligatorios (Nombre y Motivo).")
+                else:
+                    data = {
+                        "tipo_cliente": tipo_cliente,
+                        "nombre": nombre,
+                        "motivo": motivo,
+                        "total": total,
+                        "n_cuenta": n_cuenta,
+                        "fecha_registro": date.today().isoformat()
+                    }
+                    success, msg = controller.registrar_requerimiento(data)
+                    if success:
+                        st.success(msg)
+                        st.rerun()
+                    else:
+                        st.error(msg)
+                        
+    with col2:
+        st.markdown("#### 📋 Requerimientos Registrados")
+        reqs = controller.get_requerimientos()
+        if not reqs:
+            st.info("No hay requerimientos registrados.")
+        else:
+            df_reqs = pd.DataFrame(reqs)
+            st.dataframe(
+                df_reqs,
+                column_order=("tipo_cliente", "nombre", "total", "fecha_registro"),
+                column_config={
+                    "tipo_cliente": "Tipo",
+                    "nombre": "Nombre",
+                    "total": st.column_config.NumberColumn("Total", format="$ %.2f"),
+                    "fecha_registro": "Fecha"
+                },
+                hide_index=True,
+                use_container_width=True
+            )
+
 def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
     """Punto de entrada de Streamlit."""
     st.title("💼 Gestión de Operaciones")
     controller = OperacionesController(supabase_client)
-    t1, t2 = st.tabs(["🛡️ Riesgos", "📅 Planificación"])
+    t1, t2, t3 = st.tabs(["🛡️ Riesgos", "📅 Planificación", "📝 Requerimientos"])
     with t1: dashboard_riesgo_documental(controller)
     with t2: dashboard_tablero_diario(controller)
+    with t3: dashboard_requerimientos(controller)

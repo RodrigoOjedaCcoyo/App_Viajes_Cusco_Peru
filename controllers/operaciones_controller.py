@@ -1,5 +1,5 @@
 # controllers/operaciones_controller.py
-from models.operaciones_model import VentaModel, PasajeroModel, DocumentacionModel, TareaModel
+from models.operaciones_model import VentaModel, PasajeroModel, DocumentacionModel, TareaModel, RequerimientoModel
 from datetime import date, timedelta
 from supabase import Client
 import pandas as pd
@@ -12,6 +12,7 @@ class OperacionesController:
         self.doc_model = DocumentacionModel(supabase_client)
         self.pasajero_model = PasajeroModel(supabase_client)
         self.tarea_model = TareaModel(supabase_client)
+        self.req_model = RequerimientoModel(supabase_client)
 
     # ------------------------------------------------------------------
     # LÓGICA DE CONTROL DE RIESGO (Dashboard #1)

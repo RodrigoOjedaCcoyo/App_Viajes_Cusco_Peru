@@ -65,3 +65,7 @@ class TareaModel(BaseModel):
             return res.data
         except Exception as e:
             return []
+
+class RequerimientoModel(BaseModel):
+    def __init__(self, supabase_client: Client):
+        super().__init__('requerimiento', supabase_client)
