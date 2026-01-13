@@ -237,13 +237,11 @@ def dashboard_tablero_diario(controller):
 def generar_mensaje_whatsapp(data):
     """Genera un link de WhatsApp con el mensaje formateado."""
     mensaje = (
-        f"🔹 *REQUERIMIENTO* 🔹\n\n"
-        f"🔹 *NOMBRE:* {data['nombre'].upper()}\n"
-        f"🔹 *TIPO:* {data['tipo_cliente'].upper()}\n"
-        f"🔹 *MOTIVO:* {data['motivo'].upper()}\n"
-        f"🔹 *TOTAL:* {data['total']:.2f} SOLES\n"
-        f"🔹 *N° DE CUENTA:* {data['n_cuenta'].upper()}\n\n"
-        f"🔹 *FECHA:* {data['fecha_registro']}"
+        f"*REQUERIMIENTO:*\n"
+        f"{data['nombre'].upper()} - {data['motivo'].upper()}\n"
+        f"TOTAL: {data['total']:.2f} SOLES\n\n"
+        f"N° DE CUENTA: {data['n_cuenta'].upper()}\n"
+        f"FECHA: {data['fecha_registro']}"
     )
     # Codificar para URL
     mensaje_codificado = urllib.parse.quote(mensaje)
