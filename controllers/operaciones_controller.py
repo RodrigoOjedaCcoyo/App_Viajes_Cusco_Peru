@@ -336,7 +336,7 @@ class OperacionesController:
     def registrar_requerimiento(self, data: dict):
         """Registra un nuevo requerimiento en la base de datos."""
         try:
-            res = self.req_model.create(data)
+            res = self.req_model.save(data)
             return True, "Requerimiento registrado correctamente."
         except Exception as e:
             print(f"Error registrando requerimiento: {e}")
