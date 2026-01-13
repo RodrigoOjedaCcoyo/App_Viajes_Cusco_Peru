@@ -5,6 +5,7 @@ import pandas as pd
 import plotly.express as px
 import calendar
 from datetime import date, timedelta
+import urllib.parse
 from controllers.operaciones_controller import OperacionesController
 
 def dashboard_riesgo_documental(controller):
@@ -233,6 +234,21 @@ def dashboard_tablero_diario(controller):
                 st.success(f"¡{cc} cambios guardados!")
                 st.rerun()
 
+def generar_mensaje_whatsapp(data):
+    """Genera un link de WhatsApp con el mensaje formateado."""
+    mensaje = (
+        f"📝 *NUEVO REQUERIMIENTO*\n\n"
+        f"👤 *Nombre:* {data['nombre']}\n"
+        f"🏢 *Tipo:* {data['tipo_cliente']}\n"
+        f"📝 *Motivo:* {data['motivo']}\n"
+        f"💸 *Total:* ${data['total']:,.2f}\n"
+        f"💳 *N° de Cuenta:* {data['n_cuenta']}\n\n"
+        f"📅 *Fecha:* {data['fecha_registro']}"
+    )
+    # Codificar para URL
+    mensaje_codificado = urllib.parse.quote(mensaje)
+    return f"https://wa.me/?text={mensaje_codificado}"
+
 def dashboard_requerimientos(controller):
     """Implementa el Dashboard 3: Registro de Requerimientos."""
     st.subheader("📝 Registro de Requerimientos", divider='orange')
@@ -264,10 +280,24 @@ def dashboard_requerimientos(controller):
                     }
                     success, msg = controller.registrar_requerimiento(data)
                     if success:
+                        st.session_state['last_req'] = data
                         st.success(msg)
-                        st.rerun()
+                        # No hacemos rerun inmediatamente para mostrar el botón de WhatsApp
                     else:
                         st.error(msg)
+        
+        # Mostrar botón de WhatsApp si hay un registro reciente
+        if 'last_req' in st.session_state:
+            last_req = st.session_state['last_req']
+            link_wa = generar_mensaje_whatsapp(last_req)
+            
+            st.markdown("---")
+            st.info("✅ Registro completado. Ahora puedes compartirlo en el grupo:")
+            st.link_button("🟢 Enviar a Grupo de WhatsApp", link_wa, use_container_width=True)
+            
+            if st.button("Limpiar y Nuevo Registro"):
+                del st.session_state['last_req']
+                st.rerun()
                         
     with col2:
         st.markdown("#### 📋 Requerimientos Registrados")
