@@ -250,77 +250,70 @@ def dashboard_requerimientos(controller):
     """Implementa el Dashboard 3: Registro de Requerimientos."""
     st.subheader("📝 Registro de Requerimientos", divider='orange')
     
-    col1, col2 = st.columns([1, 1.2])
-    
-    with col1:
-        st.markdown("#### ➕ Nuevo Requerimiento")
-        with st.form("form_requerimiento", clear_on_submit=True):
-            tipo_cliente = st.selectbox("Tipo de Cliente", ["B2B", "B2C"])
-            nombre = st.text_input("Nombre de la Persona")
-            motivo = st.text_area("Motivo")
-            total = st.number_input("Total", min_value=0.0, step=0.01)
-            n_cuenta = st.text_area("N° de Cuenta / Detalles de Pago", height=150)
-            
-            uploaded_img = st.file_uploader("Adjuntar Imagen (Opcional)", type=['png', 'jpg', 'jpeg'])
-            
-            submit = st.form_submit_button("Registrar Requerimiento")
-            
-            if submit:
-                if not nombre or not motivo:
-                    st.error("Por favor, complete los campos obligatorios (Nombre y Motivo).")
-                else:
-                    data = {
-                        "tipo_cliente": tipo_cliente,
-                        "nombre": nombre,
-                        "motivo": motivo,
-                        "total": total,
-                        "n_cuenta": n_cuenta,
-                        "fecha_registro": date.today().isoformat()
-                    }
-                    # Simular guardado de imagen si existe
-                    if uploaded_img:
-                        data['imagen_url'] = f"mock_path/{uploaded_img.name}"
-                        
-                    success, msg = controller.registrar_requerimiento(data)
-                    if success:
-                        st.session_state['last_req'] = data
-                        st.success(msg)
-                        # No hacemos rerun inmediatamente para mostrar el botón de WhatsApp
-                    else:
-                        st.error(msg)
+    # ➕ Nuevo Requerimiento (Espacio completo)
+    st.markdown("#### ➕ Nuevo Requerimiento")
+    with st.form("form_requerimiento", clear_on_submit=True):
+        tipo_cliente = st.selectbox("Tipo de Cliente", ["B2B", "B2C"])
+        nombre = st.text_input("Nombre de la Persona")
+        motivo = st.text_area("Motivo")
+        total = st.number_input("Total", min_value=0.0, step=0.01)
+        n_cuenta = st.text_area("N° de Cuenta / Detalles de Pago", height=150)
         
-        # Mostrar botón de WhatsApp si hay un registro reciente
-        if 'last_req' in st.session_state:
-            last_req = st.session_state['last_req']
-            link_wa = generar_mensaje_whatsapp(last_req)
-            
-            st.markdown("---")
-            st.info("✅ Registro completado. Ahora puedes compartirlo en el grupo:")
-            st.link_button("🟢 Enviar a Grupo de WhatsApp", link_wa, use_container_width=True)
-            
-            if st.button("Limpiar y Nuevo Registro"):
-                del st.session_state['last_req']
-                st.rerun()
-                        
-    with col2:
-        st.markdown("#### 📋 Requerimientos Registrados")
-        reqs = controller.get_requerimientos()
-        if not reqs:
-            st.info("No hay requerimientos registrados.")
-        else:
-            df_reqs = pd.DataFrame(reqs)
-            st.dataframe(
-                df_reqs,
-                column_order=("tipo_cliente", "nombre", "total", "fecha_registro"),
-                column_config={
-                    "tipo_cliente": "Tipo",
-                    "nombre": "Nombre",
-                    "total": st.column_config.NumberColumn("Total", format="$ %.2f"),
-                    "fecha_registro": "Fecha"
-                },
-                hide_index=True,
-                use_container_width=True
-            )
+        submit = st.form_submit_button("Registrar Requerimiento")
+        
+        if submit:
+            if not nombre or not motivo:
+                st.error("Por favor, complete los campos obligatorios (Nombre y Motivo).")
+            else:
+                data = {
+                    "tipo_cliente": tipo_cliente,
+                    "nombre": nombre,
+                    "motivo": motivo,
+                    "total": total,
+                    "n_cuenta": n_cuenta,
+                    "fecha_registro": date.today().isoformat()
+                }
+                    
+                success, msg = controller.registrar_requerimiento(data)
+                if success:
+                    st.session_state['last_req'] = data
+                    st.success(msg)
+                else:
+                    st.error(msg)
+    
+    # Mostrar botón de WhatsApp si hay un registro reciente
+    if 'last_req' in st.session_state:
+        last_req = st.session_state['last_req']
+        link_wa = generar_mensaje_whatsapp(last_req)
+        
+        st.info("✅ Registro completado. Ahora puedes compartirlo en el grupo:")
+        st.link_button("🟢 Enviar a Grupo de WhatsApp", link_wa, use_container_width=True)
+        
+        if st.button("Limpiar y Nuevo Registro"):
+            del st.session_state['last_req']
+            st.rerun()
+
+    st.markdown("---")
+    
+    # 📋 Requerimientos Registrados (Espacio completo abajo)
+    st.markdown("#### 📋 Requerimientos Registrados")
+    reqs = controller.get_requerimientos()
+    if not reqs:
+        st.info("No hay requerimientos registrados.")
+    else:
+        df_reqs = pd.DataFrame(reqs)
+        st.dataframe(
+            df_reqs,
+            column_order=("tipo_cliente", "nombre", "total", "fecha_registro"),
+            column_config={
+                "tipo_cliente": "Tipo",
+                "nombre": "Nombre",
+                "total": st.column_config.NumberColumn("Total", format="$ %.2f"),
+                "fecha_registro": "Fecha"
+            },
+            hide_index=True,
+            use_container_width=True
+        )
 
 def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
     """Punto de entrada de Streamlit."""
