@@ -73,6 +73,16 @@ def auditoria_de_pagos():
 def mostrar_requerimientos():
     """Muestra la lista de requerimientos enviados por Operaciones."""
     reporte_controller = st.session_state.get('reporte_controller')
+    
+    # Verificación de seguridad: si el método no existe, forzamos reinicialización
+    if reporte_controller and not hasattr(reporte_controller, 'obtener_requerimientos'):
+        if 'supabase_client' in st.session_state:
+            reporte_controller = ReporteController(st.session_state['supabase_client'])
+            st.session_state['reporte_controller'] = reporte_controller
+        else:
+            st.error("Error: Atributo 'obtener_requerimientos' no encontrado y no se pudo reiniciar el controlador.")
+            return
+
     if not reporte_controller:
         st.error("Error: Controlador no inicializado.")
         return

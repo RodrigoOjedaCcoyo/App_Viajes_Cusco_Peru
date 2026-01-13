@@ -64,6 +64,7 @@ def init_supabase_client() -> Client:
     return create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 supabase: Client = init_supabase_client()
+st.session_state['supabase_client'] = supabase
 
 # --- 3. Logica de Autenticación y Estado ---
 if 'authenticated' not in st.session_state:
