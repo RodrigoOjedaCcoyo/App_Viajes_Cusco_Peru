@@ -64,37 +64,41 @@ def dashboard_riesgo_documental(controller):
             
         with col2:
             st.markdown("##### Acciones")
-            doc_validables = df_detalle[df_detalle['Estado'].isin(['PENDIENTE', 'RECIBIDO'])]
-            
-            if not doc_validables.empty:
-                opciones_validar = {
-                    f"{row['Tipo Documento']} - {row['ID Documento']}": row['ID Documento']
-                    for _, row in doc_validables.iterrows()
-                }
+            # Verificación de seguridad por si el DF no tiene la columna 'Estado'
+            if not df_detalle.empty and 'Estado' in df_detalle.columns:
+                doc_validables = df_detalle[df_detalle['Estado'].isin(['PENDIENTE', 'RECIBIDO'])]
                 
-                sel_doc_id = st.selectbox("Documento:", list(opciones_validar.keys()))
-                id_doc = opciones_validar[sel_doc_id]
-                
-                doc_info = doc_validables[doc_validables['ID Documento'] == id_doc].iloc[0]
-                estado_actual = doc_info['Estado']
-                
-                uploaded_file = st.file_uploader("Adjuntar Evidencia", key=f"up_{id_doc}")
-                
-                archivo_listo = (estado_actual == 'RECIBIDO')
-                if uploaded_file:
-                    with st.spinner("Subiendo..."):
-                        success, _ = controller.subir_documento(id_doc, uploaded_file)
+                if not doc_validables.empty:
+                    opciones_validar = {
+                        f"{row['Tipo Documento']} - {row['ID Documento']}": row['ID Documento']
+                        for _, row in doc_validables.iterrows()
+                    }
+                    
+                    sel_doc_id = st.selectbox("Documento:", list(opciones_validar.keys()))
+                    id_doc = opciones_validar[sel_doc_id]
+                    
+                    doc_info = doc_validables[doc_validables['ID Documento'] == id_doc].iloc[0]
+                    estado_actual = doc_info['Estado']
+                    
+                    uploaded_file = st.file_uploader("Adjuntar Evidencia", key=f"up_{id_doc}")
+                    
+                    archivo_listo = (estado_actual == 'RECIBIDO')
+                    if uploaded_file:
+                        with st.spinner("Subiendo..."):
+                            success, _ = controller.subir_documento(id_doc, uploaded_file)
+                            if success:
+                                st.success("✅ Recibido.")
+                                archivo_listo = True
+                    
+                    if st.button("🔴 Validar Documento", disabled=not archivo_listo, key=f"val_{id_doc}"):
+                        success, _ = controller.validar_documento(id_doc)
                         if success:
-                            st.success("✅ Recibido.")
-                            archivo_listo = True
-                
-                if st.button("🔴 Validar Documento", disabled=not archivo_listo, key=f"val_{id_doc}"):
-                    success, _ = controller.validar_documento(id_doc)
-                    if success:
-                        st.success("¡Validado!")
-                        st.rerun()
+                            st.success("¡Validado!")
+                            st.rerun()
+                else:
+                    st.info("Todo validado.")
             else:
-                st.info("Todo validado.")
+                st.info("No hay documentos para gestionar.")
 
 def dashboard_tablero_diario(controller):
     """Dashboard 2: Tablero con vistas Duplicadas (Mensual/Semanal)."""
@@ -231,12 +235,12 @@ def dashboard_tablero_diario(controller):
 
 def dashboard_requerimientos(controller):
     """Implementa el Dashboard 3: Registro de Requerimientos."""
-    st.subheader("3️⃣ Registro de Requerimientos", divider='orange')
+    st.subheader("📝 Registro de Requerimientos", divider='orange')
     
-    col1, col2 = st.columns([1, 1])
+    col1, col2 = st.columns([1, 1.2])
     
     with col1:
-        st.markdown("#### 📝 Nuevo Requerimiento")
+        st.markdown("#### ➕ Nuevo Requerimiento")
         with st.form("form_requerimiento", clear_on_submit=True):
             tipo_cliente = st.selectbox("Tipo de Cliente", ["B2B", "B2C"])
             nombre = st.text_input("Nombre de la Persona")
@@ -287,9 +291,13 @@ def dashboard_requerimientos(controller):
 
 def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
     """Punto de entrada de Streamlit."""
-    st.title("💼 Gestión de Operaciones")
     controller = OperacionesController(supabase_client)
-    t1, t2, t3 = st.tabs(["🛡️ Riesgos", "📅 Planificación", "📝 Requerimientos"])
-    with t1: dashboard_riesgo_documental(controller)
-    with t2: dashboard_tablero_diario(controller)
-    with t3: dashboard_requerimientos(controller)
+    
+    if "Requerimientos" in nombre_modulo:
+        st.title("💼 Gestión de Requerimientos")
+        dashboard_requerimientos(controller)
+    else:
+        st.title("💼 Gestión de Operaciones")
+        t1, t2 = st.tabs(["🛡️ Riesgos", "📅 Planificación"])
+        with t1: dashboard_riesgo_documental(controller)
+        with t2: dashboard_tablero_diario(controller)
