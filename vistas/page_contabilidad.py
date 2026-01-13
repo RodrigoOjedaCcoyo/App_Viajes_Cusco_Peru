@@ -70,6 +70,38 @@ def auditoria_de_pagos():
         st.info("No hay transacciones para auditar.")
 
 
+def mostrar_requerimientos():
+    """Muestra la lista de requerimientos enviados por Operaciones."""
+    reporte_controller = st.session_state.get('reporte_controller')
+    if not reporte_controller:
+        st.error("Error: Controlador no inicializado.")
+        return
+
+    st.subheader("📋 Requerimientos de Operaciones")
+    reqs = reporte_controller.obtener_requerimientos()
+    
+    if not reqs:
+        st.info("No hay requerimientos registrados por el equipo de Operaciones.")
+    else:
+        df_reqs = pd.DataFrame(reqs)
+        
+        # Formatear columnas para visualización contable
+        st.dataframe(
+            df_reqs,
+            column_order=("fecha_registro", "nombre", "tipo_cliente", "motivo", "total", "n_cuenta"),
+            column_config={
+                "fecha_registro": "Fecha",
+                "nombre": "Solicitante",
+                "tipo_cliente": "Tipo",
+                "motivo": "Concepto / Motivo",
+                "total": st.column_config.NumberColumn("Importe", format="$ %.2f"),
+                "n_cuenta": "N° de Cuenta / Destino"
+            },
+            hide_index=True,
+            use_container_width=True
+        )
+
+
 # ----------------------------------------------------------------------
 # FUNCIÓN PRINCIPAL DE LA VISTA (Llamada por main.py)
 # ----------------------------------------------------------------------
@@ -90,5 +122,11 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, su
         reporte_de_montos()
     elif funcionalidad_seleccionada == "Auditoría de Pagos":
         auditoria_de_pagos()
+    elif funcionalidad_seleccionada == "Requerimientos de Operaciones":
+        mostrar_requerimientos()
+    elif funcionalidad_seleccionada == "Registro de Ventas":
+        # Reutilizamos la lógica de reporte pero con título específico
+        st.info("Visualizando historial de ventas confirmadas desde el área comercial.")
+        reporte_de_montos()
     else:
         st.warning("Funcionalidad no reconocida.")

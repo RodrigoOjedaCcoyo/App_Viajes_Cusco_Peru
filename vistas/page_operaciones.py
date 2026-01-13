@@ -155,73 +155,83 @@ def generar_mensaje_whatsapp(data):
     return f"https://wa.me/?text={mensaje_codificado}"
 
 def dashboard_requerimientos(controller):
-    """Implementa el Dashboard 3: Registro de Requerimientos."""
+    """Módulo para el registro de requerimientos de operaciones."""
     st.subheader("📝 Registro de Requerimientos", divider='orange')
-    
-    # ➕ Nuevo Requerimiento (Espacio completo)
-    st.markdown("#### ➕ Nuevo Requerimiento")
-    with st.form("form_requerimiento", clear_on_submit=True):
-        tipo_cliente = st.selectbox("Tipo de Cliente", ["B2B", "B2C"])
-        nombre = st.text_input("Nombre de la Persona")
-        motivo = st.text_area("Motivo")
-        total = st.number_input("Total", min_value=0.0, step=0.01)
+
+    # Formulario
+    with st.container(border=True):
+        col1, col2, col3 = st.columns(3)
+        tipo_cliente = col1.selectbox("Tipo de Cliente", ["B2B", "B2C"])
+        nombre = col2.text_input("Nombre / Razón Social")
+        total = col3.number_input("Total (SOLES)", min_value=0.0, step=1.0, format="%.2f")
+
+        motivo = st.text_area("Motivo del Requerimiento", height=100)
         n_cuenta = st.text_area("N° de Cuenta / Detalles de Pago", height=150)
-        
-        submit = st.form_submit_button("Registrar Requerimiento")
-        
-        if submit:
+
+        if st.button("🔴 Registrar Requerimiento", use_container_width=True):
             if not nombre or not motivo:
-                st.error("Por favor, complete los campos obligatorios (Nombre y Motivo).")
+                st.error("Por favor completa nombre y motivo.")
             else:
-                data = {
+                nuevo_req = {
                     "tipo_cliente": tipo_cliente,
-                    "nombre": nombre,
-                    "motivo": motivo,
+                    "nombre": nombre.upper(),
+                    "motivo": motivo.upper(),
                     "total": total,
-                    "n_cuenta": n_cuenta,
-                    "fecha_registro": date.today().isoformat()
+                    "n_cuenta": n_cuenta.upper() if n_cuenta else ""
                 }
-                    
-                success, msg = controller.registrar_requerimiento(data)
+                success, msg = controller.registrar_requerimiento(nuevo_req)
                 if success:
-                    st.session_state['last_req'] = data
                     st.success(msg)
+                    st.session_state['last_req'] = nuevo_req
                 else:
                     st.error(msg)
-    
-    # Mostrar botón de WhatsApp si hay un registro reciente
+
+    # Botón de WhatsApp
     if 'last_req' in st.session_state:
-        last_req = st.session_state['last_req']
-        link_wa = generar_mensaje_whatsapp(last_req)
-        
-        st.info("✅ Registro completado. Ahora puedes compartirlo en el grupo:")
-        st.link_button("🟢 Enviar a Grupo de WhatsApp", link_wa, use_container_width=True)
-        
-        if st.button("Limpiar y Nuevo Registro"):
+        req = st.session_state['last_req']
+        msg_wa = generar_mensaje_whatsapp(req)
+        msg_encoded = urllib.parse.quote(msg_wa)
+        wa_link = f"https://wa.me/?text={msg_encoded}"
+        st.markdown(f"""
+            <a href="{wa_link}" target="_blank">
+                <button style="width:100%; padding:10px; background-color:#25D366; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">
+                    🟢 Enviar a Grupo de WhatsApp
+                </button>
+            </a>
+        """, unsafe_allow_html=True)
+        if st.button("Limpiar Registro Actual"):
             del st.session_state['last_req']
             st.rerun()
 
     st.markdown("---")
-    
-    # 📋 Requerimientos Registrados (Espacio completo abajo)
-    st.markdown("#### 📋 Requerimientos Registrados")
+    st.subheader("📋 Requerimientos Registrados")
     reqs = controller.get_requerimientos()
-    if not reqs:
-        st.info("No hay requerimientos registrados.")
-    else:
+    if reqs:
         df_reqs = pd.DataFrame(reqs)
+        st.dataframe(df_reqs, hide_index=True, use_container_width=True)
+    else:
+        st.info("No hay requerimientos registrados.")
+
+
+def dashboard_registro_ventas_compartido(controller):
+    """Vista de Ventas compartida para Operaciones y Contabilidad."""
+    st.subheader("💰 Registro de Ventas (Confirmadas)", divider='blue')
+    ventas = controller.get_all_ventas()
+    
+    if not ventas:
+        st.info("No hay ventas registradas actualmente.")
+    else:
+        df_v = pd.DataFrame(ventas)
         st.dataframe(
-            df_reqs,
-            column_order=("tipo_cliente", "nombre", "total", "fecha_registro"),
+            df_v,
             column_config={
-                "tipo_cliente": "Tipo",
-                "nombre": "Nombre",
-                "total": st.column_config.NumberColumn("Total", format="$ %.2f"),
-                "fecha_registro": "Fecha"
+                "Total": st.column_config.NumberColumn("Monto Cierre", format="$ %.2f"),
+                "Fecha": st.column_config.DateColumn("Fecha Venta")
             },
             hide_index=True,
             use_container_width=True
         )
+
 
 def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
     """Punto de entrada de Streamlit."""
@@ -230,6 +240,9 @@ def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
     if "Requerimientos" in nombre_modulo:
         st.title("💼 Gestión de Requerimientos")
         dashboard_requerimientos(controller)
+    elif "Registro de Ventas" in nombre_modulo:
+        st.title("📊 Registro de Ventas - Vista Operativa")
+        dashboard_registro_ventas_compartido(controller)
     else:
         st.title("💼 Gestión de Operaciones")
         dashboard_tablero_diario(controller)

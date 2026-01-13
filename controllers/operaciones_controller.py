@@ -225,3 +225,35 @@ class OperacionesController:
         except Exception as e:
             print(f"Error obteniendo requerimientos: {e}")
             return []
+
+    def get_all_ventas(self):
+        """Obtiene todas las ventas registradas para vista compartida."""
+        try:
+            res = self.client.table('Venta').select('*').order('fecha_venta', desc=True).execute()
+            ventas = res.data
+            
+            # Enriquecemos con Nombres (Simple para demo, optimizable con joins)
+            resultado = []
+            for v in ventas:
+                # Buscar cliente
+                nombre_cliente = "Desconocido"
+                res_c = self.client.table('Cliente').select('nombre').eq('id_cliente', v['id_cliente']).single().execute()
+                if res_c.data: nombre_cliente = res_c.data['nombre']
+                
+                # Buscar vendedor
+                nombre_vendedor = "Desconocido"
+                res_v = self.client.table('Vendedor').select('nombre').eq('id_vendedor', v['id_vendedor']).single().execute()
+                if res_v.data: nombre_vendedor = res_v.data['nombre']
+
+                resultado.append({
+                    'ID': v['id_venta'],
+                    'Fecha': v['fecha_venta'],
+                    'Cliente': nombre_cliente,
+                    'Vendedor': nombre_vendedor,
+                    'Total': v['precio_total_cierre'],
+                    'Estado': v['estado_venta']
+                })
+            return resultado
+        except Exception as e:
+            print(f"Error get_all_ventas: {e}")
+            return []

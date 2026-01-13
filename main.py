@@ -35,11 +35,14 @@ MODULOS_VISIBLES = {
     ],
     "OPERACIONES": [
         ("Dashboard Operaciones", "page_operaciones"),
-        ("Registro de Requerimientos", "page_operaciones")
+        ("Registro de Requerimientos", "page_operaciones"),
+        ("Registro de Ventas", "page_operaciones")
     ],
     "CONTABLE": [
         ("Reporte de Montos", "page_contabilidad"),
-        ("Auditoría de Pagos", "page_contabilidad")
+        ("Auditoría de Pagos", "page_contabilidad"),
+        ("Requerimientos de Operaciones", "page_contabilidad"),
+        ("Registro de Ventas", "page_contabilidad")
     ],
     "GERENCIA": [
         ("Dashboard Ejecutivo", "page_gerencia"),

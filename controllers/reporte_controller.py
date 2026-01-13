@@ -1,6 +1,7 @@
 # controllers/reporte_controller.py
 from models.venta_model import VentaModel
 from models.lead_model import LeadModel
+from models.operaciones_model import RequerimientoModel
 
 class ReporteController:
     """
@@ -11,6 +12,15 @@ class ReporteController:
     def __init__(self, supabase_client):
         self.venta_model = VentaModel('Venta', supabase_client)
         self.lead_model = LeadModel('lead', supabase_client)
+        self.req_model = RequerimientoModel(supabase_client)
+        
+    def obtener_requerimientos(self):
+        """Obtiene la lista de requerimientos desde Operaciones."""
+        try:
+            return self.req_model.get_all()
+        except Exception as e:
+            print(f"Error obteniendo requerimientos en ReporteController: {e}")
+            return []
         
     def obtener_resumen_ventas(self):
         """Devuelve todas las ventas con información clave para reportes."""
