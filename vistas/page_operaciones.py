@@ -8,98 +8,6 @@ from datetime import date, timedelta
 import urllib.parse
 from controllers.operaciones_controller import OperacionesController
 
-def dashboard_riesgo_documental(controller):
-    """Implementa el Dashboard 1: Riesgo de Bloqueo Documental."""
-    st.subheader("1️⃣ Dashboard de Riesgo Documental", divider='blue')
-
-    # 1. Obtener el segmento inteligente de Ventas con riesgo
-    ventas_en_riesgo = controller.get_ventas_con_documentos_pendientes()
-
-    if not ventas_en_riesgo:
-        st.success("✅ ¡Excelente! No hay ventas con documentación crítica PENDIENTE o RECIBIDA.")
-        return
-
-    st.warning(f"🚨 ¡ATENCIÓN! Hay {len(ventas_en_riesgo)} viajes con riesgo de bloqueo logístico.")
-    
-    df_resumen = pd.DataFrame(ventas_en_riesgo)
-    
-    if not df_resumen.empty and 'fecha_salida' in df_resumen.columns:
-        df_resumen['fecha_salida'] = pd.to_datetime(df_resumen['fecha_salida'], errors='coerce').dt.date
-
-    # Muestra la tabla informativa
-    st.dataframe(
-        df_resumen,
-        column_order=('id', 'cliente', 'destino', 'fecha_salida', 'vendedor'),
-        hide_index=True,
-        column_config={
-            "id": "ID Venta",
-            "cliente": "Cliente Principal",
-            "destino": "Destinos",
-            "fecha_salida": st.column_config.DateColumn("Salida", format="YYYY-MM-DD"),
-            "vendedor": "Vendedor"
-        },
-        height=200,
-        use_container_width=True
-    )
-
-    # Selector Principal
-    opciones_venta = {
-        f"ID: {v['id']} - {v['cliente']} - {v['destino']} ({v['fecha_salida']})": v['id']
-        for v in ventas_en_riesgo
-    }
-    
-    st.markdown("---")
-    selected_venta_label = st.selectbox("📂 Seleccionar Venta para Gestionar Documentos:", list(opciones_venta.keys()))
-    
-    if selected_venta_label:
-        id_venta_sel = opciones_venta[selected_venta_label]
-        venta_actual = next((v for v in ventas_en_riesgo if v['id'] == id_venta_sel), None)
-        
-        st.markdown(f"#### 📄 Detalle Documental: {venta_actual['cliente']} (ID: {id_venta_sel})")
-        
-        df_detalle = controller.get_detalle_documentacion_by_venta(id_venta_sel)
-        
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.dataframe(df_detalle, hide_index=True, use_container_width=True)
-            
-        with col2:
-            st.markdown("##### Acciones")
-            # Verificación de seguridad por si el DF no tiene la columna 'Estado'
-            if not df_detalle.empty and 'Estado' in df_detalle.columns:
-                doc_validables = df_detalle[df_detalle['Estado'].isin(['PENDIENTE', 'RECIBIDO'])]
-                
-                if not doc_validables.empty:
-                    opciones_validar = {
-                        f"{row['Tipo Documento']} - {row['ID Documento']}": row['ID Documento']
-                        for _, row in doc_validables.iterrows()
-                    }
-                    
-                    sel_doc_id = st.selectbox("Documento:", list(opciones_validar.keys()))
-                    id_doc = opciones_validar[sel_doc_id]
-                    
-                    doc_info = doc_validables[doc_validables['ID Documento'] == id_doc].iloc[0]
-                    estado_actual = doc_info['Estado']
-                    
-                    uploaded_file = st.file_uploader("Adjuntar Evidencia", key=f"up_{id_doc}")
-                    
-                    archivo_listo = (estado_actual == 'RECIBIDO')
-                    if uploaded_file:
-                        with st.spinner("Subiendo..."):
-                            success, _ = controller.subir_documento(id_doc, uploaded_file)
-                            if success:
-                                st.success("✅ Recibido.")
-                                archivo_listo = True
-                    
-                    if st.button("🔴 Validar Documento", disabled=not archivo_listo, key=f"val_{id_doc}"):
-                        success, _ = controller.validar_documento(id_doc)
-                        if success:
-                            st.success("¡Validado!")
-                            st.rerun()
-                else:
-                    st.info("Todo validado.")
-            else:
-                st.info("No hay documentos para gestionar.")
 
 def dashboard_tablero_diario(controller):
     """Dashboard 2: Tablero con vistas Duplicadas (Mensual/Semanal)."""
@@ -324,6 +232,4 @@ def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
         dashboard_requerimientos(controller)
     else:
         st.title("💼 Gestión de Operaciones")
-        t1, t2 = st.tabs(["🛡️ Riesgos", "📅 Planificación"])
-        with t1: dashboard_riesgo_documental(controller)
-        with t2: dashboard_tablero_diario(controller)
+        dashboard_tablero_diario(controller)
