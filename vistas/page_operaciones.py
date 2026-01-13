@@ -240,8 +240,7 @@ def generar_mensaje_whatsapp(data):
         f"*REQUERIMIENTO:*\n"
         f"{data['nombre'].upper()} - {data['motivo'].upper()}\n"
         f"TOTAL: {data['total']:.2f} SOLES\n\n"
-        f"N° DE CUENTA: {data['n_cuenta'].upper()}\n"
-        f"FECHA: {data['fecha_registro']}"
+        f"N° DE CUENTA:\n{data['n_cuenta'].upper()}"
     )
     # Codificar para URL
     mensaje_codificado = urllib.parse.quote(mensaje)
@@ -260,7 +259,9 @@ def dashboard_requerimientos(controller):
             nombre = st.text_input("Nombre de la Persona")
             motivo = st.text_area("Motivo")
             total = st.number_input("Total", min_value=0.0, step=0.01)
-            n_cuenta = st.text_input("N° de Cuenta")
+            n_cuenta = st.text_area("N° de Cuenta / Detalles de Pago", height=150)
+            
+            uploaded_img = st.file_uploader("Adjuntar Imagen (Opcional)", type=['png', 'jpg', 'jpeg'])
             
             submit = st.form_submit_button("Registrar Requerimiento")
             
@@ -276,6 +277,10 @@ def dashboard_requerimientos(controller):
                         "n_cuenta": n_cuenta,
                         "fecha_registro": date.today().isoformat()
                     }
+                    # Simular guardado de imagen si existe
+                    if uploaded_img:
+                        data['imagen_url'] = f"mock_path/{uploaded_img.name}"
+                        
                     success, msg = controller.registrar_requerimiento(data)
                     if success:
                         st.session_state['last_req'] = data
