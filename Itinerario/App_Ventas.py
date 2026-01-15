@@ -26,11 +26,12 @@ def cargar_paquetes_custom():
     return {}
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(
-    page_title="Viajes Cusco Perú - Constructor de Itinerarios",
-    page_icon="🏔️",
-    layout="wide"
-)
+# --- CONFIGURACIÓN DE PÁGINA (COMENTADO PARA INTEGRACIÓN) ---
+# st.set_page_config(
+#     page_title="Viajes Cusco Perú - Constructor de Itinerarios",
+#     page_icon="🏔️",
+#     layout="wide"
+# )
 
 # --- ESTILOS PERSONALIZADOS (TURQUESA & PREMIUM) ---
 st.markdown("""
