@@ -134,9 +134,76 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, su
         auditoria_de_pagos()
     elif funcionalidad_seleccionada == "Requerimientos de Operaciones":
         mostrar_requerimientos()
+    elif "Simulador Contable" in funcionalidad_seleccionada:
+        dashboard_simulador_contable()
     elif funcionalidad_seleccionada == "Registro de Ventas":
         # Reutilizamos la lógica de reporte pero con título específico
         st.info("Visualizando historial de ventas confirmadas desde el área comercial.")
         reporte_de_montos()
     else:
         st.warning("Funcionalidad no reconocida.")
+
+def dashboard_simulador_contable():
+    """
+    Simulador tipo Excel para Contabilidad.
+    Registro de gastos con distinción de moneda (PEN/USD).
+    """
+    st.subheader("📊 Simulador de Gastos (Multimoneda)", divider='violet')
+
+    from datetime import date # Importación local o asegurar que esté arriba
+
+    if 'simulador_contable_data' not in st.session_state:
+        st.session_state['simulador_contable_data'] = [
+            {"FECHA": date.today(), "SERVICIO": "Servicio Ejemplo", "MONEDA": "PEN", "TOTAL": 0.0},
+        ]
+
+    # Barra de herramientas
+    c1, c2 = st.columns([3, 1])
+    with c1:
+        st.info("💡 Ingresa los gastos. El sistema separará automáticamente Soles y Dólares.")
+    with c2:
+        if st.button("🗑️ Limpiar Tabla", use_container_width=True, key="btn_clear_cont"):
+            st.session_state['simulador_contable_data'] = [{"FECHA": date.today(), "SERVICIO": "", "MONEDA": "PEN", "TOTAL": 0.0}]
+            st.rerun()
+
+    # Data Editor
+    df = pd.DataFrame(st.session_state['simulador_contable_data'])
+    
+    column_config = {
+        "FECHA": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY", required=True),
+        "SERVICIO": st.column_config.TextColumn("Descripción del Servicio", required=True, width="large"),
+        "MONEDA": st.column_config.SelectboxColumn("Moneda", options=["PEN", "USD"], required=True, width="small"),
+        "TOTAL": st.column_config.NumberColumn("Total", format="%.2f", min_value=0.0)
+    }
+
+    edited_df = st.data_editor(
+        df,
+        column_config=column_config,
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        key="editor_contable"
+    )
+
+    # Cálculos por Moneda
+    total_pen = edited_df[edited_df['MONEDA'] == 'PEN']['TOTAL'].sum()
+    total_usd = edited_df[edited_df['MONEDA'] == 'USD']['TOTAL'].sum()
+
+    st.session_state['simulador_contable_data'] = edited_df.to_dict('records')
+
+    st.divider()
+    
+    # Mostrar Totales
+    col_pen, col_usd = st.columns(2)
+    col_pen.metric("Total Soles (PEN)", f"S/. {total_pen:,.2f}")
+    col_usd.metric("Total Dólares (USD)", f"$ {total_usd:,.2f}")
+
+    # Exportar
+    if st.button("📥 Exportar Reporte CSV", key="btn_exp_cont"):
+        csv = edited_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="Descargar CSV",
+            data=csv,
+            file_name=f"gastos_contables_{date.today()}.csv",
+            mime='text/csv',
+        )

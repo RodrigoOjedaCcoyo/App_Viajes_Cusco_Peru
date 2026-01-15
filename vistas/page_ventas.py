@@ -197,11 +197,7 @@ def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual=
 
     st.title(f"Módulo Ventas: {funcionalidad_seleccionada}")
 
-    if funcionalidad_seleccionada == "Registro de Leads":
-        formulario_registro_leads()
-    elif funcionalidad_seleccionada == "Seguimiento de Leads":
-        seguimiento_leads()
-    elif funcionalidad_seleccionada == "Registro de Ventas":
+    if funcionalidad_seleccionada == "Registro de Ventas":
         registro_ventas_directa()
     elif funcionalidad_seleccionada == "Automatización e Itinerarios":
         t1, t2 = st.tabs(["⚡ Flash Quote", "🧩 Itinerary Builder"])
