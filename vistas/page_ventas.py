@@ -337,44 +337,68 @@ def itinerary_builder_view(controller):
             st.divider()
             
             # --- GENERADOR PDF OMNIPOTENTE ---
+            # Inicializar estado del PDF si no existe
+            if 'pdf_generated' not in st.session_state:
+                st.session_state.pdf_generated = None
+            
             if st.button("🖨️ GENERAR PDF (MOTOR WEB)", use_container_width=True):
-                if nombre_cliente and st.session_state.curr_itinerario:
-                    cwd_orig = os.getcwd()
-                    os.chdir(itinerario_path)
-                    try:
-                        info_p = {
-                            'nac': (pax_nac, total_nac),
-                            'ext': (pax_ext, total_ext),
-                            'can': (pax_can, total_can)
-                        }
-                        
-                        cover = "Captura de pantalla 2026-01-13 094212.png" if cat_sel == "Perú para el Mundo" else "Captura de pantalla 2026-01-13 094056.png"
-                        t1, t2 = ("PERÚ", "PARA EL MUNDO") if cat_sel == "Perú para el Mundo" else ("CUSCO", "TRADICIONAL")
-                        cat_final = f"{pax_nac+pax_ext+pax_can} Pasajeros"
-                        rango = f"Programado"
-
-                        pdf_path = generar_pdf_web(
-                            tours=st.session_state.curr_itinerario,
-                            pasajero=nombre_cliente,
-                            fechas=rango,
-                            categoria=cat_final,
-                            modo=modo_s,
-                            vendedor=vendedor,
-                            celular=celular,
-                            cover_img=cover,
-                            title_1=t1, title_2=t2,
-                            info_precios=info_p
-                        )
-                        
-                        with open(pdf_path, "rb") as f:
-                            st.download_button("📥 DESCARGAR ITINERARIO", f, f"Itinerario_{nombre_cliente}.pdf", "application/pdf")
-                        st.success("¡Documento Generado!")
-                    except Exception as e:
-                        st.error(f"Error: {e}")
-                    finally:
-                        os.chdir(cwd_orig)
+                if not nombre_cliente:
+                    st.error("⚠️ Por favor, ingresa el **Nombre del Cliente** antes de generar.")
+                elif not st.session_state.curr_itinerario:
+                    st.error("⚠️ El itinerario está vacío. Añade servicios primero.")
                 else:
-                    st.warning("Falta nombre del cliente o servicios para generar.")
+                    with st.spinner("⏳ Generando PDF de Alta Calidad... (Esto toma unos segundos)"):
+                        cwd_orig = os.getcwd()
+                        os.chdir(itinerario_path)
+                        try:
+                            info_p = {
+                                'nac': (pax_nac, total_nac),
+                                'ext': (pax_ext, total_ext),
+                                'can': (pax_can, total_can)
+                            }
+                            
+                            cover = "Captura de pantalla 2026-01-13 094212.png" if cat_sel == "Perú para el Mundo" else "Captura de pantalla 2026-01-13 094056.png"
+                            t1, t2 = ("PERÚ", "PARA EL MUNDO") if cat_sel == "Perú para el Mundo" else ("CUSCO", "TRADICIONAL")
+                            cat_final = f"{pax_nac+pax_ext+pax_can} Pasajeros"
+                            rango = f"Programado"
+
+                            pdf_path = generar_pdf_web(
+                                tours=st.session_state.curr_itinerario,
+                                pasajero=nombre_cliente,
+                                fechas=rango,
+                                categoria=cat_final,
+                                modo=modo_s,
+                                vendedor=vendedor,
+                                celular=celular,
+                                cover_img=cover,
+                                title_1=t1, title_2=t2,
+                                info_precios=info_p
+                            )
+                            
+                            with open(pdf_path, "rb") as f:
+                                pdf_bytes = f.read()
+                            
+                            # Guardamos en sesión para que el botón de descarga persista
+                            st.session_state.pdf_generated = {
+                                "data": pdf_bytes,
+                                "name": f"Itinerario_{nombre_cliente.replace(' ', '_')}.pdf"
+                            }
+                            st.success("¡Documento Generado! Descárgalo abajo 👇")
+                            
+                        except Exception as e:
+                            st.error(f"Error generando PDF: {e}")
+                        finally:
+                            os.chdir(cwd_orig)
+
+            # Botón de Descarga Persistente
+            if st.session_state.pdf_generated:
+                st.download_button(
+                    label="📥 DESCARGAR ITINERARIO OFICIAL",
+                    data=st.session_state.pdf_generated["data"],
+                    file_name=st.session_state.pdf_generated["name"],
+                    mime="application/pdf",
+                    use_container_width=True
+                )
 
 def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual='Desconocido', user_id=None): 
     # Inyectar controladores en session_state si no existen
