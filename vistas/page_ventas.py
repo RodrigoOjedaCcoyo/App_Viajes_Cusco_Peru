@@ -66,6 +66,10 @@ def registro_ventas_directa():
         # Cambio solicitado: Tour -> ID_Paquete
         id_paquete = col2.text_input("ID_Paquete / Tour") 
         
+        # Nuevos campos solicitados (Vendedor y Comprobante)
+        vendedor_manual = col1.text_input("Vendedor (Nombre)", value=st.session_state.get('user_email', ''))
+        tipo_comp = col2.radio("Tipo Comprobante", ["Boleta", "Factura", "Recibo Simple"], horizontal=True)
+
         monto_total = col1.number_input("Monto Total ($)", min_value=0.0, format="%.2f")
         monto_pagado = col2.number_input("Monto Pagado / Adelanto ($)", min_value=0.0, format="%.2f")
         
@@ -80,19 +84,18 @@ def registro_ventas_directa():
         
         if submitted:
             # Llamada al controlador con los nuevos campos
-            # Usamos valores por defecto para los campos que no estan en el formulario simplificado actual
             exito, msg = venta_controller.registrar_venta_directa(
                 nombre_cliente=nombre,
                 telefono=tel,
                 origen="Directo",
-                vendedor=st.session_state.get('user_email', 'Desconocido'),
+                vendedor=vendedor_manual, # Usamos el valor del campo
                 tour=id_paquete,
-                tipo_hotel="Estándar", # Default
-                fecha_inicio=date.today().isoformat(), # Default hoy
-                fecha_fin=date.today().isoformat(), # Default hoy
+                tipo_hotel="Estándar", 
+                fecha_inicio=date.today().isoformat(),
+                fecha_fin=date.today().isoformat(),
                 monto_total=monto_total,
                 monto_depositado=monto_pagado,
-                tipo_comprobante="Recibo", # Default
+                tipo_comprobante=tipo_comp, # Usamos el valor del campo
                 file_itinerario=file_itinerario,
                 file_pago=file_boleta
             )
@@ -233,6 +236,17 @@ def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual=
     if funcionalidad_seleccionada == "Registro de Ventas":
         registro_ventas_directa()
     elif funcionalidad_seleccionada == "Automatización e Itinerarios":
-        t1, t2 = st.tabs(["⚡ Flash Quote", "🧩 Itinerary Builder"])
+        t1, t2, t3 = st.tabs(["⚡ Flash Quote", "🧩 Itinerary Builder", "📊 Dashboard Comercial"])
         with t1: flash_quote_view(it_controller)
         with t2: itinerary_builder_view(it_controller)
+        with t3:
+            from vistas.dashboard_analytics import render_sales_dashboard
+            # Obtenemos data fresca
+            rc = st.session_state.get('venta_controller') # Reusing existing controller connection logic indirectly via report controller pattern if needed, but here simple:
+            # Better approach: Use the ReportController pattern which has the aggregations
+            if 'reporte_controller' not in st.session_state:
+                from controllers.reporte_controller import ReporteController
+                st.session_state.reporte_controller = ReporteController(supabase_client)
+            
+            df_ventas, _ = st.session_state.reporte_controller.get_data_for_dashboard()
+            render_sales_dashboard(df_ventas)

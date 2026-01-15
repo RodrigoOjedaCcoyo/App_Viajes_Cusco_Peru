@@ -46,8 +46,24 @@ class ReporteController:
         (ejemplo simple, en una DB real sería un JOIN).
         """
         ventas = self.venta_model.get_all()
-        
-        # En una auditoría real, buscarías el Lead asociado, pero por ahora 
-        # devolvemos el detalle de ventas directamente.
-        
+        # En una auditoría real, buscarías el Lead asociado
         return ventas
+
+    def get_data_for_dashboard(self):
+        """Devuelve dataframes listos para pandas."""
+        import pandas as pd
+        
+        # 1. Ventas
+        ventas = self.venta_model.get_all()
+        df_ventas = pd.DataFrame(ventas) if ventas else pd.DataFrame()
+        if not df_ventas.empty and 'monto_total' not in df_ventas.columns:
+            # Fallback seguro si falla modelo
+            df_ventas['monto_total'] = 0.0
+            
+        # 2. Gastos (Requerimientos)
+        reqs = self.req_model.get_all()
+        df_reqs = pd.DataFrame(reqs) if reqs else pd.DataFrame()
+        if not df_reqs.empty and 'total' not in df_reqs.columns:
+            df_reqs['total'] = 0.0
+            
+        return df_ventas, df_reqs

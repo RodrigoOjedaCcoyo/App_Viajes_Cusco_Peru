@@ -248,7 +248,24 @@ def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
         dashboard_registro_ventas_compartido(controller)
     else:
         st.title("💼 Gestión de Operaciones")
-        dashboard_tablero_diario(controller)
+        t_ops1, t_ops2 = st.tabs(["📅 Tablero Diario", "📈 Analytics Operativo"])
+        with t_ops1:
+            dashboard_tablero_diario(controller)
+        with t_ops2:
+            from vistas.dashboard_analytics import render_operations_dashboard
+            # Necesitamos servicios, usamos el controller actual
+            # Simplificación: obtenemos todos los servicios del mes actual para el gráfico
+            current_date = date.today()
+            fechas = controller.get_fechas_con_servicios(current_date.year, current_date.month)
+            # Para analytics real necesitamos un metodo 'get_all_servicios' o similar en controller
+            # Por ahora usaremos 'get_servicios_rango_fechas' de todo el mes
+            start = date(current_date.year, current_date.month, 1)
+            end = start + timedelta(days=30)
+            servicios = controller.get_servicios_rango_fechas(start, end)
+            if servicios:
+                render_operations_dashboard(pd.DataFrame(servicios))
+            else:
+                st.info("Sin datos operativos para analizar este mes.")
 
 def dashboard_simulador_costos(controller):
     """

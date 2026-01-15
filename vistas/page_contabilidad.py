@@ -14,17 +14,20 @@ def reporte_de_montos():
 
     st.subheader("💰 Reporte de Ingresos Totales")
     
-    data_reporte = reporte_controller.obtener_resumen_ventas()
+    # Nuevo Dashboard Financiero Integrado
+    from vistas.dashboard_analytics import render_financial_dashboard
+    df_ventas, df_reqs = reporte_controller.get_data_for_dashboard()
     
-    # Mostrar métricas clave
-    col1, col2 = st.columns(2)
-    col1.metric("Ventas Totales Registradas", data_reporte['total_ventas_registradas'])
-    col2.metric("Monto Total Acumulado (USD)", f"${data_reporte['monto_total_acumulado']:,.2f}")
+    # Renderizamos Dashboard
+    render_financial_dashboard(df_ventas, df_reqs)
     
-    st.markdown("---")
+    st.divider()
+    
+    # Mantener funcionalidad anterior: tabla de detalle
+    # data_reporte = reporte_controller.obtener_resumen_ventas() # Ya lo tenemos en df_ventas
     
     # Mostrar tabla de detalle
-    st.write("### Detalle de Ventas")
+    st.write("### 📋 Detalle de Ventas (Auditoría)")
     
     ventas = data_reporte['detalle_ventas']
     if ventas:
