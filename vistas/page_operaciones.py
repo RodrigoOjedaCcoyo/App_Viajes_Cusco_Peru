@@ -240,9 +240,83 @@ def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
     if "Requerimientos" in nombre_modulo:
         st.title("💼 Gestión de Requerimientos")
         dashboard_requerimientos(controller)
+    elif "Simulador de Costos" in nombre_modulo:
+        st.title("📊 Simulador de Costos Operativos")
+        dashboard_simulador_costos(controller)
     elif "Registro de Ventas" in nombre_modulo:
         st.title("📊 Registro de Ventas - Vista Operativa")
         dashboard_registro_ventas_compartido(controller)
     else:
         st.title("💼 Gestión de Operaciones")
         dashboard_tablero_diario(controller)
+
+def dashboard_simulador_costos(controller):
+    """
+    Simulador tipo Excel para estructurar costos de un paquete.
+    Permite editar fecha, servicio, costos unitarios y calcula totales.
+    """
+    st.subheader("Simulador de Estructura de Costos", divider='rainbow')
+
+    if 'simulador_data' not in st.session_state:
+        # Datos iniciales vacíos con la estructura requerida
+        st.session_state['simulador_data'] = [
+            {"FECHA": date.today(), "SERVICIO": "Servicio Ejemplo", "COSTO UNITARIO": 0.0, "COSTO TOTAL": 0.0},
+        ]
+
+    # Barra de herramientas superior
+    c1, c2, c3 = st.columns([2, 1, 1])
+    with c1:
+        st.info("💡 Edita las celdas directamente. Añade filas con el botón '+'.")
+    with c2:
+        if st.button("🗑️ Limpiar Todo", use_container_width=True):
+            st.session_state['simulador_data'] = [{"FECHA": date.today(), "SERVICIO": "", "COSTO UNITARIO": 0.0, "COSTO TOTAL": 0.0}]
+            st.rerun()
+
+    # Data Editor (El "Excel")
+    df = pd.DataFrame(st.session_state['simulador_data'])
+    
+    # Configuración de columnas
+    column_config = {
+        "FECHA": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY", required=True),
+        "SERVICIO": st.column_config.TextColumn("Descripción del Servicio", required=True, width="large"),
+        "COSTO UNITARIO": st.column_config.NumberColumn("Costo Unitario ($)", format="$ %.2f", min_value=0.0),
+        "COSTO TOTAL": st.column_config.NumberColumn("Costo Total ($)", format="$ %.2f", min_value=0.0, disabled=False) # Editable si desean override
+    }
+
+    edited_df = st.data_editor(
+        df,
+        column_config=column_config,
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        key="editor_simulador"
+    )
+
+    # Lógica de Actualización y Cálculos en tiempo real
+    total_paquete = edited_df['COSTO TOTAL'].sum()
+
+    # Actualizar estado para persistencia en sesión
+    st.session_state['simulador_data'] = edited_df.to_dict('records')
+
+    st.divider()
+    
+    # Métricas Finales
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Costo Total Operativo", f"$ {total_paquete:,.2f}")
+    
+    # Utilidad Simulata
+    precio_venta = m2.number_input("Precio de Venta Sugerido ($)", min_value=0.0, value=total_paquete * 1.3)
+    utilidad = precio_venta - total_paquete
+    margen = (utilidad / precio_venta * 100) if precio_venta > 0 else 0
+    
+    m3.metric("Utilidad Estimada", f"$ {utilidad:,.2f}", delta=f"{margen:.1f}%")
+
+    # Opción de Exportar
+    if st.button("📥 Exportar a CSV"):
+        csv = edited_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="Descargar CSV",
+            data=csv,
+            file_name=f"estructura_costos_{date.today()}.csv",
+            mime='text/csv',
+        )

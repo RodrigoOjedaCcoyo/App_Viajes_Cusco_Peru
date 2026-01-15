@@ -36,6 +36,7 @@ MODULOS_VISIBLES = {
     "OPERACIONES": [
         ("Dashboard Operaciones", "page_operaciones"),
         ("Registro de Requerimientos", "page_operaciones"),
+        ("Simulador de Costos", "page_operaciones"),
         ("Registro de Ventas", "page_operaciones")
     ],
     "CONTABLE": [
