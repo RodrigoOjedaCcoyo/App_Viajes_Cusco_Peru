@@ -405,11 +405,10 @@ def itinerary_builder_view(controller):
                             st.code(f"Error Técnico: {str(e)}")
                             st.exception(e)
                         finally:
-                            # Importante: Apagar el trigger para no entrar en bucle, 
-                            # pero NO borrar 'pdf_generated' para que el botón de descarga persista.
+                            # Importante: Apagar el trigger para no entrar en bucle
                             st.session_state.trigger_gen_pdf = False
-                            # Forzar rerun para mostrar el botón de descarga inmediatamente
-                            st.rerun()
+                            # NO hacemos rerun aquí para que si hubo error, el mensaje se quede visible.
+                            # Si fue éxito, el usuario verá el botón de descarga aparecer abajo (Streamlit reactivo).
 
             # Botón de Descarga Persistente
             if st.session_state.pdf_generated:
