@@ -30,8 +30,10 @@ class OperacionesController:
             for s in MOCK_SERVICIOS:
                 # Extraemos la fecha del string ISO
                 fechas_mock.add(pd.to_datetime(s['Fecha']).date())
+            # print("DEBUG: Mocks cargados en get_fechas_con_servicios")
             return fechas_mock
-        except: pass
+        except Exception as e:
+            print(f"DEBUG: Fallo importando MOCK_SERVICIOS: {e}")
         # -----------------------
 
         try:
