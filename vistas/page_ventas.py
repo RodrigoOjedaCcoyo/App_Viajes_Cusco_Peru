@@ -338,18 +338,29 @@ def itinerary_builder_view(controller):
             
             # --- GENERADOR PDF OMNIPOTENTE ---
             # Inicializar estado del PDF si no existe
+            # --- GENERADOR PDF OMNIPOTENTE ---
+            # Inicializar estado del PDF si no existe
             if 'pdf_generated' not in st.session_state:
                 st.session_state.pdf_generated = None
+            if 'trigger_gen_pdf' not in st.session_state:
+                st.session_state.trigger_gen_pdf = False
             
+            # Botón activador
             if st.button("🖨️ GENERAR PDF (MOTOR WEB)", use_container_width=True):
+                st.session_state.trigger_gen_pdf = True
+            
+            # Lógica de generación activada por estado (Resistente a Reruns)
+            if st.session_state.trigger_gen_pdf:
                 if not nombre_cliente:
                     st.error("⚠️ Por favor, ingresa el **Nombre del Cliente** antes de generar.")
+                    st.session_state.trigger_gen_pdf = False
                 elif not st.session_state.curr_itinerario:
                     st.error("⚠️ El itinerario está vacío. Añade servicios primero.")
+                    st.session_state.trigger_gen_pdf = False
                 else:
                     with st.spinner("⏳ Generando PDF de Alta Calidad... (Esto toma unos segundos)"):
                         try:
-                            st.info("🔍 1/3: Preparando datos del itinerario...") # Debug activado
+                            # st.info("🔍 1/3: Preparando datos...") # Debug opcional
                             
                             info_p = {
                                 'nac': (pax_nac, total_nac),
@@ -362,7 +373,7 @@ def itinerary_builder_view(controller):
                             cat_final = f"{pax_nac+pax_ext+pax_can} Pasajeros"
                             rango = f"Programado"
                             
-                            st.info("⚙️ 2/3: Ejecutando motor de renderizado PDF...") # Debug activado
+                            # st.info("⚙️ 2/3: Llamando al motor...")
 
                             pdf_path = generar_pdf_web(
                                 tours=st.session_state.curr_itinerario,
@@ -377,12 +388,12 @@ def itinerary_builder_view(controller):
                                 info_precios=info_p
                             )
                             
-                            st.info(f"📄 3/3: Archivo generado exitosamente en: {pdf_path}") # Debug activado
+                            # st.info(f"📄 3/3: Generado en {pdf_path}")
 
                             with open(pdf_path, "rb") as f:
                                 pdf_bytes = f.read()
                             
-                            # Guardamos en sesión para que el botón de descarga persista
+                            # Guardamos en sesión
                             st.session_state.pdf_generated = {
                                 "data": pdf_bytes,
                                 "name": f"Itinerario_{nombre_cliente.replace(' ', '_')}.pdf"
@@ -391,8 +402,14 @@ def itinerary_builder_view(controller):
                             
                         except Exception as e:
                             st.error("❌ ERROR CRÍTICO al generar el PDF.")
-                            st.code(f"Error Técnico: {str(e)}") # Mostrar el error texto plano
-                            st.exception(e) # Muestra el stack trace completo
+                            st.code(f"Error Técnico: {str(e)}")
+                            st.exception(e)
+                        finally:
+                            # Importante: Apagar el trigger para no entrar en bucle, 
+                            # pero NO borrar 'pdf_generated' para que el botón de descarga persista.
+                            st.session_state.trigger_gen_pdf = False
+                            # Forzar rerun para mostrar el botón de descarga inmediatamente
+                            st.rerun()
 
             # Botón de Descarga Persistente
             if st.session_state.pdf_generated:
