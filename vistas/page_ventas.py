@@ -62,13 +62,46 @@ def registro_ventas_directa():
         col1, col2 = st.columns(2)
         nombre = col1.text_input("Nombre Cliente")
         tel = col1.text_input("Celular")
-        tour = col2.selectbox("Tour", ["Machu Picchu", "7 Colores", "Humantay"])
-        monto = col2.number_input("Monto Total ($)", min_value=0.0)
         
-        submitted = st.form_submit_button("REGISTRAR VENTA")
+        # Cambio solicitado: Tour -> ID_Paquete
+        id_paquete = col2.text_input("ID_Paquete / Tour") 
+        
+        monto_total = col1.number_input("Monto Total ($)", min_value=0.0, format="%.2f")
+        monto_pagado = col2.number_input("Monto Pagado / Adelanto ($)", min_value=0.0, format="%.2f")
+        
+        # Archivos adjuntos
+        st.markdown("---")
+        st.write("📂 **Adjuntar Documentos**")
+        c_file1, c_file2 = st.columns(2)
+        file_itinerario = c_file1.file_uploader("Cargar Itinerario (PDF)", type=['pdf', 'docx'])
+        file_boleta = c_file2.file_uploader("Cargar Boleta de Pago (Img/PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
+
+        submitted = st.form_submit_button("REGISTRAR VENTA", use_container_width=True)
+        
         if submitted:
-            # Lógica de registro simplificada para restaurar funcionalidad
-            st.success("Venta registrada correctamente.")
+            # Llamada al controlador con los nuevos campos
+            # Usamos valores por defecto para los campos que no estan en el formulario simplificado actual
+            exito, msg = venta_controller.registrar_venta_directa(
+                nombre_cliente=nombre,
+                telefono=tel,
+                origen="Directo",
+                vendedor=st.session_state.get('user_email', 'Desconocido'),
+                tour=id_paquete,
+                tipo_hotel="Estándar", # Default
+                fecha_inicio=date.today().isoformat(), # Default hoy
+                fecha_fin=date.today().isoformat(), # Default hoy
+                monto_total=monto_total,
+                monto_depositado=monto_pagado,
+                tipo_comprobante="Recibo", # Default
+                file_itinerario=file_itinerario,
+                file_pago=file_boleta
+            )
+            
+            if exito:
+                st.success(msg)
+                # Mostrar link a boleta si el sistema de archivos estuviera real
+            else:
+                st.error(msg)
 
 # --- MÓDULOS DEL NUEVO SISTEMA MODULAR ---
 
