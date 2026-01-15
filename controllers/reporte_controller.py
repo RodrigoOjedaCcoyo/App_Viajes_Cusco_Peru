@@ -53,6 +53,16 @@ class ReporteController:
         """Devuelve dataframes listos para pandas."""
         import pandas as pd
         
+        # --- MODO SIMULACIÓN ACTIVADO ---
+        try:
+            from controllers.mock_db import MOCK_VENTAS, MOCK_REQS
+            df_ventas = pd.DataFrame(MOCK_VENTAS)
+            df_reqs = pd.DataFrame(MOCK_REQS)
+            return df_ventas, df_reqs
+        except ImportError:
+            pass
+        # -------------------------------
+        
         # 1. Ventas
         ventas = self.venta_model.get_all()
         df_ventas = pd.DataFrame(ventas) if ventas else pd.DataFrame()

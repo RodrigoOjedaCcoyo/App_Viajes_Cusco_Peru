@@ -23,6 +23,17 @@ class OperacionesController:
     # ------------------------------------------------------------------
 
     def get_fechas_con_servicios(self, year: int, month: int):
+        # --- MODO SIMULACIÓN ---
+        try:
+            from controllers.mock_db import MOCK_SERVICIOS
+            fechas_mock = set()
+            for s in MOCK_SERVICIOS:
+                # Extraemos la fecha del string ISO
+                fechas_mock.add(pd.to_datetime(s['Fecha']).date())
+            return fechas_mock
+        except: pass
+        # -----------------------
+
         try:
             start_date = date(year, month, 1)
             if month == 12:
@@ -50,6 +61,13 @@ class OperacionesController:
             return set()
 
     def get_servicios_rango_fechas(self, start_date: date, end_date: date):
+        # --- MODO SIMULACIÓN ACTIVADO ---
+        try:
+            from controllers.mock_db import MOCK_SERVICIOS
+            return MOCK_SERVICIOS
+        except: pass
+        # -------------------------------
+
         try:
             res_servicios = (
                 self.client.table('venta_tour')
@@ -220,6 +238,13 @@ class OperacionesController:
 
     def get_requerimientos(self):
         """Obtiene la lista de requerimientos."""
+        # --- MODO SIMULACIÓN ---
+        try:
+            from controllers.mock_db import MOCK_REQS
+            return MOCK_REQS
+        except: pass
+        # -----------------------
+        
         try:
             return self.req_model.get_all()
         except Exception as e:
@@ -228,6 +253,13 @@ class OperacionesController:
 
     def get_all_ventas(self):
         """Obtiene todas las ventas registradas para vista compartida."""
+        # --- MODO SIMULACIÓN ---
+        try:
+            from controllers.mock_db import MOCK_VENTAS
+            return MOCK_VENTAS
+        except: pass
+        # -----------------------
+
         try:
             res = self.client.table('Venta').select('*').order('fecha_venta', desc=True).execute()
             ventas = res.data
