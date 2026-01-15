@@ -386,7 +386,9 @@ def itinerary_builder_view(controller):
                             st.success("¡Documento Generado! Descárgalo abajo 👇")
                             
                         except Exception as e:
-                            st.error(f"Error generando PDF: {e}")
+                            st.error("❌ Ocurrió un error interno al generar el PDF.")
+                            st.warning(f"Detalle técnico: {e}")
+                            st.exception(e) # Muestra el stack trace completo
                         finally:
                             os.chdir(cwd_orig)
 
