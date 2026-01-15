@@ -206,18 +206,90 @@ def itinerary_builder_view(controller):
                                                    {"adultos": adultos, "ninos": 0, "margen": margen, "ajuste_fijo": 0})
         st.metric("TOTAL VENTA SUGERIDO", f"${res['total_venta']:,.2f}")
         
+        # Generación de PDF Premium Integrado
         cliente = st.text_input("Nombre Cliente (PDF)")
-        if st.button("Generar PDF Premium") and cliente:
-            pdf = controller.generar_pdf_premium({
-                "cliente_nombre": cliente, 
-                "itinerario": st.session_state.itinerario_piezas, 
-                "total": res['total_venta'], 
-                "num_adultos": adultos, 
-                "num_ninos": 0, 
-                "fecha_viaje": date.today().isoformat(), 
-                "origen": "Ventas"
-            })
-            if pdf: st.download_button("Descargar PDF Itinerario", pdf, f"Itinerario_{cliente}.pdf", "application/pdf")
+        if st.button("Generar PDF Premium (Motor Web)", use_container_width=True) and cliente:
+            try:
+                # Importación dinámica del motor potente
+                import sys
+                import os
+                
+                # Agregamos la carpeta Itinerario al path para poder importar sus dependencias (datos_tours)
+                itinerario_path = os.path.join(os.getcwd(), 'Itinerario')
+                if itinerario_path not in sys.path:
+                    sys.path.append(itinerario_path)
+                
+                # Importamos la función generadora
+                from Itinerario.App_Ventas import generar_pdf_web
+                
+                # Preparamos los datos en el formato que exige el motor
+                # 1. Transformar itinerario_piezas al formato esperado por el motor (necesita 'servicios', 'highlights', etc)
+                # Como nuestro 'itinerario_piezas' actual viene de base de datos y puede ser simple,
+                # intentaremos enriquecerlo o usar campos por defecto si faltan.
+                
+                itinerario_motor = []
+                for item in st.session_state.itinerario_piezas:
+                    # Mapeo de campos DB -> Motor PDF
+                    # El motor espera: titulo, highlights (list), servicios (list), servicios_no_incluye (list), carpeta_img
+                    itinerario_motor.append({
+                        "titulo": item.get('nombre', 'Servicio'),
+                        "descripcion": item.get('descripcion', 'Descripción del servicio.'),
+                        "highlights": [f"Visita a {item.get('nombre', 'lugar')}"], # Mock simple si no hay info
+                        "servicios": ["Transporte Turístico", "Guía Profesional"], # Mock simple
+                        "servicios_no_incluye": ["Gastos extras"],
+                        "carpeta_img": "general", # Default
+                        "costo_ext": item.get('costo_base', 0)
+                    })
+
+                # 2. Datos de Precios
+                # (nac_qty, nac_price), (ext_qty, ext_price), (can_qty, can_price)
+                info_p = {
+                    'nac': (0, 0),
+                    'ext': (adultos, res['total_venta'] / adultos if adultos else 0),
+                    'can': (0, 0)
+                }
+                
+                # 3. Datos de Cover
+                cover_img = "Captura de pantalla 2026-01-13 094056.png" # Default a Cusco
+                
+                # 4. Cambio de directorio temporal para que el script encuentre sus assets
+                cwd_original = os.getcwd()
+                os.chdir(itinerario_path)
+                
+                try:
+                    pdf_path = generar_pdf_web(
+                        tours=itinerario_motor,
+                        pasajero=cliente,
+                        fechas=f"Viaje programado",
+                        categoria="Paquete Personalizado",
+                        modo="Privado/Pool",
+                        vendedor=st.session_state.get('user_email', 'Ventas'),
+                        celular="",
+                        cover_img=cover_img,
+                        title_1="ITINERARIO",
+                        title_2="A MEDIDA",
+                        info_precios=info_p
+                    )
+                    
+                    # Leemos el archivo generado
+                    with open(pdf_path, "rb") as file:
+                        pdf_bytes = file.read()
+                        
+                    st.success("¡PDF Generado con Éxito!")
+                    st.download_button(
+                        label="📥 Descargar Itinerario Premium",
+                        data=pdf_bytes,
+                        file_name=f"Itinerario_{cliente}.pdf",
+                        mime="application/pdf"
+                    )
+                finally:
+                    # Restauramos directorio imperativamente
+                    os.chdir(cwd_original)
+
+            except ImportError as e:
+                st.error(f"Error importando el motor de PDF: {e}. Verifica que la carpeta 'Itinerario' tenga un __init__.py o esté en la ruta.")
+            except Exception as e:
+                st.error(f"Error generando PDF: {e}")
     else:
         st.info("El itinerario está vacío. Carga una plantilla o añade servicios manualmente arriba.")
 
