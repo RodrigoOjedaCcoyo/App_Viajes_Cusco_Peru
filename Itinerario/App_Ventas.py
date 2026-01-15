@@ -301,7 +301,10 @@ def generar_pdf_web(tours, pasajero, fechas, categoria, modo, vendedor, celular,
     with open(OUTPUT_HTML, 'w', encoding='utf-8') as f:
         f.write(html_head + paginas_finales + html_foot)
 
-    subprocess.run([EDGE_PATH, '--headless', f'--print-to-pdf={os.path.abspath(OUTPUT_PDF)}', '--no-pdf-header-footer', f"file:///{os.path.abspath(OUTPUT_HTML)}"], check=True)
+    try:
+        subprocess.run([EDGE_PATH, '--headless', f'--print-to-pdf={os.path.abspath(OUTPUT_PDF)}', '--no-pdf-header-footer', f"file:///{os.path.abspath(OUTPUT_HTML)}"], check=True, timeout=30)
+    except subprocess.TimeoutExpired:
+        raise Exception("El motor de PDF tardó demasiado y fue detenido. Intenta nuevamente.")
     if os.path.exists(OUTPUT_HTML): os.remove(OUTPUT_HTML)
     return os.path.abspath(OUTPUT_PDF)
 
