@@ -349,6 +349,8 @@ def itinerary_builder_view(controller):
                 else:
                     with st.spinner("⏳ Generando PDF de Alta Calidad... (Esto toma unos segundos)"):
                         try:
+                            st.info("🔍 1/3: Preparando datos del itinerario...") # Debug activado
+                            
                             info_p = {
                                 'nac': (pax_nac, total_nac),
                                 'ext': (pax_ext, total_ext),
@@ -359,6 +361,8 @@ def itinerary_builder_view(controller):
                             t1, t2 = ("PERÚ", "PARA EL MUNDO") if cat_sel == "Perú para el Mundo" else ("CUSCO", "TRADICIONAL")
                             cat_final = f"{pax_nac+pax_ext+pax_can} Pasajeros"
                             rango = f"Programado"
+                            
+                            st.info("⚙️ 2/3: Ejecutando motor de renderizado PDF...") # Debug activado
 
                             pdf_path = generar_pdf_web(
                                 tours=st.session_state.curr_itinerario,
@@ -373,6 +377,8 @@ def itinerary_builder_view(controller):
                                 info_precios=info_p
                             )
                             
+                            st.info(f"📄 3/3: Archivo generado exitosamente en: {pdf_path}") # Debug activado
+
                             with open(pdf_path, "rb") as f:
                                 pdf_bytes = f.read()
                             
@@ -384,8 +390,8 @@ def itinerary_builder_view(controller):
                             st.success("¡Documento Generado! Descárgalo abajo 👇")
                             
                         except Exception as e:
-                            st.error("❌ Ocurrió un error interno al generar el PDF.")
-                            st.warning(f"Detalle técnico: {e}")
+                            st.error("❌ ERROR CRÍTICO al generar el PDF.")
+                            st.code(f"Error Técnico: {str(e)}") # Mostrar el error texto plano
                             st.exception(e) # Muestra el stack trace completo
 
             # Botón de Descarga Persistente
