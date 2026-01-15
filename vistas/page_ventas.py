@@ -192,8 +192,8 @@ def itinerary_builder_view(controller):
         
         tc1, tc2 = st.columns(2)
         if 'origen_previo' not in st.session_state: st.session_state.origen_previo = "Nacional/Chileno"
-        tipo_t = tc1.radio("Origen", ["Nacional/Chileno", "Extranjero"])
-        modo_s = tc2.radio("Servicio", ["Sistema Pool", "Servicio Privado"])
+        tipo_t = tc1.radio("Origen", ["Nacional/Chileno", "Extranjero"], key="it_origen")
+        modo_s = tc2.radio("Servicio", ["Sistema Pool", "Servicio Privado"], key="it_servicio")
         
         # Actualización de precios al cambiar origen
         if tipo_t != st.session_state.origen_previo:
@@ -207,14 +207,14 @@ def itinerary_builder_view(controller):
         st.markdown("#### 👥 Pasajeros")
         p_col1, p_col2, p_col3 = st.columns(3)
         with p_col1:
-            n_adultos_nac = st.number_input("Adt. Nac", 0, value=1 if "Nacional" in tipo_t else 0)
-            n_ninos_nac = st.number_input("Niñ. Nac", 0, value=0)
+            n_adultos_nac = st.number_input("Adt. Nac", 0, value=1 if "Nacional" in tipo_t else 0, key="num_an")
+            n_ninos_nac = st.number_input("Niñ. Nac", 0, value=0, key="num_nn")
         with p_col2:
-            n_adultos_ext = st.number_input("Adt. Ext", 0, value=1 if "Extranjero" in tipo_t else 0)
-            n_ninos_ext = st.number_input("Niñ. Ext", 0, value=0)
+            n_adultos_ext = st.number_input("Adt. Ext", 0, value=1 if "Extranjero" in tipo_t else 0, key="num_ae")
+            n_ninos_ext = st.number_input("Niñ. Ext", 0, value=0, key="num_ne")
         with p_col3:
-            n_adultos_can = st.number_input("Adt. CAN", 0, value=0)
-            n_ninos_can = st.number_input("Niñ. CAN", 0, value=0)
+            n_adultos_can = st.number_input("Adt. CAN", 0, value=0, key="num_ac")
+            n_ninos_can = st.number_input("Niñ. CAN", 0, value=0, key="num_nc")
         
         total_pax = n_adultos_nac + n_ninos_nac + n_adultos_ext + n_ninos_ext + n_adultos_can + n_ninos_can
         
@@ -248,6 +248,41 @@ def itinerary_builder_view(controller):
             nt['costo_can'] = nt['costo_ext'] - 20 if "MACHU PICCHU" in t_data['titulo'] else nt['costo_ext']
             st.session_state.curr_itinerario.append(nt)
             st.rerun()
+
+        # --- SECCIÓN DE GUARDADO (MIGRADA AL CUERPO PRINCIPAL) ---
+        st.divider()
+        st.markdown("#### 💾 Mis Paquetes")
+        
+        # Necesitamos las funciones de persistencia del módulo original
+        from Itinerario.App_Ventas import cargar_paquetes_custom, guardar_itinerario_como_paquete
+        
+        # Cargar Paquete
+        paquetes_c = cargar_paquetes_custom() # Lee del JSON en carpeta Itinerario
+        if paquetes_c:
+            p_sel = st.selectbox("📂 Cargar Guardado", ["-- Seleccione --"] + list(paquetes_c.keys()))
+            if p_sel != "-- Seleccione --":
+                if st.button("Recuperar"):
+                    st.session_state.curr_itinerario = paquetes_c[p_sel]
+                    st.success(f"Cargado: {p_sel}")
+                    st.rerun()
+        
+        # Guardar Paquete
+        with st.expander("➕ Guardar Actual como Nuevo"):
+            nombre_p = st.text_input("Nombre del Paquete")
+            if st.button("Guardar"):
+                if nombre_p and st.session_state.curr_itinerario:
+                    # Guardamos usando la función del módulo original
+                    # Hack: Cambiamos dir para que escriba en el JSON correcto
+                    cwd_orig = os.getcwd()
+                    os.chdir(itinerario_path)
+                    try:
+                        guardar_itinerario_como_paquete(nombre_p, st.session_state.curr_itinerario)
+                        st.success("¡Guardado!")
+                        st.rerun()
+                    finally:
+                        os.chdir(cwd_orig)
+                else:
+                    st.warning("Escribe un nombre y ten items en la lista.")
 
     with col2:
         st.subheader("📋 Plan de Viaje")
