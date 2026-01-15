@@ -137,161 +137,209 @@ def flash_quote_view(controller):
             st.success("Interés registrado para analítica comercial.")
 
 def itinerary_builder_view(controller):
-    st.subheader("🧩 Constructor de Itinerario Modular")
-    if 'itinerario_piezas' not in st.session_state: st.session_state.itinerario_piezas = []
-
-    df_p = load_catalogo_paquetes(controller)
-    df_t = load_catalogo_tours(controller)
-
-    paquete_init = st.selectbox("Cargar Plantilla", ["---Vacío---"] + df_p['nombre'].tolist() if not df_p.empty else ["---Vacío---"])
-    if st.button("Cargar / Resetear") and paquete_init != "---Vacío---":
-        row = df_p[df_p['nombre'] == paquete_init].iloc[0]
-        # Búsqueda flexible del ID
-        id_p = row.get('id') or row.get('id_paquete') or row.get('id_paquete_int')
-        
-        if id_p:
-            tours = controller.get_tours_de_paquete(id_p)
-            if tours:
-                st.session_state.itinerario_piezas = tours
-                st.success(f"Se cargaron {len(tours)} servicios para {paquete_init}")
-                st.rerun()
-            else:
-                st.warning(f"El paquete '{paquete_init}' fue encontrado, pero no tiene tours vinculados en la tabla 'paquete_tour'. Verifica tu base de datos.")
-        else:
-            st.error("No se pudo detectar el ID del paquete. Revisa que la tabla 'paquete' tenga una columna 'id' o 'id_paquete'.")
-
-    # --- Buscador manual para añadir tours ---
-    st.write("---")
-    st.write("➕ **Añadir servicio extra al itinerario:**")
-    tour_nombres = df_t['nombre'].tolist() if not df_t.empty else []
-    tour_add = st.selectbox("Seleccionar Tour del Catálogo", ["---Seleccione---"] + tour_nombres)
+    # --- IMPORTACIÓN DINÁMICA DE RECURSOS ---
+    import sys
+    import os
+    itinerario_path = os.path.join(os.getcwd(), 'Itinerario')
+    if itinerario_path not in sys.path: sys.path.append(itinerario_path)
     
-    if st.button("Añadir al itineario") and tour_add != "---Seleccione---":
-        tour_data = df_t[df_t['nombre'] == tour_add].iloc[0].to_dict()
-        # Limpiar datos para evitar conflictos de tipos
-        tour_data['costo_base'] = float(tour_data.get('costo_base') or tour_data.get('precio') or 0)
-        st.session_state.itinerario_piezas.append(tour_data)
-        st.success(f"Añadido: {tour_add}")
-        st.rerun()
+    try:
+        from Itinerario.datos_tours import tours_db, paquetes_db
+        from Itinerario.App_Ventas import generar_pdf_web
+    except ImportError:
+        st.error("No se pudieron cargar los módulos del constructor de itinerarios.")
+        return
 
-    if st.session_state.itinerario_piezas:
-        st.write("📋 **Itinerario actual (Edita aquí):**")
-        df_edit = pd.DataFrame(st.session_state.itinerario_piezas)
-        # Columnas mínimas necesarias
-        cols_necesarias = ['nombre', 'costo_base', 'notas_operativas', 'descripcion']
-        for col in cols_necesarias:
-            if col not in df_edit.columns: df_edit[col] = ""
+    # --- ESTILOS PREMIUM (TURQUESA) ---
+    st.markdown("""
+        <style>
+        .stButton>button {
+            background-color: #55b7b0;
+            color: white;
+            border-radius: 8px;
+            border: none;
+            padding: 8px 16px;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+        .stButton>button:hover {
+            background-color: #449e98;
+            color: white;
+        }
+        div[data-testid="column"] > div > div > div[data-testid="stHorizontalBlock"]:has(div[data-testid="column"]:nth-child(3)) button {
+            background-color: transparent !important;
+            border: 1px solid #e0e0e0 !important;
+            color: #55b7b0 !important;
+            padding: 0px !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+    st.subheader("🛡️ Constructor de Itinerarios Premium")
+    
+    # --- ESTADO LOCAL DEL CONSTRUCTOR ---
+    if 'curr_itinerario' not in st.session_state: st.session_state.curr_itinerario = []
+    
+    col1, col2 = st.columns([1, 1.8])
+
+    with col1:
+        st.markdown("#### 👤 Datos del Viaje")
+        nombre_cliente = st.text_input("Nombre Cliente", placeholder="Ej: Juan Pérez")
         
-        new_df = st.data_editor(
-            df_edit, 
-            column_order=cols_necesarias,
-            column_config={
-                "nombre": st.column_config.TextColumn("Servicio", disabled=True),
-                "costo_base": st.column_config.NumberColumn("Costo (USD)", format="$%.2f"),
-                "notas_operativas": st.column_config.TextColumn("Notas PDF ✏️"),
-                "descripcion": st.column_config.TextColumn("Descripción corta")
-            },
-            use_container_width=True, 
-            num_rows="dynamic", 
-            key="it_editor"
-        )
-        st.session_state.itinerario_piezas = new_df.to_dict('records')
-        
-        # Cálculos y PDF
         c1, c2 = st.columns(2)
-        margen = c1.slider("Margen Ganancia (%)", 0, 100, 25)
-        adultos = c2.number_input("Adultos", 1, 10, 2, key="it_a")
+        vendedor = c1.text_input("Vendedor", value=st.session_state.get('user_email', 'Agente'))
+        celular = c2.text_input("Celular", placeholder="+51...")
         
-        res = controller.calcular_presupuesto_modular(st.session_state.itinerario_piezas, 
-                                                   {"adultos": adultos, "ninos": 0, "margen": margen, "ajuste_fijo": 0})
-        st.metric("TOTAL VENTA SUGERIDO", f"${res['total_venta']:,.2f}")
+        tc1, tc2 = st.columns(2)
+        if 'origen_previo' not in st.session_state: st.session_state.origen_previo = "Nacional/Chileno"
+        tipo_t = tc1.radio("Origen", ["Nacional/Chileno", "Extranjero"])
+        modo_s = tc2.radio("Servicio", ["Sistema Pool", "Servicio Privado"])
         
-        # Generación de PDF Premium Integrado
-        cliente = st.text_input("Nombre Cliente (PDF)")
-        if st.button("Generar PDF Premium (Motor Web)", use_container_width=True) and cliente:
-            try:
-                # Importación dinámica del motor potente
-                import sys
-                import os
-                
-                # Agregamos la carpeta Itinerario al path para poder importar sus dependencias (datos_tours)
-                itinerario_path = os.path.join(os.getcwd(), 'Itinerario')
-                if itinerario_path not in sys.path:
-                    sys.path.append(itinerario_path)
-                
-                # Importamos la función generadora
-                from Itinerario.App_Ventas import generar_pdf_web
-                
-                # Preparamos los datos en el formato que exige el motor
-                # 1. Transformar itinerario_piezas al formato esperado por el motor (necesita 'servicios', 'highlights', etc)
-                # Como nuestro 'itinerario_piezas' actual viene de base de datos y puede ser simple,
-                # intentaremos enriquecerlo o usar campos por defecto si faltan.
-                
-                itinerario_motor = []
-                for item in st.session_state.itinerario_piezas:
-                    # Mapeo de campos DB -> Motor PDF
-                    # El motor espera: titulo, highlights (list), servicios (list), servicios_no_incluye (list), carpeta_img
-                    itinerario_motor.append({
-                        "titulo": item.get('nombre', 'Servicio'),
-                        "descripcion": item.get('descripcion', 'Descripción del servicio.'),
-                        "highlights": [f"Visita a {item.get('nombre', 'lugar')}"], # Mock simple si no hay info
-                        "servicios": ["Transporte Turístico", "Guía Profesional"], # Mock simple
-                        "servicios_no_incluye": ["Gastos extras"],
-                        "carpeta_img": "general", # Default
-                        "costo_ext": item.get('costo_base', 0)
-                    })
+        # Actualización de precios al cambiar origen
+        if tipo_t != st.session_state.origen_previo:
+            for tour in st.session_state.curr_itinerario:
+                t_base = next((t for t in tours_db if t['titulo'] == tour['titulo']), None)
+                if t_base:
+                    tour['costo'] = t_base['costo_nacional'] if "Nacional" in tipo_t else t_base['costo_extranjero']
+            st.session_state.origen_previo = tipo_t
+            st.rerun()
 
-                # 2. Datos de Precios
-                # (nac_qty, nac_price), (ext_qty, ext_price), (can_qty, can_price)
-                info_p = {
-                    'nac': (0, 0),
-                    'ext': (adultos, res['total_venta'] / adultos if adultos else 0),
-                    'can': (0, 0)
-                }
+        st.markdown("#### 👥 Pasajeros")
+        p_col1, p_col2, p_col3 = st.columns(3)
+        with p_col1:
+            n_adultos_nac = st.number_input("Adt. Nac", 0, value=1 if "Nacional" in tipo_t else 0)
+            n_ninos_nac = st.number_input("Niñ. Nac", 0, value=0)
+        with p_col2:
+            n_adultos_ext = st.number_input("Adt. Ext", 0, value=1 if "Extranjero" in tipo_t else 0)
+            n_ninos_ext = st.number_input("Niñ. Ext", 0, value=0)
+        with p_col3:
+            n_adultos_can = st.number_input("Adt. CAN", 0, value=0)
+            n_ninos_can = st.number_input("Niñ. CAN", 0, value=0)
+        
+        total_pax = n_adultos_nac + n_ninos_nac + n_adultos_ext + n_ninos_ext + n_adultos_can + n_ninos_can
+        
+        # --- CARGADORES ---
+        st.divider()
+        st.markdown("#### 📦 Cargar Paquete")
+        cat_sel = st.selectbox("Línea", ["-- Seleccione --", "Cusco Tradicional", "Perú para el Mundo"])
+        if cat_sel != "-- Seleccione --":
+            pkgs = [p for p in paquetes_db if cat_sel.upper() in p['nombre'].upper()]
+            d_sel = st.selectbox("Duración", [p['nombre'].split(" ")[-1] for p in pkgs])
+            if st.button("🚀 Cargar"):
+                pkg = next(p for p in pkgs if d_sel in p['nombre'])
+                st.session_state.curr_itinerario = []
+                for t_n in pkg['tours']:
+                    t_f = next((t for t in tours_db if t['titulo'] == t_n), None)
+                    if t_f:
+                        nt = t_f.copy()
+                        nt['costo_nac'] = t_f.get('costo_nacional', 0)
+                        nt['costo_ext'] = t_f.get('costo_extranjero', 0)
+                        nt['costo_can'] = nt['costo_ext'] - 20 if "MACHU PICCHU" in t_f['titulo'] else nt['costo_ext']
+                        st.session_state.curr_itinerario.append(nt)
+                st.rerun()
+
+        st.markdown("#### ➕ Añadir Tour")
+        tour_sel = st.selectbox("Tour Individual", ["-- Seleccione --"] + [t['titulo'] for t in tours_db])
+        if st.button("Añadir") and tour_sel != "-- Seleccione --":
+            t_data = next(t for t in tours_db if t['titulo'] == tour_sel)
+            nt = t_data.copy()
+            nt['costo_nac'] = t_data.get('costo_nacional', 0)
+            nt['costo_ext'] = t_data.get('costo_extranjero', 0)
+            nt['costo_can'] = nt['costo_ext'] - 20 if "MACHU PICCHU" in t_data['titulo'] else nt['costo_ext']
+            st.session_state.curr_itinerario.append(nt)
+            st.rerun()
+
+    with col2:
+        st.subheader("📋 Plan de Viaje")
+        
+        # Totales Unitarios
+        total_nac, total_ext, total_can = 0, 0, 0
+        es_pool = (modo_s == "Sistema Pool")
+        
+        if not st.session_state.curr_itinerario:
+            st.info("Agrega servicios desde el panel izquierdo.")
+        else:
+            for i, tour in enumerate(st.session_state.curr_itinerario):
+                total_nac += tour.get('costo_nac', 0)
+                total_ext += tour.get('costo_ext', 0)
+                total_can += tour.get('costo_can', 0)
                 
-                # 3. Datos de Cover
-                cover_img = "Captura de pantalla 2026-01-13 094056.png" # Default a Cusco
-                
-                # 4. Cambio de directorio temporal para que el script encuentre sus assets
-                cwd_original = os.getcwd()
-                os.chdir(itinerario_path)
-                
-                try:
-                    pdf_path = generar_pdf_web(
-                        tours=itinerario_motor,
-                        pasajero=cliente,
-                        fechas=f"Viaje programado",
-                        categoria="Paquete Personalizado",
-                        modo="Privado/Pool",
-                        vendedor=st.session_state.get('user_email', 'Ventas'),
-                        celular="",
-                        cover_img=cover_img,
-                        title_1="ITINERARIO",
-                        title_2="A MEDIDA",
-                        info_precios=info_p
-                    )
+                # --- VISUALIZACIÓN POR DÍA ---
+                with st.expander(f"DÍA {i+1}: {tour['titulo']}", expanded=False):
+                    ct, cn, ce, cc = st.columns([2, 0.8, 0.8, 0.8])
+                    tour['titulo'] = ct.text_input("Título", tour['titulo'], key=f"t{i}", disabled=es_pool)
+                    tour['costo_nac'] = cn.number_input("S/ Nac", value=float(tour.get('costo_nac', 0)), key=f"cn{i}", disabled=es_pool)
+                    tour['costo_ext'] = ce.number_input("$ Ext", value=float(tour.get('costo_ext', 0)), key=f"ce{i}", disabled=es_pool)
+                    tour['costo_can'] = cc.number_input("$ CAN", value=float(tour.get('costo_can', 0)), key=f"cc{i}", disabled=es_pool)
                     
-                    # Leemos el archivo generado
-                    with open(pdf_path, "rb") as file:
-                        pdf_bytes = file.read()
-                        
-                    st.success("¡PDF Generado con Éxito!")
-                    st.download_button(
-                        label="📥 Descargar Itinerario Premium",
-                        data=pdf_bytes,
-                        file_name=f"Itinerario_{cliente}.pdf",
-                        mime="application/pdf"
-                    )
-                finally:
-                    # Restauramos directorio imperativamente
-                    os.chdir(cwd_original)
+                    st.text_area("Descripción", tour.get('descripcion', ''), height=70, key=f"d{i}", disabled=es_pool)
+                    
+                    # Controles
+                    b1, b2, b3 = st.columns([1,1,1])
+                    if b1.button("🔼", key=f"u{i}") and i>0:
+                        st.session_state.curr_itinerario.insert(i-1, st.session_state.curr_itinerario.pop(i)); st.rerun()
+                    if b2.button("🔽", key=f"dw{i}") and i<len(st.session_state.curr_itinerario)-1:
+                        st.session_state.curr_itinerario.insert(i+1, st.session_state.curr_itinerario.pop(i)); st.rerun()
+                    if b3.button("🗑️ Eliminar", key=f"dl{i}"):
+                        st.session_state.curr_itinerario.pop(i); st.rerun()
 
-            except ImportError as e:
-                st.error(f"Error importando el motor de PDF: {e}. Verifica que la carpeta 'Itinerario' tenga un __init__.py o esté en la ruta.")
-            except Exception as e:
-                st.error(f"Error generando PDF: {e}")
-    else:
-        st.info("El itinerario está vacío. Carga una plantilla o añade servicios manualmente arriba.")
+            st.divider()
+            
+            # --- CÁLCULO FINAL ---
+            pax_nac = n_adultos_nac + n_ninos_nac
+            pax_ext = n_adultos_ext + n_ninos_ext
+            pax_can = n_adultos_can + n_ninos_can
+            
+            gran_total_nac = total_nac * pax_nac
+            gran_total_ext = total_ext * pax_ext
+            gran_total_can = total_can * pax_can
+            
+            r1, r2, r3 = st.columns(3)
+            r1.metric("Total Nacionales (S/)", f"S/ {gran_total_nac:,.2f}", f"{pax_nac} pax")
+            r2.metric("Total Extranjeros ($)", f"$ {gran_total_ext:,.2f}", f"{pax_ext} pax")
+            r3.metric("Total CAN ($)", f"$ {gran_total_can:,.2f}", f"{pax_can} pax")
+            
+            st.divider()
+            
+            # --- GENERADOR PDF OMNIPOTENTE ---
+            if st.button("🖨️ GENERAR PDF (MOTOR WEB)", use_container_width=True):
+                if nombre_cliente and st.session_state.curr_itinerario:
+                    cwd_orig = os.getcwd()
+                    os.chdir(itinerario_path)
+                    try:
+                        info_p = {
+                            'nac': (pax_nac, total_nac),
+                            'ext': (pax_ext, total_ext),
+                            'can': (pax_can, total_can)
+                        }
+                        
+                        cover = "Captura de pantalla 2026-01-13 094212.png" if cat_sel == "Perú para el Mundo" else "Captura de pantalla 2026-01-13 094056.png"
+                        t1, t2 = ("PERÚ", "PARA EL MUNDO") if cat_sel == "Perú para el Mundo" else ("CUSCO", "TRADICIONAL")
+                        cat_final = f"{pax_nac+pax_ext+pax_can} Pasajeros"
+                        rango = f"Programado"
+
+                        pdf_path = generar_pdf_web(
+                            tours=st.session_state.curr_itinerario,
+                            pasajero=nombre_cliente,
+                            fechas=rango,
+                            categoria=cat_final,
+                            modo=modo_s,
+                            vendedor=vendedor,
+                            celular=celular,
+                            cover_img=cover,
+                            title_1=t1, title_2=t2,
+                            info_precios=info_p
+                        )
+                        
+                        with open(pdf_path, "rb") as f:
+                            st.download_button("📥 DESCARGAR ITINERARIO", f, f"Itinerario_{nombre_cliente}.pdf", "application/pdf")
+                        st.success("¡Documento Generado!")
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+                    finally:
+                        os.chdir(cwd_orig)
+                else:
+                    st.warning("Falta nombre del cliente o servicios para generar.")
 
 def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual='Desconocido', user_id=None): 
     # Inyectar controladores en session_state si no existen
