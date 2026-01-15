@@ -301,11 +301,30 @@ def generar_pdf_web(tours, pasajero, fechas, categoria, modo, vendedor, celular,
     with open(OUTPUT_HTML, 'w', encoding='utf-8') as f:
         f.write(html_head + paginas_finales + html_foot)
 
+    # --- MOTOR DE RENDERIZADO: WEASYPRINT (Compatible con Linux/Cloud) ---
     try:
-        subprocess.run([EDGE_PATH, '--headless', f'--print-to-pdf={os.path.abspath(OUTPUT_PDF)}', '--no-pdf-header-footer', f"file:///{os.path.abspath(OUTPUT_HTML)}"], check=True, timeout=30)
-    except subprocess.TimeoutExpired:
-        raise Exception("El motor de PDF tardó demasiado y fue detenido. Intenta nuevamente.")
+        from weasyprint import HTML, CSS
+    except ImportError:
+        raise ImportError("Falta la librería 'weasyprint'. Instálala con: pip install weasyprint")
+
+    # Renderizar PDF directamente desde el string HTML (más rápido y seguro)
+    # Convertimos rutas locales a file:// para que WeasyPrint las encuentre
+    
+    # 1. Preparar HTML con base_url para assets locales
+    base_url = Path(BASE_DIR).as_uri()
+    
+    # 2. Generar PDF
+    # Ajustamos márgenes y tamaño A4
+    css_print = CSS(string='@page { size: A4; margin: 0; }')
+    
+    # Inyectamos el HTML completo (Head + Body + Foot)
+    html_content = html_head + paginas_finales + html_foot
+    
+    HTML(string=html_content, base_url=BASE_DIR).write_pdf(OUTPUT_PDF, stylesheets=[css_print])
+
+    # Limpieza
     if os.path.exists(OUTPUT_HTML): os.remove(OUTPUT_HTML)
+    
     return os.path.abspath(OUTPUT_PDF)
 
 def main():
