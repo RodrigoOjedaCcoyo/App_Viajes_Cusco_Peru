@@ -7,7 +7,8 @@ from datetime import datetime
 from datos_tours import tours_db, paquetes_db
 
 # --- FUNCIONES DE PERSISTENCIA ---
-PAQUETES_CUSTOM_FILE = 'paquetes_personalizados.json'
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PAQUETES_CUSTOM_FILE = os.path.join(BASE_DIR, 'paquetes_personalizados.json')
 
 def guardar_itinerario_como_paquete(nombre, itinerario):
     data = {}
@@ -95,12 +96,18 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- LÓGICA DE PDF (REUTILIZADA) ---
-HTML_TEMPLATE_FILE = 'Estructura.html'
-OUTPUT_HTML = 'temp_web_itinerario.html'
-OUTPUT_PDF = 'Itinerario_Ventas.pdf'
+HTML_TEMPLATE_FILE = os.path.join(BASE_DIR, 'Estructura.html')
 EDGE_PATH = r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
 
 def generar_pdf_web(tours, pasajero, fechas, categoria, modo, vendedor, celular, cover_img, title_1, title_2, info_precios):
+    import uuid
+    unique_id = str(uuid.uuid4())[:8]
+    OUTPUT_HTML = os.path.join(BASE_DIR, f'temp_web_itinerario_{unique_id}.html')
+    OUTPUT_PDF = os.path.join(BASE_DIR, f'Itinerario_{unique_id}.pdf')
+
+    if not os.path.exists(HTML_TEMPLATE_FILE):
+        raise FileNotFoundError(f"Plantilla no encontrada: {HTML_TEMPLATE_FILE}")
+
     with open(HTML_TEMPLATE_FILE, 'r', encoding='utf-8') as f:
         template = f.read()
 
@@ -139,11 +146,11 @@ def generar_pdf_web(tours, pasajero, fechas, categoria, modo, vendedor, celular,
     def obtener_imagenes_tour(nombre_carpeta):
         
         # Construir ruta base
-        base_path = Path(os.getcwd()) / 'assets' / 'img' / 'tours' / nombre_carpeta
+        base_path = Path(BASE_DIR) / 'assets' / 'img' / 'tours' / nombre_carpeta
         
         # Fallback a 'general' si no existe
         if not base_path.exists():
-            base_path = Path(os.getcwd()) / 'assets' / 'img' / 'tours' / 'general'
+            base_path = Path(BASE_DIR) / 'assets' / 'img' / 'tours' / 'general'
         
         imagenes = []
         if base_path.exists():

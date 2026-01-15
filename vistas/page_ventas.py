@@ -348,8 +348,6 @@ def itinerary_builder_view(controller):
                     st.error("⚠️ El itinerario está vacío. Añade servicios primero.")
                 else:
                     with st.spinner("⏳ Generando PDF de Alta Calidad... (Esto toma unos segundos)"):
-                        cwd_orig = os.getcwd()
-                        os.chdir(itinerario_path)
                         try:
                             info_p = {
                                 'nac': (pax_nac, total_nac),
@@ -389,8 +387,6 @@ def itinerary_builder_view(controller):
                             st.error("❌ Ocurrió un error interno al generar el PDF.")
                             st.warning(f"Detalle técnico: {e}")
                             st.exception(e) # Muestra el stack trace completo
-                        finally:
-                            os.chdir(cwd_orig)
 
             # Botón de Descarga Persistente
             if st.session_state.pdf_generated:
