@@ -7,6 +7,7 @@ import calendar
 from datetime import date, timedelta
 import urllib.parse
 from controllers.operaciones_controller import OperacionesController
+from controllers.venta_controller import VentaController
 
 
 def dashboard_tablero_diario(controller):
@@ -233,6 +234,43 @@ def dashboard_registro_ventas_compartido(controller):
         )
 
 
+def registro_ventas_proveedores(supabase_client):
+    if 'venta_controller' not in st.session_state:
+        st.session_state.venta_controller = VentaController(supabase_client)
+    venta_controller = st.session_state.venta_controller
+
+    st.subheader("🤝 Registro de Venta para Proveedores (B2B)")
+    st.info("Utilice este formulario para registrar ventas gestionadas por agencias o proveedores externos.")
+    
+    with st.form("form_registro_venta_proveedores_ops"):
+        col1, col2 = st.columns(2)
+        proveedor = col1.text_input("Nombre de la Agencia / Proveedor")
+        nombre_pax = col1.text_input("Nombre del Pasajero Principal")
+        tel = col1.text_input("Celular de Contacto")
+        
+        id_tour = col2.text_input("ID_Paquete / Tour") 
+        vendedor_ref = col2.selectbox("Referido por Vendedor", ["Angel", "Abel", "Otro"])
+        
+        monto_neto = col1.number_input("Monto Neto (Lo que paga el proveedor) ($)", min_value=0.0, format="%.2f")
+        monto_adelanto = col2.number_input("Adelanto Recibido ($)", min_value=0.0, format="%.2f")
+        
+        submitted = st.form_submit_button("REGISTRAR VENTA PROVEEDOR", use_container_width=True)
+        
+        if submitted:
+            exito, msg = venta_controller.registrar_venta_proveedor(
+                nombre_proveedor=proveedor,
+                nombre_cliente=nombre_pax,
+                telefono=tel,
+                vendedor=vendedor_ref,
+                tour=id_tour,
+                monto_total=monto_neto,
+                monto_depositado=monto_adelanto
+            )
+            
+            if exito: st.success(msg)
+            else: st.error(msg)
+
+
 def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
     """Punto de entrada de Streamlit."""
     controller = OperacionesController(supabase_client)
@@ -241,13 +279,20 @@ def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
     st.markdown("---")
     
     if nombre_modulo == "Gestión de Registros":
-        tab1, tab2 = st.tabs(["📝 Registro de Requerimientos", "📊 Simulador de Costos"])
+        tab1, tab2, tab3 = st.tabs([
+            "📝 Registro de Requerimientos", 
+            "📊 Simulador de Costos",
+            "🤝 Ventas de Proveedores (B2B)"
+        ])
         
         with tab1:
             dashboard_requerimientos(controller)
             
         with tab2:
             dashboard_simulador_costos(controller)
+            
+        with tab3:
+            registro_ventas_proveedores(supabase_client)
     else:
         st.info("Utilice el Dashboard Operativo para ver el estado de la logística.")
 
