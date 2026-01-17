@@ -8,25 +8,28 @@ class LeadController:
     """Controlador para manejar la lógica de negocio de los Leads."""
     def __init__(self, supabase_client:Client):
         self.model = LeadModel(table_name='Leads', supabase_client=supabase_client)
-    def registrar_nuevo_lead(self, telefono: str, origen: str, vendedor: str) -> tuple[bool, str]:
+    def registrar_nuevo_lead(self, telefono: str, origen: str, vendedor: str, comentario: str = "", fecha_seguimiento: str = None) -> tuple[bool, str]:
         """Valida los datos y llama al modelo para guardar el lead."""
         
-        # 1. Validación de Campos (Reintroducida la Lógica de Negocio)
-        if not telefono or origen == "---Seleccione---" or vendedor == "---Seleccione---":
-            return False, "Los campos Celular, Origen y Vendedor son obligatorios."
+        # 1. Validación de Campos
+        if not telefono or origen == "---Seleccione---":
+            return False, "El campo Celular y Origen son obligatorios."
         
-        # 2. Comprobar si ya existe un lead activo (CRÍTICO)
+        # 2. Comprobar si ya existe un lead activo
         lead_existente = self.model.find_by_phone_active(telefono) 
         if lead_existente:
-            return False, f"Ya existe un lead activo (estado: {lead_existente.get('estado', 'N/A')}) con ese teléfono."
+             # Si es un recordatorio, quizás queremos permitirlo? 
+             # No, mejor mantenemos unicidad o permitimos actualización.
+             # Por ahora seguimos igual.
+            return False, f"Ya existe un lead activo con ese teléfono."
 
-        # 3. Guardar el lead
-        new_id = self.model.create_lead(telefono, origen, vendedor)
+        # 3. Guardar el lead con campos extra
+        new_id = self.model.create_lead(telefono, origen, vendedor, comentario, fecha_seguimiento)
         
         if new_id:
-            return True, f"Lead registrado con éxito. ID asignado: {new_id}"
+            return True, f"Registro exitoso. ID: {new_id}"
         else:
-            return False, "Error desconocido al registrar el Lead."
+            return False, "Error al registrar en la base de datos."
 
     def obtener_leads_del_vendedor(self, vendedor):
         """Devuelve todos los leads asignados a un vendedor específico."""

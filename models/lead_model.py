@@ -13,18 +13,18 @@ class LeadModel(BaseModel):
         super().__init__('lead', supabase_client) 
 
     # Implementación simplificada para el formulario de 3 campos
-    def create_lead(self, telefono: str, origen: str, vendedor: str) -> Optional[int]:
-        """Guarda un nuevo lead en el sistema con información básica."""
+    def create_lead(self, telefono: str, origen: str, vendedor: str, comentario: str = "", fecha_seguimiento: str = None) -> Optional[int]:
+        """Guarda un nuevo lead en el sistema con información básica y seguimiento."""
         lead_data = {
-            # Valores adaptados al Esquema SQL
-            "numero_celular": telefono,   # SQL: numero_celular
-            "red_social": origen,         # SQL: red_social
-            "id_vendedor": vendedor,      # SQL: id_vendedor (Must be INT)
-            "estado_lead": "NUEVO",       # SQL: estado_lead
+            "numero_celular": telefono,
+            "red_social": origen,
+            "id_vendedor": vendedor,
+            "estado_lead": "NUEVO",
+            "comentario": comentario, # Campo común en CRM
+            "fecha_seguimiento": fecha_seguimiento, # Campo para el recordatorio
             "fecha_creacion": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "whatsapp": True # Default
+            "whatsapp": True
         }
-        # Delega el guardado a BaseModel
         return self.save(lead_data)
         
     def get_leads_by_vendedor(self, vendedor: str) -> List[Dict[str, Any]]:

@@ -99,6 +99,71 @@ def registro_ventas_directa():
                 st.error(msg)
 
 
+def render_reminders_dashboard():
+    lead_controller = st.session_state.get('lead_controller')
+    if not lead_controller: st.error("Error de inicialización."); return
+    
+    st.subheader("🔔 Panel de Alertas de Seguimiento")
+    leads = lead_controller.obtener_todos_leads()
+    
+    if not leads:
+        st.info("No hay recordatorios pendientes.")
+        return
+        
+    df = pd.DataFrame(leads)
+    
+    # Filtrar solo recordatorios (asumiendo que los marcamos con REC: o tienen fecha_seguimiento)
+    if 'red_social' in df.columns:
+        df_rec = df[df['red_social'].str.contains("REC:", na=False)].copy()
+    else:
+        df_rec = pd.DataFrame()
+
+    if df_rec.empty:
+        st.info("No hay clientes en la agenda de recordatorios.")
+        return
+
+    # Procesar fechas para alertas
+    hoy = date.today()
+    
+    # Intentar obtener fecha_seguimiento, si no, parsear de red_social si lo guardamos ahí temporalmente
+    # Pero ahora ya tenemos el campo en el modelo.
+    if 'fecha_seguimiento' in df_rec.columns:
+        df_rec['fecha_seguimiento'] = pd.to_datetime(df_rec['fecha_seguimiento']).dt.date
+    else:
+        df_rec['fecha_seguimiento'] = hoy # Fallback
+        
+    df_rec = df_rec.sort_values(by='fecha_seguimiento', ascending=True)
+
+    # Clasificación
+    atrasados = df_rec[df_rec['fecha_seguimiento'] < hoy]
+    hoy_pendientes = df_rec[df_rec['fecha_seguimiento'] == hoy]
+    futuros = df_rec[df_rec['fecha_seguimiento'] > hoy]
+
+    # Visualización con Columnas
+    c1, c2, c3 = st.columns(3)
+    c1.metric("🔴 Atrasados", len(atrasados))
+    c2.metric("🟠 Para Hoy", len(hoy_pendientes))
+    c3.metric("🟢 Próximos", len(futuros))
+
+    st.markdown("---")
+    
+    if not atrasados.empty:
+        st.error("🚨 **CLIENTES QUE DEBISTE LLAMAR (ATRASADOS)**")
+        for _, r in atrasados.iterrows():
+            with st.expander(f"⚠️ {r.get('numero_celular')} - {r.get('fecha_seguimiento')}"):
+                st.write(f"**Notas:** {r.get('comentario', 'Sin notas')}")
+                st.write(f"**Vendedor:** {r.get('id_vendedor')}")
+                if st.button(f"Marcar como contactado {r.get('id_lead')}"):
+                    # Aquí iría lógica para actualizar estado
+                    st.success("Estado actualizado (Simulado)")
+
+    if not hoy_pendientes.empty:
+        st.warning("📅 **GESTIONES PARA HOY**")
+        st.dataframe(hoy_pendientes[['numero_celular', 'comentario', 'id_vendedor']], use_container_width=True)
+
+    st.write("📖 **Agenda Completa de Seguimiento**")
+    st.dataframe(df_rec[['fecha_seguimiento', 'numero_celular', 'red_social', 'comentario']], use_container_width=True)
+
 def formulario_recordatorio():
     lead_controller = st.session_state.get('lead_controller')
     if not lead_controller: st.error("Error de inicialización de LeadController."); return
@@ -111,7 +176,7 @@ def formulario_recordatorio():
         nombre = col1.text_input("Nombre del Cliente")
         telefono = col1.text_input("Celular/WhatsApp")
         
-        fecha_proxima = col2.date_input("Fecha Tentativa de Compra/Viaje")
+        fecha_proxima = col2.date_input("Fecha Tentativa de Contacto/Compra")
         servicio_interes = col2.selectbox("Servicio de Interés", ["Cusco Tradicional", "Machu Picchu Full Day", "Valle Sagrado", "Montaña 7 Colores", "Laguna Humantay", "Otros"])
         
         vendedor = st.selectbox("Asignar a Vendedor", ["Angel", "Abel", "Agente Externo"])
@@ -123,15 +188,12 @@ def formulario_recordatorio():
             if not telefono or not nombre:
                 st.warning("El Nombre y el Celular son obligatorios.")
             else:
-                # Usamos el controlador de leads para guardar esto
-                # Combinamos la info extra en el origen o comentario si existiera
-                detalle_futuro = f"INTERÉS: {servicio_interes} | FECHA: {fecha_proxima} | NOTAS: {comentario}"
-                
-                # Por ahora lo guardamos como un lead con origen 'RECORDATORIO'
                 exito, mensaje = lead_controller.registrar_nuevo_lead(
                     telefono=telefono, 
-                    origen=f"REC: {servicio_interes}", # Usamos el campo origen para identificarlo
-                    vendedor=vendedor
+                    origen=f"REC: {servicio_interes}", 
+                    vendedor=vendedor,
+                    comentario=f"CLIENTE: {nombre} | {comentario}",
+                    fecha_seguimiento=fecha_proxima.isoformat()
                 )
                 
                 if exito:
@@ -152,13 +214,14 @@ def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual=
     st.title(f"Módulo Ventas: {funcionalidad_seleccionada}")
 
     if funcionalidad_seleccionada == "Registros":
-        tab1, tab2 = st.tabs(["💰 Registro de Ventas", "⏰ Recordatorio"])
+        tab1, tab2, tab3 = st.tabs(["💰 Ventas", "⏰ Recordatorio", "🔔 Alertas"])
         
         with tab1:
             registro_ventas_directa()
             
         with tab2:
             formulario_recordatorio()
-            st.divider()
-            # Opcionalmente mostrar los últimos recordatorios
-            st.info("💡 Consejo: Revisa esta pestaña semanalmente para hacer seguimiento a estos leads.")
+            
+        with tab3:
+            render_reminders_dashboard()
+
