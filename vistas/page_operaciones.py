@@ -138,7 +138,9 @@ def dashboard_tablero_diario(controller):
             cc = 0
             for i, r in ed_df.iterrows():
                 if r['Guía'] != df.iloc[i]['Guía']:
-                    if controller.actualizar_guia_servicio(r['ID Servicio'], r['Guía'])[0]: cc += 1
+                    # Nueva firma usando claves compuestas SQL
+                    if controller.actualizar_guia_servicio(r['ID Venta'], r['N Linea'], r['Guía'])[0]: 
+                        cc += 1
             if cc > 0:
                 st.success(f"¡{cc} cambios guardados!")
                 st.rerun()

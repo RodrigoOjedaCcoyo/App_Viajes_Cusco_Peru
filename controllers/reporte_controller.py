@@ -10,7 +10,7 @@ class ReporteController:
     """
     
     def __init__(self, supabase_client):
-        self.venta_model = VentaModel('Venta', supabase_client)
+        self.venta_model = VentaModel('venta', supabase_client)
         self.lead_model = LeadModel('lead', supabase_client)
         self.req_model = RequerimientoModel(supabase_client)
         
@@ -28,9 +28,9 @@ class ReporteController:
         # 1. Obtener los datos sin procesar
         todas_las_ventas = self.venta_model.get_all()
         
-        # 2. Calcular métricas clave
+        # 2. Calcular métricas clave (Sincronizado: precio_total_cierre)
         total_ventas = len(todas_las_ventas)
-        monto_total_usd = sum(v['monto_total'] for v in todas_las_ventas)
+        monto_total_usd = sum(v.get('precio_total_cierre', 0) or 0 for v in todas_las_ventas)
         
         # 3. Formatear la salida
         resumen = {
@@ -42,23 +42,31 @@ class ReporteController:
 
     def obtener_detalle_auditoria(self):
         """
-        Devuelve una lista combinada de Leads y Ventas para auditoría 
-        (ejemplo simple, en una DB real sería un JOIN).
+        Devuelve una lista combinada de Leads y Ventas para auditoría.
         """
         ventas = self.venta_model.get_all()
-        # En una auditoría real, buscarías el Lead asociado
         return ventas
 
     def get_data_for_dashboard(self):
-        """Devuelve dataframes listos para pandas."""
+        """Devuelve dataframes listos para pandas con nombres mapeados."""
         import pandas as pd
         
         # 1. Ventas
         ventas = self.venta_model.get_all()
         df_ventas = pd.DataFrame(ventas) if ventas else pd.DataFrame()
-        if not df_ventas.empty and 'monto_total' not in df_ventas.columns:
-            # Fallback seguro si falla modelo
-            df_ventas['monto_total'] = 0.0
+        
+        if not df_ventas.empty:
+            # Sincronizar columna de monto
+            df_ventas['monto_total'] = df_ventas['precio_total_cierre']
+            
+            # Mapear Vendedor (Nombre)
+            try:
+                # Tabla 'vendedor' en minúsculas según esquema
+                res_v = self.venta_model.client.table('vendedor').select('id_vendedor, nombre').execute()
+                vend_map = {v['id_vendedor']: v['nombre'] for v in res_v.data}
+                df_ventas['vendedor'] = df_ventas['id_vendedor'].map(vend_map)
+            except:
+                df_ventas['vendedor'] = "Desconocido"
             
         # 2. Gastos (Requerimientos)
         reqs = self.req_model.get_all()

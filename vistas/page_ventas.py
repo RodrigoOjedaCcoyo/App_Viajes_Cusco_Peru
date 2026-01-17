@@ -71,6 +71,8 @@ def registro_ventas_directa():
         c_file1, c_file2 = st.columns(2)
         file_itinerario = c_file1.file_uploader("Cargar Itinerario (PDF)", type=['pdf', 'docx'])
         file_boleta = c_file2.file_uploader("Cargar Boleta de Pago (Img/PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
+        
+        id_itinerario_dig = st.text_input("ID Itinerario Digital (Opcional - para vinculación CLOUD)", placeholder="UUID del diseño")
 
         submitted = st.form_submit_button("REGISTRAR VENTA", use_container_width=True)
         
@@ -80,14 +82,15 @@ def registro_ventas_directa():
                 nombre_cliente=nombre,
                 telefono=tel,
                 origen="Directo",
-                vendedor=vendedor_manual, # Usamos el valor del campo
+                vendedor=vendedor_manual, 
                 tour=id_paquete,
                 tipo_hotel="Estándar", 
                 fecha_inicio=date.today().isoformat(),
                 fecha_fin=date.today().isoformat(),
                 monto_total=monto_total,
                 monto_depositado=monto_pagado,
-                tipo_comprobante=tipo_comp, # Usamos el valor del campo
+                tipo_comprobante=tipo_comp,
+                id_itinerario_digital=id_itinerario_dig, # Nuevo parámetro
                 file_itinerario=file_itinerario,
                 file_pago=file_boleta
             )
@@ -202,12 +205,89 @@ def formulario_recordatorio():
                 else:
                     st.error(mensaje)
 
+def constructor_itinerarios():
+    """Interfaz para generar el Itinerario Digital y sincronizar con Cloud."""
+    it_controller = st.session_state.get('itinerario_digital_controller')
+    lead_controller = st.session_state.get('lead_controller')
+    
+    st.subheader("🎨 Constructor de Itinerario Automático")
+    st.info("Esta sección genera el diseño visual y lo sincroniza con el Lead en la nube.")
+
+    # 1. Selección de Lead
+    leads = lead_controller.obtener_todos_leads()
+    if not leads:
+        st.warning("No hay leads registrados para asignar un itinerario.")
+        return
+
+    df_leads = pd.DataFrame(leads)
+    lead_options = {f"{r['numero_celular']} - {r['id_lead']}": r['id_lead'] for _, r in df_leads.iterrows()}
+    lead_sel = st.selectbox("Seleccione el Lead (Cliente)", options=list(lead_options.keys()))
+    id_lead_actual = lead_options[lead_sel]
+
+    # 2. Datos del Itinerario
+    with st.expander("📝 Datos Generales del Pasajero", expanded=True):
+        col1, col2 = st.columns(2)
+        nombre_pasajero = col1.text_input("Nombre que aparecerá en el PDF", placeholder="Ej: Familia Rodriguez")
+        titulo_viaje = col2.text_input("Título del Programa", placeholder="Ej: Cusco Mágico & Machu Picchu")
+        duracion = col1.text_input("Duración", placeholder="Ej: 4D-3N")
+        fecha_viaje = col2.date_input("Fecha Tentativa")
+
+    # 3. Construcción del JSONB (datos_render)
+    st.markdown("---")
+    st.write("📈 **Configuración de Precios y Servicios**")
+    cp1, cp2, cp3 = st.columns(3)
+    p_nac = cp1.number_input("Precio Nacional ($)", min_value=0.0)
+    p_ext = cp2.number_input("Precio Extranjero ($)", min_value=0.0)
+    p_can = cp3.number_input("Precio CAN ($)", min_value=0.0)
+
+    # Simulación de la "Culebrita" y Highlights
+    highlights = st.text_area("Hitos / Highlights (Separados por comas)", placeholder="Machu Picchu, Montaña de Colores, Valle Sagrado")
+    
+    # 4. Botón de Generación y Sincronización
+    if st.button("🚀 GENERAR ITINERARIO PDF & SINCRONIZAR CLOUD", use_container_width=True):
+        if not nombre_pasajero:
+            st.error("El nombre del pasajero es obligatorio para el PDF.")
+        else:
+            # Construir el paquete JSON (datos_render) solicitado por el usuario
+            datos_render = {
+                "titulo": titulo_viaje,
+                "duracion": duracion,
+                "fecha_viaje": fecha_viaje.isoformat(),
+                "highlights": [h.strip() for h in highlights.split(",")],
+                "precios": {
+                    "nacional": p_nac,
+                    "extranjero": p_ext,
+                    "can": p_can
+                },
+                "vendedor_id": st.session_state.get('user_id'),
+                "metadata": {
+                    "version": "1.0",
+                    "snake_code": "snake_default_vcp", # Código para la 'culebrita'
+                    "generado_por": st.session_state.get('user_email')
+                }
+            }
+
+            with st.spinner("Sincronizando con Supabase..."):
+                exito, msg = it_controller.registrar_generacion_itinerario(
+                    id_lead=id_lead_actual,
+                    nombre_pasajero=nombre_pasajero,
+                    id_vendedor=st.session_state.get('user_id'),
+                    datos_render=datos_render
+                )
+                
+                if exito:
+                    st.success(f"✅ {msg}")
+                    st.balloons()
+                else:
+                    st.error(msg)
+
 def gestion_registros_multicanal():
     st.subheader("📝 Gestión de Ingreso de Clientes")
     tipo_cliente = st.selectbox(
         "¿Qué tipo de registro desea realizar?",
         [
             "💰 Venta Confirmada (Directa)", 
+            "🎨 Constructor de Itinerarios (BETA)",
             "⏰ Largo Plazo (Recordatorios / Futuro)"
         ]
     )
@@ -216,14 +296,20 @@ def gestion_registros_multicanal():
     
     if "Venta Confirmada" in tipo_cliente:
         registro_ventas_directa()
+    elif "Constructor de Itinerarios" in tipo_cliente:
+        constructor_itinerarios()
     elif "Largo Plazo" in tipo_cliente:
         formulario_recordatorio()
+
+from controllers.itinerario_digital_controller import ItinerarioDigitalController
 
 def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual='Desconocido', user_id=None): 
     if 'lead_controller' not in st.session_state:
         st.session_state.lead_controller = LeadController(supabase_client)
     if 'venta_controller' not in st.session_state:
         st.session_state.venta_controller = VentaController(supabase_client)
+    if 'itinerario_digital_controller' not in st.session_state:
+        st.session_state.itinerario_digital_controller = ItinerarioDigitalController(supabase_client)
     
     st.session_state.user_id = user_id
 

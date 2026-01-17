@@ -10,11 +10,11 @@ from .base_model import BaseModel
 
 class VentaModel(BaseModel):
     def __init__(self, supabase_client: Client):
-        super().__init__('venta', supabase_client)
+        super().__init__('venta', supabase_client, primary_key='id_venta')
 
 class PasajeroModel(BaseModel):
     def __init__(self, supabase_client: Client):
-        super().__init__('pasajero', supabase_client)
+        super().__init__('pasajero', supabase_client, primary_key='id_pasajero')
         
     def get_by_venta_id(self, venta_id: int) -> List[Dict[str, Any]]:
         """Obtiene todos los pasajeros de una venta."""
@@ -27,20 +27,12 @@ class PasajeroModel(BaseModel):
 
 class DocumentacionModel(BaseModel):
     def __init__(self, supabase_client: Client):
-        super().__init__('documentacion', supabase_client)
+        # Según esquema SQL, usa 'id' como bigint
+        super().__init__('documentacion', supabase_client, primary_key='id')
         
     def get_documentos_by_venta_id(self, id_venta: int) -> List[Dict[str, Any]]:
-        """
-        Obtiene documentos filtrando por los pasajeros de la venta.
-        Utiliza Join (select relacional) para eficiencia si es posible, 
-        o dos pasos. Aquí usamos select relacional si la FK está bien definida.
-        """
         try:
-            # Opción 1: Query Directo con Join a Pasajero
-            # Supabase permite: select('*, pasajero!inner(*)') para filtrar
-            # Pero dado el esquema, haremos query en dos pasos para seguridad inicial o un join simple
-            
-            # Paso A: Obtener IDs pasajeros
+            # Paso A: Obtener IDs pasajeros (usando id_pasajero PK)
             pasajeros_res = self.client.table('pasajero').select('id_pasajero').eq('id_venta', id_venta).execute()
             if not pasajeros_res.data:
                 return []
@@ -56,7 +48,8 @@ class DocumentacionModel(BaseModel):
 
 class TareaModel(BaseModel):
     def __init__(self, supabase_client: Client):
-        super().__init__('tarea', supabase_client)
+        # Según esquema SQL, usa 'id' como bigint
+        super().__init__('tarea', supabase_client, primary_key='id')
         
     def get_tareas_by_responsable(self, responsable: str) -> List[Dict[str, Any]]:
         """Filtra tareas por responsable."""
@@ -68,4 +61,5 @@ class TareaModel(BaseModel):
 
 class RequerimientoModel(BaseModel):
     def __init__(self, supabase_client: Client):
-        super().__init__('requerimiento', supabase_client)
+        # Note: 'requerimiento' not in user's SQL snippet, keeping default PK 'id'
+        super().__init__('requerimiento', supabase_client, primary_key='id')

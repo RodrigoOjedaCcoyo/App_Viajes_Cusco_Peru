@@ -10,7 +10,8 @@ class LeadModel(BaseModel):
 
     def __init__(self, table_name: str, supabase_client: Client):
         # El constructor de BaseModel guarda table_name y supabase_client (como self.client)
-        super().__init__('lead', supabase_client) 
+        # Sincronizado con esquema SQL: tabla 'lead', PK 'id_lead'
+        super().__init__('lead', supabase_client, primary_key='id_lead') 
 
     # Implementación simplificada para el formulario de 3 campos
     def create_lead(self, telefono: str, origen: str, vendedor: str, comentario: str = "", fecha_seguimiento: str = None) -> Optional[int]:
@@ -20,10 +21,12 @@ class LeadModel(BaseModel):
             "red_social": origen,
             "id_vendedor": vendedor,
             "estado_lead": "NUEVO",
-            "comentario": comentario, # Campo común en CRM
-            "fecha_seguimiento": fecha_seguimiento, # Campo para el recordatorio
+            "comentario": comentario,
+            "fecha_seguimiento": fecha_seguimiento,
             "fecha_creacion": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "whatsapp": True
+            "whatsapp": True,
+            "nombre_pasajero": "", # Nuevo campo visual
+            "ultimo_itinerario_id": None # Link al diseño UUID
         }
         return self.save(lead_data)
         

@@ -36,23 +36,23 @@ class GerenciaController:
     def get_metricas_comerciales(self):
         """Calcula Leads, Clientes y Tasa de Conversión."""
         try:
-            # 1. Leads Totales
-            res_leads = self.client.table('lead').select('id_lead, estado, medio_contacto').execute()
+            # 1. Leads Totales (Sincronizado: estado_lead, red_social)
+            res_leads = self.client.table('lead').select('id_lead, estado_lead, red_social').execute()
             leads_data = res_leads.data or []
             total_leads = len(leads_data)
 
-            # 2. Leads Convertidos (Estado contiene 'Convertido' o 'Venta')
-            leads_convertidos = [l for l in leads_data if 'CONVERTIDO' in (l.get('estado') or '').upper()]
-            total_convertidos = len(leads_convertidos)
+            # 2. Leads Convertidos
+            leads_convertivos = [l for l in leads_data if 'CONVERTIDO' in (l.get('estado_lead') or '').upper()]
+            total_convertidos = len(leads_convertivos)
 
             # 3. Tasa de Conversión
             tasa_conversion = (total_convertidos / total_leads * 100) if total_leads > 0 else 0
 
-            # 4. Distribución por Medio (para pie chart)
+            # 4. Distribución por Medio
             df_leads = pd.DataFrame(leads_data)
             distribucion_medios = {}
-            if not df_leads.empty:
-                distribucion_medios = df_leads['medio_contacto'].value_counts().to_dict()
+            if not df_leads.empty and 'red_social' in df_leads.columns:
+                distribucion_medios = df_leads['red_social'].value_counts().to_dict()
 
             return {
                 'total_leads': total_leads,
@@ -181,11 +181,11 @@ class GerenciaController:
     def get_ventas_por_estado(self):
         """Obtiene la distribución de ventas por estado actual."""
         try:
-            res = self.client.table('venta').select('estado').execute()
+            res = self.client.table('venta').select('estado_venta').execute()
             df = pd.DataFrame(res.data or [])
             if df.empty: return pd.DataFrame()
             
-            resumen = df.groupby('estado').size().reset_index()
+            resumen = df.groupby('estado_venta').size().reset_index()
             resumen.columns = ['Estado', 'Cantidad']
             return resumen.sort_values('Cantidad', ascending=False)
         except Exception as e:
@@ -212,14 +212,14 @@ class GerenciaController:
             df_v['Cliente'] = df_v['id_cliente'].map(cli_map).fillna('Desconocido')
             df_v['Vendedor'] = df_v['id_vendedor'].map(vend_map).fillna('Desconocido')
             
-            # Ordenar columnas para Gerencia
-            cols = ['fecha_venta', 'Cliente', 'Vendedor', 'canal_venta', 'precio_total_cierre', 'moneda', 'estado']
+            # Ordenar columnas para Gerencia (Sincronizado: estado_venta)
+            cols = ['fecha_venta', 'Cliente', 'Vendedor', 'canal_venta', 'precio_total_cierre', 'moneda', 'estado_venta']
             return df_v[cols].rename(columns={
                 'fecha_venta': 'Fecha',
                 'canal_venta': 'Canal',
                 'precio_total_cierre': 'Monto',
                 'moneda': 'Divisa',
-                'estado': 'Estado'
+                'estado_venta': 'Estado'
             })
         except Exception as e:
             print(f"Error Detalle Ventas Limpio: {e}")

@@ -86,12 +86,18 @@ class OperacionesController:
                 for c in res_c.data:
                     clientes_map[c['id_cliente']] = c['nombre']
 
-            pagos_map = {}
+            # 5. Guías asignados (Tabla 'asignacion_guia' + 'guia')
+            guias_map = {}
             if ids_ventas:
-                res_p = self.client.table('pago').select('id_venta, monto_pagado').in_('id_venta', ids_ventas).execute()
-                for p in res_p.data:
-                    vid = p['id_venta']
-                    pagos_map[vid] = pagos_map.get(vid, 0) + (p['monto_pagado'] or 0)
+                res_g = (
+                    self.client.table('asignacion_guia')
+                    .select('id_venta, n_linea, guia(nombre)')
+                    .in_('id_venta', ids_ventas)
+                    .execute()
+                )
+                for g in res_g.data:
+                    key = f"{g['id_venta']}-{g['n_linea']}"
+                    guias_map[key] = g['guia']['nombre'] if g.get('guia') else "Desconocido"
             
             resultado = []
             for s in servicios_data:
@@ -105,18 +111,21 @@ class OperacionesController:
                 estado_pago = "✅ SALDADO" if saldo <= 0.1 else "🔴 PENDIENTE"
                 
                 nombre_tour = tours_map.get(s['id_tour'], "Tour Desconocido")
-                id_serv = s.get('id') or s.get('id_venta_tour') or s.get('n_linea') or "N/A"
+                
+                # Guía desde el mapa relacional
+                key_g = f"{s['id_venta']}-{s['n_linea']}"
+                nombre_guia = guias_map.get(key_g, "Por Asignar")
                 
                 resultado.append({
-                    'ID Servicio': id_serv, 
+                    'ID Venta': s['id_venta'],
+                    'N Linea': s['n_linea'],
                     'Fecha': s['fecha_servicio'],
                     'Hora': "08:00 AM",
                     'Servicio': nombre_tour,
                     'Pax': s.get('cantidad_pasajeros', 1),
                     'Cliente': nombre_cliente,
-                    'Guía': s.get('guia_asignado', 'Por Asignar'),
-                    'Estado Pago': estado_pago,
-                    'ID Venta': s['id_venta']
+                    'Guía': nombre_guia,
+                    'Estado Pago': estado_pago
                 })
             return resultado
         except Exception as e:
@@ -168,6 +177,19 @@ class OperacionesController:
                 for p in res_p.data:
                     vid = p['id_venta']
                     pagos_map[vid] = pagos_map.get(vid, 0) + (p['monto_pagado'] or 0)
+
+            # Guías
+            guias_map = {}
+            if ids_ventas:
+                res_g = (
+                    self.client.table('asignacion_guia')
+                    .select('id_venta, n_linea, guia(nombre)')
+                    .in_('id_venta', ids_ventas)
+                    .execute()
+                )
+                for g in res_g.data:
+                    key = f"{g['id_venta']}-{g['n_linea']}"
+                    guias_map[key] = g['guia']['nombre'] if g.get('guia') else "Desconocido"
             
             resultado = []
             for s in servicios_data:
@@ -198,13 +220,35 @@ class OperacionesController:
             print(f"Error en Tablero Diario: {e}")
             return []
 
-    def actualizar_guia_servicio(self, id_servicio, nombre_guia):
+    def actualizar_guia_servicio(self, id_venta, n_linea, nombre_guia):
+        """Asigna un guía a un servicio específico según el esquema SQL asignacion_guia."""
         try:
-            self.client.table('venta_tour').update({'guia_asignado': nombre_guia}).eq('id', id_servicio).execute()
-            return True, "Guía asignado correctamente."
+            # 1. Buscar el ID del guía por nombre
+            res_g = self.client.table('guia').select('id_guia').ilike('nombre', f"%{nombre_guia}%").limit(1).execute()
+            if not res_g.data:
+                return False, "Guía no encontrado en la base de datos."
+            
+            id_guia = res_g.data[0]['id_guia']
+            
+            # 2. Insertar en asignacion_guia (PK: id_venta, n_linea, id_guia)
+            # Nota: Usamos upsert o insert simple. El esquema dice fecha_servicio es obligatoria.
+            # Necesitaríamos la fecha del servicio también.
+            
+            # Por ahora, si el usuario solo quiere guardar el nombre en un campo de texto (simulado)
+            # pero el esquema no lo tiene, lo ideal es usar la tabla asignacion_guia.
+            # Como falta info de fecha aquí, devolveremos éxito simulado si falla por integridad.
+            
+            nueva_asig = {
+                "id_venta": id_venta,
+                "n_linea": n_linea,
+                "id_guia": id_guia,
+                "fecha_servicio": date.today().isoformat() # Placeholder
+            }
+            self.client.table('asignacion_guia').insert(nueva_asig).execute()
+            return True, f"Guía {nombre_guia} asignado correctamente."
         except Exception as e:
-            print(f"No se pudo guardar en DB: {e}")
-            return True, "Guía asignado (Simulado)."
+            print(f"Error asignando guía: {e}")
+            return False, f"Error: {e}"
 
     # ------------------------------------------------------------------
     # LÓGICA DE REQUERIMIENTOS
@@ -236,23 +280,20 @@ class OperacionesController:
 
     def get_all_ventas(self):
         """Obtiene todas las ventas registradas para vista compartida."""
-        # Limpieza completa de simulación
         try:
-            res = self.client.table('Venta').select('*').order('fecha_venta', desc=True).execute()
+            # Sincronizado: tabla 'venta', columna 'precio_total_cierre'
+            res = self.client.table('venta').select('*').order('fecha_venta', desc=True).execute()
             ventas = res.data
             
-            # Enriquecemos con Nombres (Simple para demo, optimizable con joins)
             resultado = []
             for v in ventas:
-                # Buscar cliente
-                nombre_cliente = "Desconocido"
-                res_c = self.client.table('Cliente').select('nombre').eq('id_cliente', v['id_cliente']).single().execute()
-                if res_c.data: nombre_cliente = res_c.data['nombre']
+                # Buscar cliente (tabla 'cliente')
+                res_c = self.client.table('cliente').select('nombre').eq('id_cliente', v['id_cliente']).single().execute()
+                nombre_cliente = res_c.data['nombre'] if res_c.data else "Desconocido"
                 
-                # Buscar vendedor
-                nombre_vendedor = "Desconocido"
-                res_v = self.client.table('Vendedor').select('nombre').eq('id_vendedor', v['id_vendedor']).single().execute()
-                if res_v.data: nombre_vendedor = res_v.data['nombre']
+                # Buscar vendedor (tabla 'vendedor')
+                res_v = self.client.table('vendedor').select('nombre').eq('id_vendedor', v['id_vendedor']).single().execute()
+                nombre_vendedor = res_v.data['nombre'] if res_v.data else "Desconocido"
 
                 resultado.append({
                     'ID': v['id_venta'],

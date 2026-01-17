@@ -22,6 +22,7 @@ class VentaController:
                                 monto_total: float,
                                 monto_depositado: float,
                                 tipo_comprobante: str,
+                                id_itinerario_digital: Optional[str] = None, # Vínculo opcional
                                 file_itinerario: Optional[Any] = None,
                                 file_pago: Optional[Any] = None
                                 ) -> tuple[bool, str]:
@@ -56,6 +57,7 @@ class VentaController:
             "tipo_comprobante": tipo_comprobante,
             "url_itinerario": url_itinerario,
             "url_comprobante_pago": url_pago,
+            "id_itinerario_digital": id_itinerario_digital
         }
         
         # 4. Guardar

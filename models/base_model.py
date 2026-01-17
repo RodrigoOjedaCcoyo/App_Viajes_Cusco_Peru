@@ -8,49 +8,47 @@ class BaseModel:
     """Clase base para interactuar directamente con una tabla específica de Supabase.
     Recibe el cliente de Supabase (inyección de dependencia) en la inicialización."""
     
-    # 1. Constructor: Corregido el tipo de 'supabase_client'
-    def __init__(self, table_name: str, supabase_client: SupabaseClient):
+    # 1. Constructor: Añadido primary_key param
+    def __init__(self, table_name: str, supabase_client: SupabaseClient, primary_key: str = 'id'):
         self.table_name = table_name
         self.client = supabase_client 
+        self.primary_key = primary_key
 
     # 2. get_all: Corregido el tipado (Dict) y el acceso al método (client.table)
     def get_all(self) -> List[Dict[str, Any]]:
         """Obtiene todos los registros de la tabla Supabase."""
         try:
-            # CORRECCIÓN: self.client.table
             response = self.client.table(self.table_name).select('*').execute()
             return response.data
         except Exception as e:
             print(f'Error al obtener todos los datos de {self.table_name}: {e}')
             return []
 
-    def get_by_id(self, item_id: int) -> Optional[Dict[str, Any]]:
-        """Busca un ítem en la lista por su ID."""
+    def get_by_id(self, item_id: Any) -> Optional[Dict[str, Any]]:
+        """Busca un ítem en la tabla por su PK."""
         try:
-            response = self.client.table(self.table_name).select('*').eq('id', item_id).single().execute()
+            response = self.client.table(self.table_name).select('*').eq(self.primary_key, item_id).single().execute()
             return response.data
         except Exception:
             return None 
 
-    # 3. save: Corregido el tipado (int) y el acceso al método (self.client)
-    def save(self, data: dict) -> Optional[int]:
-        """Insertar un nuevo registro en la tabla de Supabase."""
+    def save(self, data: dict) -> Optional[Any]:
+        """Insertar un nuevo registro y devolver el valor de la PK."""
         try:
-            # CORRECCIÓN: self.client (en minúsculas)
-            response = self.client.table(self.table_name).insert(data).select('id').execute()
+            response = self.client.table(self.table_name).insert(data).select(self.primary_key).execute()
 
             if response.data:
-                return response.data[0].get('id')
+                return response.data[0].get(self.primary_key)
             return None
         except Exception as e:
             print(f'Error al guardar datos en {self.table_name}: {e}')
             return None 
     
-    # Método añadido para facilitar la actualización en el controlador (como LeadController)
-    def update_by_id(self, item_id: int, data: dict) -> bool:
+    def update_by_id(self, item_id: Any, data: dict) -> bool:
+        """Actualiza un registro filtrando por su PK."""
         try:
-            response = self.client.table(self.table_name).update(data).eq('id', item_id).execute()
+            response = self.client.table(self.table_name).update(data).eq(self.primary_key, item_id).execute()
             return len(response.data) > 0
         except Exception as e:
-            print(f"Error al actualizar el ID {item_id} en {self.table_name}: {e}")
+            print(f"Error al actualizar PK {item_id} en {self.table_name}: {e}")
             return False
