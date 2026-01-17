@@ -56,37 +56,63 @@ def seguimiento_leads():
 
 def registro_ventas_directa():
     venta_controller = st.session_state.get('venta_controller')
-    if not venta_controller: st.error("Error de inicialización de VentaController."); return
+    lead_controller = st.session_state.get('lead_controller')
+    if not venta_controller or not lead_controller: 
+        st.error("Error de inicialización de controladores.")
+        return
 
-    st.subheader("💰 Registro de Venta")
+    st.subheader("💰 Registro de Venta Confirmada")
+    
+    # 1. Buscador/Selector de Lead para auto-completar
+    leads = lead_controller.obtener_todos_leads()
+    lead_opt = ["--- Ingreso Manual / Sin Lead ---"]
+    lead_map = {}
+    
+    if leads:
+        for l in leads:
+            lbl = f"{l['numero_celular']} - {l.get('nombre_pasajero') or 'Sin Nombre'}"
+            lead_opt.append(lbl)
+            lead_map[lbl] = l
+
+    lead_sel = st.selectbox("🎯 Vincular con un Lead existente (Opcional)", lead_opt)
+    lead_data = lead_map.get(lead_sel)
+
     with st.form("form_registro_venta"):
         col1, col2 = st.columns(2)
-        nombre = col1.text_input("Nombre Cliente")
-        tel = col1.text_input("Celular")
         
-        # Cambio solicitado: Tour -> ID_Paquete
+        # Valores por defecto basados en el Lead seleccionado
+        def_nombre = lead_data.get('nombre_pasajero', '') if lead_data else ''
+        def_tel = lead_data.get('numero_celular', '') if lead_data else ''
+        def_itin = lead_data.get('ultimo_itinerario_id', '') if lead_data else ''
+
+        nombre = col1.text_input("Nombre Cliente", value=def_nombre)
+        tel = col1.text_input("Celular", value=def_tel)
+        
         id_paquete = col2.text_input("ID_Paquete / Tour") 
         
-        # Nuevos campos solicitados (Vendedor y Comprobante)
         vendedor_manual = col1.text_input("Vendedor (Nombre)", value=st.session_state.get('user_email', ''))
         tipo_comp = col2.radio("Tipo Comprobante", ["Boleta", "Factura", "Recibo Simple"], horizontal=True)
 
         monto_total = col1.number_input("Monto Total ($)", min_value=0.0, format="%.2f")
         monto_pagado = col2.number_input("Monto Pagado / Adelanto ($)", min_value=0.0, format="%.2f")
         
-        # Archivos adjuntos
         st.markdown("---")
         st.write("📂 **Adjuntar Documentos**")
         c_file1, c_file2 = st.columns(2)
         file_itinerario = c_file1.file_uploader("Cargar Itinerario (PDF)", type=['pdf', 'docx'])
         file_boleta = c_file2.file_uploader("Cargar Boleta de Pago (Img/PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
         
-        id_itinerario_dig = st.text_input("ID Itinerario Digital (Opcional - para vinculación CLOUD)", placeholder="UUID del diseño")
+        # ID Itinerario Digital: Ahora se auto-completa pero es editable
+        id_itinerario_dig = st.text_input(
+            "🆔 Código Itinerario Digital (CLOUD)", 
+            value=str(def_itin) if def_itin else "",
+            placeholder="UUID del diseño generado en el constructor",
+            help="Este código vincula la venta con el diseño visual del itinerario en la nube."
+        )
 
-        submitted = st.form_submit_button("REGISTRAR VENTA", use_container_width=True)
+        submitted = st.form_submit_button("✅ REGISTRAR VENTA Y SUBIR ARCHIVOS", use_container_width=True)
         
         if submitted:
-            # Llamada al controlador con los nuevos campos
             exito, msg = venta_controller.registrar_venta_directa(
                 nombre_cliente=nombre,
                 telefono=tel,
@@ -99,14 +125,14 @@ def registro_ventas_directa():
                 monto_total=monto_total,
                 monto_depositado=monto_pagado,
                 tipo_comprobante=tipo_comp,
-                id_itinerario_digital=id_itinerario_dig, # Nuevo parámetro
+                id_itinerario_digital=id_itinerario_dig if id_itinerario_dig else None,
                 file_itinerario=file_itinerario,
                 file_pago=file_boleta
             )
             
             if exito:
                 st.success(msg)
-                # Mostrar link a boleta si el sistema de archivos estuviera real
+                st.balloons()
             else:
                 st.error(msg)
 
