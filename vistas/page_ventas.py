@@ -202,17 +202,61 @@ def formulario_recordatorio():
                 else:
                     st.error(mensaje)
 
+def registro_ventas_proveedores():
+    venta_controller = st.session_state.get('venta_controller')
+    if not venta_controller: st.error("Error de inicialización de VentaController."); return
+
+    st.subheader("🤝 Registro de Venta para Proveedores (B2B)")
+    st.info("Utiliza este formulario para ventas gestionadas por agencias o proveedores externos.")
+    
+    with st.form("form_registro_venta_proveedores"):
+        col1, col2 = st.columns(2)
+        proveedor = col1.text_input("Nombre de la Agencia / Proveedor")
+        nombre_pax = col1.text_input("Nombre del Pasajero Principal")
+        tel = col1.text_input("Celular de Contacto")
+        
+        id_tour = col2.text_input("ID_Paquete / Tour") 
+        vendedor_ref = col2.selectbox("Referido por Vendedor", ["Angel", "Abel", "Otro"])
+        
+        monto_neto = col1.number_input("Monto Neto (Lo que paga el proveedor) ($)", min_value=0.0, format="%.2f")
+        monto_adelanto = col2.number_input("Adelanto Recibido ($)", min_value=0.0, format="%.2f")
+        
+        submitted = st.form_submit_button("REGISTRAR VENTA PROVEEDOR", use_container_width=True)
+        
+        if submitted:
+            exito, msg = venta_controller.registrar_venta_proveedor(
+                nombre_proveedor=proveedor,
+                nombre_cliente=nombre_pax,
+                telefono=tel,
+                vendedor=vendedor_ref,
+                tour=id_tour,
+                monto_total=monto_neto,
+                monto_depositado=monto_adelanto
+            )
+            
+            if exito:
+                st.success(msg)
+                st.balloons()
+            else:
+                st.error(msg)
+
 def gestion_registros_multicanal():
     st.subheader("📝 Gestión de Ingreso de Clientes")
     tipo_cliente = st.selectbox(
         "¿Qué tipo de registro desea realizar?",
-        ["💰 Venta Confirmada (Dinero Recibido)", "⏰ Largo Plazo (Recordatorios / Futuro)"]
+        [
+            "💰 Venta Confirmada (Directa)", 
+            "🤝 Venta de Proveedores (B2B)",
+            "⏰ Largo Plazo (Recordatorios / Futuro)"
+        ]
     )
     
     st.markdown("---")
     
     if "Venta Confirmada" in tipo_cliente:
         registro_ventas_directa()
+    elif "Venta de Proveedores" in tipo_cliente:
+        registro_ventas_proveedores()
     elif "Largo Plazo" in tipo_cliente:
         formulario_recordatorio()
 

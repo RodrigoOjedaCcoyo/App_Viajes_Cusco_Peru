@@ -2,6 +2,7 @@
 
 from models.venta_model import VentaModel
 from supabase import Client
+from datetime import date
 from typing import Optional, Any
 
 class VentaController:
@@ -62,5 +63,44 @@ class VentaController:
         
         if nuevo_id:
             return True, f"Venta registrada. ID: {nuevo_id}. Saldo pendiente: ${saldo:.2f}"
+        else:
+            return False, "Error al guardar en base de datos."
+
+    def registrar_venta_proveedor(self, 
+                                  nombre_proveedor: str,
+                                  nombre_cliente: str,
+                                  telefono: str, 
+                                  vendedor: str,
+                                  tour: str, 
+                                  monto_total: float,
+                                  monto_depositado: float,
+                                  estado_limpieza: str = "PENDIENTE"
+                                  ) -> tuple[bool, str]:
+        """Registra una venta proveniente de un proveedor/agencia externa."""
+        
+        if not nombre_proveedor or not nombre_cliente or not tour:
+             return False, "Campos obligatorios faltantes (Proveedor, Cliente o Tour)."
+
+        saldo = monto_total - monto_depositado
+        
+        venta_data = {
+            "nombre_cliente": nombre_cliente,
+            "telefono_cliente": telefono,
+            "origen": f"PROVEEDOR: {nombre_proveedor}",
+            "vendedor": vendedor,
+            "tour": tour,
+            "fecha_inicio": date.today().isoformat(), # Simplificado
+            "monto_total": monto_total,
+            "monto_depositado": monto_depositado,
+            "saldo": saldo,
+            "estado_pago": "POR COBRAR" if saldo > 0 else "LIQUIDADO",
+            "tipo_comprobante": "Factura Proveedor",
+            "observaciones": f"Venta registrada vía: {nombre_proveedor}"
+        }
+        
+        nuevo_id = self.model.create_venta(venta_data)
+        
+        if nuevo_id:
+            return True, f"Venta de Proveedor ({nombre_proveedor}) registrada. ID: {nuevo_id}"
         else:
             return False, "Error al guardar en base de datos."
