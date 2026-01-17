@@ -136,20 +136,7 @@ def flash_quote_view(controller):
             })
             st.success("Interés registrado para analítica comercial.")
 
-def itinerary_builder_view(controller):
-    st.subheader("🧩 Itinerary Builder (Módulo Independiente)")
-    st.info("El constructor de itinerarios ahora funciona como una aplicación independiente para mayor velocidad.")
-    
-    if st.button("🚀 Abrir Constructor Externo", use_container_width=True):
-        # Aquí podrías poner el link si el usuario tuviera una URL fija
-        st.link_button("Ir al Constructor Premium", "https://app-itinerarios-cusco.streamlit.app/")
-    
-    st.divider()
-    st.markdown("""
-    **Nota para el equipo:**
-    Para evitar lentitud en el sistema principal, el armado de PDFs se ha trasladado a su propia plataforma. 
-    Los datos se sincronizan automáticamente con la base de datos central.
-    """)
+
 
 
 
@@ -168,10 +155,9 @@ def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual=
     if funcionalidad_seleccionada == "Registro de Ventas":
         registro_ventas_directa()
     elif funcionalidad_seleccionada == "Automatización e Itinerarios":
-        t1, t2, t3 = st.tabs(["⚡ Flash Quote", "🧩 Itinerary Builder", "📊 Dashboard Comercial"])
+        t1, t2 = st.tabs(["⚡ Flash Quote", "📊 Dashboard Comercial"])
         with t1: flash_quote_view(it_controller)
-        with t2: itinerary_builder_view(it_controller)
-        with t3:
+        with t2:
             from vistas.dashboard_analytics import render_sales_dashboard
             # Obtenemos data fresca
             rc = st.session_state.get('venta_controller') # Reusing existing controller connection logic indirectly via report controller pattern if needed, but here simple:
