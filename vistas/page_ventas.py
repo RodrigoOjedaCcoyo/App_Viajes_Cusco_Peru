@@ -99,6 +99,47 @@ def registro_ventas_directa():
                 st.error(msg)
 
 
+def formulario_recordatorio():
+    lead_controller = st.session_state.get('lead_controller')
+    if not lead_controller: st.error("Error de inicialización de LeadController."); return
+    
+    st.subheader("⏰ Nuevo Cliente Potencial (Recordatorio)")
+    st.markdown("Registra aquí a los clientes que han mostrado interés pero comprarán en otra fecha.")
+    
+    with st.form("form_recordatorio"):
+        col1, col2 = st.columns(2)
+        nombre = col1.text_input("Nombre del Cliente")
+        telefono = col1.text_input("Celular/WhatsApp")
+        
+        fecha_proxima = col2.date_input("Fecha Tentativa de Compra/Viaje")
+        servicio_interes = col2.selectbox("Servicio de Interés", ["Cusco Tradicional", "Machu Picchu Full Day", "Valle Sagrado", "Montaña 7 Colores", "Laguna Humantay", "Otros"])
+        
+        vendedor = st.selectbox("Asignar a Vendedor", ["Angel", "Abel", "Agente Externo"])
+        comentario = st.text_area("Notas / Observaciones (¿Por qué no compra ahora?)")
+        
+        submitted = st.form_submit_button("GUARDAR RECORDATORIO", use_container_width=True)
+        
+        if submitted:
+            if not telefono or not nombre:
+                st.warning("El Nombre y el Celular son obligatorios.")
+            else:
+                # Usamos el controlador de leads para guardar esto
+                # Combinamos la info extra en el origen o comentario si existiera
+                detalle_futuro = f"INTERÉS: {servicio_interes} | FECHA: {fecha_proxima} | NOTAS: {comentario}"
+                
+                # Por ahora lo guardamos como un lead con origen 'RECORDATORIO'
+                exito, mensaje = lead_controller.registrar_nuevo_lead(
+                    telefono=telefono, 
+                    origen=f"REC: {servicio_interes}", # Usamos el campo origen para identificarlo
+                    vendedor=vendedor
+                )
+                
+                if exito:
+                    st.success(f"📌 Recordatorio para {nombre} guardado correctamente.")
+                    st.balloons()
+                else:
+                    st.error(mensaje)
+
 def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual='Desconocido', user_id=None): 
     # Inyectar controladores en session_state si no existen
     if 'lead_controller' not in st.session_state:
@@ -110,5 +151,14 @@ def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual=
 
     st.title(f"Módulo Ventas: {funcionalidad_seleccionada}")
 
-    if funcionalidad_seleccionada == "Registro de Ventas":
-        registro_ventas_directa()
+    if funcionalidad_seleccionada == "Registros":
+        tab1, tab2 = st.tabs(["💰 Registro de Ventas", "⏰ Recordatorio"])
+        
+        with tab1:
+            registro_ventas_directa()
+            
+        with tab2:
+            formulario_recordatorio()
+            st.divider()
+            # Opcionalmente mostrar los últimos recordatorios
+            st.info("💡 Consejo: Revisa esta pestaña semanalmente para hacer seguimiento a estos leads.")
