@@ -125,7 +125,8 @@ class OperacionesController:
                     'Pax': s.get('cantidad_pasajeros', 1),
                     'Cliente': nombre_cliente,
                     'Guía': nombre_guia,
-                    'Estado Pago': estado_pago
+                    'Estado Pago': estado_pago,
+                    'Día Itin.': s.get('id_itinerario_dia_index', 1)
                 })
             return resultado
         except Exception as e:
@@ -213,7 +214,8 @@ class OperacionesController:
                     'Cliente': nombre_cliente,
                     'Guía': s.get('guia_asignado', 'Por Asignar'),
                     'Estado Pago': estado_pago,
-                    'ID Venta': s['id_venta']
+                    'ID Venta': s['id_venta'],
+                    'Día Itin.': s.get('id_itinerario_dia_index', 1)
                 })
             return resultado
         except Exception as e:
@@ -264,14 +266,7 @@ class OperacionesController:
             return False, f"Error: {e}"
 
     def get_requerimientos(self):
-        """Obtiene la lista de requerimientos."""
-        # --- MODO SIMULACIÓN ---
-        try:
-            from controllers.mock_db import MOCK_REQS
-            return MOCK_REQS
-        except: pass
-        # -----------------------
-        
+        """Obtiene la lista de requerimientos directamente desde la base de datos."""
         try:
             return self.req_model.get_all()
         except Exception as e:

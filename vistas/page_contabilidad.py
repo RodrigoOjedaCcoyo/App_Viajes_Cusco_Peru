@@ -127,22 +127,22 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, su
     st.markdown("---")
     
     if funcionalidad_seleccionada == "Gestión de Registros":
-        tab1, tab2 = st.tabs(["📋 Requerimientos de Operaciones", "📊 Simulador de Gastos"])
+        tab1, tab2 = st.tabs(["📋 Requerimientos de Operaciones", "📊 Estructurador Financiero"])
         
         with tab1:
             mostrar_requerimientos()
             
         with tab2:
-            dashboard_simulador_contable()
+            estructurador_contable()
     else:
         st.info("Utilice el Dashboard Contable para ver reportes.")
 
-def dashboard_simulador_contable():
+def estructurador_contable():
     """
-    Simulador tipo Excel para Contabilidad.
+    Herramienta tipo Excel para Contabilidad.
     Registro de gastos con distinción de moneda (PEN/USD).
     """
-    st.subheader("📊 Simulador de Gastos (Multimoneda)", divider='violet')
+    st.subheader("📊 Estructurador de Gastos (Multimoneda)", divider='violet')
 
     from datetime import date # Importación local o asegurar que esté arriba
 

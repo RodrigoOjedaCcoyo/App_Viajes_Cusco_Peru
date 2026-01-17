@@ -8,7 +8,33 @@ from typing import Optional, Any
 class VentaController:
     """Controlador para manejar la lógica de Ventas."""
     def __init__(self, supabase_client:Client):
-        self.model = VentaModel(table_name='Ventas', supabase_client=supabase_client)
+        self.client = supabase_client
+        self.model = VentaModel(table_name='venta', supabase_client=supabase_client)
+
+    def _subir_archivo(self, bucket: str, file: Any, nombre_base: str) -> Optional[str]:
+        """Sube un archivo al Storage de Supabase y retorna su URL pública."""
+        try:
+            if not file: return None
+            
+            # 1. Preparar nombre de archivo único
+            ext = file.name.split('.')[-1]
+            timestamp = date.today().strftime("%Y%m%d")
+            file_path = f"{timestamp}_{nombre_base}.{ext}"
+            
+            # 2. Subir (leemos el contenido binario del UploadedFile de Streamlit)
+            file_content = file.getvalue()
+            res = self.client.storage.from_(bucket).upload(
+                path=file_path,
+                file=file_content,
+                file_options={"content-type": file.type}
+            )
+            
+            # 3. Obtener URL Pública
+            return self.client.storage.from_(bucket).get_public_url(file_path)
+            
+        except Exception as e:
+            print(f"Error subiendo archivo a {bucket}: {e}")
+            return None
 
     def registrar_venta_directa(self, 
                                 nombre_cliente: str,
@@ -32,10 +58,10 @@ class VentaController:
         if not nombre_cliente or not telefono or not tour or monto_total <= 0:
              return False, "Campos obligatorios faltantes (Nombre, Teléfono, Tour o Monto)."
 
-        # 2. Manejo de Archivos (Simulado por ahora - se guardaría en Storage)
-        # En una implementación real, aquí se subirían los archivos a Supabase Storage
-        url_itinerario = "pendiente_upload" if file_itinerario else None
-        url_pago = "pendiente_upload" if file_pago else None
+        # 2. Manejo de Archivos Reales (Supabase Storage)
+        clean_name = nombre_cliente.replace(" ", "_").lower()
+        url_itinerario = self._subir_archivo("itinerarios", file_itinerario, f"itin_{clean_name}")
+        url_pago = self._subir_archivo("vouchers", file_pago, f"pago_{clean_name}")
         
         # 3. Preparar datos
         saldo = monto_total - monto_depositado

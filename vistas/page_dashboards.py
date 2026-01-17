@@ -10,11 +10,20 @@ def render_sales_dashboard_visual(supabase_client):
     """Vista puramente visual para el Dashboard Comercial."""
     st.title("📊 Dashboard Comercial")
     
-    # KPIs Estáticos
+    # KPIs Reales
+    reporte_ctrl = ReporteController(supabase_client)
+    resumen_ventas = reporte_ctrl.obtener_resumen_ventas()
+    
+    lead_ctrl = LeadController(supabase_client)
+    total_leads = len(lead_ctrl.obtener_todos_leads())
+    
     c1, c2, c3 = st.columns(3)
-    c1.metric("Ventas Mes", "$2,450", delta="+15%")
-    c2.metric("Leads en Proceso", "42", delta="5")
-    c3.metric("Conversión", "12%", delta="-2%")
+    c1.metric("Ventas Totales (USD)", f"${resumen_ventas['monto_total_acumulado']:,.2f}")
+    c2.metric("Leads Registrados", total_leads)
+    
+    # Cálculo de tasa de conversión básico
+    tasa = (resumen_ventas['total_ventas_registradas'] / total_leads * 100) if total_leads > 0 else 0
+    c3.metric("Tasa de Conversión", f"{tasa:.1f}%")
     
     st.divider()
     

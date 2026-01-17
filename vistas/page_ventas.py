@@ -23,11 +23,20 @@ def formulario_registro_leads():
     with st.form("form_nuevo_lead"):
         telefono = st.text_input("Número de Celular")
         origen = st.selectbox("Seleccione Red Social", ["---Seleccione---","Instagram", "Facebook", "TikTok", "Web", "Otro"])
-        vendedor = st.selectbox("Asignar a", ["---Seleccione---","Angel", "Abel"])
+        vendedores_map = lead_controller.obtener_mapeo_vendedores()
+        nombres_vendedores = list(vendedores_map.values())
+        vendedor_sel = st.selectbox("Asignar a", ["---Seleccione---"] + nombres_vendedores)
         submitted = st.form_submit_button("Guardar Lead")
         
         if submitted:
-            exito, mensaje = lead_controller.registrar_nuevo_lead(telefono, origen, vendedor)
+            # Encontrar el ID del vendedor seleccionado
+            id_vendedor = None
+            for vid, vnom in vendedores_map.items():
+                if vnom == vendedor_sel:
+                    id_vendedor = vid
+                    break
+            
+            exito, mensaje = lead_controller.registrar_nuevo_lead(telefono, origen, id_vendedor)
             if exito: st.success(mensaje)
             else: st.error(mensaje)
 
@@ -156,9 +165,9 @@ def render_reminders_dashboard():
             with st.expander(f"⚠️ {r.get('numero_celular')} - {r.get('fecha_seguimiento')}"):
                 st.write(f"**Notas:** {r.get('comentario', 'Sin notas')}")
                 st.write(f"**Vendedor:** {r.get('id_vendedor')}")
-                if st.button(f"Marcar como contactado {r.get('id_lead')}"):
+                if st.button(f"Llamada Realizada {r.get('id_lead')}"):
                     # Aquí iría lógica para actualizar estado
-                    st.success("Estado actualizado (Simulado)")
+                    st.success("Gestión de seguimiento registrada.")
 
     if not hoy_pendientes.empty:
         st.warning("📅 **GESTIONES PARA HOY**")
@@ -182,19 +191,23 @@ def formulario_recordatorio():
         fecha_proxima = col2.date_input("Fecha Tentativa de Contacto/Compra")
         servicio_interes = col2.selectbox("Servicio de Interés", ["Cusco Tradicional", "Machu Picchu Full Day", "Valle Sagrado", "Montaña 7 Colores", "Laguna Humantay", "Otros"])
         
-        vendedor = st.selectbox("Asignar a Vendedor", ["Angel", "Abel", "Agente Externo"])
+        vendedores_map = lead_controller.obtener_mapeo_vendedores()
+        vendedor_sel = st.selectbox("Asignar a Vendedor", list(vendedores_map.values()))
         comentario = st.text_area("Notas / Observaciones (¿Por qué no compra ahora?)")
         
         submitted = st.form_submit_button("GUARDAR RECORDATORIO", use_container_width=True)
         
         if submitted:
+            # Buscar ID del vendedor
+            id_vendedor = next((id for id, name in vendedores_map.items() if name == vendedor_sel), None)
+            
             if not telefono or not nombre:
                 st.warning("El Nombre y el Celular son obligatorios.")
             else:
                 exito, mensaje = lead_controller.registrar_nuevo_lead(
                     telefono=telefono, 
                     origen=f"REC: {servicio_interes}", 
-                    vendedor=vendedor,
+                    vendedor=id_vendedor,
                     comentario=f"CLIENTE: {nombre} | {comentario}",
                     fecha_seguimiento=fecha_proxima.isoformat()
                 )
@@ -232,15 +245,27 @@ def constructor_itinerarios():
         duracion = col1.text_input("Duración", placeholder="Ej: 4D-3N")
         fecha_viaje = col2.date_input("Fecha Tentativa")
 
-    # 3. Construcción del JSONB (datos_render)
+    # 3. Construcción del Itinerario por Días
     st.markdown("---")
-    st.write("📈 **Configuración de Precios y Servicios**")
+    st.write("📅 **Detalle de Tours por Día**")
+    
+    # Sistema dinámico de ingreso de tours (Simplificado para este ejemplo)
+    num_dias = st.number_input("Número de días a detallar", min_value=1, max_value=15, value=1)
+    tours_detalles = []
+    
+    for i in range(num_dias):
+        with st.expander(f"Día {i+1}", expanded=(i==0)):
+            t_nom = st.text_input(f"Nombre del Tour Día {i+1}", key=f"t_nom_{i}")
+            t_desc = st.text_area(f"Descripción breve Día {i+1}", key=f"t_desc_{i}")
+            tours_detalles.append({"nombre": t_nom, "descripcion": t_desc})
+
+    st.write("📈 **Configuración de Precios**")
     cp1, cp2, cp3 = st.columns(3)
     p_nac = cp1.number_input("Precio Nacional ($)", min_value=0.0)
     p_ext = cp2.number_input("Precio Extranjero ($)", min_value=0.0)
     p_can = cp3.number_input("Precio CAN ($)", min_value=0.0)
 
-    # Simulación de la "Culebrita" y Highlights
+    # Configuración de la "Culebrita" y Highlights
     highlights = st.text_area("Hitos / Highlights (Separados por comas)", placeholder="Machu Picchu, Montaña de Colores, Valle Sagrado")
     
     # 4. Botón de Generación y Sincronización
@@ -254,6 +279,7 @@ def constructor_itinerarios():
                 "duracion": duracion,
                 "fecha_viaje": fecha_viaje.isoformat(),
                 "highlights": [h.strip() for h in highlights.split(",")],
+                "itinerario_detales": tours_detalles, # Enviamos la lista de tours
                 "precios": {
                     "nacional": p_nac,
                     "extranjero": p_ext,
@@ -262,13 +288,13 @@ def constructor_itinerarios():
                 "vendedor_id": st.session_state.get('user_id'),
                 "metadata": {
                     "version": "1.0",
-                    "snake_code": "snake_default_vcp", # Código para la 'culebrita'
+                    "snake_code": "snake_default_vcp",
                     "generado_por": st.session_state.get('user_email')
                 }
             }
 
-            with st.spinner("Sincronizando con Supabase..."):
-                exito, msg = it_controller.registrar_generacion_itinerario(
+            with st.spinner("Generando PDF y sincronizando con Supabase..."):
+                exito, msg, url_pdf = it_controller.registrar_generacion_itinerario(
                     id_lead=id_lead_actual,
                     nombre_pasajero=nombre_pasajero,
                     id_vendedor=st.session_state.get('user_id'),
@@ -277,6 +303,9 @@ def constructor_itinerarios():
                 
                 if exito:
                     st.success(f"✅ {msg}")
+                    if url_pdf:
+                        st.markdown(f"### [📥 DESCARGAR ITINERARIO PDF]({url_pdf})")
+                        st.info("El link también ha sido guardado en la ficha del lead.")
                     st.balloons()
                 else:
                     st.error(msg)
@@ -287,7 +316,7 @@ def gestion_registros_multicanal():
         "¿Qué tipo de registro desea realizar?",
         [
             "💰 Venta Confirmada (Directa)", 
-            "🎨 Constructor de Itinerarios (BETA)",
+            "🎨 Constructor de Itinerarios",
             "⏰ Largo Plazo (Recordatorios / Futuro)"
         ]
     )

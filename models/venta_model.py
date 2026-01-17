@@ -113,7 +113,8 @@ class VentaModel(BaseModel):
                         "precio_aplicado": venta_data.get("monto_total"),
                         "costo_aplicado": 0,
                         "cantidad_pasajeros": 1,
-                        "fecha_servicio": venta_data.get("fecha_inicio")
+                        "fecha_servicio": venta_data.get("fecha_inicio"),
+                        "id_itinerario_dia_index": venta_data.get("itinerario_dia_index", 1) # Vínculo cronológico
                     }
                     self.client.table('venta_tour').insert(detalle_tour).execute()
                  except Exception as e:

@@ -18,10 +18,7 @@ class LeadController:
         # 2. Comprobar si ya existe un lead activo
         lead_existente = self.model.find_by_phone_active(telefono) 
         if lead_existente:
-             # Si es un recordatorio, quizás queremos permitirlo? 
-             # No, mejor mantenemos unicidad o permitimos actualización.
-             # Por ahora seguimos igual.
-            return False, f"Ya existe un lead activo con ese teléfono."
+            return False, "Ya existe un lead activo con ese teléfono."
 
         # 3. Guardar el lead con campos extra
         new_id = self.model.create_lead(telefono, origen, vendedor, comentario, fecha_seguimiento)
@@ -53,5 +50,4 @@ class LeadController:
         if exito:
             return True, f"Lead ID {lead_id} actualizado a estado: {nuevo_estado}"
         else:
-            # 🛑 SINTAXIS CORREGIDA
             return False, f"Error al actualizar o Lead ID {lead_id} no encontrado"

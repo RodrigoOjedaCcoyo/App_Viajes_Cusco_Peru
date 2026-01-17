@@ -123,8 +123,9 @@ def dashboard_tablero_diario(controller):
         df = pd.DataFrame(servicios)
         ed_df = st.data_editor(
             df,
-            column_order=('Hora', 'Servicio', 'Pax', 'Cliente', 'Guía', 'Estado Pago'),
+            column_order=('Hora', 'Día Itin.', 'Servicio', 'Pax', 'Cliente', 'Guía', 'Estado Pago'),
             column_config={
+                "Día Itin.": st.column_config.NumberColumn("Día", format="%d", disabled=True),
                 "Guía": st.column_config.TextColumn("Asignar Guía ✏️"),
                 "Pax": st.column_config.NumberColumn(disabled=True),
                 "Servicio": st.column_config.TextColumn(disabled=True),
@@ -251,7 +252,12 @@ def registro_ventas_proveedores(supabase_client):
         tel = col1.text_input("Celular de Contacto")
         
         id_tour = col2.text_input("ID_Paquete / Tour") 
-        vendedor_ref = col2.selectbox("Referido por Vendedor", ["Angel", "Abel", "Otro"])
+        
+        # Conectar con DB para vendedores
+        from controllers.lead_controller import LeadController
+        lc = LeadController(supabase_client)
+        vend_map = lc.obtener_mapeo_vendedores()
+        vendedor_ref = col2.selectbox("Referido por Vendedor", list(vend_map.values()))
         
         monto_neto = col1.number_input("Monto Neto (Lo que paga el proveedor) ($)", min_value=0.0, format="%.2f")
         monto_adelanto = col2.number_input("Adelanto Recibido ($)", min_value=0.0, format="%.2f")
@@ -259,11 +265,14 @@ def registro_ventas_proveedores(supabase_client):
         submitted = st.form_submit_button("REGISTRAR VENTA PROVEEDOR", use_container_width=True)
         
         if submitted:
+            # Buscar ID
+            id_vend = next((id for id, name in vend_map.items() if name == vendedor_ref), None)
+            
             exito, msg = venta_controller.registrar_venta_proveedor(
                 nombre_proveedor=proveedor,
                 nombre_cliente=nombre_pax,
                 telefono=tel,
-                vendedor=vendedor_ref,
+                vendedor=id_vend,
                 tour=id_tour,
                 monto_total=monto_neto,
                 monto_depositado=monto_adelanto
@@ -283,7 +292,7 @@ def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
     if nombre_modulo == "Gestión de Registros":
         tab1, tab2, tab3 = st.tabs([
             "📝 Registro de Requerimientos", 
-            "📊 Simulador de Costos",
+            "📊 Estructurador de Costos",
             "🤝 Ventas de Proveedores (B2B)"
         ])
         
@@ -301,10 +310,10 @@ def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
 
 def dashboard_simulador_costos(controller):
     """
-    Simulador tipo Excel para estructurar costos de un paquete.
+    Herramienta para estructurar costos de un paquete.
     Permite editar fecha, servicio, costos unitarios y calcula totales.
     """
-    st.subheader("Simulador de Estructura de Costos", divider='rainbow')
+    st.subheader("Estructurador de Costos Operativos", divider='rainbow')
 
     if 'simulador_data' not in st.session_state:
         # Datos iniciales vacíos con la estructura requerida
@@ -353,7 +362,7 @@ def dashboard_simulador_costos(controller):
     m1, m2, m3 = st.columns(3)
     m1.metric("Costo Total Operativo", f"$ {total_paquete:,.2f}")
     
-    # Utilidad Simulata
+    # Utilidad Estimada
     precio_venta = m2.number_input("Precio de Venta Sugerido ($)", min_value=0.0, value=total_paquete * 1.3)
     utilidad = precio_venta - total_paquete
     margen = (utilidad / precio_venta * 100) if precio_venta > 0 else 0
