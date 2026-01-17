@@ -2,18 +2,10 @@
 import streamlit as st
 import pandas as pd
 from datetime import date
-from controllers.itinerario_controller import ItinerarioController
 from controllers.lead_controller import LeadController
 from controllers.venta_controller import VentaController
 
-# --- FUNCIONES DE APOYO CON CACHÉ ---
-@st.cache_data(ttl=600)
-def load_catalogo_paquetes(_controller):
-    return _controller.get_catalogo_paquetes()
 
-@st.cache_data(ttl=600)
-def load_catalogo_tours(_controller):
-    return _controller.get_catalogo_tours()
 
 def get_vendedor_id():
     return st.session_state.get('user_id')
@@ -106,39 +98,6 @@ def registro_ventas_directa():
             else:
                 st.error(msg)
 
-# --- MÓDULOS DEL NUEVO SISTEMA MODULAR ---
-
-def flash_quote_view(controller):
-    st.subheader("⚡ Consulta Rápida (Flash Quote)")
-    col1, col2 = st.columns(2)
-    with col1:
-        df_p = load_catalogo_paquetes(controller)
-        paquete_sel = st.selectbox("Paquete Base", options=df_p['nombre'].tolist() if not df_p.empty else ["No hay datos"])
-    with col2:
-        adultos = st.number_input("Adultos", min_value=1, value=2)
-        ninos = st.number_input("Niños", min_value=0, value=0)
-        
-    if not df_p.empty and paquete_sel != "No hay datos":
-        row = df_p[df_p['nombre'] == paquete_sel].iloc[0]
-        # Búsqueda flexible de costo (puede llamarse costo_base, precio o monto)
-        costo = float(row.get('costo_base') or row.get('precio') or row.get('monto') or 0)
-        
-        total_estimado = (costo * adultos) + (costo * 0.7 * ninos)
-        st.metric("Precio Estimado (USD)", f"${total_estimado:,.2f}")
-        
-        if st.button("Registrar Interés Comercial"):
-            controller.registrar_consulta_pasiva('FLASH', {
-                "paquete": paquete_sel,
-                "adultos": adultos,
-                "ninos": ninos,
-                "total": total_estimado,
-                "vendedor_id": st.session_state.get('user_id')
-            })
-            st.success("Interés registrado para analítica comercial.")
-
-
-
-
 
 def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual='Desconocido', user_id=None): 
     # Inyectar controladores en session_state si no existen
@@ -147,24 +106,9 @@ def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual=
     if 'venta_controller' not in st.session_state:
         st.session_state.venta_controller = VentaController(supabase_client)
     
-    it_controller = ItinerarioController(supabase_client)
     st.session_state.user_id = user_id
 
     st.title(f"Módulo Ventas: {funcionalidad_seleccionada}")
 
     if funcionalidad_seleccionada == "Registro de Ventas":
         registro_ventas_directa()
-    elif funcionalidad_seleccionada == "Automatización e Itinerarios":
-        t1, t2 = st.tabs(["⚡ Flash Quote", "📊 Dashboard Comercial"])
-        with t1: flash_quote_view(it_controller)
-        with t2:
-            from vistas.dashboard_analytics import render_sales_dashboard
-            # Obtenemos data fresca
-            rc = st.session_state.get('venta_controller') # Reusing existing controller connection logic indirectly via report controller pattern if needed, but here simple:
-            # Better approach: Use the ReportController pattern which has the aggregations
-            if 'reporte_controller' not in st.session_state:
-                from controllers.reporte_controller import ReporteController
-                st.session_state.reporte_controller = ReporteController(supabase_client)
-            
-            df_ventas, _ = st.session_state.reporte_controller.get_data_for_dashboard()
-            render_sales_dashboard(df_ventas)

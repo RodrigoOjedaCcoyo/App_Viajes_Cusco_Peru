@@ -28,7 +28,6 @@ if models_path not in sys.path:
 # Mapeo de roles a las funcionalidades (Correcto)
 MODULOS_VISIBLES = {
     "VENTAS": [
-        ("Automatización e Itinerarios", "page_ventas"),
         ("Registro de Ventas", "page_ventas")
     ],
     "OPERACIONES": [
