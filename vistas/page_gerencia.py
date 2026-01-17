@@ -156,14 +156,11 @@ def auditoria_maestra(controller):
                 st.plotly_chart(px.funnel(df_leads_estados, x='Cantidad', y='Estado', title="Embudo Comercial"), use_container_width=True)
 
 def mostrar_pagina(funcionalidad_seleccionada, rol_actual, user_id, supabase_client):
-    """Punto de entrada para el módulo de Gerencia."""
-    # st.title se llama en main.py usualmente, pero aquí lo personalizamos
-    
     controller = GerenciaController(supabase_client)
     
-    if funcionalidad_seleccionada == "Dashboard Ejecutivo":
-        dashboard_ejecutivo(controller)
-    elif funcionalidad_seleccionada == "Auditoría Completa":
+    st.title("👨‍💼 Gestión Ejecutiva")
+
+    if funcionalidad_seleccionada in ["Gestión de Registros", "Gestión Ejecutiva"]:
         auditoria_maestra(controller)
     else:
-        st.info("Seleccione una opción del menú lateral.")
+        st.info("Utilice el Dashboard Ejecutivo para ver métricas de alto nivel.")

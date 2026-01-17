@@ -50,21 +50,62 @@ def render_sales_dashboard_visual(supabase_client):
                 st.info("No hay recordatorios.")
 
 def render_ops_dashboard_visual(supabase_client):
-    """Vista puramente visual para Operaciones."""
+    """Vista visual para Operaciones."""
     st.title("⚙️ Visión General de Operaciones")
-    st.info("Aquí se mostrará el movimiento logístico sin la capacidad de editar servicios.")
-    # Implementación futura del dashboard operativo premium
-    st.warning("Estructura base del Dashboard Operativo preparada.")
+    # Importar aquí para evitar circularidad si aplica
+    from controllers.operaciones_controller import OperacionesController
+    controller = OperacionesController(supabase_client)
+    
+    # KPIs Rápidos
+    total_hoy = controller.get_servicios_dia(date.today())
+    len_hoy = len(total_hoy) if total_hoy else 0
+    st.metric("Servicios para Hoy", len_hoy)
+    
+    # Gráfico de densidad (Timeline)
+    from vistas.dashboard_analytics import render_operations_dashboard
+    # Placeholder de servicios para el render
+    services_data = controller.get_todos_servicios() # Suponiendo que existe
+    df_servicios = pd.DataFrame(services_data) if services_data else pd.DataFrame()
+    render_operations_dashboard(df_servicios)
+
+def render_contable_dashboard_visual(supabase_client):
+    """Vista visual para Contabilidad."""
+    st.title("🏦 Dashboard Financiero")
+    reporte_ctrl = ReporteController(supabase_client)
+    from vistas.dashboard_analytics import render_financial_dashboard
+    
+    df_ventas, df_reqs = reporte_ctrl.get_data_for_dashboard()
+    render_financial_dashboard(df_ventas, df_reqs)
+    
+    st.divider()
+    st.write("### 📋 Últimas Transacciones")
+    if not df_ventas.empty:
+        st.dataframe(df_ventas[['id', 'monto_total', 'estado_pago', 'vendedor']].head(10), use_container_width=True)
 
 def render_exec_dashboard_visual(supabase_client):
     """Dashboard Ejecutivo para Gerencia."""
-    st.title("🏛️ Reporte Ejecutivo")
-    st.markdown("---")
-    # Llamar a renders de analytics si existen
-    from vistas.dashboard_analytics import render_financial_dashboard
-    # Placeholder de data
-    df_empty = pd.DataFrame()
-    render_financial_dashboard(df_empty)
+    st.title("🏛️ Reporte Ejecutivo 360")
+    from controllers.gerencia_controller import GerenciaController
+    controller = GerenciaController(supabase_client)
+    
+    # Resumen Multi-área
+    c1, c2, c3 = st.columns(3)
+    finan = controller.get_kpis_financieros()
+    c1.metric("Ingresos Totales", f"S/ {finan['ventas_totales']:,.0f}")
+    
+    comer = controller.get_metricas_comerciales()
+    c2.metric("Conversión Lead", f"{comer['tasa_conversion']:.1f}%")
+    
+    pax_tot = controller.get_pax_totales()
+    c3.metric("Pax Operados", pax_tot)
+
+    # Gráfico Mix
+    st.divider()
+    df_v_canal = controller.get_ventas_por_canal()
+    if not df_v_canal.empty:
+        import plotly.express as px
+        fig = px.pie(df_v_canal, values='Monto', names='Canal', title="Ventas por Canal de Captación")
+        st.plotly_chart(fig, use_container_width=True)
 
 def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual='Desconocido', user_id=None):
     """Enrutador interno del archivo de dashboards."""
@@ -72,6 +113,8 @@ def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual=
         render_sales_dashboard_visual(supabase_client)
     elif "Operaciones" in funcionalidad_seleccionada:
         render_ops_dashboard_visual(supabase_client)
+    elif "Contable" in funcionalidad_seleccionada:
+        render_contable_dashboard_visual(supabase_client)
     elif "Ejecutivo" in funcionalidad_seleccionada:
         render_exec_dashboard_visual(supabase_client)
     else:

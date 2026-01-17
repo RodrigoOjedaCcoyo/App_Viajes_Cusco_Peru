@@ -120,31 +120,22 @@ def mostrar_requerimientos():
 # ----------------------------------------------------------------------
 
 def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, supabase_client=None):
-    """
-    Función que main.py usa para cargar el módulo. 
-    Redirige a la función de sub-página correcta según la selección del sidebar.
-    """
-    # Inicialización del controlador con dependencia inyectada
     if supabase_client:
         st.session_state['reporte_controller'] = ReporteController(supabase_client)
 
-    st.title(f"Módulo de Contabilidad / {funcionalidad_seleccionada}")
+    st.title(f"📝 Gestión Contable")
     st.markdown("---")
     
-    if funcionalidad_seleccionada == "Reporte de Montos":
-        reporte_de_montos()
-    elif funcionalidad_seleccionada == "Auditoría de Pagos":
-        auditoria_de_pagos()
-    elif funcionalidad_seleccionada == "Requerimientos de Operaciones":
-        mostrar_requerimientos()
-    elif "Simulador Contable" in funcionalidad_seleccionada:
-        dashboard_simulador_contable()
-    elif funcionalidad_seleccionada == "Registro de Ventas":
-        # Reutilizamos la lógica de reporte pero con título específico
-        st.info("Visualizando historial de ventas confirmadas desde el área comercial.")
-        reporte_de_montos()
+    if funcionalidad_seleccionada == "Gestión de Registros":
+        tab1, tab2 = st.tabs(["📋 Requerimientos de Operaciones", "📊 Simulador de Gastos"])
+        
+        with tab1:
+            mostrar_requerimientos()
+            
+        with tab2:
+            dashboard_simulador_contable()
     else:
-        st.warning("Funcionalidad no reconocida.")
+        st.info("Utilice el Dashboard Contable para ver reportes.")
 
 def dashboard_simulador_contable():
     """

@@ -237,35 +237,20 @@ def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
     """Punto de entrada de Streamlit."""
     controller = OperacionesController(supabase_client)
     
-    if "Requerimientos" in nombre_modulo:
-        st.title("💼 Gestión de Requerimientos")
-        dashboard_requerimientos(controller)
-    elif "Simulador de Costos" in nombre_modulo:
-        st.title("📊 Simulador de Costos Operativos")
-        dashboard_simulador_costos(controller)
-    elif "Registro de Ventas" in nombre_modulo:
-        st.title("📊 Registro de Ventas - Vista Operativa")
-        dashboard_registro_ventas_compartido(controller)
+    st.title("⚙️ Gestión de Operaciones")
+    st.markdown("---")
+    
+    if nombre_modulo == "Gestión de Registros":
+        tab1, tab2 = st.tabs(["📝 Registro de Requerimientos", "📊 Simulador de Costos"])
+        
+        with tab1:
+            dashboard_requerimientos(controller)
+            
+        with tab2:
+            dashboard_simulador_costos(controller)
     else:
-        st.title("💼 Gestión de Operaciones")
-        t_ops1, t_ops2 = st.tabs(["📅 Tablero Diario", "📈 Analytics Operativo"])
-        with t_ops1:
-            dashboard_tablero_diario(controller)
-        with t_ops2:
-            from vistas.dashboard_analytics import render_operations_dashboard
-            # Necesitamos servicios, usamos el controller actual
-            # Simplificación: obtenemos todos los servicios del mes actual para el gráfico
-            current_date = date.today()
-            fechas = controller.get_fechas_con_servicios(current_date.year, current_date.month)
-            # Para analytics real necesitamos un metodo 'get_all_servicios' o similar en controller
-            # Por ahora usaremos 'get_servicios_rango_fechas' de todo el mes
-            start = date(current_date.year, current_date.month, 1)
-            end = start + timedelta(days=30)
-            servicios = controller.get_servicios_rango_fechas(start, end)
-            if servicios:
-                render_operations_dashboard(pd.DataFrame(servicios))
-            else:
-                st.info("Sin datos operativos para analizar este mes.")
+        st.info("Utilice el Dashboard Operativo para ver el estado de la logística.")
+
 
 def dashboard_simulador_costos(controller):
     """
