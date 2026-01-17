@@ -202,6 +202,50 @@ def formulario_recordatorio():
                 else:
                     st.error(mensaje)
 
+def render_mi_brujula():
+    # KPIs Personales
+    lead_controller = st.session_state.get('lead_controller')
+    venta_controller = st.session_state.get('venta_controller')
+    
+    st.subheader("📊 Mi Brújula (Performance)")
+    
+    # Simulación de KPI por ahora, idealmente vendría del controller filtrado por vendedor
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Ventas Mes", "$2,450", delta="+15%")
+    c2.metric("Leads Atendidos", "42", delta="5")
+    c3.metric("Tasa Cierre", "12%", delta="-2%")
+    
+    st.divider()
+    render_reminders_dashboard()
+
+def gestion_registros_multicanal():
+    st.subheader("📋 Gestión de Clientes Multicanal")
+    tipo_cliente = st.radio(
+        "Seleccione el flujo de ingreso:",
+        ["💰 Venta Confirmada", "⏳ Largo Plazo (Recordatorio)", "🧩 Potencial (Itinerario)", "📱 Curioso (Facebook/API)"],
+        horizontal=True
+    )
+    
+    st.markdown("---")
+    
+    if "Venta Confirmada" in tipo_cliente:
+        registro_ventas_directa()
+    elif "Largo Plazo" in tipo_cliente:
+        formulario_recordatorio()
+    elif "Potencial" in tipo_cliente:
+        st.info("🎯 **Clientes del Motor de Itinerarios**")
+        st.markdown("""
+        Estos clientes ya tienen un itinerario base generado. 
+        Utiliza esta sección para importar los datos desde la app externa y cerrar la venta.
+        """)
+        if st.button("Sincronizar con Motor Externo"):
+            st.toast("Conectando con Motor de Itinerarios...")
+            st.warning("Funcionalidad disponible en la próxima actualización.")
+    elif "Curioso" in tipo_cliente:
+        st.info("📱 **Leads Fríos (Facebook/Instagram)**")
+        st.markdown("Aquí se visualizarán los mensajes directos y comentarios capturados vía API.")
+        st.button("Actualizar desde Meta Business Suite")
+
 def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual='Desconocido', user_id=None): 
     # Inyectar controladores en session_state si no existen
     if 'lead_controller' not in st.session_state:
@@ -211,17 +255,20 @@ def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual=
     
     st.session_state.user_id = user_id
 
-    st.title(f"Módulo Ventas: {funcionalidad_seleccionada}")
+    st.title(f"🏛️ {funcionalidad_seleccionada}")
 
-    if funcionalidad_seleccionada == "Registros":
-        tab1, tab2, tab3 = st.tabs(["💰 Ventas", "⏰ Recordatorio", "🔔 Alertas"])
+    if funcionalidad_seleccionada == "Consola de Sabiduría":
+        t1, t2, t3 = st.tabs(["📊 Mi Brújula", "📋 Gestión Multicanal", "🔗 Enlaces"])
         
-        with tab1:
-            registro_ventas_directa()
+        with t1:
+            render_mi_brujula()
             
-        with tab2:
-            formulario_recordatorio()
+        with t2:
+            gestion_registros_multicanal()
             
-        with tab3:
-            render_reminders_dashboard()
+        with t3:
+            st.subheader("🔗 Enlaces Externos de Poder")
+            st.link_button("🚀 Abrir Motor de Itinerarios Automático", "https://app-itinerarios-cusco.streamlit.app/")
+            st.link_button("📱 Meta Business Suite", "https://business.facebook.com/")
+            st.link_button("📁 Drive de Recursos Fotos/Videos", "https://drive.google.com/")
 
