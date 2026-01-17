@@ -5,7 +5,7 @@ import pandas as pd
 from datetime import date
 from controllers.reporte_controller import ReporteController
 from controllers.lead_controller import LeadController
-from controllers.ventas_controller import VentasController # Nota: Verificar plural en nombre de archivo si es necesario
+from controllers.venta_controller import VentaController
 
 def render_sales_dashboard_visual(supabase_client):
     """Vista puramente visual para el Dashboard Comercial."""
