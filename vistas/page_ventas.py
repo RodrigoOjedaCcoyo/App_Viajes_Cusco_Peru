@@ -202,77 +202,11 @@ def formulario_recordatorio():
                 else:
                     st.error(mensaje)
 
-def render_reminder_visual_list():
-    lead_controller = st.session_state.get('lead_controller')
-    if not lead_controller: return
-    
-    leads = lead_controller.obtener_todos_leads()
-    if not leads: 
-        st.info("Sin recordatorios pendientes.")
-        return
-        
-    df = pd.DataFrame(leads)
-    if 'red_social' in df.columns:
-        df_rec = df[df['red_social'].str.contains("REC:", na=False)].copy()
-        if not df_rec.empty:
-            hoy = date.today()
-            if 'fecha_seguimiento' in df_rec.columns:
-                df_rec['fecha_seguimiento'] = pd.to_datetime(df_rec['fecha_seguimiento']).dt.date
-            
-            df_rec = df_rec.sort_values(by='fecha_seguimiento', ascending=True)
-            
-            # Clasificación simple sin botones
-            atrasados = len(df_rec[df_rec['fecha_seguimiento'] < hoy])
-            hoy_p = len(df_rec[df_rec['fecha_seguimiento'] == hoy])
-            
-            if atrasados > 0:
-                st.error(f"🚨 Tienes {atrasados} contactos atrasados.")
-            if hoy_p > 0:
-                st.warning(f"📅 Tienes {hoy_p} contactos para hoy.")
-            
-            st.write("**Próximos Seguimientos:**")
-            st.dataframe(df_rec[['fecha_seguimiento', 'numero_celular', 'comentario']].head(10), use_container_width=True, hide_index=True)
-
-def render_dashboard_comercial():
-    st.subheader("📊 Dashboard de Performance Comercial")
-    
-    # KPIs Estáticos
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Ventas Mes", "$2,450", delta="+15%")
-    c2.metric("Leads en Proceso", "42", delta="5")
-    c3.metric("Conversión", "12%", delta="-2%")
-    
-    st.divider()
-    
-    col_a, col_b = st.columns([2, 1])
-    with col_a:
-        st.write("📈 **Tendencia de Ventas**")
-        # Aquí se podría llamar a render_sales_dashboard de dashboard_analytics
-        from vistas.dashboard_analytics import render_sales_dashboard
-        venta_controller = st.session_state.get('venta_controller')
-        if 'reporte_controller' not in st.session_state:
-            from controllers.reporte_controller import ReporteController
-            st.session_state.reporte_controller = ReporteController(venta_controller.model.client)
-        
-        df_ventas, _ = st.session_state.reporte_controller.get_data_for_dashboard()
-        if not df_ventas.empty:
-             # Solo mostramos chart de ranking para no saturar
-             sales_by_vendor = df_ventas.groupby('vendedor')['monto_total'].sum().reset_index()
-             import plotly.express as px
-             fig = px.bar(sales_by_vendor, x='vendedor', y='monto_total', title="Ranking de Ventas")
-             st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("No hay datos de ventas para graficar.")
-
-    with col_b:
-        st.write("🔔 **Agenda de Contacto**")
-        render_reminder_visual_list()
-
 def gestion_registros_multicanal():
     st.subheader("📝 Gestión de Ingreso de Clientes")
     tipo_cliente = st.selectbox(
         "¿Qué tipo de registro desea realizar?",
-        ["💰 Venta Confirmada (Dinero Recibido)", "⏰ Largo Plazo (Recordatorios / Futuro)", "🧩 Potencial (Desde Itinerario)", "📱 Curioso (Facebook API / Leads Fríos)"]
+        ["💰 Venta Confirmada (Dinero Recibido)", "⏰ Largo Plazo (Recordatorios / Futuro)"]
     )
     
     st.markdown("---")
@@ -281,12 +215,6 @@ def gestion_registros_multicanal():
         registro_ventas_directa()
     elif "Largo Plazo" in tipo_cliente:
         formulario_recordatorio()
-    elif "Potencial" in tipo_cliente:
-        st.info("🎯 **Clientes provenientes del Motor de Itinerarios**")
-        st.button("Sincronizar con Motor Externo")
-    elif "Curioso" in tipo_cliente:
-        st.info("📱 **Leads de Redes Sociales**")
-        st.button("Cargar desde Meta API")
 
 def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual='Desconocido', user_id=None): 
     if 'lead_controller' not in st.session_state:
@@ -296,9 +224,7 @@ def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual=
     
     st.session_state.user_id = user_id
 
-    if funcionalidad_seleccionada == "Dashboard Comercial":
-        render_dashboard_comercial()
-    elif funcionalidad_seleccionada == "Gestión de Registros":
+    if funcionalidad_seleccionada == "Gestión de Registros":
         gestion_registros_multicanal()
         st.divider()
         if st.checkbox("Ver historial de alertas y recordatorios"):
