@@ -2,7 +2,7 @@
 
 import streamlit as st
 import pandas as pd
-from datetime import date
+from datetime import date, timedelta
 from controllers.reporte_controller import ReporteController
 from controllers.lead_controller import LeadController
 from controllers.venta_controller import VentaController
@@ -57,14 +57,16 @@ def render_ops_dashboard_visual(supabase_client):
     controller = OperacionesController(supabase_client)
     
     # KPIs Rápidos
-    total_hoy = controller.get_servicios_dia(date.today())
-    len_hoy = len(total_hoy) if total_hoy else 0
+    servicios_hoy = controller.get_servicios_por_fecha(date.today())
+    len_hoy = len(servicios_hoy) if servicios_hoy else 0
     st.metric("Servicios para Hoy", len_hoy)
     
-    # Gráfico de densidad (Timeline)
+    # Gráfico de densidad (Timeline de este mes)
     from vistas.dashboard_analytics import render_operations_dashboard
-    # Placeholder de servicios para el render
-    services_data = controller.get_todos_servicios() # Suponiendo que existe
+    start_month = date.today().replace(day=1)
+    end_month = (start_month + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+    
+    services_data = controller.get_servicios_rango_fechas(start_month, end_month)
     df_servicios = pd.DataFrame(services_data) if services_data else pd.DataFrame()
     render_operations_dashboard(df_servicios)
 
