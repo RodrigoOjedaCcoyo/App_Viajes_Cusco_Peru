@@ -318,3 +318,21 @@ class OperacionesController:
         except Exception as e:
             print(f"Error get_all_ventas: {e}")
             return []
+
+    def get_data_for_analytics(self):
+        """Obtiene datos de servicios operativos para dashboards de analítica de logística."""
+        try:
+            # Traemos los servicios con información básica de la venta
+            res = self.client.table('venta_tour').select('*').execute()
+            if not res.data:
+                return pd.DataFrame()
+            
+            df = pd.DataFrame(res.data)
+            # Asegurar nombres de columnas para el dashboard
+            if 'fecha_servicio' in df.columns:
+                df['fecha_servicio'] = pd.to_datetime(df['fecha_servicio'])
+            
+            return df
+        except Exception as e:
+            print(f"Error en get_data_for_analytics: {e}")
+            return pd.DataFrame()

@@ -69,6 +69,44 @@ def auditoria_de_pagos():
         columnas_auditoria = ['id', 'monto_total', 'fecha_registro', 'estado_pago', 'vendedor']
         
         st.dataframe(df_auditoria[columnas_auditoria], use_container_width=True, hide_index=True)
+
+        # --- 🔍 DETALLE VISUAL PARA AUDITORÍA (ESTILO IMAGEN) ---
+        st.markdown("---")
+        st.subheader("📋 Verificación de Itinerario Digital")
+        
+        # Filtramos ventas que tengan un itinerario vinculado
+        ventas_con_itin = df_auditoria[df_auditoria['id_itinerario_digital'].notna()]
+        
+        if not ventas_con_itin.empty:
+            sel_v_id = st.selectbox("Seleccione Venta para auditar su Itinerario:", 
+                                 ventas_con_itin['id'].tolist(),
+                                 key="sb_audit_itin")
+            
+            # Obtener el UUID del itinerario
+            id_itin_audit = ventas_con_itin[ventas_con_itin['id'] == sel_v_id]['id_itinerario_digital'].iloc[0]
+            
+            if id_itin_audit:
+                res_itin = st.session_state['reporte_controller'].client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin_audit).single().execute()
+                if res_itin.data:
+                    render = res_itin.data['datos_render']
+                    tours = render.get('itinerario_detales', []) or render.get('days', [])
+                    
+                    with st.container(border=True):
+                        st.info(f"💎 **Programa Vendido:** {render.get('titulo', 'General')}")
+                        for i, t in enumerate(tours):
+                            with st.expander(f"🗓️ DIA {i+1}: {(t.get('nombre') or t.get('titulo') or 'Servicio').upper()}", expanded=(i==0)):
+                                # Inclusiones/Exclusiones (Estilo Imagen)
+                                inc = t.get('incluye') or t.get('inclusiones', [])
+                                if inc:
+                                    st.markdown("<span style='color:green; font-weight:bold; font-size:12px;'>INCLUYE:</span>", unsafe_allow_html=True)
+                                    for item in inc: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;✔️ <small>{item}</small>", unsafe_allow_html=True)
+                                
+                                exc = t.get('no_incluye') or t.get('exclusiones', [])
+                                if exc:
+                                    st.markdown("<span style='color:red; font-weight:bold; font-size:12px;'>NO INCLUYE:</span>", unsafe_allow_html=True)
+                                    for item in exc: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;❌ <small>{item}</small>", unsafe_allow_html=True)
+        else:
+            st.info("No hay ventas con itinerarios digitales para auditar en esta lista.")
     else:
         st.info("No hay transacciones para auditar.")
 

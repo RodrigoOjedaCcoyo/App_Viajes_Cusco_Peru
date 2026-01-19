@@ -140,6 +140,48 @@ def registro_ventas_directa():
             st.session_state[f"val_tour_{id_itinerario_dig}"] = tour_nombre_cloud
             st.success(f"✅ Itinerario cargado: **{tour_nombre_cloud}**")
 
+            # --- 📊 RESUMEN VISUAL (ESTILO CONTABILIDAD + ITINERARIO) ---
+            with st.expander("👁️ Ver Resumen del Itinerario Seleccionado", expanded=True):
+                render = it_data.get('datos_render', {})
+                
+                # 1. Métricas de Precios (Estilo Contabilidad)
+                precios = render.get('precios', {})
+                p_col1, p_col2, p_col3 = st.columns(3)
+                p_col1.metric("Nacional", f"$ {precios.get('nacional', 0):,.2f}")
+                p_col2.metric("Extranjero", f"$ {precios.get('extranjero', 0):,.2f}")
+                p_col3.metric("Comunidad Andina", f"$ {precios.get('can', 0):,.2f}")
+                
+                st.divider()
+                
+                # 2. Línea de Tiempo del Programa (Estilo Imagen Itinerario)
+                tours = render.get('itinerario_detales', []) or render.get('days', [])
+                if not tours:
+                    st.info("No hay detalles de días en este itinerario.")
+                else:
+                    for i, t in enumerate(tours):
+                        col_icon, col_txt = st.columns([0.05, 0.95])
+                        col_icon.markdown("✅")
+                        with col_txt:
+                            # Título y Hora
+                            t_nom = (t.get('nombre') or t.get('titulo') or "Servicio").upper()
+                            t_hora = t.get('hora', '')
+                            st.markdown(f"**DIA {i+1}:** {f'({t_hora}) ' if t_hora else ''} **{t_nom}**")
+                            
+                            # Inclusiones/Exclusiones
+                            inc = t.get('incluye') or t.get('inclusiones', [])
+                            if inc:
+                                st.markdown("<span style='color:green; font-weight:bold; font-size:11px;'>INCLUYE:</span>", unsafe_allow_html=True)
+                                for item in inc: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;✔️ <small>{item}</small>", unsafe_allow_html=True)
+                            
+                            exc = t.get('no_incluye') or t.get('exclusiones', [])
+                            if exc:
+                                st.markdown("<span style='color:red; font-weight:bold; font-size:11px;'>NO INCLUYE:</span>", unsafe_allow_html=True)
+                                for item in exc: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;❌ <small>{item}</small>", unsafe_allow_html=True)
+                    
+                if it_data.get('url_pdf'):
+                    st.divider()
+                    st.markdown(f"🔗 [**Ver Itinerario PDF Original**]({it_data['url_pdf']})")
+
     # --- 📝 FORMULARIO DE REGISTRO ---
     with st.form("form_registro_venta"):
         col1, col2 = st.columns(2)

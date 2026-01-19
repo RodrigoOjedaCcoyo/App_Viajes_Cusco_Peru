@@ -147,6 +147,43 @@ def dashboard_tablero_diario(controller):
                 st.success(f"¡{cc} cambios guardados!")
                 st.rerun()
 
+        # --- 🔍 DETALLE VISUAL DEL ITINERARIO (ESTILO IMAGEN) ---
+        st.markdown("---")
+        st.subheader("🏁 Detalle de Inclusiones del Programa")
+        
+        # Seleccionar una venta para ver su itinerario completo si existe
+        ventas_unicas = df[['ID Venta', 'Cliente']].drop_duplicates()
+        if not ventas_unicas.empty:
+            sel_v = st.selectbox("Seleccione cliente para ver detalle de su programa:", 
+                                 ventas_unicas['ID Venta'].tolist(),
+                                 format_func=lambda x: f"{ventas_unicas[ventas_unicas['ID Venta']==x]['Cliente'].values[0]} (ID: {x})")
+            
+            # Obtener el ID del itinerario digital de esta venta
+            id_itin_sel = df[df['ID Venta'] == sel_v]['ID Itinerario'].dropna().unique()
+            
+            if len(id_itin_sel) > 0 and id_itin_sel[0]:
+                res_itin = controller.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin_sel[0]).single().execute()
+                if res_itin.data:
+                    render = res_itin.data['datos_render']
+                    tours = render.get('itinerario_detales', []) or render.get('days', [])
+                    
+                    with st.container(border=True):
+                        st.info(f"📋 **Plan de Viaje:** {render.get('titulo', 'General')}")
+                        for i, t in enumerate(tours):
+                            with st.expander(f"📍 DIA {i+1}: {(t.get('nombre') or t.get('titulo') or 'Servicio').upper()}", expanded=(i==0)):
+                                # Inclusiones/Exclusiones (Estilo Imagen)
+                                inc = t.get('incluye') or t.get('inclusiones', [])
+                                if inc:
+                                    st.markdown("<span style='color:green; font-weight:bold; font-size:12px;'>INCLUYE:</span>", unsafe_allow_html=True)
+                                    for item in inc: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;✔️ <small>{item}</small>", unsafe_allow_html=True)
+                                
+                                exc = t.get('no_incluye') or t.get('exclusiones', [])
+                                if exc:
+                                    st.markdown("<span style='color:red; font-weight:bold; font-size:12px;'>NO INCLUYE:</span>", unsafe_allow_html=True)
+                                    for item in exc: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;❌ <small>{item}</small>", unsafe_allow_html=True)
+            else:
+                st.warning("Esta venta no tiene un itinerario digital vinculado.")
+
 def generar_mensaje_whatsapp(data):
     """Genera un link de WhatsApp con el mensaje formateado."""
     mensaje = (
@@ -283,8 +320,87 @@ def registro_ventas_proveedores(supabase_client):
             else: st.error(msg)
 
 
+def reporte_operativo(controller):
+    """
+    Vista global de operaciones (Dashboard + Detalle).
+    Similar al Reporte de Montos de Contabilidad.
+    """
+    st.subheader("📊 Reporte Operativo Global", divider='blue')
+    
+    # 1. Dashboard de Analítica (Top)
+    from vistas.dashboard_analytics import render_operations_dashboard
+    df_ops = controller.get_data_for_analytics()
+    render_operations_dashboard(df_ops)
+    
+    st.divider()
+    
+    # 2. Detalle de Operaciones (Auditoría)
+    st.write("### 📋 Detalle de Servicios Programados")
+    # Traer todos los servicios (no solo los de un día)
+    todos_servicios = controller.get_servicios_rango_fechas(date.today() - timedelta(days=30), date.today() + timedelta(days=60))
+    
+    if not todos_servicios:
+        st.info("No hay servicios registrados en el rango de tiempo seleccionado.")
+    else:
+        df_all = pd.DataFrame(todos_servicios)
+        st.dataframe(
+            df_all,
+            column_order=("Fecha", "Servicio", "Pax", "Cliente", "Guía", "Estado Pago"),
+            column_config={
+                "Fecha": st.column_config.DateColumn("Fecha"),
+                "Estado Pago": st.column_config.TextColumn("Pago")
+            },
+            hide_index=True,
+            use_container_width=True
+        )
+        
+        # 3. Vista Previa de Itinerario (Estilo Imagen)
+        st.markdown("---")
+        st.subheader("🏁 Verificador de Inclusiones (Itinerario)")
+        
+        ventas_con_itin = df_all[df_all['ID Itinerario'].notna()]
+        if not ventas_con_itin.empty:
+            sel_id_v = st.selectbox("Auditar Itinerario de la Venta:", 
+                                  ventas_con_itin['ID Venta'].unique(),
+                                  key="sb_ops_audit_it")
+            
+            # Reutilizar lógica de detalle visual
+            id_it_audit = df_all[df_all['ID Venta'] == sel_id_v]['ID Itinerario'].dropna().unique()[0]
+            
+            res = controller.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_it_audit).single().execute()
+            if res.data:
+                render = res.data['datos_render']
+                tours = render.get('itinerario_detales', []) or render.get('days', [])
+                with st.container(border=True):
+                    st.success(f"📍 **ITINERARIO:** {render.get('titulo', 'General').upper()}")
+                    for i, t in enumerate(tours):
+                        # Intentar obtener fecha si existe en el render
+                        dia_label = f"DIA {i+1}"
+                        if t.get('fecha'): dia_label = f"DIA: {t['fecha']}"
+                        
+                        st.markdown(f"**{dia_label}**")
+                        
+                        # Servicio y Hora (Estilo Imagen)
+                        t_nom = (t.get('nombre') or t.get('titulo') or "Servicio").upper()
+                        t_hora = t.get('hora', '')
+                        st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;✅ **{f'{t_hora} ' if t_hora else ''}{t_nom}**")
+                        
+                        # Inclusiones (Header Verde, Icono Check)
+                        inc = t.get('incluye') or t.get('inclusiones', [])
+                        if inc:
+                            st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;<span style='color:#2E7D32; font-weight:bold; font-size:12px;'>INCLUYE:</span>", unsafe_allow_html=True)
+                            for item in inc: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;✔️ <small>{item.upper()}</small>", unsafe_allow_html=True)
+                        
+                        # Exclusiones (Header Verde, Icono X Roja)
+                        exc = t.get('no_incluye') or t.get('exclusiones', [])
+                        if exc:
+                            st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;<span style='color:#2E7D32; font-weight:bold; font-size:12px;'>NO INCLUYE:</span>", unsafe_allow_html=True)
+                            for item in exc: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;❌ <small>{item.upper()}</small>", unsafe_allow_html=True)
+                        
+                        st.write("") # Espacio entre días
+
 def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
-    """Punto de entrada de Streamlit."""
+    """Punto de entrada de Streamlit para el área de Operaciones."""
     controller = OperacionesController(supabase_client)
     
     st.title("⚙️ Gestión de Operaciones")
@@ -293,7 +409,7 @@ def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
     if nombre_modulo == "Gestión de Registros":
         tab1, tab2, tab3 = st.tabs([
             "📝 Registro de Requerimientos", 
-            "📊 Estructurador de Costos",
+            "📊 Estructurador de Gastos",
             "🤝 Ventas de Proveedores (B2B)"
         ])
         
@@ -305,8 +421,13 @@ def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
             
         with tab3:
             registro_ventas_proveedores(supabase_client)
+            
+    elif nombre_modulo == "Dashboard Diario":
+        dashboard_tablero_diario(controller)
+    elif nombre_modulo == "Reporte Operativo":
+        reporte_operativo(controller)
     else:
-        st.info("Utilice el Dashboard Operativo para ver el estado de la logística.")
+        st.info("Seleccione una opción válida del menú lateral.")
 
 
 def dashboard_simulador_costos(controller):

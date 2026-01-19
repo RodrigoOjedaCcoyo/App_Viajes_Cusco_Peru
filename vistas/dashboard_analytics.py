@@ -41,26 +41,49 @@ def render_sales_dashboard(df_ventas):
             st.plotly_chart(fig_tour, use_container_width=True)
 
 def render_operations_dashboard(df_servicios):
-    """Genera el Dashboard Operativo."""
+    """Genera el Dashboard Operativo Profesional."""
     if df_servicios.empty:
-        st.info("No hay servicios operativos registrados.")
+        st.info("No hay servicios operativos registrados para el periodo.")
         return
 
-    # KPIs
-    k1, k2 = st.columns(2)
-    pax_total = df_servicios['cantidad_pasajeros'].sum() if 'cantidad_pasajeros' in df_servicios.columns else 0
-    servicios_p = len(df_servicios)
-    
-    k1.metric("Total Pasajeros (Proyección)", pax_total)
-    k2.metric("Total Servicios Logísticos", servicios_p)
-    
-    # Timeline
-    st.subheader("Densidad Operativa (Timeline)")
+    # Convertir fecha si es necesario
     if 'fecha_servicio' in df_servicios.columns:
         df_servicios['fecha_servicio'] = pd.to_datetime(df_servicios['fecha_servicio'])
+
+    # KPIs Logísticos
+    k1, k2, k3 = st.columns(3)
+    pax_total = df_servicios['cantidad_pasajeros'].sum() if 'cantidad_pasajeros' in df_servicios.columns else len(df_servicios)
+    servicios_total = len(df_servicios)
+    
+    # Simulación de guías asignados (para la métrica)
+    asignados = 0 # En un futuro se contaría desde la tabla asignación
+    
+    k1.metric("Pax en Ruta (Proyectados)", pax_total, delta="Personas")
+    k2.metric("Servicios Totales", servicios_total, delta="Logística")
+    k3.metric("Complejidad de Operación", f"{max(1, servicios_total//2)} Niv.", delta="Estimado")
+    
+    # Gráficos de Operación
+    c1, c2 = st.columns(2)
+    
+    with c1:
+        st.markdown("**📉 Volumen de Pasajeros por Fecha**")
         ops_by_date = df_servicios.groupby('fecha_servicio').size().reset_index(name='servicios')
-        fig_timeline = px.line(ops_by_date, x='fecha_servicio', y='servicios', markers=True, title="Servicios por Día")
+        fig_timeline = px.area(ops_by_date, x='fecha_servicio', y='servicios', 
+                               markers=True, title="Carga de Trabajo Diaria",
+                               color_discrete_sequence=['#4CAF50'])
         st.plotly_chart(fig_timeline, use_container_width=True)
+        
+    with c2:
+        st.markdown("**📊 Mix de Servicios (Tours)**")
+        # Priorizar observaciones o catálogo
+        col_servicio = 'observaciones' if 'observaciones' in df_servicios.columns else 'id_tour'
+        if col_servicio in df_servicios.columns:
+            tour_counts = df_servicios[col_servicio].value_counts().reset_index()
+            tour_counts.columns = ['Tour', 'Frecuencia']
+            fig_pie = px.pie(tour_counts.head(5), values='Frecuencia', names='Tour', 
+                             title="Top 5 Tours Programados",
+                             hole=.4)
+            st.plotly_chart(fig_pie, use_container_width=True)
 
 def render_financial_dashboard(df_ventas, df_gastos_op=None):
     """Genera el Dashboard Financiero (Liquidación)."""
