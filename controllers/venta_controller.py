@@ -169,10 +169,17 @@ class VentaController:
             return []
 
     def obtener_ventas_agencia(self, id_agencia: int) -> list:
-        """Obtiene las ventas vinculadas a una agencia aliada específica."""
+        """Obtiene las ventas vinculadas a una agencia aliada específica con nombre de cliente."""
         try:
-            res = self.client.table('venta').select('*').eq('id_agencia_aliada', id_agencia).order('fecha_venta', desc=True).execute()
-            return res.data or []
+            # Join con cliente para obtener el nombre
+            res = self.client.table('venta').select('*, cliente(nombre)').eq('id_agencia_aliada', id_agencia).order('fecha_venta', desc=True).execute()
+            
+            # Aplanar el resultado para que 'nombre_cliente' esté al primer nivel
+            data = []
+            for v in (res.data or []):
+                v['nombre_cliente'] = v.get('cliente', {}).get('nombre', 'Desconocido')
+                data.append(v)
+            return data
         except Exception as e:
             print(f"Error obteniendo ventas de agencia: {e}")
             return []
