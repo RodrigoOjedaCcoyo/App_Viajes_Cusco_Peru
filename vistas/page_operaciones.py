@@ -311,24 +311,24 @@ def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
 
 def dashboard_simulador_costos(controller):
     """
-    Herramienta para estructurar costos de un paquete.
-    Permite editar fecha, servicio, costos unitarios y calcula totales.
+    Herramienta para estructurar gastos de operaciones.
+    Registro de gastos con distinción de moneda (PEN/USD).
     """
-    st.subheader("Estructurador de Costos Operativos", divider='rainbow')
+    st.subheader("📊 Estructurador de Gastos (Multimoneda)", divider='rainbow')
 
     if 'simulador_data' not in st.session_state:
-        # Datos iniciales vacíos con la estructura requerida
+        # Datos iniciales vacíos con la estructura multimoneda
         st.session_state['simulador_data'] = [
-            {"FECHA": date.today(), "SERVICIO": "Servicio Ejemplo", "COSTO UNITARIO": 0.0, "COSTO TOTAL": 0.0},
+            {"FECHA": date.today(), "SERVICIO": "Servicio Ejemplo", "MONEDA": "PEN", "TOTAL": 0.0},
         ]
 
     # Barra de herramientas superior
-    c1, c2, c3 = st.columns([2, 1, 1])
+    c1, c2 = st.columns([3, 1])
     with c1:
-        st.info("💡 Edita las celdas directamente. Añade filas con el botón '+'.")
+        st.info("💡 Ingresa los gastos. El sistema separará automáticamente Soles y Dólares.")
     with c2:
-        if st.button("🗑️ Limpiar Todo", use_container_width=True):
-            st.session_state['simulador_data'] = [{"FECHA": date.today(), "SERVICIO": "", "COSTO UNITARIO": 0.0, "COSTO TOTAL": 0.0}]
+        if st.button("🗑️ Limpiar Tabla", use_container_width=True, key="btn_clear_ops_sim"):
+            st.session_state['simulador_data'] = [{"FECHA": date.today(), "SERVICIO": "", "MONEDA": "PEN", "TOTAL": 0.0}]
             st.rerun()
 
     # Data Editor (El "Excel")
@@ -338,8 +338,8 @@ def dashboard_simulador_costos(controller):
     column_config = {
         "FECHA": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY", required=True),
         "SERVICIO": st.column_config.TextColumn("Descripción del Servicio", required=True, width="large"),
-        "COSTO UNITARIO": st.column_config.NumberColumn("Costo Unitario ($)", format="$ %.2f", min_value=0.0),
-        "COSTO TOTAL": st.column_config.NumberColumn("Costo Total ($)", format="$ %.2f", min_value=0.0, disabled=False) # Editable si desean override
+        "MONEDA": st.column_config.SelectboxColumn("Moneda", options=["PEN", "USD"], required=True, width="small"),
+        "TOTAL": st.column_config.NumberColumn("Total", format="%.2f", min_value=0.0)
     }
 
     edited_df = st.data_editor(
@@ -348,27 +348,22 @@ def dashboard_simulador_costos(controller):
         num_rows="dynamic",
         use_container_width=True,
         hide_index=True,
-        key="editor_simulador"
+        key="editor_simulador_ops"
     )
 
-    # Lógica de Actualización y Cálculos en tiempo real
-    total_paquete = edited_df['COSTO TOTAL'].sum()
+    # Cálculos por Moneda
+    total_pen = edited_df[edited_df['MONEDA'] == 'PEN']['TOTAL'].sum()
+    total_usd = edited_df[edited_df['MONEDA'] == 'USD']['TOTAL'].sum()
 
     # Actualizar estado para persistencia en sesión
     st.session_state['simulador_data'] = edited_df.to_dict('records')
 
     st.divider()
     
-    # Métricas Finales
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Costo Total Operativo", f"$ {total_paquete:,.2f}")
-    
-    # Utilidad Estimada
-    precio_venta = m2.number_input("Precio de Venta Sugerido ($)", min_value=0.0, value=total_paquete * 1.3)
-    utilidad = precio_venta - total_paquete
-    margen = (utilidad / precio_venta * 100) if precio_venta > 0 else 0
-    
-    m3.metric("Utilidad Estimada", f"$ {utilidad:,.2f}", delta=f"{margen:.1f}%")
+    # Mostrar Totales
+    col_pen, col_usd = st.columns(2)
+    col_pen.metric("Total Soles (PEN)", f"S/. {total_pen:,.2f}")
+    col_usd.metric("Total Dólares (USD)", f"$ {total_usd:,.2f}")
 
     # Opción de Exportar
     if st.button("📥 Exportar a CSV"):
@@ -376,6 +371,6 @@ def dashboard_simulador_costos(controller):
         st.download_button(
             label="Descargar CSV",
             data=csv,
-            file_name=f"estructura_costos_{date.today()}.csv",
+            file_name=f"estructura_gastos_ops_{date.today()}.csv",
             mime='text/csv',
         )

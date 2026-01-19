@@ -1,26 +1,29 @@
 -- ==============================================================
--- SETUP TOTAL (SIMPLIFICADO): APP VIAJES CUSCO PERÚ
+-- SETUP TOTAL (PULIDO Y BLINDADO): APP VIAJES CUSCO PERÚ
 -- ==============================================================
 -- Instrucciones: 
 -- 1. Borra todas las tablas actuales (DROP SCHEMA public CASCADE; CREATE SCHEMA public;)
 -- 2. Pega este código completo en el SQL Editor de Supabase y correlo.
 -- ==============================================================
 
+-- 0. EXTENSIONES (Necesaria para UUIDs)
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 -- --------------------------------------------------------------
 -- 1. DEFINICIÓN DE TABLAS
 -- --------------------------------------------------------------
 
--- ACCESO Y ROLES (Basado en Email)
+-- ACCESO Y ROLES (Sincronizado con main.py)
 CREATE TABLE usuarios_app (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
-    rol VARCHAR(50) NOT NULL -- 'VENTAS', 'OPERACIONES', 'CONTABLE', 'GERENCIA'
+    rol VARCHAR(50) NOT NULL -- 'VENTAS', 'OPERACIONES', 'CONTABILIDAD', 'GERENCIA'
 );
 
 -- NÚCLEO COMERCIAL
 CREATE TABLE vendedor (
     id_vendedor SERIAL PRIMARY KEY,
-    nombre VARCHAR(100) NOT NULL,
+    nombre VARCHAR(100) UNIQUE NOT NULL, -- Blindado contra duplicados
     email VARCHAR(100), -- Informativo
     estado VARCHAR(20) DEFAULT 'ACTIVO'
 );
@@ -55,9 +58,9 @@ CREATE TABLE tour (
     descripcion TEXT,
     duracion_horas INTEGER,
     precio_base_usd DECIMAL(10,2),
-    highlights JSONB,
-    servicios_incluidos JSONB,
-    servicios_no_incluidos JSONB,
+    highlights JSONB DEFAULT '[]'::jsonb,
+    servicios_incluidos JSONB DEFAULT '[]'::jsonb,
+    servicios_no_incluidos JSONB DEFAULT '[]'::jsonb,
     precio_nacional DECIMAL(10,2),
     carpeta_img TEXT
 );
@@ -87,14 +90,14 @@ CREATE TABLE itinerario_digital (
     id_lead INTEGER REFERENCES lead(id_lead) ON DELETE SET NULL,
     id_vendedor INTEGER REFERENCES vendedor(id_vendedor),
     nombre_pasajero_itinerario VARCHAR(255),
-    datos_render JSONB,
+    datos_render JSONB DEFAULT '{}'::jsonb,
     fecha_generacion TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     url_pdf TEXT
 );
 
 CREATE TABLE catalogo_tours_imagenes (
     id_tour INTEGER REFERENCES tour(id_tour) PRIMARY KEY,
-    urls_imagenes JSONB
+    urls_imagenes JSONB DEFAULT '[]'::jsonb
 );
 
 -- VENTAS Y PAGOS
@@ -111,7 +114,8 @@ CREATE TABLE venta (
     estado_venta VARCHAR(50) DEFAULT 'CONFIRMADO',
     tour_nombre VARCHAR(255),
     url_itinerario TEXT,
-    url_comprobante_pago TEXT
+    url_comprobante_pago TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE venta_tour (
@@ -136,7 +140,8 @@ CREATE TABLE pago (
     metodo_pago VARCHAR(50),
     tipo_pago VARCHAR(50),
     observacion TEXT,
-    url_comprobante TEXT
+    url_comprobante TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- OPERACIONES
@@ -187,7 +192,15 @@ CREATE TABLE requerimiento (
 );
 
 -- --------------------------------------------------------------
--- 2. DATOS INICIALES (SEMILLAS)
+-- 2. ÍNDICES DE VELOCIDAD (MEJORA DE PERFORMANCE)
+-- --------------------------------------------------------------
+CREATE INDEX IF NOT EXISTS idx_lead_celular ON lead(numero_celular);
+CREATE INDEX IF NOT EXISTS idx_itinerary_search ON itinerario_digital(nombre_pasajero_itinerario);
+CREATE INDEX IF NOT EXISTS idx_cliente_nombre ON cliente(nombre);
+CREATE INDEX IF NOT EXISTS idx_venta_fecha ON venta(fecha_venta);
+
+-- --------------------------------------------------------------
+-- 3. DATOS INICIALES (SEMILLAS)
 -- --------------------------------------------------------------
 
 -- Configura aquí tu cuenta general/maestra
@@ -219,7 +232,7 @@ INSERT INTO guia (nombre, idioma, telefono) VALUES
 ('María Guide', 'Inglés/Francés', '912345678');
 
 -- --------------------------------------------------------------
--- 3. SEGURIDAD Y PERMISOS (BÁSICO PARA TEST)
+-- 4. SEGURIDAD Y PERMISOS (BÁSICO PARA TEST)
 -- --------------------------------------------------------------
 
 -- Habilitar RLS en todas las tablas
@@ -235,7 +248,7 @@ BEGIN
 END $$;
 
 -- --------------------------------------------------------------
--- 4. STORAGE RLS (POLITICAS)
+-- 5. STORAGE RLS (POLITICAS)
 -- --------------------------------------------------------------
 -- Asegurarse de que los buckets 'itinerarios' y 'vouchers' existan en la UI de Supabase
 
