@@ -459,106 +459,115 @@ def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
 
 def dashboard_simulador_costos(controller):
     """
-    Herramienta para estructurar gastos de operaciones.
-    Registro de gastos con distinción de moneda (PEN/USD).
+    Herramienta avanzada para estructurar liquidaciones de grupos/B2B.
+    Basado en estructura de Excel (Unitario x Pax = Total).
     """
-    st.subheader("📊 Estructurador de Gastos (Multimoneda)", divider='rainbow')
+    st.subheader("📊 Estructurador de Liquidación Profesional", divider='rainbow')
 
     if 'simulador_data' not in st.session_state:
-        # Datos iniciales vacíos con la estructura multimoneda
         st.session_state['simulador_data'] = [
-            {"FECHA": date.today(), "SERVICIO": "Servicio Ejemplo", "MONEDA": "PEN", "TOTAL": 0.0},
+            {"FECHA": date.today(), "SERVICIO": "Servicio Ejemplo", "UNITARIO": 0.0, "TOTAL": 0.0},
         ]
-
-    # Barra de herramientas superior
-    c1, c2, c3 = st.columns([2, 1, 1])
-    with c1:
-        st.info("💡 Ingresa los gastos. El sistema separará automáticamente Soles y Dólares.")
     
-    with c2:
-        # Instanciar VentaController para obtener agencias
+    if 'liq_pax_total' not in st.session_state:
+        st.session_state['liq_pax_total'] = 1
+    if 'liq_precio_pax' not in st.session_state:
+        st.session_state['liq_precio_pax'] = 0.0
+
+    # --- PANEL LATERAL DE RESUMEN (INGRESOS vs COSTOS) ---
+    col_main, col_summary = st.columns([3, 1])
+
+    with col_summary:
+        st.markdown("### 📝 Resumen Liquidación")
+        with st.container(border=True):
+            pax_total = st.number_input("TOTAL PAXS", min_value=1, value=st.session_state['liq_pax_total'], key="in_pax_total")
+            precio_pax = st.number_input("COBRO POR PAX ($)", min_value=0.0, value=st.session_state['liq_precio_pax'], format="%.2f", key="in_precio_pax")
+            
+            st.session_state['liq_pax_total'] = pax_total
+            st.session_state['liq_precio_pax'] = precio_pax
+            
+            total_ingreso = pax_total * precio_pax
+            
+            st.metric("TOTAL INGRESO", f"$ {total_ingreso:,.2f}")
+            
+            # Botones de Acción
+            if st.button("🗑️ Limpiar Todo", use_container_width=True, key="btn_clear_ops_sim"):
+                st.session_state['simulador_data'] = [{"FECHA": date.today(), "SERVICIO": "", "UNITARIO": 0.0, "TOTAL": 0.0}]
+                st.session_state['liq_precio_pax'] = 0.0
+                st.rerun()
+
+    with col_main:
+        st.info("💡 Consejo: Selecciona una agencia arriba para cargar sus datos y luego ajusta los costos unitarios.")
+        
+        # Barra de Agencias (Existente)
         from controllers.venta_controller import VentaController
         vc = VentaController(controller.client)
         agencias = vc.obtener_agencias_aliadas()
         nombres_agencias = [a['nombre'] for a in agencias]
         mapa_agencias = {a['nombre']: a['id_agencia'] for a in agencias}
         
-        agencia_sel = st.selectbox("1. Seleccionar Agencia:", ["--- Seleccione ---"] + nombres_agencias, key="sel_agencia_sim")
+        c_age, c_pax = st.columns(2)
+        with c_age:
+            agencia_sel = st.selectbox("1. Filtrar por Agencia:", ["--- Seleccione ---"] + nombres_agencias, key="sel_agencia_sim")
         
         if agencia_sel != "--- Seleccione ---":
             id_ag = mapa_agencias.get(agencia_sel)
             ventas_age = vc.obtener_ventas_agencia(id_ag)
             
             if ventas_age:
-                # Crear opciones para el selector de pasajeros
-                # Formato: "Nombre Cliente | Tour (ID)"
                 opciones_pax = [f"{v['nombre_cliente']} | {v.get('tour_nombre', 'Sin Tour')} ({v['id_venta']})" for v in ventas_age]
                 mapa_ventas_pax = {f"{v['nombre_cliente']} | {v.get('tour_nombre', 'Sin Tour')} ({v['id_venta']})": v for v in ventas_age}
-                
-                pax_sel = st.selectbox("2. Seleccionar Pasajero (Venta):", ["--- Seleccione ---"] + opciones_pax, key="sel_pax_sim")
+                with c_pax:
+                    pax_sel = st.selectbox("2. Cargar Venta específica:", ["--- Seleccione ---"] + opciones_pax, key="sel_pax_sim")
                 
                 if pax_sel != "--- Seleccione ---":
-                    if st.button(f"📥 Cargar Venta de {pax_sel.split('|')[0].strip()}", use_container_width=True):
+                    if st.button(f"📥 Cargar Datos de {pax_sel.split('|')[0].strip()}", use_container_width=True):
                         v = mapa_ventas_pax.get(pax_sel)
-                        
-                        nuevo_item = {
-                            "FECHA": date.fromisoformat(v['fecha_venta']) if v.get('fecha_venta') else date.today(),
-                            "SERVICIO": f"INGRESO B2B: {v['nombre_cliente']}",
-                            "MONEDA": "USD",
-                            "TOTAL": float(v.get('precio_total_cierre') or 0)
-                        }
-                        
-                        st.session_state['simulador_data'].append(nuevo_item)
-                        st.success("Venta cargada. Ahora añade los gastos debajo.")
+                        # Al cargar una venta, seteamos el precio por pax automáticamente si es posible
+                        # (monto_total / 1 pax asumido si no hay columna cant_pax clara)
+                        st.session_state['liq_precio_pax'] = float(v.get('precio_total_cierre') or 0)
+                        st.session_state['simulador_data'] = [
+                            {"FECHA": date.fromisoformat(v['fecha_venta']) if v.get('fecha_venta') else date.today(), 
+                             "SERVICIO": f"INGRESO B2B: {v['nombre_cliente']}", "UNITARIO": 0.0, "TOTAL": 0.0}
+                        ]
                         st.rerun()
-            else:
-                st.warning("Esta agencia no tiene ventas registradas.")
 
-    with c3:
-        if st.button("🗑️ Limpiar Tabla", use_container_width=True, key="btn_clear_ops_sim"):
-            st.session_state['simulador_data'] = [{"FECHA": date.today(), "SERVICIO": "", "MONEDA": "PEN", "TOTAL": 0.0}]
-            st.rerun()
+        # Data Editor (El "Excel")
+        df = pd.DataFrame(st.session_state['simulador_data'])
+        
+        # Lógica de cálculo automático: Total = Unitario * Pax_Total
+        if not df.empty and 'UNITARIO' in df.columns:
+            df['TOTAL'] = df['UNITARIO'] * pax_total
 
-    # Data Editor (El "Excel")
-    df = pd.DataFrame(st.session_state['simulador_data'])
-    
-    # Configuración de columnas
-    column_config = {
-        "FECHA": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY", required=True),
-        "SERVICIO": st.column_config.TextColumn("Descripción del Servicio", required=True, width="large"),
-        "MONEDA": st.column_config.SelectboxColumn("Moneda", options=["PEN", "USD"], required=True, width="small"),
-        "TOTAL": st.column_config.NumberColumn("Total", format="%.2f", min_value=0.0)
-    }
+        column_config = {
+            "FECHA": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY", required=True),
+            "SERVICIO": st.column_config.TextColumn("Servicio / Gasto", required=True, width="large"),
+            "UNITARIO": st.column_config.NumberColumn("Costo Unitario ($)", format="%.2f", min_value=0.0, width="medium"),
+            "TOTAL": st.column_config.NumberColumn("Costo Total ($)", format="%.2f", min_value=0.0, disabled=True, width="medium")
+        }
 
-    edited_df = st.data_editor(
-        df,
-        column_config=column_config,
-        num_rows="dynamic",
-        use_container_width=True,
-        hide_index=True,
-        key="editor_simulador_ops"
-    )
-
-    # Cálculos por Moneda
-    total_pen = edited_df[edited_df['MONEDA'] == 'PEN']['TOTAL'].sum()
-    total_usd = edited_df[edited_df['MONEDA'] == 'USD']['TOTAL'].sum()
-
-    # Actualizar estado para persistencia en sesión
-    st.session_state['simulador_data'] = edited_df.to_dict('records')
-
-    st.divider()
-    
-    # Mostrar Totales
-    col_pen, col_usd = st.columns(2)
-    col_pen.metric("Total Soles (PEN)", f"S/. {float(total_pen or 0):,.2f}")
-    col_usd.metric("Total Dólares (USD)", f"$ {float(total_usd or 0):,.2f}")
-
-    # Opción de Exportar
-    if st.button("📥 Exportar a CSV"):
-        csv = edited_df.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="Descargar CSV",
-            data=csv,
-            file_name=f"estructura_gastos_ops_{date.today()}.csv",
-            mime='text/csv',
+        edited_df = st.data_editor(
+            df,
+            column_config=column_config,
+            num_rows="dynamic",
+            use_container_width=True,
+            hide_index=True,
+            key="editor_simulador_ops"
         )
+
+        st.session_state['simulador_data'] = edited_df.to_dict('records')
+
+        # Totales Finales
+        total_costos = edited_df['TOTAL'].sum()
+        utilidad = total_ingreso - total_costos
+        margen = (utilidad / total_ingreso * 100) if total_ingreso > 0 else 0
+
+        st.divider()
+        sc1, sc2, sc3 = st.columns(3)
+        sc1.metric("COSTO TOTAL GRUPO", f"$ {total_costos:,.2f}", delta_color="inverse")
+        sc2.metric("UTILIDAD NETA", f"$ {utilidad:,.2f}")
+        sc3.metric("MARGEN %", f"{margen:.1f}%")
+
+        if st.button("📥 Exportar Liquidación (CSV)"):
+            csv = edited_df.to_csv(index=False).encode('utf-8')
+            st.download_button("Descargar CSV", csv, f"liquidacion_{date.today()}.csv", "text/csv")
