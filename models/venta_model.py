@@ -58,9 +58,9 @@ class VentaModel(BaseModel):
             "pais": "Desconocido", 
             "genero": "N/A"
         }
-        res_insert = self.client.table('cliente').insert(nuevo_cliente).select('id_cliente').execute()
-        if res_insert.data:
-            return res_insert.data[0]['id_cliente']
+        res_insert = self.client.table('cliente').insert(nuevo_cliente).execute()
+        if res_insert.data and len(res_insert.data) > 0:
+            return res_insert.data[0].get('id_cliente')
         else:
             raise Exception("Supabase no devolvió el ID del cliente creado")
 
