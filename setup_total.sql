@@ -1,22 +1,27 @@
 -- ==============================================================
--- SETUP TOTAL: APP VIAJES CUSCO PERÚ (PRODUCCIÓN/TEST)
--- Pegar este código en el SQL Editor de Supabase
+-- SETUP TOTAL (SIMPLIFICADO): APP VIAJES CUSCO PERÚ
+-- ==============================================================
+-- Instrucciones: 
+-- 1. Borra todas las tablas actuales (DROP SCHEMA public CASCADE; CREATE SCHEMA public;)
+-- 2. Pega este código completo en el SQL Editor de Supabase y correlo.
 -- ==============================================================
 
 -- --------------------------------------------------------------
--- 1. LIMPIEZA DE TABLAS (OPCIONAL - USAR CON CUIDADO)
+-- 1. DEFINICIÓN DE TABLAS
 -- --------------------------------------------------------------
--- DROP TABLE IF EXISTS requerimiento, asignacion_guia, guia, documentacion, pasajero, pago, venta_tour, venta, catalogo_tours_imagenes, itinerario_digital, paquete_tour, paquete, tour, lead, vendedor_mapeo, operador_mapeo, contador_mapeo, gerente_mapeo, vendedor, cliente CASCADE;
 
--- --------------------------------------------------------------
--- 2. DEFINICIÓN DE TABLAS
--- --------------------------------------------------------------
+-- ACCESO Y ROLES (Basado en Email)
+CREATE TABLE usuarios_app (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    rol VARCHAR(50) NOT NULL -- 'VENTAS', 'OPERACIONES', 'CONTABLE', 'GERENCIA'
+);
 
 -- NÚCLEO COMERCIAL
 CREATE TABLE vendedor (
     id_vendedor SERIAL PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
-    email VARCHAR(100) UNIQUE,
+    email VARCHAR(100), -- Informativo
     estado VARCHAR(20) DEFAULT 'ACTIVO'
 );
 
@@ -172,43 +177,33 @@ CREATE TABLE requerimiento (
     fecha_solicitud TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- TABLA DE ACCESO UNIFICADA (Sin UUIDs técnicos)
-CREATE TABLE usuarios_app (
-    id SERIAL PRIMARY KEY,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    rol VARCHAR(50) NOT NULL -- 'VENTAS', 'OPERACIONES', 'CONTABLE', 'GERENCIA'
-);
-
 -- --------------------------------------------------------------
--- 3. DATOS INICIALES (SEMILLAS DE PRUEBA)
+-- 2. DATOS INICIALES (SEMILLAS)
 -- --------------------------------------------------------------
 
--- Usuarios de Acceso
+-- Configura aquí tu cuenta general/maestra
 INSERT INTO usuarios_app (email, rol) VALUES 
-('angel@agencia.com', 'VENTAS'),
-('abel@agencia.com', 'VENTAS');
+('TU_CORREO_MAESTRO@gmail.com', 'GERENCIA'); -- REEMPLAZAR CON TU EMAIL REAL
 
--- Vendedores
+-- Usuarios de Acceso (Los que inician sesión)
+INSERT INTO usuarios_app (email, rol) VALUES 
+('ventas@agencia.com', 'VENTAS'),
+('operaciones@agencia.com', 'OPERACIONES'),
+('contabilidad@agencia.com', 'CONTABILIDAD'),
+('gerencia@agencia.com', 'GERENCIA');
+
+-- Vendedores (Nombres para las listas desplegables)
 INSERT INTO vendedor (nombre, email) VALUES 
-('Angel Vendedor', 'angel@agencia.com'),
-('Abel Vendedor', 'abel@agencia.com');
+('Angel', 'angel@agencia.com'),
+('Abel', 'abel@agencia.com'),
+('Admin', 'admin@agencia.com');
+('Admin', 'admin@agencia.com');
 
--- Catálogo de Tours
+-- Tours Básicos
 INSERT INTO tour (nombre, descripcion, duracion_horas, precio_base_usd) VALUES 
 ('Machu Picchu Full Day', 'Visita a la ciudadela inca', 15, 250.00),
 ('City Tour Cusco', 'Catedral, Qoricancha y ruinas aledañas', 5, 20.00),
-('Valle Sagrado VIP', 'Pisac, Ollantaytambo y Chinchero con almuerzo', 10, 50.00),
-('Montaña de Colores', 'Trekking a Vinicunca', 12, 40.00),
-('Laguna Humantay', 'Trekking a la laguna turquesa', 12, 45.00);
-
--- Paquetes
-INSERT INTO paquete (nombre, descripcion, dias, noches, precio_sugerido) VALUES
-('Cusco Clásico 4D/3N', 'Machu Picchu + Valle Sagrado + City Tour', 4, 3, 450.00);
-
--- Catálogo de Imágenes (URLs de ejemplo)
-INSERT INTO catalogo_tours_imagenes (id_tour, urls_imagenes) VALUES 
-(1, '["https://images.unsplash.com/photo-1587595431973-160d0d94add1"]'),
-(2, '["https://images.unsplash.com/photo-1526392060635-9d6019884377"]');
+('Valle Sagrado VIP', 'Pisac, Ollantaytambo y Chinchero', 10, 50.00);
 
 -- Guías
 INSERT INTO guia (nombre, idioma, telefono) VALUES 
@@ -216,67 +211,28 @@ INSERT INTO guia (nombre, idioma, telefono) VALUES
 ('María Guide', 'Inglés/Francés', '912345678');
 
 -- --------------------------------------------------------------
--- 4. CONFIGURACIÓN DE SEGURIDAD (RLS)
+-- 3. SEGURIDAD Y PERMISOS (BÁSICO PARA TEST)
 -- --------------------------------------------------------------
 
 -- Habilitar RLS en todas las tablas
-ALTER TABLE vendedor ENABLE ROW LEVEL SECURITY;
-ALTER TABLE cliente ENABLE ROW LEVEL SECURITY;
-ALTER TABLE lead ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tour ENABLE ROW LEVEL SECURITY;
-ALTER TABLE paquete ENABLE ROW LEVEL SECURITY;
-ALTER TABLE paquete_tour ENABLE ROW LEVEL SECURITY;
-ALTER TABLE itinerario_digital ENABLE ROW LEVEL SECURITY;
-ALTER TABLE catalogo_tours_imagenes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE venta ENABLE ROW LEVEL SECURITY;
-ALTER TABLE venta_tour ENABLE ROW LEVEL SECURITY;
-ALTER TABLE pago ENABLE ROW LEVEL SECURITY;
-ALTER TABLE pasajero ENABLE ROW LEVEL SECURITY;
-ALTER TABLE documentacion ENABLE ROW LEVEL SECURITY;
-ALTER TABLE guia ENABLE ROW LEVEL SECURITY;
-ALTER TABLE asignacion_guia ENABLE ROW LEVEL SECURITY;
-ALTER TABLE requerimiento ENABLE ROW LEVEL SECURITY;
-ALTER TABLE vendedor_mapeo ENABLE ROW LEVEL SECURITY;
-ALTER TABLE operador_mapeo ENABLE ROW LEVEL SECURITY;
-ALTER TABLE contador_mapeo ENABLE ROW LEVEL SECURITY;
-ALTER TABLE gerente_mapeo ENABLE ROW LEVEL SECURITY;
-
--- Crear política de acceso total para pruebas (ANON y AUTHENTICATED)
--- NOTA: En producción real, estas políticas deben ser más restrictivas.
 DO $$ 
 DECLARE 
     t text;
 BEGIN
-    FOR t IN 
-        SELECT table_name 
-        FROM information_schema.tables 
-        WHERE table_schema = 'public' 
+    FOR t IN SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' 
     LOOP
-        EXECUTE format('CREATE POLICY "Acceso total para pruebas" ON %I FOR ALL USING (true) WITH CHECK (true);', t);
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY;', t);
+        EXECUTE format('CREATE POLICY "Acceso total" ON %I FOR ALL USING (true) WITH CHECK (true);', t);
     END LOOP;
 END $$;
 
 -- --------------------------------------------------------------
--- 5. STORAGE (INSTRUCCIONES)
+-- 4. STORAGE RLS (POLITICAS)
 -- --------------------------------------------------------------
--- Debes crear manualmente estos Buckets en Supabase UI (Storage):
--- 1. "itinerarios" (Público)
--- 2. "vouchers" (Público)
--- 3. "documentos" (Privado)
+-- Asegurarse de que los buckets 'itinerarios' y 'vouchers' existan en la UI de Supabase
 
--- --------------------------------------------------------------
--- 6. PERMISOS DE STORAGE (SQL) - ACCESO TOTAL PARA PRUEBAS
--- --------------------------------------------------------------
--- Nota: En Supabase, las políticas de Storage se aplican a 'storage.objects'
-
--- 1. Políticas para el bucket 'itinerarios'
 CREATE POLICY "Acceso Público Itinerarios" ON storage.objects FOR SELECT USING (bucket_id = 'itinerarios');
 CREATE POLICY "Subida Libre Itinerarios" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'itinerarios');
 
--- 2. Políticas para el bucket 'vouchers'
 CREATE POLICY "Acceso Público Vouchers" ON storage.objects FOR SELECT USING (bucket_id = 'vouchers');
 CREATE POLICY "Subida Libre Vouchers" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'vouchers');
-
--- 3. Políticas para el bucket 'documentos'
-CREATE POLICY "Acceso Privado Documentos" ON storage.objects FOR SELECT USING (bucket_id = 'documentos');
-CREATE POLICY "Subida Libre Documentos" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'documentos');

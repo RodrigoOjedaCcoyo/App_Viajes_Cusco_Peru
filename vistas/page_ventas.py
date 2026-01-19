@@ -90,7 +90,10 @@ def registro_ventas_directa():
         
         id_paquete = col2.text_input("ID_Paquete / Tour") 
         
-        vendedor_manual = col1.text_input("Vendedor (Nombre)", value=st.session_state.get('user_email', ''))
+        # 2. Selector de Vendedor Dinámico (Jalando de la tabla 'vendedor')
+        vendedores_map = lead_controller.obtener_mapeo_vendedores()
+        nombres_vendedores = list(vendedores_map.values())
+        vendedor_manual = col1.selectbox("Asignado a (Vendedor)", nombres_vendedores)
         tipo_comp = col2.radio("Tipo Comprobante", ["Boleta", "Factura", "Recibo Simple"], horizontal=True)
 
         monto_total = col1.number_input("Monto Total ($)", min_value=0.0, format="%.2f")

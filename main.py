@@ -25,7 +25,7 @@ if vistas_path not in sys.path:
 if models_path not in sys.path:
     sys.path.insert(1, models_path)
 
-# Mapeo de roles a las funcionalidades (Correcto)
+# Mapeo de roles a las funcionalidades (Actualizado para Usuario Maestro)
 MODULOS_VISIBLES = {
     "VENTAS": [
         ("Dashboard Comercial", "page_dashboards"),
@@ -35,7 +35,7 @@ MODULOS_VISIBLES = {
         ("Dashboard Operaciones", "page_dashboards"),
         ("Gestión de Registros", "page_operaciones")
     ],
-    "CONTABLE": [
+    "CONTABILIDAD": [
         ("Dashboard Contable", "page_dashboards"),
         ("Gestión de Registros", "page_contabilidad")
     ],
