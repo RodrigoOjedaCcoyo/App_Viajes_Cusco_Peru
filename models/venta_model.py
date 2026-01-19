@@ -13,18 +13,26 @@ class VentaModel(BaseModel):
         super().__init__('venta', supabase_client, primary_key='id_venta') 
 
     # --- MÉTODOS DE BÚSQUEDA DE IDs (HELPERS) ---
-    def get_vendedor_id_by_name(self, nombre: str) -> Optional[int]:
-        """Busca el ID del vendedor por su nombre."""
+    def get_vendedor_id_by_query(self, query: str) -> Optional[int]:
+        """Busca el ID del vendedor por su nombre o email."""
+        if not query: return None
         try:
-            res = self.client.table('vendedor').select('id_vendedor').ilike('nombre', f"%{nombre}%").limit(1).execute()
-            if res.data:
-                return res.data[0]['id_vendedor']
+            # 1. Intentar por Email (exacto)
+            res_e = self.client.table('vendedor').select('id_vendedor').eq('email', query).execute()
+            if res_e.data:
+                return res_e.data[0]['id_vendedor']
+            
+            # 2. Intentar por Nombre (parcial)
+            res_n = self.client.table('vendedor').select('id_vendedor').ilike('nombre', f"%{query}%").limit(1).execute()
+            if res_n.data:
+                return res_n.data[0]['id_vendedor']
         except Exception as e:
-            print(f"Error buscando vendedor {nombre}: {e}")
+            print(f"Error buscando vendedor {query}: {e}")
         return None
 
     def get_tour_id_by_name(self, nombre: str) -> Optional[int]:
         """Busca el ID del tour por su nombre exacto o parcial."""
+        if not nombre: return None
         try:
             res = self.client.table('tour').select('id_tour').ilike('nombre', f"%{nombre}%").limit(1).execute()
             if res.data:
@@ -35,6 +43,7 @@ class VentaModel(BaseModel):
 
     def get_or_create_cliente(self, nombre: str, celular: str, origen: str) -> Optional[int]:
         """Busca un cliente por nombre (simplicidad), si no existe lo crea."""
+        if not nombre: return None
         try:
             # 1. Buscar existente
             res = self.client.table('cliente').select('id_cliente').eq('nombre', nombre).limit(1).execute()
@@ -63,12 +72,21 @@ class VentaModel(BaseModel):
         
         # 1. Obtener IDs Relacionales
         id_cliente = self.get_or_create_cliente(venta_data.get('nombre_cliente'), venta_data.get('telefono_cliente'), venta_data.get('origen'))
-        id_vendedor = self.get_vendedor_id_by_name(venta_data.get('vendedor'))
+        id_vendedor = self.get_vendedor_id_by_query(venta_data.get('vendedor'))
         id_tour_paquete = self.get_tour_id_by_name(venta_data.get('tour'))
 
-        if not id_cliente or not id_vendedor:
-            print(f"Falla de integridad referencial: ClienteID={id_cliente}, VendedorID={id_vendedor}")
+        if not id_cliente:
+            print("Falla Venta: Cliente no pudo ser creado/encontrado.")
             return None
+        
+        if not id_vendedor:
+            # Fallback: Usar el primer vendedor si no se encuentra ninguno por nombre
+            res_fb = self.client.table('vendedor').select('id_vendedor').limit(1).execute()
+            if res_fb.data:
+                id_vendedor = res_fb.data[0]['id_vendedor']
+            else:
+                print("Falla Venta: No hay vendedores en la base de datos.")
+                return None
 
         # 2. Preparar Payload para tabla 'venta' (Columnas del esquema SQL)
         datos_venta_sql = {
