@@ -259,7 +259,11 @@ def render_contable_dashboard_visual(supabase_client):
     st.divider()
     st.write("### 📋 Últimas Transacciones")
     if not df_ventas.empty:
-        st.dataframe(df_ventas[['id', 'monto_total', 'estado_pago', 'vendedor']].head(10), use_container_width=True, hide_index=True)
+        # Usar nombres de columnas correctos según esquema SQL
+        cols_to_show = ['id_venta', 'monto_total', 'estado_venta', 'vendedor']
+        # Verificar que las columnas existan antes de filtrar (robusto)
+        available_cols = [c for c in cols_to_show if c in df_ventas.columns]
+        st.dataframe(df_ventas[available_cols].head(10), use_container_width=True, hide_index=True)
         
         # Mapeo defensivo para Contabilidad
         col_itin_cont = 'id_itinerario_digital' if 'id_itinerario_digital' in df_ventas.columns else 'id_itinerario'
@@ -272,12 +276,12 @@ def render_contable_dashboard_visual(supabase_client):
             ventas_con_itin = df_ventas[df_ventas[col_itin_cont].notna()]
             id_itin_audit = None
             if not ventas_con_itin.empty:
-                sel_v_id = st.selectbox("Auditar Itinerario de la Venta:", 
-                                      ventas_con_itin['id'].unique(),
+                sel_v_id = st.selectbox("Auditar Itinerario de la Venta (ID):", 
+                                      ventas_con_itin['id_venta'].unique(),
                                       key="sb_dash_cont_audit")
                 
                 # Obtener el UUID del itinerario
-                id_itin_audit = ventas_con_itin[ventas_con_itin['id'] == sel_v_id][col_itin_cont].iloc[0]
+                id_itin_audit = ventas_con_itin[ventas_con_itin['id_venta'] == sel_v_id][col_itin_cont].iloc[0]
             
             if id_itin_audit:
                 res_itin = reporte_ctrl.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin_audit).single().execute()

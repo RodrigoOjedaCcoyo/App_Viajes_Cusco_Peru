@@ -83,7 +83,7 @@ def reporte_de_montos():
     st.divider()
     
     # Mantener funcionalidad anterior: tabla de detalle
-    # data_reporte = reporte_controller.obtener_resumen_ventas() # Ya lo tenemos en df_ventas
+    data_reporte = reporte_controller.obtener_resumen_ventas()
     
     # Mostrar tabla de detalle
     st.write("### 📋 Detalle de Ventas (Auditoría)")
@@ -94,13 +94,16 @@ def reporte_de_montos():
         
         # Seleccionamos y renombramos columnas para el reporte
         columnas_reporte = {
-            'id': 'Venta ID',
+            'id_venta': 'Venta ID',
             'lead_id': 'Lead Origen ID',
             'monto_total': 'Monto ($)',
             'tour_paquete': 'Tour',
             'fecha_tour': 'Fecha Inicio Tour',
             'vendedor': 'Registrado Por'
         }
+        
+        if 'monto_total' not in df_ventas.columns and 'precio_total_cierre' in df_ventas.columns:
+            df_ventas['monto_total'] = df_ventas['precio_total_cierre']
         
         df_display = df_ventas.rename(columns=columnas_reporte)
         st.dataframe(df_display[list(columnas_reporte.values())], use_container_width=True, hide_index=True)
@@ -124,32 +127,45 @@ def auditoria_de_pagos():
     if ventas_para_auditoria:
         df_auditoria = pd.DataFrame(ventas_para_auditoria)
         
-        # Un contador necesita ver el estado del pago, que en el modelo de ventas es 'estado_pago'
-        columnas_auditoria = ['id', 'monto_total', 'fecha_registro', 'estado_pago', 'vendedor']
+        # Un contador necesita ver el estado del pago, que en el modelo de ventas es 'estado_venta'
+        # Usar nombres de columnas correctos según esquema
+        columnas_auditoria = ['id_venta', 'precio_total_cierre', 'fecha_venta', 'estado_venta']
+        # Mapeo para visualización
+        df_auditoria_show = df_auditoria.copy()
+        df_auditoria_show.rename(columns={
+            'id_venta': 'Venta ID',
+            'precio_total_cierre': 'Monto ($)',
+            'fecha_venta': 'Fecha',
+            'estado_venta': 'Estado'
+        }, inplace=True)
         
-        st.dataframe(df_auditoria[columnas_auditoria], use_container_width=True, hide_index=True)
+        st.dataframe(df_auditoria_show[['Venta ID', 'Monto ($)', 'Fecha', 'Estado']], use_container_width=True, hide_index=True)
 
         # --- 🔍 DETALLE VISUAL PARA AUDITORÍA (ESTILO IMAGEN) ---
         st.markdown("---")
         st.subheader("📋 Verificación de Itinerario Digital")
         
         # Filtramos ventas que tengan un itinerario vinculado
-        ventas_con_itin = df_auditoria[df_auditoria['id_itinerario_digital'].notna()]
-        
-        if not ventas_con_itin.empty:
-            sel_v_id = st.selectbox("Seleccione Venta para auditar su Itinerario:", 
-                                 ventas_con_itin['id'].tolist(),
-                                 key="sb_audit_itin")
-            
-            # Obtener el UUID del itinerario
-            id_itin_audit = ventas_con_itin[ventas_con_itin['id'] == sel_v_id]['id_itinerario_digital'].iloc[0]
-            
-            if id_itin_audit:
-                res_itin = st.session_state['reporte_controller'].client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin_audit).single().execute()
-                if res_itin.data:
-                    render_itinerary_details_visual(res_itin.data['datos_render'])
+        col_itin = 'id_itinerario_digital'
+        if col_itin not in df_auditoria.columns:
+            st.info("No se encontró la columna de itinerario digital.")
         else:
-            st.info("No hay ventas con itinerarios digitales para auditar en esta lista.")
+            ventas_con_itin = df_auditoria[df_auditoria[col_itin].notna()]
+            
+            if not ventas_con_itin.empty:
+                sel_v_id = st.selectbox("Seleccione Venta para auditar su Itinerario:", 
+                                     ventas_con_itin['id_venta'].tolist(),
+                                     key="sb_audit_itin")
+                
+                # Obtener el UUID del itinerario
+                id_itin_audit = ventas_con_itin[ventas_con_itin['id_venta'] == sel_v_id][col_itin].iloc[0]
+                
+                if id_itin_audit:
+                    res_itin = st.session_state['reporte_controller'].client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin_audit).single().execute()
+                    if res_itin.data:
+                        render_itinerary_details_visual(res_itin.data['datos_render'])
+            else:
+                st.info("No hay ventas con itinerarios digitales para auditar en esta lista.")
     else:
         st.info("No hay transacciones para auditar.")
 
