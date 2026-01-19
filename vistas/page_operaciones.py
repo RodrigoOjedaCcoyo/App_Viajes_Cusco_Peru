@@ -295,20 +295,57 @@ def registro_ventas_proveedores(supabase_client):
         def_pax = it_data.get('nombre_pasajero_itinerario') or render.get('pasajero', '')
         def_tour = render.get('titulo') or (f"{render.get('title_1', '')} {render.get('title_2', '')}").strip()
         
-        # Extraer Fechas
+        # Extraer Fechas (Soporta "fecha_viaje" y "fechas")
         f_inicio_str = render.get('fecha_viaje')
         if f_inicio_str:
             try: def_f_inicio = date.fromisoformat(f_inicio_str)
             except: pass
+        else:
+            # Intentar parsear desde "fechas" (ej: "DEL 19/01 AL 21/01, 2026")
+            f_texto = render.get('fechas', '')
+            if "DEL " in f_texto and ", " in f_texto:
+                try:
+                    partes = f_texto.split(", ")
+                    anio = partes[1].strip()
+                    dia_mes = partes[0].replace("DEL ", "").split(" AL ")[0]
+                    dia, mes = dia_mes.split("/")
+                    def_f_inicio = date(int(anio), int(mes), int(dia))
+                except: pass
         
+        # Calcular fecha fin desde duración
         duracion = render.get('duracion', '')
         if duracion and 'D' in duracion:
             try:
                 num_dias = int(duracion.split('D')[0])
                 def_f_fin = def_f_inicio + timedelta(days=num_dias - 1)
             except: pass
+        elif "AL " in render.get('fechas', ''):
+            # Intentar extraer fecha fin desde "fechas"
+            try:
+                f_texto = render.get('fechas', '')
+                partes = f_texto.split(", ")
+                anio = partes[1].strip()
+                dia_mes_fin = partes[0].split(" AL ")[1]
+                dia, mes = dia_mes_fin.split("/")
+                def_f_fin = date(int(anio), int(mes), int(dia))
+            except: pass
         
+        # Extraer cantidad de pasajeros
         def_cant_pax = int(render.get('cantidad_pax') or 1)
+        
+        # Extraer precio desde estructura "precios" (ej: precios.nac.monto)
+        def_precio_pax = 0.0
+        precios = render.get('precios', {})
+        if isinstance(precios, dict):
+            # Intentar nacional primero, luego extranjero, luego CAN
+            for tipo in ['nac', 'ext', 'can']:
+                precio_obj = precios.get(tipo, {})
+                if isinstance(precio_obj, dict) and precio_obj.get('monto'):
+                    try:
+                        def_precio_pax = float(precio_obj['monto'])
+                        break
+                    except: pass
+        
         st.success(f"✅ Datos cargados del itinerario: **{def_tour}**")
 
     # --- 📝 FORMULARIO DE REGISTRO ---
@@ -329,7 +366,7 @@ def registro_ventas_proveedores(supabase_client):
         
         c1c, c1d = col1.columns(2)
         cant_pax = c1c.number_input("Total Pax", min_value=1, value=def_cant_pax)
-        precio_pax = c1d.number_input("Precio Neto/Pax ($)", min_value=0.0, value=0.0, format="%.2f")
+        precio_pax = c1d.number_input("Precio Neto/Pax ($)", min_value=0.0, value=def_precio_pax, format="%.2f")
 
         # Catálogo vs Manual
         catalogo = venta_controller.obtener_catalogo_opciones()
