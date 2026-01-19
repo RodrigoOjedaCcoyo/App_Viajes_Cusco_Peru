@@ -75,6 +75,54 @@ def render_ops_dashboard_visual(supabase_client):
         services_data = controller.get_servicios_rango_fechas(start_month, end_month)
         df_servicios = pd.DataFrame(services_data) if services_data else pd.DataFrame()
         render_operations_dashboard(df_servicios)
+        
+        # --- 🔍 VERIFICADOR DE INCLUSIONES (ESTILO IMAGEN) ---
+        st.markdown("---")
+        st.subheader("🏁 Verificador de Inclusiones (Itinerario)")
+        
+        if not df_servicios.empty:
+            # Filtrar solo los que tienen itinerario
+            ventas_itin = df_servicios[df_servicios['id_itinerario_digital'].notna()]
+            if not ventas_itin.empty:
+                # Usar selectbox para elegir cliente/venta
+                sel_v_id_ops = st.selectbox("Auditar Itinerario de la Venta:", 
+                                         ventas_itin['id_venta'].unique(),
+                                         key="sb_dash_ops_audit")
+                
+                # Obtener el UUID del itinerario
+                id_itin_audit_ops = ventas_itin[ventas_itin['id_venta'] == sel_v_id_ops]['id_itinerario_digital'].iloc[0]
+                
+                if id_itin_audit_ops:
+                    res_itin_ops = controller.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin_audit_ops).single().execute()
+                    if res_itin_ops.data:
+                        render = res_itin_ops.data['datos_render']
+                        tours = render.get('itinerario_detales', []) or render.get('days', [])
+                        
+                        with st.container(border=True):
+                            st.success(f"📍 **ITINERARIO:** {render.get('titulo', 'General').upper()}")
+                            for i, t in enumerate(tours):
+                                dia_label = f"DIA {i+1}"
+                                if t.get('fecha'): dia_label = f"DIA: {t['fecha']}"
+                                st.markdown(f"**{dia_label}**")
+                                
+                                t_nom = (t.get('nombre') or t.get('titulo') or "Servicio").upper()
+                                t_hora = t.get('hora', '')
+                                st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;✅ **{f'{t_hora} ' if t_hora else ''}{t_nom}**")
+                                
+                                inc = t.get('incluye') or t.get('inclusiones', [])
+                                if inc:
+                                    st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;<span style='color:#2E7D32; font-weight:bold; font-size:12px;'>INCLUYE:</span>", unsafe_allow_html=True)
+                                    for item in inc: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;✔️ <small>{item.upper()}</small>", unsafe_allow_html=True)
+                                
+                                exc = t.get('no_incluye') or t.get('exclusiones', [])
+                                if exc:
+                                    st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;<span style='color:#2E7D32; font-weight:bold; font-size:12px;'>NO INCLUYE:</span>", unsafe_allow_html=True)
+                                    for item in exc: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;❌ <small>{item.upper()}</small>", unsafe_allow_html=True)
+                                st.write("")
+            else:
+                st.info("No hay servicios con itinerario digital para auditar en este periodo.")
+        else:
+            st.info("No hay servicios operativos registrados.")
 
     with t2:
         # Aquí integramos el calendario (Tablero Diario)
@@ -167,7 +215,54 @@ def render_contable_dashboard_visual(supabase_client):
     st.divider()
     st.write("### 📋 Últimas Transacciones")
     if not df_ventas.empty:
-        st.dataframe(df_ventas[['id', 'monto_total', 'estado_pago', 'vendedor']].head(10), use_container_width=True)
+        st.dataframe(df_ventas[['id', 'monto_total', 'estado_pago', 'vendedor']].head(10), use_container_width=True, hide_index=True)
+        
+        # --- 🔍 VERIFICADOR DE INCLUSIONES (ESTILO IMAGEN) ---
+        st.markdown("---")
+        st.subheader("🏁 Verificador de Inclusiones (Itinerario)")
+        
+        ventas_con_itin = df_ventas[df_ventas['id_itinerario_digital'].notna()]
+        if not ventas_con_itin.empty:
+            sel_v_id = st.selectbox("Auditar Itinerario de la Venta:", 
+                                  ventas_con_itin['id'].unique(),
+                                  key="sb_dash_cont_audit")
+            
+            # Obtener el UUID del itinerario
+            id_itin_audit = ventas_con_itin[ventas_con_itin['id'] == sel_v_id]['id_itinerario_digital'].iloc[0]
+            
+            if id_itin_audit:
+                res_itin = reporte_ctrl.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin_audit).single().execute()
+                if res_itin.data:
+                    render = res_itin.data['datos_render']
+                    tours = render.get('itinerario_detales', []) or render.get('days', [])
+                    
+                    with st.container(border=True):
+                        st.success(f"📍 **ITINERARIO:** {render.get('titulo', 'General').upper()}")
+                        for i, t in enumerate(tours):
+                            dia_label = f"DIA {i+1}"
+                            if t.get('fecha'): dia_label = f"DIA: {t['fecha']}"
+                            
+                            st.markdown(f"**{dia_label}**")
+                            
+                            # Servicio y Hora
+                            t_nom = (t.get('nombre') or t.get('titulo') or "Servicio").upper()
+                            t_hora = t.get('hora', '')
+                            st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;✅ **{f'{t_hora} ' if t_hora else ''}{t_nom}**")
+                            
+                            # Inclusiones
+                            inc = t.get('incluye') or t.get('inclusiones', [])
+                            if inc:
+                                st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;<span style='color:#2E7D32; font-weight:bold; font-size:12px;'>INCLUYE:</span>", unsafe_allow_html=True)
+                                for item in inc: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;✔️ <small>{item.upper()}</small>", unsafe_allow_html=True)
+                            
+                            # Exclusiones
+                            exc = t.get('no_incluye') or t.get('exclusiones', [])
+                            if exc:
+                                st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;<span style='color:#2E7D32; font-weight:bold; font-size:12px;'>NO INCLUYE:</span>", unsafe_allow_html=True)
+                                for item in exc: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;❌ <small>{item.upper()}</small>", unsafe_allow_html=True)
+                            st.write("")
+        else:
+            st.info("No hay ventas con itinerarios registrados para auditar.")
 
 def render_exec_dashboard_visual(supabase_client):
     """Dashboard Ejecutivo para Gerencia."""
