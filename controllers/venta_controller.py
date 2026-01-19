@@ -135,7 +135,7 @@ class VentaController:
                 "cantidad_pasajeros": cantidad_pax
             }
             
-            res_id = self.venta_model.create_venta(venta_data)
+            res_id = self.model.create_venta(venta_data)
             
             if res_id:
                 return True, f"Venta B2B de {nombre_proveedor} registrada éxito (ID: {res_id})"
