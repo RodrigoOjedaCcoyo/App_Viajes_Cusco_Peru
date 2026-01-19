@@ -46,6 +46,18 @@ class ReporteController:
         Devuelve una lista combinada de Leads y Ventas para auditoría.
         """
         ventas = self.venta_model.get_all()
+        if not ventas: return []
+        
+        # Mapear Cliente (Nombre) para que el selector sea legible
+        try:
+            res_c = self.venta_model.client.table('cliente').select('id_cliente, nombre').execute()
+            cli_map = {c['id_cliente']: c['nombre'] for c in res_c.data}
+            for v in ventas:
+                v['cliente_nombre'] = cli_map.get(v.get('id_cliente'), "Desconocido")
+        except:
+            for v in ventas:
+                v['cliente_nombre'] = "Desconocido"
+                
         return ventas
 
     def get_data_for_dashboard(self):
@@ -68,6 +80,14 @@ class ReporteController:
                 df_ventas['vendedor'] = df_ventas['id_vendedor'].map(vend_map)
             except:
                 df_ventas['vendedor'] = "Desconocido"
+                
+            # Mapear Cliente (Nombre)
+            try:
+                res_c = self.venta_model.client.table('cliente').select('id_cliente, nombre').execute()
+                cli_map = {c['id_cliente']: c['nombre'] for c in res_c.data}
+                df_ventas['cliente_nombre'] = df_ventas['id_cliente'].map(cli_map)
+            except:
+                df_ventas['cliente_nombre'] = "Desconocido"
             
         # 2. Gastos (Requerimientos)
         reqs = self.req_model.get_all()

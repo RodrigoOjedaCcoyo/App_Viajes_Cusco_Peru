@@ -155,6 +155,7 @@ def auditoria_de_pagos():
             if not ventas_con_itin.empty:
                 sel_v_id = st.selectbox("Seleccione Venta para auditar su Itinerario:", 
                                      ventas_con_itin['id_venta'].tolist(),
+                                     format_func=lambda x: f"{ventas_con_itin[ventas_con_itin['id_venta']==x]['cliente_nombre'].values[0]} ({x})",
                                      key="sb_audit_itin")
                 
                 # Obtener el UUID del itinerario

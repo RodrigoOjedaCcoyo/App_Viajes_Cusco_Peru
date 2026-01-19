@@ -154,6 +154,7 @@ def render_ops_dashboard_visual(supabase_client):
                     
                     sel_v_id_ops = st.selectbox("Auditar Itinerario de la Venta:", 
                                              ventas_itin[col_id_v].unique(),
+                                             format_func=lambda x: f"{ventas_itin[ventas_itin[col_id_v]==x]['Cliente'].values[0]} ({x})",
                                              key="sb_dash_ops_audit")
                     
                     # Obtener el UUID del itinerario
@@ -276,8 +277,9 @@ def render_contable_dashboard_visual(supabase_client):
             ventas_con_itin = df_ventas[df_ventas[col_itin_cont].notna()]
             id_itin_audit = None
             if not ventas_con_itin.empty:
-                sel_v_id = st.selectbox("Auditar Itinerario de la Venta (ID):", 
+                sel_v_id = st.selectbox("Auditar Itinerario de la Venta:", 
                                       ventas_con_itin['id_venta'].unique(),
+                                      format_func=lambda x: f"{ventas_con_itin[ventas_con_itin['id_venta']==x]['cliente_nombre'].values[0]} ({x})",
                                       key="sb_dash_cont_audit")
                 
                 # Obtener el UUID del itinerario

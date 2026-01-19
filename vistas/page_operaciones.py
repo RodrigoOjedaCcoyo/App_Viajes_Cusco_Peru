@@ -405,6 +405,7 @@ def reporte_operativo(controller):
         if not ventas_con_itin.empty:
             sel_id_v = st.selectbox("Auditar Itinerario de la Venta:", 
                                   ventas_con_itin['ID Venta'].unique(),
+                                  format_func=lambda x: f"{ventas_con_itin[ventas_con_itin['ID Venta']==x]['Cliente'].values[0]} ({x})",
                                   key="sb_ops_audit_it")
             
             # Reutilizar lógica de detalle visual
