@@ -98,6 +98,7 @@ class VentaModel(BaseModel):
             "moneda": "USD",
             "estado_venta": "CONFIRMADO",
             "id_paquete": None,
+            "tour_nombre": venta_data.get("tour"),  # Guardar nombre directamente
             "id_itinerario_digital": venta_data.get("id_itinerario_digital") # Sincronizado: Vínculo con Itinerario Digital
         }
 
