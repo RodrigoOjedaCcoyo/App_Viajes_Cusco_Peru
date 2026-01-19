@@ -78,7 +78,8 @@ class OperacionesController:
                 res_t = self.client.table('tour').select('id_tour, nombre').in_('id_tour', ids_tours).execute()
                 for t in res_t.data:
                     tours_map[t['id_tour']] = t['nombre']
-                    
+            ids_clientes = list(set([v['id_cliente'] for v in ventas_map.values() if v.get('id_cliente')]))
+            clientes_map = {}
             if ids_clientes:
                 res_c = self.client.table('cliente').select('id_cliente, nombre').in_('id_cliente', ids_clientes).execute()
                 for c in res_c.data:
@@ -162,6 +163,7 @@ class OperacionesController:
             ids_tours = list(set([s['id_tour'] for s in servicios_data if s.get('id_tour')]))
             
             ventas_map = {}
+            clientes_map = {}
             if ids_ventas:
                 res_v = self.client.table('venta').select('*').in_('id_venta', ids_ventas).execute()
                 for v in res_v.data:
@@ -211,18 +213,23 @@ class OperacionesController:
                 saldo = precio_total - total_pagado
                 estado_pago = "✅ SALDADO" if saldo <= 0.1 else f"🔴 PENDIENTE (${saldo:.2f})"
                 
-                nombre_tour = tours_map.get(s['id_tour']) or v.get('tour_nombre') or "Tour Desconocido"
-                id_serv = s.get('id') or s.get('id_venta_tour') or s.get('n_linea') or "N/A"
+                # Prioridad: 1. Observaciones del día, 2. Catálogo de tours, 3. Nombre general de la venta
+                nombre_tour = s.get('observaciones') or tours_map.get(s['id_tour']) or v.get('tour_nombre') or "Tour Desconocido"
+                
+                # Guía desde el mapa relacional
+                key_g = f"{s['id_venta']}-{s['n_linea']}"
+                nombre_guia = guias_map.get(key_g, "Por Asignar")
                 
                 resultado.append({
-                    'ID Servicio': id_serv, 
+                    'ID Servicio': f"{s['id_venta']}-{s['n_linea']}", 
                     'Hora': "08:00 AM",
                     'Servicio': nombre_tour,
                     'Pax': s.get('cantidad_pasajeros', 1),
                     'Cliente': nombre_cliente,
-                    'Guía': s.get('guia_asignado', 'Por Asignar'),
+                    'Guía': nombre_guia,
                     'Estado Pago': estado_pago,
                     'ID Venta': s['id_venta'],
+                    'N Linea': s['n_linea'],
                     'Día Itin.': s.get('id_itinerario_dia_index', 1),
                     'ID Itinerario': v.get('id_itinerario_digital')
                 })
