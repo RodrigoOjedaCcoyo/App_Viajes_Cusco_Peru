@@ -483,30 +483,36 @@ def dashboard_simulador_costos(controller):
         nombres_agencias = [a['nombre'] for a in agencias]
         mapa_agencias = {a['nombre']: a['id_agencia'] for a in agencias}
         
-        agencia_sel = st.selectbox("Cargar Ventas de:", ["--- Seleccione ---"] + nombres_agencias, key="sel_agencia_sim")
+        agencia_sel = st.selectbox("1. Seleccionar Agencia:", ["--- Seleccione ---"] + nombres_agencias, key="sel_agencia_sim")
         
         if agencia_sel != "--- Seleccione ---":
-            if st.button(f"📥 Cargar de {agencia_sel}", use_container_width=True):
-                id_ag = mapa_agencias.get(agencia_sel)
-                ventas_age = vc.obtener_ventas_agencia(id_ag)
+            id_ag = mapa_agencias.get(agencia_sel)
+            ventas_age = vc.obtener_ventas_agencia(id_ag)
+            
+            if ventas_age:
+                # Crear opciones para el selector de pasajeros
+                # Formato: "Nombre Cliente | Tour (ID)"
+                opciones_pax = [f"{v['nombre_cliente']} | {v['tour']} ({v['id_venta']})" for v in ventas_age]
+                mapa_ventas_pax = {f"{v['nombre_cliente']} | {v['tour']} ({v['id_venta']})": v for v in ventas_age}
                 
-                nuevos_items = []
-                for v in ventas_age:
-                    # Traer el monto total (o lo que se defina para liquidar)
-                    # Usamos el formato de la tabla simulador_data
-                    nuevos_items.append({
-                        "FECHA": date.fromisoformat(v['fecha_venta']) if v.get('fecha_venta') else date.today(),
-                        "SERVICIO": f"VENTA B2B: {v['nombre_cliente']} - {v['tour']}",
-                        "MONEDA": "USD", # Por defecto USD para B2B según contexto previo
-                        "TOTAL": float(v.get('monto_total') or 0)
-                    })
+                pax_sel = st.selectbox("2. Seleccionar Pasajero (Venta):", ["--- Seleccione ---"] + opciones_pax, key="sel_pax_sim")
                 
-                if nuevos_items:
-                    st.session_state['simulador_data'].extend(nuevos_items)
-                    st.success(f"Se cargaron {len(nuevos_items)} registros.")
-                    st.rerun()
-                else:
-                    st.warning("No se encontraron ventas para esta agencia.")
+                if pax_sel != "--- Seleccione ---":
+                    if st.button(f"📥 Cargar Venta de {pax_sel.split('|')[0].strip()}", use_container_width=True):
+                        v = mapa_ventas_pax.get(pax_sel)
+                        
+                        nuevo_item = {
+                            "FECHA": date.fromisoformat(v['fecha_venta']) if v.get('fecha_venta') else date.today(),
+                            "SERVICIO": f"INGRESO B2B: {v['nombre_cliente']}",
+                            "MONEDA": "USD",
+                            "TOTAL": float(v.get('monto_total') or 0)
+                        }
+                        
+                        st.session_state['simulador_data'].append(nuevo_item)
+                        st.success("Venta cargada. Ahora añade los gastos debajo.")
+                        st.rerun()
+            else:
+                st.warning("Esta agencia no tiene ventas registradas.")
 
     with c3:
         if st.button("🗑️ Limpiar Tabla", use_container_width=True, key="btn_clear_ops_sim"):
