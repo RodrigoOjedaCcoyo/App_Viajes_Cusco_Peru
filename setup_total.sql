@@ -101,6 +101,7 @@ CREATE TABLE venta (
     precio_total_cierre DECIMAL(10,2) NOT NULL,
     moneda VARCHAR(10) DEFAULT 'USD',
     estado_venta VARCHAR(50) DEFAULT 'CONFIRMADO',
+    tour_nombre VARCHAR(255),
     url_itinerario TEXT,
     url_comprobante_pago TEXT
 );
