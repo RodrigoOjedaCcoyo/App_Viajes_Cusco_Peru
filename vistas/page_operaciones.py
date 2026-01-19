@@ -233,8 +233,25 @@ def registro_ventas_proveedores(supabase_client):
     # --- 🆔 SELECTOR DE ITINERARIO (FILTRADO SOLO B2B) ---
     itinerarios_raw = it_controller.obtener_todos_recientes(limit=50)
     
-    # Filtrar solo itinerarios marcados como B2B en sus metadatos
-    itinerarios = [it for it in itinerarios_raw if it.get('datos_render', {}).get('metadata', {}).get('tipo_venta') == 'B2B']
+    import json
+    itinerarios = []
+    for it in itinerarios_raw:
+        render = it.get('datos_render', {})
+        # Robustez: Si viene como string, intentar parsear
+        if isinstance(render, str):
+            try: render = json.loads(render)
+            except: render = {}
+        
+        # Verificar marca B2B (Checkbox, Canal o palabra clave en títulos)
+        meta = render.get('metadata', {})
+        tipo = meta.get('tipo_venta', 'B2C')
+        canal = str(render.get('canal', '')).upper()
+        
+        # Juntar todos los títulos posibles para la búsqueda
+        full_title = f"{render.get('titulo', '')} {render.get('title_1', '')} {render.get('title_2', '')}".upper()
+        
+        if tipo == 'B2B' or canal == 'B2B' or "B2B" in full_title:
+            itinerarios.append(it)
     
     opciones_it = ["--- Sin Itinerario / Registro Manual ---"]
     mapa_it = {}
@@ -242,14 +259,23 @@ def registro_ventas_proveedores(supabase_client):
     for it in itinerarios:
         uuid = it.get('id_itinerario_digital')
         render = it.get('datos_render', {})
-        titulo = render.get('titulo') or render.get('title_1', 'Sin Título')
+        if isinstance(render, str): 
+            try: render = json.loads(render)
+            except: render = {}
+            
+        t1, t2 = render.get('title_1', ''), render.get('title_2', '')
+        titulo = render.get('titulo') or (f"{t1} {t2}").strip() or "Sin Título"
         pax = it.get('nombre_pasajero_itinerario') or render.get('pasajero', 'Sin Nombre')
         fecha = it.get('fecha_generacion', '')[:10]
         label = f"[{fecha}] {pax} - {titulo} ({uuid[:8]})"
         opciones_it.append(label)
         mapa_it[label] = it
 
-    it_sel = st.selectbox("🎯 Vincular con un Itinerario Digital (B2B CLOUD)", opciones_it, help="Solo se muestran itinerarios creados como B2B.")
+    if not itinerarios:
+        st.warning("⚠️ No se encontraron itinerarios recientes marcados como B2B. Asegúrese de marcar la casilla '🚩 Venta B2B / Agencia' al crear el itinerario en la sección de Ventas.")
+
+    it_sel = st.selectbox("🎯 Vincular con un Itinerario Digital (B2B CLOUD)", opciones_it, 
+                          help="Solo se muestran itinerarios creados específicamente para B2B.")
     
     id_itinerario_dig = None
     def_pax = ""
@@ -262,6 +288,9 @@ def registro_ventas_proveedores(supabase_client):
         it_data = mapa_it.get(it_sel)
         id_itinerario_dig = it_data.get('id_itinerario_digital')
         render = it_data.get('datos_render', {})
+        if isinstance(render, str):
+            try: render = json.loads(render)
+            except: render = {}
         
         def_pax = it_data.get('nombre_pasajero_itinerario') or render.get('pasajero', '')
         def_tour = render.get('titulo') or (f"{render.get('title_1', '')} {render.get('title_2', '')}").strip()
