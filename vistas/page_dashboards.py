@@ -87,6 +87,7 @@ def render_ops_dashboard_visual(supabase_client):
             if col_itin in df_servicios.columns:
                 # Filtrar solo los que tienen itinerario
                 ventas_itin = df_servicios[df_servicios[col_itin].notna()]
+                id_itin_audit_ops = None
                 if not ventas_itin.empty:
                     # Usar selectbox para elegir cliente/venta
                     # Nota: 'ID Venta' es el nombre en Operaciones
@@ -248,6 +249,7 @@ def render_contable_dashboard_visual(supabase_client):
         
         if col_itin_cont in df_ventas.columns:
             ventas_con_itin = df_ventas[df_ventas[col_itin_cont].notna()]
+            id_itin_audit = None
             if not ventas_con_itin.empty:
                 sel_v_id = st.selectbox("Auditar Itinerario de la Venta:", 
                                       ventas_con_itin['id'].unique(),
