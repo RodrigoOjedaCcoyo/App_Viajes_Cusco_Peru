@@ -10,6 +10,7 @@ class ReporteController:
     """
     
     def __init__(self, supabase_client):
+        self.client = supabase_client
         self.venta_model = VentaModel('venta', supabase_client)
         self.lead_model = LeadModel('lead', supabase_client)
         self.req_model = RequerimientoModel(supabase_client)
