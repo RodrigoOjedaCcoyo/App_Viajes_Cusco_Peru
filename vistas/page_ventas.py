@@ -387,7 +387,6 @@ def gestion_registros_multicanal():
         "¿Qué tipo de registro desea realizar?",
         [
             "💰 Venta Confirmada (Directa)", 
-            "🎨 Constructor de Itinerarios",
             "⏰ Largo Plazo (Recordatorios / Futuro)"
         ]
     )
@@ -396,8 +395,6 @@ def gestion_registros_multicanal():
     
     if "Venta Confirmada" in tipo_cliente:
         registro_ventas_directa()
-    elif "Constructor de Itinerarios" in tipo_cliente:
-        constructor_itinerarios()
     elif "Largo Plazo" in tipo_cliente:
         formulario_recordatorio()
 
