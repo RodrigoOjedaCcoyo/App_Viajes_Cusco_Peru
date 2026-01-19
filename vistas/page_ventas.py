@@ -116,7 +116,12 @@ def registro_ventas_directa():
         nombre = col1.text_input("Nombre Cliente", value=def_nombre)
         tel = col1.text_input("Celular", value=lead_data.get('numero_celular', '') if lead_data else '')
         
-        id_paquete = col2.text_input("ID_Paquete / Tour", value=def_tour) 
+        # El Tour ahora es automático (se muestra pero no se edita manualmente aquí)
+        id_paquete = def_tour
+        if id_paquete:
+            col2.success(f"📌 Tour Detectado: **{id_paquete}**")
+        else:
+            col2.warning("⚠️ Sin Tour asignado (Use 'Consultar')")
 
         # 2. Selector de Vendedor Dinámico (Jalando de la tabla 'vendedor')
         vendedores_map = lead_controller.obtener_mapeo_vendedores()
