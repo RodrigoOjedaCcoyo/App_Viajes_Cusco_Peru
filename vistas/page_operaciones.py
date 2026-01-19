@@ -534,16 +534,35 @@ def dashboard_simulador_costos(controller):
                     pax_sel = st.selectbox("2. Cargar Venta específica:", ["--- Seleccione ---"] + opciones_pax, key="sel_pax_sim")
                 
                 if pax_sel != "--- Seleccione ---":
-                    if st.button(f"📥 Cargar Datos de {pax_sel.split('|')[0].strip()}", use_container_width=True):
+                    if st.button(f"📥 Cargar Itinerario de {pax_sel.split('|')[0].strip()}", use_container_width=True):
                         v = mapa_ventas_pax.get(pax_sel)
-                        # Al cargar una venta, seteamos el precio por pax automáticamente si es posible
-                        # (monto_total / 1 pax asumido si no hay columna cant_pax clara)
+                        
+                        # 1. Ajustar Datos Globales
+                        st.session_state['liq_pax_total'] = int(v.get('cantidad_pasajeros') or 1)
                         st.session_state['liq_precio_pax'] = float(v.get('precio_total_cierre') or 0)
-                        st.session_state['simulador_data'] = [
-                            {"FECHA": date.fromisoformat(v['fecha_venta']) if v.get('fecha_venta') else date.today(), 
-                             "SERVICIO": f"INGRESO B2B: {v['nombre_cliente']}", "UNITARIO": 0.0, "TOTAL": 0.0}
-                        ]
-                        st.rerun()
+                        
+                        # 2. Cargar Desglose de Servicios (Venta Tour)
+                        detalles = vc.obtener_detalles_itinerario_venta(v['id_venta'])
+                        
+                        if detalles:
+                            nuevos_items = []
+                            for d in detalles:
+                                nuevos_items.append({
+                                    "FECHA": date.fromisoformat(d['fecha_servicio']),
+                                    "SERVICIO": d.get('observaciones') or "Servicio sin nombre",
+                                    "UNITARIO": 0.0,
+                                    "TOTAL": 0.0
+                                })
+                            st.session_state['simulador_data'] = nuevos_items
+                            st.success(f"Itinerario de {len(detalles)} días cargado con éxito.")
+                            st.rerun()
+                        else:
+                            st.session_state['simulador_data'] = [
+                                {"FECHA": date.fromisoformat(v['fecha_venta']) if v.get('fecha_venta') else date.today(), 
+                                 "SERVICIO": f"INGRESO B2B: {v['nombre_cliente']}", "UNITARIO": 0.0, "TOTAL": 0.0}
+                            ]
+                            st.warning("Venta cargada, pero no tiene itinerario expandido.")
+                            st.rerun()
 
         # Data Editor (El "Excel")
         df = pd.DataFrame(st.session_state['simulador_data'])

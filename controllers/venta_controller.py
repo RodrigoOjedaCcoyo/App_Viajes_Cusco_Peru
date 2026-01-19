@@ -188,3 +188,12 @@ class VentaController:
         except Exception as e:
             print(f"Error obteniendo ventas de agencia: {e}")
             return []
+
+    def obtener_detalles_itinerario_venta(self, id_venta: int) -> list:
+        """Obtiene el desglose de días/servicios de una venta específica (venta_tour)."""
+        try:
+            res = self.client.table('venta_tour').select('*').eq('id_venta', id_venta).order('n_linea').execute()
+            return res.data or []
+        except Exception as e:
+            print(f"Error obteniendo detalles de itinerario: {e}")
+            return []
