@@ -341,7 +341,12 @@ def registro_ventas_proveedores(supabase_client):
         nombre_pax = col1.text_input("Nombre del Pasajero Principal")
         tel = col1.text_input("Celular de Contacto")
         
-        id_tour = col2.text_input("ID_Paquete / Tour") 
+        # Obtener Catálogo (Tours y Paquetes)
+        catalogo = venta_controller.obtener_catalogo_opciones()
+        nombres_cat = [c['nombre'] for c in catalogo]
+        mapa_cat = {c['nombre']: c['id'] for c in catalogo}
+        
+        item_sel = col2.selectbox("Seleccione Paquete / Tour", ["--- Seleccione ---"] + nombres_cat)
         
         monto_neto = col1.number_input("Monto Neto (Lo que paga el proveedor) ($)", min_value=0.0, format="%.2f")
         monto_adelanto = col2.number_input("Adelanto Recibido ($)", min_value=0.0, format="%.2f")
@@ -349,18 +354,19 @@ def registro_ventas_proveedores(supabase_client):
         submitted = st.form_submit_button("REGISTRAR VENTA PROVEEDOR", use_container_width=True)
         
         if submitted:
-            if proveedor_sel == "--- Seleccione ---":
-                st.error("Por favor, seleccione una agencia.")
+            if proveedor_sel == "--- Seleccione ---" or item_sel == "--- Seleccione ---":
+                st.error("Por favor, seleccione agencia e ítem del catálogo.")
             else:
-                # El ID de Vendedor se asigna como Admin (ID 3 aproximado o None para B2B)
+                # Buscar IDs
                 id_age = mapa_agencias.get(proveedor_sel)
+                id_item = mapa_cat.get(item_sel) # Formato "T-1" o "P-101"
                 
                 exito, msg = venta_controller.registrar_venta_proveedor(
                     nombre_proveedor=proveedor_sel,
                     nombre_cliente=nombre_pax,
                     telefono=tel,
-                    vendedor=None, # Eliminado de UI, se puede manejar por defecto en BD o controller
-                    tour=id_tour,
+                    vendedor=None,
+                    tour=id_item, 
                     monto_total=monto_neto,
                     monto_depositado=monto_adelanto,
                     id_agencia_aliada=id_age

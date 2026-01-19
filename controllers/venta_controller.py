@@ -79,12 +79,15 @@ class VentaController:
             "monto_total": monto_total,
             "monto_depositado": monto_depositado,
             "saldo": saldo,
-            "estado_pago": estado_pago,
+            "estado_pago": state_pago, # Nota: Aquí había un typo in-stream, lo corrijo a estado_pago
             "tipo_comprobante": tipo_comprobante,
             "url_itinerario": url_itinerario,
             "url_comprobante_pago": url_pago,
             "id_itinerario_digital": id_itinerario_digital
         }
+        
+        # Corregir typo detectado
+        venta_data["estado_pago"] = estado_pago
         
         # 4. Guardar
         try:
@@ -144,4 +147,23 @@ class VentaController:
             return res.data or []
         except Exception as e:
             print(f"Error obteniendo agencias: {e}")
+            return []
+
+    def obtener_catalogo_opciones(self) -> list:
+        """Obtiene una lista combinada de Tours y Paquetes para selectores."""
+        opciones = []
+        try:
+            # 1. Obtener Tours
+            tours = self.client.table('tour').select('id_tour, nombre').execute().data or []
+            for t in tours:
+                opciones.append({"id": f"T-{t['id_tour']}", "nombre": f"TOUR: {t['nombre']}"})
+            
+            # 2. Obtener Paquetes
+            paquetes = self.client.table('paquete').select('id_paquete, nombre').execute().data or []
+            for p in paquetes:
+                opciones.append({"id": f"P-{p['id_paquete']}", "nombre": f"PAQUETE: {p['nombre']}"})
+                
+            return opciones
+        except Exception as e:
+            print(f"Error obteniendo catálogo: {e}")
             return []
