@@ -57,7 +57,9 @@ def seguimiento_leads():
 def registro_ventas_directa():
     venta_controller = st.session_state.get('venta_controller')
     lead_controller = st.session_state.get('lead_controller')
-    if not venta_controller or not lead_controller: 
+    it_controller = st.session_state.get('itinerario_digital_controller')
+    
+    if not venta_controller or not lead_controller or not it_controller: 
         st.error("Error de inicialización de controladores.")
         return
 
@@ -85,7 +87,7 @@ def registro_ventas_directa():
     id_lead_seleccionado = lead_data.get('id_lead') if lead_data else None
     
     if id_lead_seleccionado:
-        itinerarios_lead = st.session_state.itinerario_digital_controller.listar_itinerarios_lead(id_lead_seleccionado)
+        itinerarios_lead = it_controller.listar_itinerarios_lead(id_lead_seleccionado)
     
     # Crear opciones para el selector
     opciones_itinerario = ["--- Sin Itinerario ---"]
