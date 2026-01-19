@@ -109,6 +109,11 @@ class OperacionesController:
             resultado = []
             for s in servicios_data:
                 v = ventas_map.get(s['id_venta'], {})
+                
+                # FILTRO: Excluir ventas B2B del tablero diario (solo mostrar ventas directas)
+                if v.get('id_agencia_aliada') is not None:
+                    continue
+                
                 id_cliente = v.get('id_cliente')
                 nombre_cliente = clientes_map.get(id_cliente, "Desconocido")
                 
@@ -134,7 +139,7 @@ class OperacionesController:
                     'Cliente': nombre_cliente,
                     'Guía': nombre_guia,
                     'Estado Pago': estado_pago,
-                    'Tipo': '💎 B2B' if 'B2B' in str(v.get('canal_venta', '')) else '👤 B2C',
+                    'Tipo': '👤 B2C',
                     'Día Itin.': s.get('id_itinerario_dia_index', 1),
                     'ID Itinerario': v.get('id_itinerario_digital')
                 })
@@ -206,6 +211,11 @@ class OperacionesController:
             resultado = []
             for s in servicios_data:
                 v = ventas_map.get(s['id_venta'], {})
+                
+                # FILTRO: Excluir ventas B2B del tablero diario (solo mostrar ventas directas)
+                if v.get('id_agencia_aliada') is not None:
+                    continue
+                
                 id_cliente = v.get('id_cliente')
                 nombre_cliente = clientes_map.get(id_cliente, "Desconocido")
                 
@@ -229,7 +239,7 @@ class OperacionesController:
                     'Cliente': nombre_cliente,
                     'Guía': nombre_guia,
                     'Estado Pago': estado_pago,
-                    'Tipo': '💎 B2B' if 'B2B' in str(v.get('canal_venta', '')) else '👤 B2C',
+                    'Tipo': '👤 B2C',
                     'ID Venta': s['id_venta'],
                     'N Linea': s['n_linea'],
                     'Día Itin.': s.get('id_itinerario_dia_index', 1),
