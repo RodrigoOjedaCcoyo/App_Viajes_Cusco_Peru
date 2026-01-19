@@ -331,7 +331,13 @@ def registro_ventas_proveedores(supabase_client):
     
     with st.form("form_registro_venta_proveedores_ops"):
         col1, col2 = st.columns(2)
-        proveedor = col1.text_input("Nombre de la Agencia / Proveedor")
+        
+        # Obtener Agencias Aliadas
+        agencias = venta_controller.obtener_agencias_aliadas()
+        nombres_agencias = [a['nombre'] for a in agencias]
+        mapa_agencias = {a['nombre']: a['id_agencia'] for a in agencias}
+        
+        proveedor_sel = col1.selectbox("Seleccione la Agencia / Proveedor", ["--- Seleccione ---"] + nombres_agencias)
         nombre_pax = col1.text_input("Nombre del Pasajero Principal")
         tel = col1.text_input("Celular de Contacto")
         
@@ -349,21 +355,26 @@ def registro_ventas_proveedores(supabase_client):
         submitted = st.form_submit_button("REGISTRAR VENTA PROVEEDOR", use_container_width=True)
         
         if submitted:
-            # Buscar ID
-            id_vend = next((id for id, name in vend_map.items() if name == vendedor_ref), None)
-            
-            exito, msg = venta_controller.registrar_venta_proveedor(
-                nombre_proveedor=proveedor,
-                nombre_cliente=nombre_pax,
-                telefono=tel,
-                vendedor=id_vend,
-                tour=id_tour,
-                monto_total=monto_neto,
-                monto_depositado=monto_adelanto
-            )
-            
-            if exito: st.success(msg)
-            else: st.error(msg)
+            if proveedor_sel == "--- Seleccione ---":
+                st.error("Por favor, seleccione una agencia.")
+            else:
+                # Buscar IDs
+                id_vend = next((id for id, name in vend_map.items() if name == vendedor_ref), None)
+                id_age = mapa_agencias.get(proveedor_sel)
+                
+                exito, msg = venta_controller.registrar_venta_proveedor(
+                    nombre_proveedor=proveedor_sel,
+                    nombre_cliente=nombre_pax,
+                    telefono=tel,
+                    vendedor=id_vend,
+                    tour=id_tour,
+                    monto_total=monto_neto,
+                    monto_depositado=monto_adelanto,
+                    id_agencia_aliada=id_age
+                )
+                
+                if exito: st.success(msg)
+                else: st.error(msg)
 
 
 def reporte_operativo(controller):

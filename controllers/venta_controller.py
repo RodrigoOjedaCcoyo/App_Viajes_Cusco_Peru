@@ -1,4 +1,4 @@
-# controllers/venta_controller.py (Nuevo archivo)
+# controllers/venta_controller.py
 
 from models.venta_model import VentaModel
 from supabase import Client
@@ -92,17 +92,9 @@ class VentaController:
             if nuevo_id:
                 return True, f"Venta registrada. ID: {nuevo_id}. Saldo pendiente: ${float(saldo or 0):.2f}"
             else:
-                # Si create_venta devuelve None, hay que revisar los logs del servidor
-                return False, "Error: create_venta devolvió None. Revise: 1) ¿Existe el vendedor 'Angel'? 2) ¿Se creó el cliente correctamente? 3) ¿La columna 'tour_nombre' existe en la tabla 'venta'?"
+                return False, "Error: no se pudo crear la venta."
         except Exception as e:
-            # Capturar el error real de Supabase
-            error_msg = str(e)
-            if "tour_nombre" in error_msg:
-                return False, f"Error: La columna 'tour_nombre' no existe en la tabla 'venta'. Ejecute: ALTER TABLE venta ADD COLUMN tour_nombre VARCHAR(255);"
-            elif "foreign key" in error_msg.lower():
-                return False, f"Error de llave foránea: {error_msg}"
-            else:
-                return False, f"Error de base de datos: {error_msg}"
+            return False, f"Error de base de datos: {e}"
 
     def registrar_venta_proveedor(self, 
                                   nombre_proveedor: str,
@@ -112,6 +104,7 @@ class VentaController:
                                   tour: str, 
                                   monto_total: float,
                                   monto_depositado: float,
+                                  id_agencia_aliada: Optional[int] = None,
                                   estado_limpieza: str = "PENDIENTE"
                                   ) -> tuple[bool, str]:
         """Registra una venta proveniente de un proveedor/agencia externa."""
@@ -133,6 +126,7 @@ class VentaController:
             "saldo": saldo,
             "estado_pago": "POR COBRAR" if saldo > 0 else "LIQUIDADO",
             "tipo_comprobante": "Factura Proveedor",
+            "id_agencia_aliada": id_agencia_aliada,
             "observaciones": f"Venta registrada vía: {nombre_proveedor}"
         }
         
@@ -142,3 +136,12 @@ class VentaController:
             return True, f"Venta de Proveedor ({nombre_proveedor}) registrada. ID: {nuevo_id}"
         else:
             return False, "Error al guardar en base de datos."
+
+    def obtener_agencias_aliadas(self) -> list:
+        """Obtiene la lista de agencias aliadas (B2B)."""
+        try:
+            res = self.client.table('agencia_aliada').select('*').order('nombre').execute()
+            return res.data or []
+        except Exception as e:
+            print(f"Error obteniendo agencias: {e}")
+            return []
