@@ -201,14 +201,14 @@ def registro_ventas_directa():
 
             # --- 📊 RESUMEN VISUAL (ESTILO CONTABILIDAD + ITINERARIO) ---
             with st.expander("👁️ Ver Resumen del Itinerario Seleccionado", expanded=True):
-                render = it_data.get('datos_render', {})
-                
                 # 1. Métricas de Precios (Estilo Contabilidad)
-                precios = render.get('precios', {})
+                render_data = it_data.get('datos_render') or {}
+                precios = render_data.get('precios') or {}
+                
                 p_col1, p_col2, p_col3 = st.columns(3)
-                p_col1.metric("Nacional", f"$ {precios.get('nacional', 0):,.2f}")
-                p_col2.metric("Extranjero", f"$ {precios.get('extranjero', 0):,.2f}")
-                p_col3.metric("Comunidad Andina", f"$ {precios.get('can', 0):,.2f}")
+                p_col1.metric("Nacional", f"$ {float(precios.get('nacional') or 0):,.2f}")
+                p_col2.metric("Extranjero", f"$ {float(precios.get('extranjero') or 0):,.2f}")
+                p_col3.metric("Comunidad Andina", f"$ {float(precios.get('can') or 0):,.2f}")
                 
                 st.divider()
                 
@@ -278,9 +278,16 @@ def registro_ventas_directa():
                     itin_fecha_fin = itin_fecha_inicio + timedelta(days=num_dias - 1)
                 except: pass
             
-            st.info(f"🗓️ **Viaje Programado:** Del {itin_fecha_inicio.strftime('%d/%m/%Y')} al {itin_fecha_fin.strftime('%d/%m/%Y')}")
-            fecha_inicio_sel = itin_fecha_inicio
-            fecha_fin_sel = itin_fecha_fin
+            msg_viaje = "🗓️ **Viaje Programado:** Sin fechas"
+            if itin_fecha_inicio and itin_fecha_fin:
+                try:
+                    inicio_str = itin_fecha_inicio.strftime('%d/%m/%Y')
+                    fin_str = itin_fecha_fin.strftime('%d/%m/%Y')
+                    msg_viaje = f"🗓️ **Viaje Programado:** Del {inicio_str} al {fin_str}"
+                except: pass
+            st.info(msg_viaje)
+            fecha_inicio_sel = itin_fecha_inicio or date.today()
+            fecha_fin_sel = itin_fecha_fin or date.today()
         else:
             # Si no hay itinerario, permitimos elegir fechas para no bloquear el registro manual
             st.markdown("📅 **Programación de Viaje (Manual)**")

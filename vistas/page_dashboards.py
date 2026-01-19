@@ -77,7 +77,7 @@ def render_sales_dashboard_visual(supabase_client):
     total_leads = len(lead_ctrl.obtener_todos_leads())
     
     c1, c2, c3 = st.columns(3)
-    c1.metric("Ventas Totales (USD)", f"${resumen_ventas['monto_total_acumulado']:,.2f}")
+    c1.metric("Ventas Totales (USD)", f"${float(resumen_ventas.get('monto_total_acumulado') or 0):,.2f}")
     c2.metric("Leads Registrados", total_leads)
     
     # Cálculo de tasa de conversión básico

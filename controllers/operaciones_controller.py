@@ -115,7 +115,7 @@ class OperacionesController:
                 precio_total = v.get('precio_total_cierre', 0) or 0
                 total_pagado = pagos_map.get(s['id_venta'], 0)
                 saldo = precio_total - total_pagado
-                estado_pago = "✅ SALDADO" if saldo <= 0.1 else "🔴 PENDIENTE"
+                estado_pago = "✅ SALDADO" if float(saldo or 0) <= 0.1 else "🔴 PENDIENTE"
                 
                 # Prioridad: 1. Observaciones del día, 2. Catálogo de tours, 3. Nombre general de la venta
                 nombre_tour = s.get('observaciones') or tours_map.get(s['id_tour']) or v.get('tour_nombre') or "Tour Desconocido"
@@ -211,7 +211,7 @@ class OperacionesController:
                 precio_total = v.get('precio_total_cierre', 0) or 0
                 total_pagado = pagos_map.get(s['id_venta'], 0)
                 saldo = precio_total - total_pagado
-                estado_pago = "✅ SALDADO" if saldo <= 0.1 else f"🔴 PENDIENTE (${saldo:.2f})"
+                estado_pago = "✅ SALDADO" if float(saldo or 0) <= 0.1 else f"🔴 PENDIENTE (${float(saldo or 0):.2f})"
                 
                 # Prioridad: 1. Observaciones del día, 2. Catálogo de tours, 3. Nombre general de la venta
                 nombre_tour = s.get('observaciones') or tours_map.get(s['id_tour']) or v.get('tour_nombre') or "Tour Desconocido"

@@ -90,7 +90,7 @@ class VentaController:
         try:
             nuevo_id = self.model.create_venta(venta_data)
             if nuevo_id:
-                return True, f"Venta registrada. ID: {nuevo_id}. Saldo pendiente: ${saldo:.2f}"
+                return True, f"Venta registrada. ID: {nuevo_id}. Saldo pendiente: ${float(saldo or 0):.2f}"
             else:
                 # Si create_venta devuelve None, hay que revisar los logs del servidor
                 return False, "Error: create_venta devolvió None. Revise: 1) ¿Existe el vendedor 'Angel'? 2) ¿Se creó el cliente correctamente? 3) ¿La columna 'tour_nombre' existe en la tabla 'venta'?"

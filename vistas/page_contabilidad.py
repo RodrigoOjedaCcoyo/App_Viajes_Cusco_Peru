@@ -287,8 +287,8 @@ def estructurador_contable():
     
     # Mostrar Totales
     col_pen, col_usd = st.columns(2)
-    col_pen.metric("Total Soles (PEN)", f"S/. {total_pen:,.2f}")
-    col_usd.metric("Total Dólares (USD)", f"$ {total_usd:,.2f}")
+    col_pen.metric("Total Soles (PEN)", f"S/. {float(total_pen or 0):,.2f}")
+    col_usd.metric("Total Dólares (USD)", f"$ {float(total_usd or 0):,.2f}")
 
     # Exportar
     if st.button("📥 Exportar Reporte CSV", key="btn_exp_cont"):

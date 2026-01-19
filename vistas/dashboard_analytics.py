@@ -18,9 +18,9 @@ def render_sales_dashboard(df_ventas):
     avg_ticket = df_ventas['monto_total'].mean()
     count_sales = len(df_ventas)
     
-    kpi1.metric("Ventas Totales (USD)", f"${total_sales:,.2f}")
-    kpi2.metric("Ticket Promedio", f"${avg_ticket:,.2f}")
-    kpi3.metric("Cantidad Ventas", count_sales)
+    kpi1.metric("Ventas Totales (USD)", f"${float(total_sales or 0):,.2f}")
+    kpi2.metric("Ticket Promedio", f"${float(avg_ticket or 0):,.2f}")
+    kpi3.metric("Cantidad Ventas", int(count_sales or 0))
     
     # Gráficos
     c1, c2 = st.columns(2)
@@ -110,9 +110,9 @@ def render_financial_dashboard(df_ventas, df_gastos_op=None):
     
     # Scorecard
     sc1, sc2, sc3 = st.columns(3)
-    sc1.metric("Total Ingresos (Ventas)", f"${total_ingresos:,.2f}", delta="Proyección")
-    sc2.metric("Total Gastos Ops (Estimado)", f"${total_gastos:,.2f}", delta_color="inverse")
-    sc3.metric("Utilidad Operativa", f"${utilidad:,.2f}", delta=f"{margen:.1f}%")
+    sc1.metric("Total Ingresos (Ventas)", f"${float(total_ingresos or 0):,.2f}", delta="Proyección")
+    sc2.metric("Total Gastos Ops (Estimado)", f"${float(total_gastos or 0):,.2f}", delta_color="inverse")
+    sc3.metric("Utilidad Operativa", f"${float(utilidad or 0):,.2f}", delta=f"{float(margen or 0):.1f}%")
     
     # Waterfall Chart (Simplificado)
     fig_wf = go.Figure(go.Waterfall(

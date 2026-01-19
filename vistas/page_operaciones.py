@@ -178,7 +178,10 @@ def dashboard_tablero_diario(controller):
     if not servicios:
         st.info("Sin operaciones este día.")
     else:
-        st.success(f"Pax totales: {sum(s['Pax'] for s in servicios)}")
+        pax_val = 0
+        try: pax_val = sum(int(s.get('Pax') or 0) for s in servicios)
+        except: pass
+        st.success(f"Pax totales: {pax_val}")
         df = pd.DataFrame(servicios)
         ed_df = st.data_editor(
             df,
@@ -232,7 +235,7 @@ def generar_mensaje_whatsapp(data):
     mensaje = (
         f"*REQUERIMIENTO:*\n"
         f"{data['nombre'].upper()} - {data['motivo'].upper()}\n"
-        f"TOTAL: {data['total']:.2f} SOLES\n\n"
+        f"TOTAL: {float(data.get('total') or 0):,.2f} SOLES\n\n"
         f"N° DE CUENTA:\n{data['n_cuenta'].upper()}"
     )
     # Codificar para URL
@@ -499,8 +502,8 @@ def dashboard_simulador_costos(controller):
     
     # Mostrar Totales
     col_pen, col_usd = st.columns(2)
-    col_pen.metric("Total Soles (PEN)", f"S/. {total_pen:,.2f}")
-    col_usd.metric("Total Dólares (USD)", f"$ {total_usd:,.2f}")
+    col_pen.metric("Total Soles (PEN)", f"S/. {float(total_pen or 0):,.2f}")
+    col_usd.metric("Total Dólares (USD)", f"$ {float(total_usd or 0):,.2f}")
 
     # Opción de Exportar
     if st.button("📥 Exportar a CSV"):

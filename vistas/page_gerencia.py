@@ -98,7 +98,7 @@ def auditoria_maestra(controller):
         st.metric("Canal Líder", top_canal)
     with m2:
         monto_avg = df_ventas_limpio['Monto'].mean() if not df_ventas_limpio.empty else 0
-        st.metric("Ticket Promedio", f"S/ {monto_avg:,.2f}")
+        st.metric("Ticket Promedio", f"S/ {float(monto_avg or 0):,.2f}")
     with m3:
         pax_total = controller.get_pax_totales()
         st.metric("Operación Actual", f"{pax_total} PAX")
