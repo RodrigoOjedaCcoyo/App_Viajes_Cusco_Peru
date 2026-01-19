@@ -149,8 +149,8 @@ class VentaModel(BaseModel):
                 nombre_servicio_dia = venta_data.get("tour") # Default
                 if i < len(itin_detalles):
                     dia_info = itin_detalles[i]
-                    # Soportar ambas estructuras: 'nombre' (nuestro) o 'title' (externo)
-                    nombre_servicio_dia = dia_info.get('nombre') or dia_info.get('title') or nombre_servicio_dia
+                    # Soportar todas las estructuras: 'nombre', 'titulo' (el tuyo) o 'title'
+                    nombre_servicio_dia = dia_info.get('titulo') or dia_info.get('nombre') or dia_info.get('title') or nombre_servicio_dia
 
                 detalle_tour = {
                     "id_venta": nuevo_id_venta,

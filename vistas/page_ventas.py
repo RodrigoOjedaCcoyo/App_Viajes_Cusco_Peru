@@ -178,9 +178,19 @@ def registro_ventas_directa():
             render = mapa_itinerarios.get(itinerario_seleccionado, {}).get('datos_render', {})
             f_viaje = render.get('fecha_viaje')
             if f_viaje:
-                try:
-                    itin_fecha_inicio = date.fromisoformat(f_viaje)
+                try: itin_fecha_inicio = date.fromisoformat(f_viaje)
                 except: pass
+            else:
+                # Intentar parsear "fechas": "DEL 19/01 AL 19/01, 2026"
+                f_texto = render.get('fechas', '')
+                if "DEL " in f_texto and ", " in f_texto:
+                    try:
+                        partes = f_texto.split(", ")
+                        anio = partes[1].strip()
+                        dia_mes = partes[0].replace("DEL ", "").split(" AL ")[0]
+                        dia, mes = dia_mes.split("/")
+                        itin_fecha_inicio = date(int(anio), int(mes), int(dia))
+                    except: pass
 
         fecha_inicio_sel = col_f1.date_input("Fecha Inicio", value=itin_fecha_inicio)
         fecha_fin_sel = col_f2.date_input("Fecha Fin", value=itin_fecha_inicio) # Default igual a inicio
