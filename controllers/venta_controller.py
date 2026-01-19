@@ -79,7 +79,7 @@ class VentaController:
             "monto_total": monto_total,
             "monto_depositado": monto_depositado,
             "saldo": saldo,
-            "estado_pago": state_pago, # Nota: Aquí había un typo in-stream, lo corrijo a estado_pago
+            "estado_pago": estado_pago,
             "tipo_comprobante": tipo_comprobante,
             "url_itinerario": url_itinerario,
             "url_comprobante_pago": url_pago,

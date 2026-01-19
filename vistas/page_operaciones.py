@@ -322,9 +322,8 @@ def dashboard_registro_ventas_compartido(controller):
 
 
 def registro_ventas_proveedores(supabase_client):
-    if 'venta_controller' not in st.session_state:
-        st.session_state.venta_controller = VentaController(supabase_client)
-    venta_controller = st.session_state.venta_controller
+    # Instanciamos directamente para evitar que Streamlit mantenga una versión vieja de la clase en memoria
+    venta_controller = VentaController(supabase_client)
 
     st.subheader("🤝 Registro de Venta para Proveedores (B2B)")
     st.info("Utilice este formulario para registrar ventas gestionadas por agencias o proveedores externos.")
