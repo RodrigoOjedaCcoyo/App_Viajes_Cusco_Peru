@@ -79,12 +79,18 @@ class OperacionesController:
                 for t in res_t.data:
                     tours_map[t['id_tour']] = t['nombre']
                     
-            ids_clientes = list(set([v['id_cliente'] for v in ventas_map.values() if v.get('id_cliente')]))
-            clientes_map = {}
             if ids_clientes:
                 res_c = self.client.table('cliente').select('id_cliente, nombre').in_('id_cliente', ids_clientes).execute()
                 for c in res_c.data:
                     clientes_map[c['id_cliente']] = c['nombre']
+
+            # 4. Pagos acumulados
+            pagos_map = {}
+            if ids_ventas:
+                res_p = self.client.table('pago').select('id_venta, monto_pagado').in_('id_venta', ids_ventas).execute()
+                for p in res_p.data:
+                    vid = p['id_venta']
+                    pagos_map[vid] = pagos_map.get(vid, 0) + (p['monto_pagado'] or 0)
 
             # 5. Guías asignados (Tabla 'asignacion_guia' + 'guia')
             guias_map = {}
@@ -126,7 +132,8 @@ class OperacionesController:
                     'Cliente': nombre_cliente,
                     'Guía': nombre_guia,
                     'Estado Pago': estado_pago,
-                    'Día Itin.': s.get('id_itinerario_dia_index', 1)
+                    'Día Itin.': s.get('id_itinerario_dia_index', 1),
+                    'ID Itinerario': v.get('id_itinerario_digital')
                 })
             return resultado
         except Exception as e:
@@ -215,7 +222,8 @@ class OperacionesController:
                     'Guía': s.get('guia_asignado', 'Por Asignar'),
                     'Estado Pago': estado_pago,
                     'ID Venta': s['id_venta'],
-                    'Día Itin.': s.get('id_itinerario_dia_index', 1)
+                    'Día Itin.': s.get('id_itinerario_dia_index', 1),
+                    'ID Itinerario': v.get('id_itinerario_digital')
                 })
             return resultado
         except Exception as e:

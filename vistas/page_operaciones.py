@@ -123,7 +123,7 @@ def dashboard_tablero_diario(controller):
         df = pd.DataFrame(servicios)
         ed_df = st.data_editor(
             df,
-            column_order=('Hora', 'Día Itin.', 'Servicio', 'Pax', 'Cliente', 'Guía', 'Estado Pago'),
+            column_order=('Hora', 'Día Itin.', 'Servicio', 'Pax', 'Cliente', 'Guía', 'Estado Pago', 'ID Itinerario'),
             column_config={
                 "Día Itin.": st.column_config.NumberColumn("Día", format="%d", disabled=True),
                 "Guía": st.column_config.TextColumn("Asignar Guía ✏️"),
@@ -131,6 +131,7 @@ def dashboard_tablero_diario(controller):
                 "Servicio": st.column_config.TextColumn(disabled=True),
                 "Cliente": st.column_config.TextColumn(disabled=True),
                 "Estado Pago": st.column_config.TextColumn(disabled=True),
+                "ID Itinerario": st.column_config.TextColumn("Itin. Cloud ☁️", disabled=True, help="UUID del diseño original en la nube"),
             },
             hide_index=True, use_container_width=True, key=f"ed_{f_p}"
         )
