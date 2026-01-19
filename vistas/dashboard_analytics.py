@@ -46,6 +46,14 @@ def render_operations_dashboard(df_servicios):
         st.info("No hay servicios operativos registrados para el periodo.")
         return
 
+    # Mapeo defensivo interno para visualización
+    fallbacks_fecha = ['fecha_servicio', 'Fecha', 'fecha']
+    for fb in fallbacks_fecha:
+        if fb in df_servicios.columns:
+            if fb != 'fecha_servicio':
+                df_servicios.rename(columns={fb: 'fecha_servicio'}, inplace=True)
+            break
+
     # Convertir fecha si es necesario
     if 'fecha_servicio' in df_servicios.columns:
         df_servicios['fecha_servicio'] = pd.to_datetime(df_servicios['fecha_servicio'])
