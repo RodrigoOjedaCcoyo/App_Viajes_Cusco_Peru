@@ -72,8 +72,13 @@ class VentaModel(BaseModel):
         
         # 1. Obtener IDs Relacionales
         id_cliente = self.get_or_create_cliente(venta_data.get('nombre_cliente'), venta_data.get('telefono_cliente'), venta_data.get('origen'))
+        print(f"DEBUG: id_cliente = {id_cliente}")
+        
         id_vendedor = self.get_vendedor_id_by_query(venta_data.get('vendedor'))
+        print(f"DEBUG: id_vendedor = {id_vendedor}")
+        
         id_tour_paquete = self.get_tour_id_by_name(venta_data.get('tour'))
+        print(f"DEBUG: id_tour_paquete = {id_tour_paquete}")
 
         if not id_cliente:
             print("Falla Venta: Cliente no pudo ser creado/encontrado.")
@@ -84,6 +89,7 @@ class VentaModel(BaseModel):
             res_fb = self.client.table('vendedor').select('id_vendedor').limit(1).execute()
             if res_fb.data:
                 id_vendedor = res_fb.data[0]['id_vendedor']
+                print(f"DEBUG: Usando vendedor fallback = {id_vendedor}")
             else:
                 print("Falla Venta: No hay vendedores en la base de datos.")
                 return None
@@ -101,9 +107,16 @@ class VentaModel(BaseModel):
             "tour_nombre": venta_data.get("tour"),  # Guardar nombre directamente
             "id_itinerario_digital": venta_data.get("id_itinerario_digital") # Sincronizado: Vínculo con Itinerario Digital
         }
+        
+        print(f"DEBUG: Intentando guardar venta con datos: {datos_venta_sql}")
 
         # 3. Insertar Venta
-        nuevo_id_venta = self.save(datos_venta_sql) 
+        try:
+            nuevo_id_venta = self.save(datos_venta_sql)
+            print(f"DEBUG: Venta guardada con ID = {nuevo_id_venta}")
+        except Exception as e:
+            print(f"ERROR al guardar venta: {str(e)}")
+            raise  # Re-lanzar para que el controlador lo capture
         
         if nuevo_id_venta:
             # 4. Registrar Pago Inicial (Tabla 'pago')
