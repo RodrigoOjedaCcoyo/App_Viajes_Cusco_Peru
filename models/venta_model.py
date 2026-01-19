@@ -125,20 +125,46 @@ class VentaModel(BaseModel):
                 # No fallar toda la venta si el pago no se registra
                 print(f"Advertencia: Error registrando pago inicial: {e}")
 
-        # 5. Registrar Detalle venta_tour (Siempre se registra para que aparezca en Operaciones)
+        # 5. Registrar Detalles venta_tour (Expansión de Días para Operaciones)
         try:
-            detalle_tour = {
-                "id_venta": nuevo_id_venta,
-                "n_linea": 1,
-                "id_tour": id_tour_paquete, # Puede ser None si es un tour personalizado
-                "fecha_servicio": venta_data.get("fecha_inicio"),
-                "precio_applied": venta_data.get("monto_total"), # Sincronizado con esquema SQL
-                "costo_applied": 0,
-                "cantidad_pasajeros": 1,
-                "id_itinerario_dia_index": venta_data.get("itinerario_dia_index", 1)
-            }
-            self.client.table('venta_tour').insert(detalle_tour).execute()
+            f_inicio = datetime.strptime(venta_data.get("fecha_inicio"), "%Y-%m-%d").date()
+            f_fin = datetime.strptime(venta_data.get("fecha_fin"), "%Y-%m-%d").date()
+            num_dias = (f_fin - f_inicio).days + 1
+            if num_dias < 1: num_dias = 1
+            
+            # Intentar obtener detalles del itinerario digital si existe
+            itin_detalles = []
+            id_itin = venta_data.get("id_itinerario_digital")
+            if id_itin:
+                res_itin = self.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin).single().execute()
+                if res_itin.data:
+                    render = res_itin.data.get('datos_render', {})
+                    # Soportar ambas estructuras: 'itinerario_detales' (nuestro constructor) o 'days' (externo)
+                    itin_detalles = render.get('itinerario_detales', []) or render.get('days', [])
+
+            for i in range(num_dias):
+                f_servicio = f_inicio + timedelta(days=i)
+                
+                # Determinar nombre del servicio para este día
+                nombre_servicio_dia = venta_data.get("tour") # Default
+                if i < len(itin_detalles):
+                    dia_info = itin_detalles[i]
+                    # Soportar ambas estructuras: 'nombre' (nuestro) o 'title' (externo)
+                    nombre_servicio_dia = dia_info.get('nombre') or dia_info.get('title') or nombre_servicio_dia
+
+                detalle_tour = {
+                    "id_venta": nuevo_id_venta,
+                    "n_linea": i + 1,
+                    "id_tour": id_tour_paquete if i == 0 else None, # Solo vinculamos al catálogo el primer día por ahora
+                    "fecha_servicio": f_servicio.isoformat(),
+                    "precio_applied": venta_data.get("monto_total") if i == 0 else 0,
+                    "costo_applied": 0,
+                    "cantidad_pasajeros": 1,
+                    "observaciones": nombre_servicio_dia, # Usamos observaciones para guardar el nombre del tour diario
+                    "id_itinerario_dia_index": i + 1
+                }
+                self.client.table('venta_tour').insert(detalle_tour).execute()
         except Exception as e:
-            print(f"Advertencia: Error insertando detalle tour: {e}")
+            print(f"Advertencia: Error expandiendo detalle tour: {e}")
 
         return nuevo_id_venta

@@ -116,7 +116,8 @@ class OperacionesController:
                 saldo = precio_total - total_pagado
                 estado_pago = "✅ SALDADO" if saldo <= 0.1 else "🔴 PENDIENTE"
                 
-                nombre_tour = tours_map.get(s['id_tour']) or v.get('tour_nombre') or "Tour Desconocido"
+                # Prioridad: 1. Observaciones del día, 2. Catálogo de tours, 3. Nombre general de la venta
+                nombre_tour = s.get('observaciones') or tours_map.get(s['id_tour']) or v.get('tour_nombre') or "Tour Desconocido"
                 
                 # Guía desde el mapa relacional
                 key_g = f"{s['id_venta']}-{s['n_linea']}"

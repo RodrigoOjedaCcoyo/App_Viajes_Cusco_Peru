@@ -168,6 +168,23 @@ def registro_ventas_directa():
         monto_total = col1.number_input("Monto Total ($)", min_value=0.0, format="%.2f")
         monto_pagado = col2.number_input("Monto Pagado / Adelanto ($)", min_value=0.0, format="%.2f")
         
+        # --- 📅 SELECCIÓN DE FECHAS (Para Operaciones) ---
+        st.markdown("📅 **Programación de Viaje (Fechas Reales)**")
+        col_f1, col_f2 = st.columns(2)
+        
+        # Intentar extraer fecha del itinerario para el default
+        itin_fecha_inicio = date.today()
+        if id_itinerario_dig:
+            render = mapa_itinerarios.get(itinerario_seleccionado, {}).get('datos_render', {})
+            f_viaje = render.get('fecha_viaje')
+            if f_viaje:
+                try:
+                    itin_fecha_inicio = date.fromisoformat(f_viaje)
+                except: pass
+
+        fecha_inicio_sel = col_f1.date_input("Fecha Inicio", value=itin_fecha_inicio)
+        fecha_fin_sel = col_f2.date_input("Fecha Fin", value=itin_fecha_inicio) # Default igual a inicio
+        
         st.markdown("---")
         st.write("📂 **Adjuntar Documentos**")
         c_file1, c_file2 = st.columns(2)
@@ -181,7 +198,7 @@ def registro_ventas_directa():
             if not nombre or not tel:
                 st.error("❌ El Nombre y el Celular son obligatorios.")
             elif not id_paquete:
-                st.error("❌ Debe seleccionar un Itinerario para detectar el Tour automáticamente.")
+                st.error("❌ El nombre del Tour/Paquete es obligatorio.")
             elif monto_total <= 0:
                 st.error("❌ El Monto Total debe ser mayor a 0.")
             else:
@@ -192,8 +209,8 @@ def registro_ventas_directa():
                     vendedor=vendedor_manual, 
                     tour=id_paquete,
                     tipo_hotel="Estándar", 
-                    fecha_inicio=date.today().isoformat(),
-                    fecha_fin=date.today().isoformat(),
+                    fecha_inicio=fecha_inicio_sel.isoformat(),
+                    fecha_fin=fecha_fin_sel.isoformat(),
                     monto_total=monto_total,
                     monto_depositado=monto_pagado,
                     tipo_comprobante=tipo_comp,
