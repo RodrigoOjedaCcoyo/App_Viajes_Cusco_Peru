@@ -373,7 +373,15 @@ def registro_ventas_proveedores(supabase_client):
         nombres_cat = ["--- Escribir Manualmente ---"] + [c['nombre'] for c in catalogo]
         mapa_cat = {c['nombre']: c['id'] for c in catalogo}
         
-        item_sel = col2.selectbox("Clasificar como (Paquete Catálogo)", nombres_cat)
+        # Intentar encontrar coincidencia en el catálogo
+        idx_default = 0  # "--- Escribir Manualmente ---"
+        if def_tour:
+            for i, nombre in enumerate(nombres_cat):
+                if def_tour.upper() in nombre.upper() or nombre.upper() in def_tour.upper():
+                    idx_default = i
+                    break
+        
+        item_sel = col2.selectbox("Clasificar como (Paquete Catálogo)", nombres_cat, index=idx_default)
         
         tour_manual = col2.text_input("Nombre del Tour / Servicio", value=def_tour, placeholder="Ej: Cusco Mágico")
         
