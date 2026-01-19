@@ -167,3 +167,12 @@ class VentaController:
         except Exception as e:
             print(f"Error obteniendo catálogo: {e}")
             return []
+
+    def obtener_ventas_agencia(self, id_agencia: int) -> list:
+        """Obtiene las ventas vinculadas a una agencia aliada específica."""
+        try:
+            res = self.client.table('venta').select('*').eq('id_agencia_aliada', id_agencia).order('fecha_venta', desc=True).execute()
+            return res.data or []
+        except Exception as e:
+            print(f"Error obteniendo ventas de agencia: {e}")
+            return []

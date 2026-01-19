@@ -471,10 +471,44 @@ def dashboard_simulador_costos(controller):
         ]
 
     # Barra de herramientas superior
-    c1, c2 = st.columns([3, 1])
+    c1, c2, c3 = st.columns([2, 1, 1])
     with c1:
         st.info("💡 Ingresa los gastos. El sistema separará automáticamente Soles y Dólares.")
+    
     with c2:
+        # Instanciar VentaController para obtener agencias
+        from controllers.venta_controller import VentaController
+        vc = VentaController(controller.client)
+        agencias = vc.obtener_agencias_aliadas()
+        nombres_agencias = [a['nombre'] for a in agencias]
+        mapa_agencias = {a['nombre']: a['id_agencia'] for a in agencias}
+        
+        agencia_sel = st.selectbox("Cargar Ventas de:", ["--- Seleccione ---"] + nombres_agencias, key="sel_agencia_sim")
+        
+        if agencia_sel != "--- Seleccione ---":
+            if st.button(f"📥 Cargar de {agencia_sel}", use_container_width=True):
+                id_ag = mapa_agencias.get(agencia_sel)
+                ventas_age = vc.obtener_ventas_agencia(id_ag)
+                
+                nuevos_items = []
+                for v in ventas_age:
+                    # Traer el monto total (o lo que se defina para liquidar)
+                    # Usamos el formato de la tabla simulador_data
+                    nuevos_items.append({
+                        "FECHA": date.fromisoformat(v['fecha_venta']) if v.get('fecha_venta') else date.today(),
+                        "SERVICIO": f"VENTA B2B: {v['nombre_cliente']} - {v['tour']}",
+                        "MONEDA": "USD", # Por defecto USD para B2B según contexto previo
+                        "TOTAL": float(v.get('monto_total') or 0)
+                    })
+                
+                if nuevos_items:
+                    st.session_state['simulador_data'].extend(nuevos_items)
+                    st.success(f"Se cargaron {len(nuevos_items)} registros.")
+                    st.rerun()
+                else:
+                    st.warning("No se encontraron ventas para esta agencia.")
+
+    with c3:
         if st.button("🗑️ Limpiar Tabla", use_container_width=True, key="btn_clear_ops_sim"):
             st.session_state['simulador_data'] = [{"FECHA": date.today(), "SERVICIO": "", "MONEDA": "PEN", "TOTAL": 0.0}]
             st.rerun()
