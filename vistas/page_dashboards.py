@@ -107,6 +107,21 @@ def render_ops_dashboard_visual(supabase_client):
                         
                         with st.container(border=True):
                             st.success(f"📍 **ITINERARIO:** {render.get('titulo', 'General').upper()}")
+                            
+                            # --- SECCIÓN GLOBAL (Inclusiones/Exclusiones Generales) ---
+                            g_inc = render.get('inclusiones_globales') or render.get('servicios_incluidos', []) or render.get('incluye', [])
+                            g_exc = render.get('exclusiones_globales') or render.get('servicios_no_incluidos', []) or render.get('no_incluye', [])
+                            
+                            if g_inc or g_exc:
+                                with st.expander("✨ Inclusiones y Exclusiones Generales del Paquete", expanded=True):
+                                    if g_inc:
+                                        st.markdown("<span style='color:#2E7D32; font-weight:bold;'>INCLUYE (Global):</span>", unsafe_allow_html=True)
+                                        for item in g_inc: st.markdown(f"&nbsp;&nbsp;✔️ {item.upper()}")
+                                    if g_exc:
+                                        st.markdown("<span style='color:#2E7D32; font-weight:bold;'>NO INCLUYE (Global):</span>", unsafe_allow_html=True)
+                                        for item in g_exc: st.markdown(f"&nbsp;&nbsp;❌ {item.upper()}")
+                            st.divider()
+                            
                             for i, t in enumerate(tours):
                                 dia_label = f"DIA {i+1}"
                                 if t.get('fecha'): dia_label = f"DIA: {t['fecha']}"
@@ -249,6 +264,21 @@ def render_contable_dashboard_visual(supabase_client):
                     
                     with st.container(border=True):
                         st.success(f"📍 **ITINERARIO:** {render.get('titulo', 'General').upper()}")
+                        
+                        # --- SECCIÓN GLOBAL (Inclusiones/Exclusiones Generales) ---
+                        g_inc = render.get('inclusiones_globales') or render.get('servicios_incluidos', []) or render.get('incluye', [])
+                        g_exc = render.get('exclusiones_globales') or render.get('servicios_no_incluidos', []) or render.get('no_incluye', [])
+                        
+                        if g_inc or g_exc:
+                            with st.expander("✨ Inclusiones y Exclusiones Generales del Paquete", expanded=True):
+                                if g_inc:
+                                    st.markdown("<span style='color:#2E7D32; font-weight:bold;'>INCLUYE (Global):</span>", unsafe_allow_html=True)
+                                    for item in g_inc: st.markdown(f"&nbsp;&nbsp;✔️ {item.upper()}")
+                                if g_exc:
+                                    st.markdown("<span style='color:#2E7D32; font-weight:bold;'>NO INCLUYE (Global):</span>", unsafe_allow_html=True)
+                                    for item in g_exc: st.markdown(f"&nbsp;&nbsp;❌ {item.upper()}")
+                        st.divider()
+                        
                         for i, t in enumerate(tours):
                             dia_label = f"DIA {i+1}"
                             if t.get('fecha'): dia_label = f"DIA: {t['fecha']}"

@@ -158,6 +158,20 @@ def registro_ventas_directa():
                 if not tours:
                     st.info("No hay detalles de días en este itinerario.")
                 else:
+                    # --- SECCIÓN GLOBAL (Inclusiones/Exclusiones Generales) ---
+                    g_inc = render.get('inclusiones_globales') or render.get('servicios_incluidos', []) or render.get('incluye', [])
+                    g_exc = render.get('exclusiones_globales') or render.get('servicios_no_incluidos', []) or render.get('no_incluye', [])
+                    
+                    if g_inc or g_exc:
+                        with st.expander("✨ Inclusiones y Exclusiones Generales del Paquete", expanded=True):
+                            if g_inc:
+                                st.markdown("<span style='color:#2E7D32; font-weight:bold;'>INCLUYE (Global):</span>", unsafe_allow_html=True)
+                                for item in g_inc: st.markdown(f"&nbsp;&nbsp;✔️ {item.upper()}")
+                            if g_exc:
+                                st.markdown("<span style='color:#2E7D32; font-weight:bold;'>NO INCLUYE (Global):</span>", unsafe_allow_html=True)
+                                for item in g_exc: st.markdown(f"&nbsp;&nbsp;❌ {item.upper()}")
+                    st.divider()
+                    
                     for i, t in enumerate(tours):
                         col_icon, col_txt = st.columns([0.05, 0.95])
                         col_icon.markdown("✅")
