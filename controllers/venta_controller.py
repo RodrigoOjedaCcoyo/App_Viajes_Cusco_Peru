@@ -208,3 +208,17 @@ class VentaController:
         except Exception as e:
             print(f"Error obteniendo detalles de itinerario: {e}")
             return []
+
+    def obtener_todas_ventas_b2b(self) -> list:
+        """Obtiene todas las ventas registradas vía agencias aliadas para el dashboard global."""
+        try:
+            res = self.client.table('venta').select('*, agencia_aliada(nombre), cliente(nombre)').not_.is_('id_agencia_aliada', 'null').order('fecha_venta', desc=True).execute()
+            data = []
+            for v in (res.data or []):
+                v['nombre_agencia'] = v.get('agencia_aliada', {}).get('nombre', 'Desconocido')
+                v['nombre_cliente'] = v.get('cliente', {}).get('nombre', 'Desconocido')
+                data.append(v)
+            return data
+        except Exception as e:
+            print(f"Error obteniendo ventas B2B globales: {e}")
+            return []

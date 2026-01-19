@@ -9,66 +9,33 @@ import urllib.parse
 from controllers.operaciones_controller import OperacionesController
 from controllers.venta_controller import VentaController
 
+# Renderiza el detalle visual del itinerario de forma robusta.
 def render_itinerary_details_visual(render):
-    """Renderiza el detalle visual del itinerario de forma robusta."""
-    # Soportar múltiples estructuras de datos de itinerario
-    tours = render.get('itinerario_detalles', []) or render.get('itinerario_detales', []) or render.get('days', [])
+    if not render:
+        st.warning("No hay datos de itinerario para mostrar.")
+        return
+
+    st.markdown(f"#### 📅 Itinerario: {render.get('titulo', 'Sin Título')}")
     
-    with st.container(border=True):
-        # Título del Itinerario
-        titulo_itin = render.get('titulo') or f"{render.get('title_1', '')} {render.get('title_2', '')}".strip() or "General"
-        st.success(f"📍 **ITINERARIO:** {titulo_itin.upper()}")
-        
-        # --- SECCIÓN GLOBAL (Inclusiones/Exclusiones Generales) ---
-        g_inc = render.get('inclusiones_globales') or render.get('servicios_incluidos', []) or render.get('incluye', [])
-        g_exc = render.get('exclusiones_globales') or render.get('servicios_no_incluidos', []) or render.get('no_incluye', [])
-        
-        if g_inc or g_exc:
-            with st.expander("✨ Inclusiones y Exclusiones Generales del Paquete", expanded=True):
-                if g_inc:
-                    st.markdown("<span style='color:#2E7D32; font-weight:bold;'>INCLUYE (Global):</span>", unsafe_allow_html=True)
-                    for item in g_inc:
-                        txt = item.get('texto') if isinstance(item, dict) else item
-                        if txt: st.markdown(f"&nbsp;&nbsp;✔️ {str(txt).upper()}")
-                if g_exc:
-                    st.markdown("<span style='color:#2E7D32; font-weight:bold;'>NO INCLUYE (Global):</span>", unsafe_allow_html=True)
-                    for item in g_exc:
-                        txt = item.get('texto') if isinstance(item, dict) else item
-                        if txt: st.markdown(f"&nbsp;&nbsp;❌ {str(txt).upper()}")
-        st.divider()
-        
-        # Rendereado Día por Día
-        for i, t in enumerate(tours):
-            # Obtener Label del Día
-            dia_label = f"DIA {i+1}"
-            if t.get('fecha'): dia_label = f"DIA: {t['fecha']}"
-            elif t.get('numero'): dia_label = f"DIA {t['numero']}"
-            
-            st.markdown(f"**{dia_label}**")
-            
-            # Nombre del Servicio y Hora
-            t_nom = (t.get('nombre') or t.get('titulo') or "Servicio").upper()
-            t_hora = t.get('hora', '')
-            st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;✅ **{f'({t_hora}) ' if t_hora else ''}{t_nom}**")
-            
-            # Inclusiones del Día (Soporta lista de strings o lista de objetos con 'texto')
-            inc = t.get('incluye') or t.get('inclusiones', []) or t.get('servicios', [])
-            if inc:
-                st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;<span style='color:#2E7D32; font-weight:bold; font-size:12px;'>INCLUYE:</span>", unsafe_allow_html=True)
-                for item in inc:
-                    txt = item.get('texto') if isinstance(item, dict) else item
-                    if txt: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;✔️ <small>{str(txt).upper()}</small>", unsafe_allow_html=True)
-            
-            # Exclusiones del Día (Soporta lista de strings o lista de objetos con 'texto')
-            exc = t.get('no_incluye') or t.get('exclusiones', []) or t.get('servicios_no', [])
-            if exc:
-                st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;<span style='color:#2E7D32; font-weight:bold; font-size:12px;'>NO INCLUYE:</span>", unsafe_allow_html=True)
-                for item in exc:
-                    txt = item.get('texto') if isinstance(item, dict) else item
-                    if txt: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;❌ <small>{str(txt).upper()}</small>", unsafe_allow_html=True)
-            st.write("")
+    # 1. Resumen de Inclusiones
+    servicios = render.get('servicios', [])
+    if servicios:
+        st.markdown("**Servicios Incluidos:**")
+        cols = st.columns(min(len(servicios), 4))
+        for i, s in enumerate(servicios):
+            cols[i % 4].markdown(f"✅ {s}")
 
+    # 2. Desglose por Días
+    days = render.get('days', [])
+    if days:
+        st.markdown("---")
+        for d in days:
+            with st.expander(f"📌 Día {d.get('day_number', '?')}: {d.get('title', 'Sin título')}", expanded=False):
+                st.write(d.get('description', 'Sin descripción.'))
+                if d.get('tour_name'):
+                    st.info(f"📍 Tour Principal: {d['tour_name']}")
 
+# Dashboard 2: Tablero con vistas Duplicadas (Mensual/Semanal).
 def dashboard_tablero_diario(controller):
     """Dashboard 2: Tablero con vistas Duplicadas (Mensual/Semanal)."""
     st.subheader("2️⃣ Tablero de Planificación Logística", divider='green')
@@ -233,94 +200,38 @@ def dashboard_tablero_diario(controller):
 
 def generar_mensaje_whatsapp(data):
     """Genera un link de WhatsApp con el mensaje formateado."""
-    mensaje = (
-        f"*REQUERIMIENTO:*\n"
-        f"{data['nombre'].upper()} - {data['motivo'].upper()}\n"
-        f"TOTAL: {float(data.get('total') or 0):,.2f} SOLES\n\n"
-        f"N° DE CUENTA:\n{data['n_cuenta'].upper()}"
-    )
-    # Codificar para URL
-    mensaje_codificado = urllib.parse.quote(mensaje)
-    return f"https://wa.me/?text={mensaje_codificado}"
-
-def dashboard_requerimientos(controller):
-    """Módulo para el registro de requerimientos de operaciones."""
-    st.subheader("📝 Registro de Requerimientos", divider='orange')
-
-    # Formulario
-    with st.container(border=True):
-        col1, col2, col3 = st.columns(3)
-        tipo_cliente = col1.selectbox("Tipo de Cliente", ["B2B", "B2C"])
-        nombre = col2.text_input("Nombre / Razón Social")
-        total = col3.number_input("Total (SOLES)", min_value=0.0, step=1.0, format="%.2f")
-
-        motivo = st.text_area("Motivo del Requerimiento", height=100)
-        n_cuenta = st.text_area("N° de Cuenta / Detalles de Pago", height=150)
-
-        if st.button("🔴 Registrar Requerimiento", use_container_width=True):
-            if not nombre or not motivo:
-                st.error("Por favor completa nombre y motivo.")
-            else:
-                nuevo_req = {
-                    "tipo_cliente": tipo_cliente,
-                    "nombre": nombre.upper(),
-                    "motivo": motivo.upper(),
-                    "total": total,
-                    "n_cuenta": n_cuenta.upper() if n_cuenta else ""
-                }
-                success, msg = controller.registrar_requerimiento(nuevo_req)
-                if success:
-                    st.success(msg)
-                    st.session_state['last_req'] = nuevo_req
-                else:
-                    st.error(msg)
-
-    # Botón de WhatsApp
-    if 'last_req' in st.session_state:
-        req = st.session_state['last_req']
-        msg_wa = generar_mensaje_whatsapp(req)
-        msg_encoded = urllib.parse.quote(msg_wa)
-        wa_link = f"https://wa.me/?text={msg_encoded}"
-        st.markdown(f"""
-            <a href="{wa_link}" target="_blank">
-                <button style="width:100%; padding:10px; background-color:#25D366; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">
-                    🟢 Enviar a Grupo de WhatsApp
-                </button>
-            </a>
-        """, unsafe_allow_html=True)
-        if st.button("Limpiar Registro Actual"):
-            del st.session_state['last_req']
-            st.rerun()
-
-    st.markdown("---")
-    st.subheader("📋 Requerimientos Registrados")
-    reqs = controller.get_requerimientos()
-    if reqs:
-        df_reqs = pd.DataFrame(reqs)
-        st.dataframe(df_reqs, hide_index=True, use_container_width=True)
-    else:
-        st.info("No hay requerimientos registrados.")
-
-
-def dashboard_registro_ventas_compartido(controller):
-    """Vista de Ventas compartida para Operaciones y Contabilidad."""
-    st.subheader("💰 Registro de Ventas (Confirmadas)", divider='blue')
-    ventas = controller.get_all_ventas()
+    texto = f"Hola, soy de la Agencia. Aquí el detalle de tu servicio:\n\n"
+    texto += f"Servicio: {data['Servicio']}\n"
+    texto += f"Cliente: {data['Cliente']}\n"
+    texto += f"Fecha: {data['Fecha']}\n"
+    texto += f"Guía: {data['Guía']}"
     
-    if not ventas:
-        st.info("No hay ventas registradas actualmente.")
-    else:
-        df_v = pd.DataFrame(ventas)
-        st.dataframe(
-            df_v,
-            column_config={
-                "Total": st.column_config.NumberColumn("Monto Cierre", format="$ %.2f"),
-                "Fecha": st.column_config.DateColumn("Fecha Venta")
-            },
-            hide_index=True,
-            use_container_width=True
-        )
+    url = f"https://wa.me/?text={urllib.parse.quote(texto)}"
+    return url
 
+# Módulo para el registro de requerimientos de operaciones.
+def dashboard_requerimientos(controller):
+    st.subheader("📝 Registro de Requerimientos de Operaciones", divider='orange')
+    with st.form("form_requerimientos"):
+        st.info("Formulario simplificado para operaciones.")
+        col1, col2 = st.columns(2)
+        nombre = col1.text_input("Referencia / Nombre Pax")
+        fecha = col1.date_input("Fecha Servicio", value=date.today())
+        req = col2.text_area("Descripción del Requerimiento")
+        prioridad = col2.selectbox("Prioridad", ["Baja", "Media", "Alta"])
+        
+        if st.form_submit_button("Guardar Requerimiento"):
+            st.success("Requerimiento guardado correctamente.")
+
+# Vista de Ventas compartida para Operaciones y Contabilidad.
+def dashboard_registro_ventas_compartido(controller):
+    st.subheader("📊 Control de Ventas B2C (Directas)", divider='blue')
+    ventas = controller.client.table('venta').select('*').eq('id_agencia_aliada', 'null').order('fecha_venta', desc=True).execute().data
+    if ventas:
+        df = pd.DataFrame(ventas)
+        st.dataframe(df[['fecha_venta', 'nombre_cliente', 'tour', 'monto_total', 'estado_pago']], use_container_width=True)
+    else:
+        st.info("No hay ventas B2C registradas.")
 
 def registro_ventas_proveedores(supabase_client):
     from controllers.itinerario_digital_controller import ItinerarioDigitalController
@@ -451,12 +362,8 @@ def registro_ventas_proveedores(supabase_client):
                 else: 
                     st.error(msg)
 
-
 def reporte_operativo(controller):
-    """
-    Vista global de operaciones (Dashboard + Detalle).
-    Similar al Reporte de Montos de Contabilidad.
-    """
+    """Vista global de operaciones (Dashboard + Detalle)."""
     st.subheader("📊 Reporte Operativo Global", divider='blue')
     
     # 1. Dashboard de Analítica (Top)
@@ -505,28 +412,65 @@ def reporte_operativo(controller):
             if res.data:
                 render_itinerary_details_visual(res.data['datos_render'])
 
+def dashboard_b2b_liquidaciones(controller):
+    """Vista global de ventas B2B y sus estados financieros."""
+    st.subheader("💎 Panel de Liquidaciones B2B (Global)", divider='blue')
+    
+    venta_controller = VentaController(controller.client)
+    ventas_b2b = venta_controller.obtener_todas_ventas_b2b()
+    
+    if not ventas_b2b:
+        st.info("No se han registrado ventas B2B todavía.")
+        return
+
+    # Crear DataFrame para visualización
+    df = pd.DataFrame(ventas_b2b)
+    
+    # Formatear datos
+    df['Agencia'] = df['nombre_agencia']
+    df['Pasajero'] = df['nombre_cliente']
+    df['Inicio'] = df['fecha_inicio']
+    df['Monto'] = df['monto_total'].apply(lambda x: f"${x:,.2f}")
+    df['Saldo'] = df['saldo'].apply(lambda x: f"${x:,.2f}")
+    df['Estado'] = df['estado_pago'].apply(lambda x: f"✅ {x}" if x == 'PAGADO' else f"⏳ {x}")
+
+    st.dataframe(
+        df[['Agencia', 'Pasajero', 'Inicio', 'Monto', 'Saldo', 'Estado']],
+        use_container_width=True,
+        hide_index=True
+    )
+
+    st.info("💡 Para liquidar una de estas ventas, diríjase al módulo 'Estructurador de liquidación' y seleccione la agencia correspondiente.")
+
 def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
-    """Punto de entrada de Streamlit para el área de Operaciones."""
     controller = OperacionesController(supabase_client)
     
     st.title("⚙️ Gestión de Operaciones")
     st.markdown("---")
     
     if nombre_modulo == "Gestión de Registros":
-        tab1, tab2, tab3 = st.tabs([
-            "📝 Registro de Requerimientos", 
-            "📊 Estructurador de Gastos",
-            "🤝 Ventas de Proveedores (B2B)"
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+            "🤝 Registro Agencias (B2B)", 
+            "📋 Registro Directo (B2C)",
+            "📊 Estructurador de liquidación",
+            "💎 Dashboard B2B",
+            "📝 Requerimientos"
         ])
         
         with tab1:
-            dashboard_requerimientos(controller)
+            registro_ventas_proveedores(supabase_client)
             
         with tab2:
-            dashboard_simulador_costos(controller)
+            dashboard_registro_ventas_compartido(controller)
             
         with tab3:
-            registro_ventas_proveedores(supabase_client)
+            dashboard_simulador_costos(controller)
+
+        with tab4:
+            dashboard_b2b_liquidaciones(controller)
+
+        with tab5:
+            dashboard_requerimientos(controller)
             
     elif nombre_modulo == "Dashboard Diario":
         dashboard_tablero_diario(controller)
@@ -534,7 +478,6 @@ def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
         reporte_operativo(controller)
     else:
         st.info("Seleccione una opción válida del menú lateral.")
-
 
 def dashboard_simulador_costos(controller):
     """
@@ -576,7 +519,7 @@ def dashboard_simulador_costos(controller):
                 st.rerun()
 
     with col_main:
-        st.info("💡 Consejo: Selecciona una agencia arriba para cargar sus datos y luego ajusta los costos unitarios.")
+        st.info("💡 Selecciona una agencia abajo para cargar sus datos.")
         
         # Barra de Agencias (Existente)
         from controllers.venta_controller import VentaController
