@@ -96,7 +96,15 @@ def registro_ventas_directa():
     if itinerarios_lead:
         for it in itinerarios_lead:
             uuid = it.get('id_itinerario_digital', '')
-            titulo = it.get('datos_render', {}).get('titulo', 'Sin título')
+            render_data = it.get('datos_render', {})
+            
+            # Soportar ambas estructuras
+            titulo = render_data.get('titulo', '')
+            if not titulo:
+                title_1 = render_data.get('title_1', '')
+                title_2 = render_data.get('title_2', '')
+                titulo = f"{title_1} {title_2}".strip() or 'Sin título'
+            
             fecha = it.get('fecha_generacion', '')[:10] if it.get('fecha_generacion') else 'Sin fecha'
             label = f"{titulo} ({fecha})"
             opciones_itinerario.append(label)
@@ -115,8 +123,18 @@ def registro_ventas_directa():
         if it_data:
             id_itinerario_dig = it_data.get('id_itinerario_digital')
             render = it_data.get('datos_render', {})
-            nombre_pax_cloud = it_data.get('nombre_pasajero_itinerario', '')
+            
+            # Extraer nombre del pasajero (soporta ambas estructuras)
+            nombre_pax_cloud = it_data.get('nombre_pasajero_itinerario', '') or render.get('pasajero', '')
+            
+            # Extraer título del tour (soporta ambas estructuras)
+            # Estructura interna: render.get('titulo')
+            # Estructura externa: title_1 + title_2
             tour_nombre_cloud = render.get('titulo', '')
+            if not tour_nombre_cloud:
+                title_1 = render.get('title_1', '')
+                title_2 = render.get('title_2', '')
+                tour_nombre_cloud = f"{title_1} {title_2}".strip()
             
             st.session_state[f"val_nom_{id_itinerario_dig}"] = nombre_pax_cloud
             st.session_state[f"val_tour_{id_itinerario_dig}"] = tour_nombre_cloud
@@ -133,12 +151,13 @@ def registro_ventas_directa():
         nombre = col1.text_input("Nombre Cliente", value=def_nombre)
         tel = col1.text_input("Celular", value=lead_data.get('numero_celular', '') if lead_data else '')
         
-        # El Tour ahora es automático (se muestra pero no se edita manualmente aquí)
-        id_paquete = def_tour
-        if id_paquete:
-            col2.success(f"📌 Tour Detectado: **{id_paquete}**")
-        else:
-            col2.warning("⚠️ Sin Tour asignado (Use 'Consultar')")
+        # Tour: Auto-completado desde itinerario, pero editable manualmente
+        id_paquete = col2.text_input(
+            "Nombre del Tour / Paquete", 
+            value=def_tour,
+            placeholder="Ej: Cusco Mágico & Machu Picchu",
+            help="Se auto-completa si seleccionas un itinerario, o escríbelo manualmente"
+        )
 
         # 2. Selector de Vendedor Dinámico (Jalando de la tabla 'vendedor')
         vendedores_map = lead_controller.obtener_mapeo_vendedores()
@@ -158,28 +177,36 @@ def registro_ventas_directa():
         submitted = st.form_submit_button("✅ REGISTRAR VENTA Y SUBIR ARCHIVOS", use_container_width=True)
         
         if submitted:
-            exito, msg = venta_controller.registrar_venta_directa(
-                nombre_cliente=nombre,
-                telefono=tel,
-                origen="Directo",
-                vendedor=vendedor_manual, 
-                tour=id_paquete,
-                tipo_hotel="Estándar", 
-                fecha_inicio=date.today().isoformat(),
-                fecha_fin=date.today().isoformat(),
-                monto_total=monto_total,
-                monto_depositado=monto_pagado,
-                tipo_comprobante=tipo_comp,
-                id_itinerario_digital=id_itinerario_dig if id_itinerario_dig else None,
-                file_itinerario=file_itinerario,
-                file_pago=file_boleta
-            )
-            
-            if exito:
-                st.success(msg)
-                st.balloons()
+            # Validación previa
+            if not nombre or not tel:
+                st.error("❌ El Nombre y el Celular son obligatorios.")
+            elif not id_paquete:
+                st.error("❌ Debe seleccionar un Itinerario para detectar el Tour automáticamente.")
+            elif monto_total <= 0:
+                st.error("❌ El Monto Total debe ser mayor a 0.")
             else:
-                st.error(msg)
+                exito, msg = venta_controller.registrar_venta_directa(
+                    nombre_cliente=nombre,
+                    telefono=tel,
+                    origen="Directo",
+                    vendedor=vendedor_manual, 
+                    tour=id_paquete,
+                    tipo_hotel="Estándar", 
+                    fecha_inicio=date.today().isoformat(),
+                    fecha_fin=date.today().isoformat(),
+                    monto_total=monto_total,
+                    monto_depositado=monto_pagado,
+                    tipo_comprobante=tipo_comp,
+                    id_itinerario_digital=id_itinerario_dig if id_itinerario_dig else None,
+                    file_itinerario=file_itinerario,
+                    file_pago=file_boleta
+                )
+                
+                if exito:
+                    st.success(msg)
+                    st.balloons()
+                else:
+                    st.error(msg)
 
 
 def render_reminders_dashboard():
