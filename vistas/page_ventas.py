@@ -85,11 +85,38 @@ def registro_ventas_directa():
         def_tel = lead_data.get('numero_celular', '') if lead_data else ''
         def_itin = lead_data.get('ultimo_itinerario_id', '') if lead_data else ''
 
-        nombre = col1.text_input("Nombre Cliente", value=def_nombre)
-        tel = col1.text_input("Celular", value=def_tel)
+        # ID Itinerario Digital: Botón para auto-completar
+        col_uuid, col_btn = st.columns([3, 1])
+        id_itinerario_dig = col_uuid.text_input(
+            "🆔 Código Itinerario Digital (CLOUD)", 
+            value=str(def_itin) if def_itin else "",
+            placeholder="UUID del diseño generado",
+            help="Pegue el código y presione 'Consultar' para auto-llenar el formulario."
+        )
         
-        id_paquete = col2.text_input("ID_Paquete / Tour") 
+        if col_btn.button("🔍 Consultar", use_container_width=True):
+            if id_itinerario_dig:
+                with st.spinner("Buscando itinerario..."):
+                    it_data = st.session_state.itinerario_digital_controller.get_itinerario_by_id(id_itinerario_dig)
+                    if it_data:
+                        # Extraer datos reales
+                        render = it_data.get('datos_render', {})
+                        nombre_pax_cloud = it_data.get('nombre_pasajero_itinerario', '')
+                        tour_nombre_cloud = render.get('titulo', '')
+                        
+                        # Guardar en session_state para que los inputs se actualicen
+                        st.session_state[f"val_nom_{id_itinerario_dig}"] = nombre_pax_cloud
+                        st.session_state[f"val_tour_{id_itinerario_dig}"] = tour_nombre_cloud
+                        st.success("¡Datos recuperados de la nube! 🚀")
+                        st.rerun()
+                    else:
+                        st.error("No se encontró el itinerario. Verifique el código.")
+
+        nombre = col1.text_input("Nombre Cliente", value=st.session_state.get(f"val_nom_{id_itinerario_dig}", def_nombre))
+        tel = col1.text_input("Celular", value=lead_data.get('numero_celular', '') if lead_data else '')
         
+        id_paquete = col2.text_input("ID_Paquete / Tour", value=st.session_state.get(f"val_tour_{id_itinerario_dig}", "")) 
+
         # 2. Selector de Vendedor Dinámico (Jalando de la tabla 'vendedor')
         vendedores_map = lead_controller.obtener_mapeo_vendedores()
         nombres_vendedores = list(vendedores_map.values())
@@ -104,14 +131,6 @@ def registro_ventas_directa():
         c_file1, c_file2 = st.columns(2)
         file_itinerario = c_file1.file_uploader("Cargar Itinerario (PDF)", type=['pdf', 'docx'])
         file_boleta = c_file2.file_uploader("Cargar Boleta de Pago (Img/PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
-        
-        # ID Itinerario Digital: Ahora se auto-completa pero es editable
-        id_itinerario_dig = st.text_input(
-            "🆔 Código Itinerario Digital (CLOUD)", 
-            value=str(def_itin) if def_itin else "",
-            placeholder="UUID del diseño generado en el constructor",
-            help="Este código vincula la venta con el diseño visual del itinerario en la nube."
-        )
 
         submitted = st.form_submit_button("✅ REGISTRAR VENTA Y SUBIR ARCHIVOS", use_container_width=True)
         

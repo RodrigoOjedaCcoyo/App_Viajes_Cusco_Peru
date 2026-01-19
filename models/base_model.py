@@ -34,15 +34,11 @@ class BaseModel:
 
     def save(self, data: dict) -> Optional[Any]:
         """Insertar un nuevo registro y devolver el valor de la PK."""
-        try:
-            response = self.client.table(self.table_name).insert(data).select(self.primary_key).execute()
+        response = self.client.table(self.table_name).insert(data).select(self.primary_key).execute()
 
-            if response.data:
-                return response.data[0].get(self.primary_key)
-            return None
-        except Exception as e:
-            print(f'Error al guardar datos en {self.table_name}: {e}')
-            return None 
+        if response.data:
+            return response.data[0].get(self.primary_key)
+        return None
     
     def update_by_id(self, item_id: Any, data: dict) -> bool:
         """Actualiza un registro filtrando por su PK."""

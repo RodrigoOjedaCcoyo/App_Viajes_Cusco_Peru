@@ -81,3 +81,7 @@ class ItinerarioDigitalController:
     def get_imagenes_para_tour(self, id_tour: int) -> list:
         """Helper para obtener las fotos oficiales del catálogo."""
         return self.catalogo_model.get_imagenes_tour(id_tour)
+
+    def get_itinerario_by_id(self, it_id: str) -> Optional[Dict[str, Any]]:
+        """Recupera un itinerario específico por su UUID."""
+        return self.itinerario_model.get_by_id(it_id)

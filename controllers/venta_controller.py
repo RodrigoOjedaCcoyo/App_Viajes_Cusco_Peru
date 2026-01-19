@@ -87,12 +87,14 @@ class VentaController:
         }
         
         # 4. Guardar
-        nuevo_id = self.model.create_venta(venta_data)
-        
-        if nuevo_id:
-            return True, f"Venta registrada. ID: {nuevo_id}. Saldo pendiente: ${saldo:.2f}"
-        else:
-            return False, "Error al guardar en base de datos."
+        try:
+            nuevo_id = self.model.create_venta(venta_data)
+            if nuevo_id:
+                return True, f"Venta registrada. ID: {nuevo_id}. Saldo pendiente: ${saldo:.2f}"
+            else:
+                return False, "Error al guardar en base de datos. Verifique que el Tour/Paquete y Vendedor existan."
+        except Exception as e:
+            return False, f"Error técnico: {str(e)}"
 
     def registrar_venta_proveedor(self, 
                                   nombre_proveedor: str,
