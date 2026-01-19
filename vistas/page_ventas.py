@@ -452,7 +452,17 @@ def constructor_itinerarios():
         with st.expander(f"Día {i+1}", expanded=(i==0)):
             t_nom = st.text_input(f"Nombre del Tour Día {i+1}", key=f"t_nom_{i}")
             t_desc = st.text_area(f"Descripción breve Día {i+1}", key=f"t_desc_{i}")
-            tours_detalles.append({"nombre": t_nom, "descripcion": t_desc})
+            
+            c_inc, c_exc = st.columns(2)
+            t_inc = c_inc.text_area(f"Incluye (Día {i+1}) - Uno por línea", key=f"t_inc_{i}", placeholder="Ticket de Ingreso\nAlmuerzo Buffet")
+            t_exc = c_exc.text_area(f"No Incluye (Día {i+1}) - Uno por línea", key=f"t_exc_{i}", placeholder="Cena\nPropinas")
+            
+            tours_detalles.append({
+                "nombre": t_nom, 
+                "descripcion": t_desc,
+                "incluye": [x.strip() for x in t_inc.split("\n") if x.strip()],
+                "no_incluye": [x.strip() for x in t_exc.split("\n") if x.strip()]
+            })
 
     st.write("📈 **Configuración de Precios**")
     cp1, cp2, cp3 = st.columns(3)
@@ -461,7 +471,13 @@ def constructor_itinerarios():
     p_can = cp3.number_input("Precio CAN ($)", min_value=0.0)
 
     # Configuración de la "Culebrita" y Highlights
+    st.markdown("---")
+    st.write("🌍 **Inclusiones y Exclusiones Generales (Globales)**")
     highlights = st.text_area("Hitos / Highlights (Separados por comas)", placeholder="Machu Picchu, Montaña de Colores, Valle Sagrado")
+    
+    col_g1, col_g2 = st.columns(2)
+    inc_global = col_g1.text_area("Incluye (Global) - Uno por línea", placeholder="Traslados Aeropuerto\nSeguro de Viaje")
+    exc_global = col_g2.text_area("No Incluye (Global) - Uno por línea", placeholder="Vuelos Internacionales\nGastos Personales")
     
     # 4. Botón de Generación y Sincronización
     if st.button("🚀 GENERAR ITINERARIO PDF & SINCRONIZAR CLOUD", use_container_width=True):
@@ -474,6 +490,8 @@ def constructor_itinerarios():
                 "duracion": duracion,
                 "fecha_viaje": fecha_viaje.isoformat(),
                 "highlights": [h.strip() for h in highlights.split(",")],
+                "inclusiones_globales": [h.strip() for h in inc_global.split("\n") if h.strip()],
+                "exclusiones_globales": [h.strip() for h in exc_global.split("\n") if h.strip()],
                 "itinerario_detales": tours_detalles, # Enviamos la lista de tours
                 "precios": {
                     "nacional": p_nac,
