@@ -43,26 +43,26 @@ class VentaModel(BaseModel):
 
     def get_or_create_cliente(self, nombre: str, celular: str, origen: str) -> Optional[int]:
         """Busca un cliente por nombre (simplicidad), si no existe lo crea."""
-        if not nombre: return None
-        try:
-            # 1. Buscar existente
-            res = self.client.table('cliente').select('id_cliente').eq('nombre', nombre).limit(1).execute()
-            if res.data:
-                return res.data[0]['id_cliente']
-            
-            # 2. Crear nuevo
-            nuevo_cliente = {
-                "nombre": nombre,
-                "tipo_cliente": "B2C",
-                "pais": "Desconocido", 
-                "genero": "N/A"
-            }
-            res_insert = self.client.table('cliente').insert(nuevo_cliente).select('id_cliente').execute()
-            if res_insert.data:
-                return res_insert.data[0]['id_cliente']
-        except Exception as e:
-            print(f"Error creando/buscando cliente: {e}")
-        return None
+        if not nombre: 
+            raise Exception("El nombre del cliente es obligatorio")
+        
+        # 1. Buscar existente
+        res = self.client.table('cliente').select('id_cliente').eq('nombre', nombre).limit(1).execute()
+        if res.data:
+            return res.data[0]['id_cliente']
+        
+        # 2. Crear nuevo (esto lanzará excepción si falla)
+        nuevo_cliente = {
+            "nombre": nombre,
+            "tipo_cliente": "B2C",
+            "pais": "Desconocido", 
+            "genero": "N/A"
+        }
+        res_insert = self.client.table('cliente').insert(nuevo_cliente).select('id_cliente').execute()
+        if res_insert.data:
+            return res_insert.data[0]['id_cliente']
+        else:
+            raise Exception("Supabase no devolvió el ID del cliente creado")
 
     # --- MÉTODO PRINCIPAL DE CREACIÓN DE VENTA ---
     def create_venta(self, venta_data: Dict[str, Any]) -> Dict[str, Any]:
