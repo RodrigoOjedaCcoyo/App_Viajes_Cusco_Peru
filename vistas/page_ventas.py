@@ -5,6 +5,65 @@ from datetime import date, timedelta
 from controllers.lead_controller import LeadController
 from controllers.venta_controller import VentaController
 
+def render_itinerary_details_visual(render):
+    """Renderiza el detalle visual del itinerario de forma robusta."""
+    # Soportar múltiples estructuras de datos de itinerario
+    tours = render.get('itinerario_detalles', []) or render.get('itinerario_detales', []) or render.get('days', [])
+    
+    with st.container(border=True):
+        # Título del Itinerario
+        titulo_itin = render.get('titulo') or f"{render.get('title_1', '')} {render.get('title_2', '')}".strip() or "General"
+        st.success(f"📍 **ITINERARIO:** {titulo_itin.upper()}")
+        
+        # --- SECCIÓN GLOBAL (Inclusiones/Exclusiones Generales) ---
+        g_inc = render.get('inclusiones_globales') or render.get('servicios_incluidos', []) or render.get('incluye', [])
+        g_exc = render.get('exclusiones_globales') or render.get('servicios_no_incluidos', []) or render.get('no_incluye', [])
+        
+        if g_inc or g_exc:
+            with st.expander("✨ Inclusiones y Exclusiones Generales del Paquete", expanded=True):
+                if g_inc:
+                    st.markdown("<span style='color:#2E7D32; font-weight:bold;'>INCLUYE (Global):</span>", unsafe_allow_html=True)
+                    for item in g_inc:
+                        txt = item.get('texto') if isinstance(item, dict) else item
+                        if txt: st.markdown(f"&nbsp;&nbsp;✔️ {str(txt).upper()}")
+                if g_exc:
+                    st.markdown("<span style='color:#2E7D32; font-weight:bold;'>NO INCLUYE (Global):</span>", unsafe_allow_html=True)
+                    for item in g_exc:
+                        txt = item.get('texto') if isinstance(item, dict) else item
+                        if txt: st.markdown(f"&nbsp;&nbsp;❌ {str(txt).upper()}")
+        st.divider()
+        
+        # Rendereado Día por Día
+        for i, t in enumerate(tours):
+            # Obtener Label del Día
+            dia_label = f"DIA {i+1}"
+            if t.get('fecha'): dia_label = f"DIA: {t['fecha']}"
+            elif t.get('numero'): dia_label = f"DIA {t['numero']}"
+            
+            st.markdown(f"**{dia_label}**")
+            
+            # Nombre del Servicio y Hora
+            t_nom = (t.get('nombre') or t.get('titulo') or "Servicio").upper()
+            t_hora = t.get('hora', '')
+            st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;✅ **{f'({t_hora}) ' if t_hora else ''}{t_nom}**")
+            
+            # Inclusiones del Día (Soporta lista de strings o lista de objetos con 'texto')
+            inc = t.get('incluye') or t.get('inclusiones', []) or t.get('servicios', [])
+            if inc:
+                st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;<span style='color:#2E7D32; font-weight:bold; font-size:12px;'>INCLUYE:</span>", unsafe_allow_html=True)
+                for item in inc:
+                    txt = item.get('texto') if isinstance(item, dict) else item
+                    if txt: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;✔️ <small>{str(txt).upper()}</small>", unsafe_allow_html=True)
+            
+            # Exclusiones del Día (Soporta lista de strings o lista de objetos con 'texto')
+            exc = t.get('no_incluye') or t.get('exclusiones', []) or t.get('servicios_no', [])
+            if exc:
+                st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;<span style='color:#2E7D32; font-weight:bold; font-size:12px;'>NO INCLUYE:</span>", unsafe_allow_html=True)
+                for item in exc:
+                    txt = item.get('texto') if isinstance(item, dict) else item
+                    if txt: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;❌ <small>{str(txt).upper()}</small>", unsafe_allow_html=True)
+            st.write("")
+
 
 
 def get_vendedor_id():
@@ -154,43 +213,7 @@ def registro_ventas_directa():
                 st.divider()
                 
                 # 2. Línea de Tiempo del Programa (Estilo Imagen Itinerario)
-                tours = render.get('itinerario_detales', []) or render.get('days', [])
-                if not tours:
-                    st.info("No hay detalles de días en este itinerario.")
-                else:
-                    # --- SECCIÓN GLOBAL (Inclusiones/Exclusiones Generales) ---
-                    g_inc = render.get('inclusiones_globales') or render.get('servicios_incluidos', []) or render.get('incluye', [])
-                    g_exc = render.get('exclusiones_globales') or render.get('servicios_no_incluidos', []) or render.get('no_incluye', [])
-                    
-                    if g_inc or g_exc:
-                        with st.expander("✨ Inclusiones y Exclusiones Generales del Paquete", expanded=True):
-                            if g_inc:
-                                st.markdown("<span style='color:#2E7D32; font-weight:bold;'>INCLUYE (Global):</span>", unsafe_allow_html=True)
-                                for item in g_inc: st.markdown(f"&nbsp;&nbsp;✔️ {item.upper()}")
-                            if g_exc:
-                                st.markdown("<span style='color:#2E7D32; font-weight:bold;'>NO INCLUYE (Global):</span>", unsafe_allow_html=True)
-                                for item in g_exc: st.markdown(f"&nbsp;&nbsp;❌ {item.upper()}")
-                    st.divider()
-                    
-                    for i, t in enumerate(tours):
-                        col_icon, col_txt = st.columns([0.05, 0.95])
-                        col_icon.markdown("✅")
-                        with col_txt:
-                            # Título y Hora
-                            t_nom = (t.get('nombre') or t.get('titulo') or "Servicio").upper()
-                            t_hora = t.get('hora', '')
-                            st.markdown(f"**DIA {i+1}:** {f'({t_hora}) ' if t_hora else ''} **{t_nom}**")
-                            
-                            # Inclusiones/Exclusiones
-                            inc = t.get('incluye') or t.get('inclusiones', [])
-                            if inc:
-                                st.markdown("<span style='color:green; font-weight:bold; font-size:11px;'>INCLUYE:</span>", unsafe_allow_html=True)
-                                for item in inc: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;✔️ <small>{item}</small>", unsafe_allow_html=True)
-                            
-                            exc = t.get('no_incluye') or t.get('exclusiones', [])
-                            if exc:
-                                st.markdown("<span style='color:red; font-weight:bold; font-size:11px;'>NO INCLUYE:</span>", unsafe_allow_html=True)
-                                for item in exc: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;❌ <small>{item}</small>", unsafe_allow_html=True)
+                render_itinerary_details_visual(render)
                     
                 if it_data.get('url_pdf'):
                     st.divider()
@@ -458,6 +481,8 @@ def constructor_itinerarios():
             t_exc = c_exc.text_area(f"No Incluye (Día {i+1}) - Uno por línea", key=f"t_exc_{i}", placeholder="Cena\nPropinas")
             
             tours_detalles.append({
+                "numero": i + 1,
+                "fecha": (fecha_viaje + timedelta(days=i)).strftime("%d / %m / %Y"),
                 "nombre": t_nom, 
                 "descripcion": t_desc,
                 "incluye": [x.strip() for x in t_inc.split("\n") if x.strip()],
@@ -492,7 +517,7 @@ def constructor_itinerarios():
                 "highlights": [h.strip() for h in highlights.split(",")],
                 "inclusiones_globales": [h.strip() for h in inc_global.split("\n") if h.strip()],
                 "exclusiones_globales": [h.strip() for h in exc_global.split("\n") if h.strip()],
-                "itinerario_detales": tours_detalles, # Enviamos la lista de tours
+                "itinerario_detalles": tours_detalles, # Enviamos la lista de tours con nombre corregido
                 "precios": {
                     "nacional": p_nac,
                     "extranjero": p_ext,

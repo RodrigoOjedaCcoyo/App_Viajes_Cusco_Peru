@@ -27,7 +27,7 @@ class PDFController:
                 "fecha_viaje": datos_render.get("fecha_viaje") or "",
                 "num_adultos": datos_render.get("num_adultos", 1),
                 "num_ninos": datos_render.get("num_ninos", 0),
-                "itinerario": datos_render.get("itinerario_detales", []), # Lista de tours
+                "itinerario": datos_render.get("itinerario_detalles", []) or datos_render.get("itinerario_detales", []) or datos_render.get("days", []), # Lista de tours
                 "total": datos_render.get("precios", {}).get("extranjero", 0) # Por defecto precio extranjero
             }
             

@@ -6,6 +6,65 @@ from controllers.lead_controller import LeadController
 from controllers.venta_controller import VentaController
 import calendar
 
+def render_itinerary_details_visual(render):
+    """Renderiza el detalle visual del itinerario de forma robusta."""
+    # Soportar múltiples estructuras de datos de itinerario
+    tours = render.get('itinerario_detalles', []) or render.get('itinerario_detales', []) or render.get('days', [])
+    
+    with st.container(border=True):
+        # Título del Itinerario
+        titulo_itin = render.get('titulo') or f"{render.get('title_1', '')} {render.get('title_2', '')}".strip() or "General"
+        st.success(f"📍 **ITINERARIO:** {titulo_itin.upper()}")
+        
+        # --- SECCIÓN GLOBAL (Inclusiones/Exclusiones Generales) ---
+        g_inc = render.get('inclusiones_globales') or render.get('servicios_incluidos', []) or render.get('incluye', [])
+        g_exc = render.get('exclusiones_globales') or render.get('servicios_no_incluidos', []) or render.get('no_incluye', [])
+        
+        if g_inc or g_exc:
+            with st.expander("✨ Inclusiones y Exclusiones Generales del Paquete", expanded=True):
+                if g_inc:
+                    st.markdown("<span style='color:#2E7D32; font-weight:bold;'>INCLUYE (Global):</span>", unsafe_allow_html=True)
+                    for item in g_inc:
+                        txt = item.get('texto') if isinstance(item, dict) else item
+                        if txt: st.markdown(f"&nbsp;&nbsp;✔️ {str(txt).upper()}")
+                if g_exc:
+                    st.markdown("<span style='color:#2E7D32; font-weight:bold;'>NO INCLUYE (Global):</span>", unsafe_allow_html=True)
+                    for item in g_exc:
+                        txt = item.get('texto') if isinstance(item, dict) else item
+                        if txt: st.markdown(f"&nbsp;&nbsp;❌ {str(txt).upper()}")
+        st.divider()
+        
+        # Rendereado Día por Día
+        for i, t in enumerate(tours):
+            # Obtener Label del Día
+            dia_label = f"DIA {i+1}"
+            if t.get('fecha'): dia_label = f"DIA: {t['fecha']}"
+            elif t.get('numero'): dia_label = f"DIA {t['numero']}"
+            
+            st.markdown(f"**{dia_label}**")
+            
+            # Nombre del Servicio y Hora
+            t_nom = (t.get('nombre') or t.get('titulo') or "Servicio").upper()
+            t_hora = t.get('hora', '')
+            st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;✅ **{f'({t_hora}) ' if t_hora else ''}{t_nom}**")
+            
+            # Inclusiones del Día (Soporta lista de strings o lista de objetos con 'texto')
+            inc = t.get('incluye') or t.get('inclusiones', []) or t.get('servicios', [])
+            if inc:
+                st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;<span style='color:#2E7D32; font-weight:bold; font-size:12px;'>INCLUYE:</span>", unsafe_allow_html=True)
+                for item in inc:
+                    txt = item.get('texto') if isinstance(item, dict) else item
+                    if txt: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;✔️ <small>{str(txt).upper()}</small>", unsafe_allow_html=True)
+            
+            # Exclusiones del Día (Soporta lista de strings o lista de objetos con 'texto')
+            exc = t.get('no_incluye') or t.get('exclusiones', []) or t.get('servicios_no', [])
+            if exc:
+                st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;<span style='color:#2E7D32; font-weight:bold; font-size:12px;'>NO INCLUYE:</span>", unsafe_allow_html=True)
+                for item in exc:
+                    txt = item.get('texto') if isinstance(item, dict) else item
+                    if txt: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;❌ <small>{str(txt).upper()}</small>", unsafe_allow_html=True)
+            st.write("")
+
 def render_sales_dashboard_visual(supabase_client):
     """Vista puramente visual para el Dashboard Comercial."""
     st.title("📊 Dashboard Comercial")
@@ -103,45 +162,7 @@ def render_ops_dashboard_visual(supabase_client):
                 if id_itin_audit_ops:
                     res_itin_ops = controller.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin_audit_ops).single().execute()
                     if res_itin_ops.data:
-                        render = res_itin_ops.data['datos_render']
-                        tours = render.get('itinerario_detales', []) or render.get('days', [])
-                        
-                        with st.container(border=True):
-                            st.success(f"📍 **ITINERARIO:** {render.get('titulo', 'General').upper()}")
-                            
-                            # --- SECCIÓN GLOBAL (Inclusiones/Exclusiones Generales) ---
-                            g_inc = render.get('inclusiones_globales') or render.get('servicios_incluidos', []) or render.get('incluye', [])
-                            g_exc = render.get('exclusiones_globales') or render.get('servicios_no_incluidos', []) or render.get('no_incluye', [])
-                            
-                            if g_inc or g_exc:
-                                with st.expander("✨ Inclusiones y Exclusiones Generales del Paquete", expanded=True):
-                                    if g_inc:
-                                        st.markdown("<span style='color:#2E7D32; font-weight:bold;'>INCLUYE (Global):</span>", unsafe_allow_html=True)
-                                        for item in g_inc: st.markdown(f"&nbsp;&nbsp;✔️ {item.upper()}")
-                                    if g_exc:
-                                        st.markdown("<span style='color:#2E7D32; font-weight:bold;'>NO INCLUYE (Global):</span>", unsafe_allow_html=True)
-                                        for item in g_exc: st.markdown(f"&nbsp;&nbsp;❌ {item.upper()}")
-                            st.divider()
-                            
-                            for i, t in enumerate(tours):
-                                dia_label = f"DIA {i+1}"
-                                if t.get('fecha'): dia_label = f"DIA: {t['fecha']}"
-                                st.markdown(f"**{dia_label}**")
-                                
-                                t_nom = (t.get('nombre') or t.get('titulo') or "Servicio").upper()
-                                t_hora = t.get('hora', '')
-                                st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;✅ **{f'{t_hora} ' if t_hora else ''}{t_nom}**")
-                                
-                                inc = t.get('incluye') or t.get('inclusiones', [])
-                                if inc:
-                                    st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;<span style='color:#2E7D32; font-weight:bold; font-size:12px;'>INCLUYE:</span>", unsafe_allow_html=True)
-                                    for item in inc: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;✔️ <small>{item.upper()}</small>", unsafe_allow_html=True)
-                                
-                                exc = t.get('no_incluye') or t.get('exclusiones', [])
-                                if exc:
-                                    st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;<span style='color:#2E7D32; font-weight:bold; font-size:12px;'>NO INCLUYE:</span>", unsafe_allow_html=True)
-                                    for item in exc: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;❌ <small>{item.upper()}</small>", unsafe_allow_html=True)
-                                st.write("")
+                        render_itinerary_details_visual(res_itin_ops.data['datos_render'])
             else:
                 st.info("No hay servicios con itinerario digital para auditar en este periodo.")
         else:
@@ -261,49 +282,7 @@ def render_contable_dashboard_visual(supabase_client):
             if id_itin_audit:
                 res_itin = reporte_ctrl.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin_audit).single().execute()
                 if res_itin.data:
-                    render = res_itin.data['datos_render']
-                    tours = render.get('itinerario_detales', []) or render.get('days', [])
-                    
-                    with st.container(border=True):
-                        st.success(f"📍 **ITINERARIO:** {render.get('titulo', 'General').upper()}")
-                        
-                        # --- SECCIÓN GLOBAL (Inclusiones/Exclusiones Generales) ---
-                        g_inc = render.get('inclusiones_globales') or render.get('servicios_incluidos', []) or render.get('incluye', [])
-                        g_exc = render.get('exclusiones_globales') or render.get('servicios_no_incluidos', []) or render.get('no_incluye', [])
-                        
-                        if g_inc or g_exc:
-                            with st.expander("✨ Inclusiones y Exclusiones Generales del Paquete", expanded=True):
-                                if g_inc:
-                                    st.markdown("<span style='color:#2E7D32; font-weight:bold;'>INCLUYE (Global):</span>", unsafe_allow_html=True)
-                                    for item in g_inc: st.markdown(f"&nbsp;&nbsp;✔️ {item.upper()}")
-                                if g_exc:
-                                    st.markdown("<span style='color:#2E7D32; font-weight:bold;'>NO INCLUYE (Global):</span>", unsafe_allow_html=True)
-                                    for item in g_exc: st.markdown(f"&nbsp;&nbsp;❌ {item.upper()}")
-                        st.divider()
-                        
-                        for i, t in enumerate(tours):
-                            dia_label = f"DIA {i+1}"
-                            if t.get('fecha'): dia_label = f"DIA: {t['fecha']}"
-                            
-                            st.markdown(f"**{dia_label}**")
-                            
-                            # Servicio y Hora
-                            t_nom = (t.get('nombre') or t.get('titulo') or "Servicio").upper()
-                            t_hora = t.get('hora', '')
-                            st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;✅ **{f'{t_hora} ' if t_hora else ''}{t_nom}**")
-                            
-                            # Inclusiones
-                            inc = t.get('incluye') or t.get('inclusiones', [])
-                            if inc:
-                                st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;<span style='color:#2E7D32; font-weight:bold; font-size:12px;'>INCLUYE:</span>", unsafe_allow_html=True)
-                                for item in inc: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;✔️ <small>{item.upper()}</small>", unsafe_allow_html=True)
-                            
-                            # Exclusiones
-                            exc = t.get('no_incluye') or t.get('exclusiones', [])
-                            if exc:
-                                st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;<span style='color:#2E7D32; font-weight:bold; font-size:12px;'>NO INCLUYE:</span>", unsafe_allow_html=True)
-                                for item in exc: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;❌ <small>{item.upper()}</small>", unsafe_allow_html=True)
-                            st.write("")
+                    render_itinerary_details_visual(res_itin.data['datos_render'])
         else:
             st.info("No hay ventas con itinerarios registrados para auditar.")
 
