@@ -69,54 +69,49 @@ if 'user_role' not in st.session_state:
 if 'user_email' not in st.session_state:
     st.session_state['user_email'] = None
 
-# Modificacion añadimiento de los roles
+# Modificacion: Autenticación simplificada por Email (Sin UUIDs)
 @st.cache_data
-def fetch_app_role(user_uuid):
+def fetch_app_role(email):
     """
-    Busca el UUID en las tablas de mapeo y retorna (Rol, ID_Interno).
+    Busca el correo en la tabla usuarios_app y retorna el Rol.
     """
-    res = supabase.table('vendedor_mapeo').select('id_vendedor_int').eq('id_supabase_uuid', user_uuid).execute().data
-    if res: return 'VENTAS', res[0]['id_vendedor_int']
-    
-    res = supabase.table('operador_mapeo').select('id_operador_int').eq('id_supabase_uuid', user_uuid).execute().data
-    if res: return 'OPERACIONES', res[0]['id_operador_int']
-    
-    res = supabase.table('contador_mapeo').select('id_contador_int').eq('id_supabase_uuid', user_uuid).execute().data
-    if res: return 'CONTABLE', res[0]['id_contador_int']
-    
-    res = supabase.table('gerente_mapeo').select('id_gerente_int').eq('id_supabase_uuid', user_uuid).execute().data
-    if res: return 'GERENCIA', res[0]['id_gerente_int']
-    
-    return 'SIN_ROL', None
+    try:
+        res = supabase.table('usuarios_app').select('rol').eq('email', email).execute()
+        if res.data:
+            return res.data[0]['rol'], email # Usamos el email como ID interno para simplificar
+        
+        # Fallback si no está en la tabla pero es un usuario de Supabase
+        return 'SIN_ROL', None
+    except Exception as e:
+        print(f"Error buscando rol por email: {e}")
+        return 'SIN_ROL', None
 
 def handle_login_supabase(email, password):
-    """Maneja el inicio de sesion"""
+    """Maneja el inicio de sesion usando Supabase Auth y validacion de email."""
 
     try:
-        # 1. Autneticacion de Supabase Auth (CLAVE para RLS)
+        # 1. Autenticación de Supabase Auth
         user_session = supabase.auth.sign_in_with_password({
             "email": email,
             "password" : password,
         })
 
-        user_uuid = user_session.user.id
-
-        # 2. Determinar el rol y ID de la aplicacion
-        app_role, user_db_id = fetch_app_role(user_uuid)
+        # 2. Determinar el rol usando el correo directamente
+        app_role, user_id_simplificado = fetch_app_role(email)
 
         if app_role == 'SIN_ROL':
-            st.error("Su correo esta en la base de datos, pero no esta asignado a un rol")
+            st.error("Acceso denegado: Tu correo no tiene un rol asignado en 'usuarios_app'.")
             supabase.auth.sign_out()
             return
 
         # 3. Establecer el estado
         st.session_state['authenticated'] = True
         st.session_state['user_role'] = app_role
-        st.session_state['user_id'] = user_db_id # Guardar ID numérico
+        st.session_state['user_id'] = user_id_simplificado 
         st.session_state['user_email'] = email
         st.rerun()
     except Exception as e:
-        st.error(f'Error de autenticacion. Verifique su correo electronico y contraseña: {e}')
+        st.error(f'Error de inicio de sesión: {e}')
 
 def logout_user():
     """Cierra la sesion del usuario y limpia el estado."""

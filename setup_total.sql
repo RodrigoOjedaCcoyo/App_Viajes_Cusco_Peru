@@ -172,21 +172,26 @@ CREATE TABLE requerimiento (
     fecha_solicitud TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- MAPEOS DE ROLES
-CREATE TABLE vendedor_mapeo (id_vendedor_int INTEGER REFERENCES vendedor(id_vendedor), id_supabase_uuid UUID PRIMARY KEY);
-CREATE TABLE operador_mapeo (id_operador_int INTEGER, id_supabase_uuid UUID PRIMARY KEY);
-CREATE TABLE contador_mapeo (id_contador_int INTEGER, id_supabase_uuid UUID PRIMARY KEY);
-CREATE TABLE gerente_mapeo (id_gerente_int INTEGER, id_supabase_uuid UUID PRIMARY KEY);
+-- TABLA DE ACCESO UNIFICADA (Sin UUIDs técnicos)
+CREATE TABLE usuarios_app (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    rol VARCHAR(50) NOT NULL -- 'VENTAS', 'OPERACIONES', 'CONTABLE', 'GERENCIA'
+);
 
 -- --------------------------------------------------------------
 -- 3. DATOS INICIALES (SEMILLAS DE PRUEBA)
 -- --------------------------------------------------------------
 
+-- Usuarios de Acceso
+INSERT INTO usuarios_app (email, rol) VALUES 
+('angel@agencia.com', 'VENTAS'),
+('abel@agencia.com', 'VENTAS');
+
 -- Vendedores
 INSERT INTO vendedor (nombre, email) VALUES 
-('Abel Vendedor', 'abel@agencia.com'),
-('Rodrigo Ventas', 'rodrigo@agencia.com'),
-('Admin Sistema', 'admin@cusco.com');
+('Angel Vendedor', 'angel@agencia.com'),
+('Abel Vendedor', 'abel@agencia.com');
 
 -- Catálogo de Tours
 INSERT INTO tour (nombre, descripcion, duracion_horas, precio_base_usd) VALUES 
