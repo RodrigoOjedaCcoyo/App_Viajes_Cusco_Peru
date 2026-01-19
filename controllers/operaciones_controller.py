@@ -65,7 +65,7 @@ class OperacionesController:
                 
             servicios_data = res_servicios.data
             ids_ventas = list(set([s['id_venta'] for s in servicios_data]))
-            ids_tours = list(set([s['id_tour'] for s in servicios_data]))
+            ids_tours = list(set([s['id_tour'] for s in servicios_data if s.get('id_tour')]))
             
             ventas_map = {}
             if ids_ventas:
@@ -116,7 +116,7 @@ class OperacionesController:
                 saldo = precio_total - total_pagado
                 estado_pago = "✅ SALDADO" if saldo <= 0.1 else "🔴 PENDIENTE"
                 
-                nombre_tour = tours_map.get(s['id_tour'], "Tour Desconocido")
+                nombre_tour = tours_map.get(s['id_tour']) or v.get('tour_nombre') or "Tour Desconocido"
                 
                 # Guía desde el mapa relacional
                 key_g = f"{s['id_venta']}-{s['n_linea']}"
@@ -158,7 +158,7 @@ class OperacionesController:
                 
             servicios_data = res_servicios.data
             ids_ventas = list(set([s['id_venta'] for s in servicios_data]))
-            ids_tours = list(set([s['id_tour'] for s in servicios_data]))
+            ids_tours = list(set([s['id_tour'] for s in servicios_data if s.get('id_tour')]))
             
             ventas_map = {}
             if ids_ventas:
@@ -210,7 +210,7 @@ class OperacionesController:
                 saldo = precio_total - total_pagado
                 estado_pago = "✅ SALDADO" if saldo <= 0.1 else f"🔴 PENDIENTE (${saldo:.2f})"
                 
-                nombre_tour = tours_map.get(s['id_tour'], "Tour Desconocido")
+                nombre_tour = tours_map.get(s['id_tour']) or v.get('tour_nombre') or "Tour Desconocido"
                 id_serv = s.get('id') or s.get('id_venta_tour') or s.get('n_linea') or "N/A"
                 
                 resultado.append({

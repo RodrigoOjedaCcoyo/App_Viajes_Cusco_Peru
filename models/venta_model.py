@@ -125,21 +125,20 @@ class VentaModel(BaseModel):
                 # No fallar toda la venta si el pago no se registra
                 print(f"Advertencia: Error registrando pago inicial: {e}")
 
-        # 5. Registrar Detalle venta_tour (solo si encontramos el tour en el catálogo)
-        if id_tour_paquete:
-             try:
-                detalle_tour = {
-                    "id_venta": nuevo_id_venta,
-                    "n_linea": 1,
-                    "id_tour": id_tour_paquete,
-                    "precio_aplicado": venta_data.get("monto_total"),
-                    "costo_aplicado": 0,
-                    "cantidad_pasajeros": 1,
-                    "fecha_servicio": venta_data.get("fecha_inicio"),
-                    "id_itinerario_dia_index": venta_data.get("itinerario_dia_index", 1) # Vínculo cronológico
-                }
-                self.client.table('venta_tour').insert(detalle_tour).execute()
-             except Exception as e:
-                 print(f"Advertencia: Error insertando detalle tour: {e}")
+        # 5. Registrar Detalle venta_tour (Siempre se registra para que aparezca en Operaciones)
+        try:
+            detalle_tour = {
+                "id_venta": nuevo_id_venta,
+                "n_linea": 1,
+                "id_tour": id_tour_paquete, # Puede ser None si es un tour personalizado
+                "fecha_servicio": venta_data.get("fecha_inicio"),
+                "precio_applied": venta_data.get("monto_total"), # Sincronizado con esquema SQL
+                "costo_applied": 0,
+                "cantidad_pasajeros": 1,
+                "id_itinerario_dia_index": venta_data.get("itinerario_dia_index", 1)
+            }
+            self.client.table('venta_tour').insert(detalle_tour).execute()
+        except Exception as e:
+            print(f"Advertencia: Error insertando detalle tour: {e}")
 
         return nuevo_id_venta
