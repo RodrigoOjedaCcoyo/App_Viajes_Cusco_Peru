@@ -111,11 +111,19 @@ class VentaController:
                                   estado_limpieza: str = "PENDIENTE",
                                   fecha_inicio: Optional[date] = None,
                                   fecha_fin: Optional[date] = None,
-                                  cantidad_pax: int = 1
+                                  cantidad_pax: int = 1,
+                                  id_itinerario_digital: Optional[str] = None,
+                                  file_itinerario: Optional[Any] = None,
+                                  file_pago: Optional[Any] = None
                                   ) -> tuple[bool, str]:
         """Registra una venta proveniente de una agencia externa (B2B)."""
         try:
-            # Sincronizado: saldo = monto_total - monto_depositado
+            # 1. Manejo de Archivos
+            clean_name = nombre_cliente.replace(" ", "_").lower()
+            url_it = self._subir_archivo("itinerarios", file_itinerario, f"itin_b2b_{clean_name}")
+            url_pago = self._subir_archivo("vouchers", file_pago, f"pago_b2b_{clean_name}")
+
+            # 2. Lógica de Pago
             saldo = monto_total - monto_depositado
             estado_pago = "PAGADO" if saldo <= 0 else "DEBITO"
             
@@ -132,7 +140,10 @@ class VentaController:
                 "id_agencia_aliada": id_agencia_aliada,
                 "fecha_inicio": (fecha_inicio or date.today()).isoformat(),
                 "fecha_fin": (fecha_fin or date.today()).isoformat(),
-                "cantidad_pasajeros": cantidad_pax
+                "cantidad_pasajeros": cantidad_pax,
+                "id_itinerario_digital": id_itinerario_digital,
+                "url_itinerario": url_it,
+                "url_comprobante_pago": url_pago
             }
             
             res_id = self.model.create_venta(venta_data)

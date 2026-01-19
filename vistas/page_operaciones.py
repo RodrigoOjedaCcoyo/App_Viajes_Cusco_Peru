@@ -323,69 +323,133 @@ def dashboard_registro_ventas_compartido(controller):
 
 
 def registro_ventas_proveedores(supabase_client):
-    # Instanciamos directamente para evitar que Streamlit mantenga una versión vieja de la clase en memoria
+    from controllers.itinerario_digital_controller import ItinerarioDigitalController
     venta_controller = VentaController(supabase_client)
+    it_controller = ItinerarioDigitalController(supabase_client)
 
     st.subheader("🤝 Registro de Venta para Proveedores (B2B)")
-    st.info("Utilice este formulario para registrar ventas gestionadas por agencias o proveedores externos.")
     
+    # --- 🆔 SELECTOR DE ITINERARIO (ESTILO VENDEDORES) ---
+    itinerarios = it_controller.obtener_todos_recientes(limit=30)
+    opciones_it = ["--- Sin Itinerario / Registro Manual ---"]
+    mapa_it = {}
+    
+    for it in itinerarios:
+        uuid = it.get('id_itinerario_digital')
+        render = it.get('datos_render', {})
+        titulo = render.get('titulo') or render.get('title_1', 'Sin Título')
+        pax = it.get('nombre_pasajero_itinerario') or render.get('pasajero', 'Sin Nombre')
+        fecha = it.get('fecha_generacion', '')[:10]
+        label = f"[{fecha}] {pax} - {titulo} ({uuid[:8]})"
+        opciones_it.append(label)
+        mapa_it[label] = it
+
+    it_sel = st.selectbox("🎯 Vincular con un Itinerario Digital (CLOUD)", opciones_it, help="Al seleccionar un itinerario se auto-completarán los datos del pasajero, tour y fechas.")
+    
+    id_itinerario_dig = None
+    def_pax = ""
+    def_tour = ""
+    def_f_inicio = date.today()
+    def_f_fin = date.today() + timedelta(days=1)
+    def_cant_pax = 1
+
+    if it_sel != "--- Sin Itinerario / Registro Manual ---":
+        it_data = mapa_it.get(it_sel)
+        id_itinerario_dig = it_data.get('id_itinerario_digital')
+        render = it_data.get('datos_render', {})
+        
+        def_pax = it_data.get('nombre_pasajero_itinerario') or render.get('pasajero', '')
+        def_tour = render.get('titulo') or (f"{render.get('title_1', '')} {render.get('title_2', '')}").strip()
+        
+        # Extraer Fechas
+        f_inicio_str = render.get('fecha_viaje')
+        if f_inicio_str:
+            try: def_f_inicio = date.fromisoformat(f_inicio_str)
+            except: pass
+        
+        duracion = render.get('duracion', '')
+        if duracion and 'D' in duracion:
+            try:
+                num_dias = int(duracion.split('D')[0])
+                def_f_fin = def_f_inicio + timedelta(days=num_dias - 1)
+            except: pass
+        
+        def_cant_pax = int(render.get('cantidad_pax') or 1)
+        st.success(f"✅ Datos cargados del itinerario: **{def_tour}**")
+
+    # --- 📝 FORMULARIO DE REGISTRO ---
     with st.form("form_registro_venta_proveedores_ops"):
         col1, col2 = st.columns(2)
         
-        # Obtener Agencias Aliadas
+        # Agencias
         agencias = venta_controller.obtener_agencias_aliadas()
         nombres_agencias = [a['nombre'] for a in agencias]
         mapa_agencias = {a['nombre']: a['id_agencia'] for a in agencias}
         
         proveedor_sel = col1.selectbox("Seleccione la Agencia / Proveedor", ["--- Seleccione ---"] + nombres_agencias)
-        nombre_pax = col1.text_input("Nombre del Pasajero Principal")
+        nombre_pax_final = col1.text_input("Nombre del Pasajero Principal", value=def_pax)
         
-        col1_a, col1_b = col1.columns(2)
-        f_inicio = col1_a.date_input("Fecha Inicio Servicio", value=date.today())
-        f_fin = col1_b.date_input("Fecha Fin Servicio", value=date.today() + timedelta(days=1))
+        c1a, c1b = col1.columns(2)
+        f_inicio = c1a.date_input("Fecha Inicio", value=def_f_inicio)
+        f_fin = c1b.date_input("Fecha Fin", value=def_f_fin)
         
-        col1_c, col1_d = col1.columns(2)
-        cant_pax = col1_c.number_input("Total Pasajeros", min_value=1, value=1)
-        precio_pax = col1_d.number_input("Precio Neto por Pax ($)", min_value=0.0, value=0.0, format="%.2f")
-        
-        # Obtener Catálogo (Tours y Paquetes)
+        c1c, c1d = col1.columns(2)
+        cant_pax = c1c.number_input("Total Pax", min_value=1, value=def_cant_pax)
+        precio_pax = c1d.number_input("Precio Neto/Pax ($)", min_value=0.0, value=0.0, format="%.2f")
+
+        # Catálogo vs Manual
         catalogo = venta_controller.obtener_catalogo_opciones()
-        nombres_cat = [c['nombre'] for c in catalogo]
+        nombres_cat = ["--- Escribir Manualmente ---"] + [c['nombre'] for c in catalogo]
         mapa_cat = {c['nombre']: c['id'] for c in catalogo}
         
-        item_sel = col2.selectbox("Seleccione Paquete / Tour", ["--- Seleccione ---"] + nombres_cat)
+        item_sel = col2.selectbox("Clasificar como (Paquete Catálogo)", nombres_cat)
+        
+        tour_manual = col2.text_input("Nombre del Tour / Servicio", value=def_tour, placeholder="Ej: Cusco Mágico")
         
         monto_neto_total = cant_pax * precio_pax
-        col2.metric("Monto Total a Cobrar", f"$ {monto_neto_total:,.2f}")
+        col2.metric("Monto Neto a Cobrar", f"$ {monto_neto_total:,.2f}")
+        monto_dep = col2.number_input("Adelanto Recibido ($)", min_value=0.0, value=0.0, format="%.2f")
+
+        st.markdown("---")
+        st.write("📂 **Documentación**")
+        cf1, cf2 = st.columns(2)
+        file_it = cf1.file_uploader("Itinerario (PDF)", type=['pdf'])
+        file_pago = cf2.file_uploader("Voucher de Pago (Img/PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
         
-        monto_dep = col2.number_input("Monto Depositado (Adelanto)", min_value=0.0, value=0.0, format="%.2f")
-        
-        submitted = st.form_submit_button("REGISTRAR VENTA PROVEEDOR", use_container_width=True)
+        submitted = st.form_submit_button("✅ REGISTRAR VENTA B2B", use_container_width=True)
         
         if submitted:
-            if proveedor_sel == "--- Seleccione ---" or item_sel == "--- Seleccione ---":
-                st.error("Por favor, seleccione agencia e ítem del catálogo.")
+            if proveedor_sel == "--- Seleccione ---":
+                st.error("❌ Seleccione una agencia.")
+            elif not nombre_pax_final or (not item_sel and not tour_manual):
+                st.error("❌ El nombre del pasajero y el tour son obligatorios.")
             else:
-                # Buscar IDs
                 id_age = mapa_agencias.get(proveedor_sel)
-                id_item = mapa_cat.get(item_sel) # Formato "T-1" o "P-101"
+                # Si no seleccionó catálogo, usamos el texto manual
+                id_tour_final = mapa_cat.get(item_sel) if item_sel != "--- Escribir Manualmente ---" else tour_manual
                 
                 exito, msg = venta_controller.registrar_venta_proveedor(
                     nombre_proveedor=proveedor_sel,
-                    nombre_cliente=nombre_pax,
-                    telefono="", # Eliminado de UI
+                    nombre_cliente=nombre_pax_final,
+                    telefono="", 
                     vendedor=None,
-                    tour=id_item, 
+                    tour=id_tour_final, 
                     monto_total=monto_neto_total,
                     monto_depositado=monto_dep,
                     id_agencia_aliada=id_age,
                     fecha_inicio=f_inicio,
                     fecha_fin=f_fin,
-                    cantidad_pax=cant_pax
+                    cantidad_pax=cant_pax,
+                    id_itinerario_digital=id_itinerario_dig,
+                    file_itinerario=file_it,
+                    file_pago=file_pago
                 )
                 
-                if exito: st.success(msg)
-                else: st.error(msg)
+                if exito: 
+                    st.success(msg)
+                    st.balloons()
+                else: 
+                    st.error(msg)
 
 
 def reporte_operativo(controller):
