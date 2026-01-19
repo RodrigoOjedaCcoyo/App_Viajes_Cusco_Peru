@@ -102,7 +102,7 @@ class VentaController:
     def registrar_venta_proveedor(self, 
                                   nombre_proveedor: str,
                                   nombre_cliente: str,
-                                  telefono: str, 
+                                  telefono: Optional[str], 
                                   vendedor: Optional[int],
                                   tour: str, 
                                   monto_total: float,

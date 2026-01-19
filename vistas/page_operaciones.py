@@ -338,7 +338,6 @@ def registro_ventas_proveedores(supabase_client):
         
         proveedor_sel = col1.selectbox("Seleccione la Agencia / Proveedor", ["--- Seleccione ---"] + nombres_agencias)
         nombre_pax = col1.text_input("Nombre del Pasajero Principal")
-        tel = col1.text_input("Celular de Contacto")
         
         # Obtener Catálogo (Tours y Paquetes)
         catalogo = venta_controller.obtener_catalogo_opciones()
@@ -363,7 +362,7 @@ def registro_ventas_proveedores(supabase_client):
                 exito, msg = venta_controller.registrar_venta_proveedor(
                     nombre_proveedor=proveedor_sel,
                     nombre_cliente=nombre_pax,
-                    telefono=tel,
+                    telefono="", # Eliminado de UI
                     vendedor=None,
                     tour=id_item, 
                     monto_total=monto_neto,
