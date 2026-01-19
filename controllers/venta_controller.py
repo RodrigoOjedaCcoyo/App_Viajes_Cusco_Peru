@@ -92,9 +92,17 @@ class VentaController:
             if nuevo_id:
                 return True, f"Venta registrada. ID: {nuevo_id}. Saldo pendiente: ${saldo:.2f}"
             else:
-                return False, "Error al guardar en base de datos. Verifique que el Tour/Paquete y Vendedor existan."
+                # Si create_venta devuelve None, hay que revisar los logs del servidor
+                return False, "Error: create_venta devolvió None. Revise: 1) ¿Existe el vendedor 'Angel'? 2) ¿Se creó el cliente correctamente? 3) ¿La columna 'tour_nombre' existe en la tabla 'venta'?"
         except Exception as e:
-            return False, f"Error de base de datos: {str(e)}"
+            # Capturar el error real de Supabase
+            error_msg = str(e)
+            if "tour_nombre" in error_msg:
+                return False, f"Error: La columna 'tour_nombre' no existe en la tabla 'venta'. Ejecute: ALTER TABLE venta ADD COLUMN tour_nombre VARCHAR(255);"
+            elif "foreign key" in error_msg.lower():
+                return False, f"Error de llave foránea: {error_msg}"
+            else:
+                return False, f"Error de base de datos: {error_msg}"
 
     def registrar_venta_proveedor(self, 
                                   nombre_proveedor: str,
