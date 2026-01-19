@@ -67,11 +67,16 @@ def render_operations_dashboard(df_servicios):
     
     with c1:
         st.markdown("**📉 Volumen de Pasajeros por Fecha**")
-        ops_by_date = df_servicios.groupby('fecha_servicio').size().reset_index(name='servicios')
-        fig_timeline = px.area(ops_by_date, x='fecha_servicio', y='servicios', 
-                               markers=True, title="Carga de Trabajo Diaria",
-                               color_discrete_sequence=['#4CAF50'])
-        st.plotly_chart(fig_timeline, use_container_width=True)
+        if 'fecha_servicio' in df_servicios.columns:
+            ops_by_date = df_servicios.groupby('fecha_servicio').size().reset_index(name='servicios')
+            fig_timeline = px.area(ops_by_date, x='fecha_servicio', y='servicios', 
+                                   markers=True, title="Carga de Trabajo Diaria",
+                                   color_discrete_sequence=['#4CAF50'])
+            st.plotly_chart(fig_timeline, use_container_width=True)
+        else:
+            st.warning("⚠️ No se puede mostrar la línea de tiempo: falta columna 'fecha_servicio'")
+            if not df_servicios.empty:
+                st.write("Columnas disponibles:", df_servicios.columns.tolist())
         
     with c2:
         st.markdown("**📊 Mix de Servicios (Tours)**")

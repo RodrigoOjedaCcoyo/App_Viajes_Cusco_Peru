@@ -328,7 +328,21 @@ class OperacionesController:
                 return pd.DataFrame()
             
             df = pd.DataFrame(res.data)
-            # Asegurar nombres de columnas para el dashboard
+            
+            # Mapeo defensivo de columnas (por si acaso el esquema varía)
+            columnas_esperadas = {
+                'fecha_servicio': ['fecha_servicio', 'Fecha', 'fecha'],
+                'cantidad_pasajeros': ['cantidad_pasajeros', 'Pax', 'pax', 'pax_total']
+            }
+            
+            for col_obj, fallbacks in columnas_esperadas.items():
+                if col_obj not in df.columns:
+                    for fb in fallbacks:
+                        if fb in df.columns:
+                            df.rename(columns={fb: col_obj}, inplace=True)
+                            break
+            
+            # Asegurar conversión de fecha
             if 'fecha_servicio' in df.columns:
                 df['fecha_servicio'] = pd.to_datetime(df['fecha_servicio'])
             
