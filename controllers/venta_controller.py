@@ -94,7 +94,7 @@ class VentaController:
             else:
                 return False, "Error al guardar en base de datos. Verifique que el Tour/Paquete y Vendedor existan."
         except Exception as e:
-            return False, f"Error técnico: {str(e)}"
+            return False, f"Error de base de datos: {str(e)}"
 
     def registrar_venta_proveedor(self, 
                                   nombre_proveedor: str,
