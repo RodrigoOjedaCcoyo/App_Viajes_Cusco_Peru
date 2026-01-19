@@ -72,27 +72,21 @@ class VentaModel(BaseModel):
         
         # 1. Obtener IDs Relacionales
         id_cliente = self.get_or_create_cliente(venta_data.get('nombre_cliente'), venta_data.get('telefono_cliente'), venta_data.get('origen'))
-        print(f"DEBUG: id_cliente = {id_cliente}")
+        
+        if not id_cliente:
+            raise Exception("No se pudo crear o encontrar el cliente. Verifique la tabla 'cliente'.")
         
         id_vendedor = self.get_vendedor_id_by_query(venta_data.get('vendedor'))
-        print(f"DEBUG: id_vendedor = {id_vendedor}")
-        
-        id_tour_paquete = self.get_tour_id_by_name(venta_data.get('tour'))
-        print(f"DEBUG: id_tour_paquete = {id_tour_paquete}")
-
-        if not id_cliente:
-            print("Falla Venta: Cliente no pudo ser creado/encontrado.")
-            return None
         
         if not id_vendedor:
             # Fallback: Usar el primer vendedor si no se encuentra ninguno por nombre
             res_fb = self.client.table('vendedor').select('id_vendedor').limit(1).execute()
             if res_fb.data:
                 id_vendedor = res_fb.data[0]['id_vendedor']
-                print(f"DEBUG: Usando vendedor fallback = {id_vendedor}")
             else:
-                print("Falla Venta: No hay vendedores en la base de datos.")
-                return None
+                raise Exception("No hay vendedores en la base de datos.")
+        
+        id_tour_paquete = self.get_tour_id_by_name(venta_data.get('tour'))
 
         # 2. Preparar Payload para tabla 'venta' (Columnas del esquema SQL)
         datos_venta_sql = {
@@ -107,49 +101,45 @@ class VentaModel(BaseModel):
             "tour_nombre": venta_data.get("tour"),  # Guardar nombre directamente
             "id_itinerario_digital": venta_data.get("id_itinerario_digital") # Sincronizado: Vínculo con Itinerario Digital
         }
-        
-        print(f"DEBUG: Intentando guardar venta con datos: {datos_venta_sql}")
 
-        # 3. Insertar Venta
-        try:
-            nuevo_id_venta = self.save(datos_venta_sql)
-            print(f"DEBUG: Venta guardada con ID = {nuevo_id_venta}")
-        except Exception as e:
-            print(f"ERROR al guardar venta: {str(e)}")
-            raise  # Re-lanzar para que el controlador lo capture
+        # 3. Insertar Venta (esto lanzará excepción si falla)
+        nuevo_id_venta = self.save(datos_venta_sql)
         
-        if nuevo_id_venta:
-            # 4. Registrar Pago Inicial (Tabla 'pago')
-            if venta_data.get("monto_depositado", 0) > 0:
-                try:
-                    pago_data = {
-                        "id_venta": nuevo_id_venta,
-                        "fecha_pago": datetime.now().strftime("%Y-%m-%d"),
-                        "monto_pagado": venta_data.get("monto_depositado"),
-                        "moneda": "USD",
-                        "metodo_pago": "OTRO",
-                        "tipo_pago": "ADELANTO",
-                        "observacion": f"Pago inicial registrado. Saldo: {venta_data.get('saldo')}"
-                    }
-                    self.client.table('pago').insert(pago_data).execute()
-                except Exception as e:
-                    print(f"Error registrando pago inicial: {e}")
+        if not nuevo_id_venta:
+            raise Exception("El método save() devolvió None. Error desconocido al insertar en la tabla 'venta'.")
+        
+        # 4. Registrar Pago Inicial (Tabla 'pago')
+        if venta_data.get("monto_depositado", 0) > 0:
+            try:
+                pago_data = {
+                    "id_venta": nuevo_id_venta,
+                    "fecha_pago": datetime.now().strftime("%Y-%m-%d"),
+                    "monto_pagado": venta_data.get("monto_depositado"),
+                    "moneda": "USD",
+                    "metodo_pago": "OTRO",
+                    "tipo_pago": "ADELANTO",
+                    "observacion": f"Pago inicial registrado. Saldo: {venta_data.get('saldo')}"
+                }
+                self.client.table('pago').insert(pago_data).execute()
+            except Exception as e:
+                # No fallar toda la venta si el pago no se registra
+                print(f"Advertencia: Error registrando pago inicial: {e}")
 
-            # 5. Registrar Detalle venta_tour
-            if id_tour_paquete:
-                 try:
-                    detalle_tour = {
-                        "id_venta": nuevo_id_venta,
-                        "n_linea": 1,
-                        "id_tour": id_tour_paquete,
-                        "precio_aplicado": venta_data.get("monto_total"),
-                        "costo_aplicado": 0,
-                        "cantidad_pasajeros": 1,
-                        "fecha_servicio": venta_data.get("fecha_inicio"),
-                        "id_itinerario_dia_index": venta_data.get("itinerario_dia_index", 1) # Vínculo cronológico
-                    }
-                    self.client.table('venta_tour').insert(detalle_tour).execute()
-                 except Exception as e:
-                     print(f"Error insertando detalle tour: {e}")
+        # 5. Registrar Detalle venta_tour (solo si encontramos el tour en el catálogo)
+        if id_tour_paquete:
+             try:
+                detalle_tour = {
+                    "id_venta": nuevo_id_venta,
+                    "n_linea": 1,
+                    "id_tour": id_tour_paquete,
+                    "precio_aplicado": venta_data.get("monto_total"),
+                    "costo_aplicado": 0,
+                    "cantidad_pasajeros": 1,
+                    "fecha_servicio": venta_data.get("fecha_inicio"),
+                    "id_itinerario_dia_index": venta_data.get("itinerario_dia_index", 1) # Vínculo cronológico
+                }
+                self.client.table('venta_tour').insert(detalle_tour).execute()
+             except Exception as e:
+                 print(f"Advertencia: Error insertando detalle tour: {e}")
 
         return nuevo_id_venta
