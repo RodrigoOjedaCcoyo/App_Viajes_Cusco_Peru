@@ -77,45 +77,46 @@ def registro_ventas_directa():
     lead_sel = st.selectbox("🎯 Vincular con un Lead existente (Opcional)", lead_opt)
     lead_data = lead_map.get(lead_sel)
 
+    # --- 🕵️ BUSCADOR DE ITINERARIO (FUERA DEL FORMULARIO) ---
+    st.info("💡 Tip: Pegue el código del itinerario y pulse **Consultar** para llenar los datos automáticamente.")
+    col_uuid, col_btn = st.columns([3, 1])
+    
+    def_itin = lead_data.get('ultimo_itinerario_id', '') if lead_data else ''
+    id_itinerario_dig = col_uuid.text_input(
+        "🆔 Código Itinerario Digital (CLOUD)", 
+        value=str(def_itin) if def_itin else "",
+        placeholder="UUID del diseño generado",
+        key="uuid_input_external"
+    )
+    
+    if col_btn.button("🔍 Consultar", use_container_width=True):
+        if id_itinerario_dig:
+            with st.spinner("Buscando itinerario..."):
+                it_data = st.session_state.itinerario_digital_controller.get_itinerario_by_id(id_itinerario_dig)
+                if it_data:
+                    render = it_data.get('datos_render', {})
+                    nombre_pax_cloud = it_data.get('nombre_pasajero_itinerario', '')
+                    tour_nombre_cloud = render.get('titulo', '')
+                    
+                    st.session_state[f"val_nom_{id_itinerario_dig}"] = nombre_pax_cloud
+                    st.session_state[f"val_tour_{id_itinerario_dig}"] = tour_nombre_cloud
+                    st.success("¡Datos recuperados de la nube! 🚀")
+                    st.rerun()
+                else:
+                    st.error("No se encontró el itinerario. Verifique el código.")
+
+    # --- 📝 FORMULARIO DE REGISTRO ---
     with st.form("form_registro_venta"):
         col1, col2 = st.columns(2)
         
-        # Valores por defecto basados en el Lead seleccionado
-        def_nombre = lead_data.get('nombre_pasajero', '') if lead_data else ''
-        def_tel = lead_data.get('numero_celular', '') if lead_data else ''
-        def_itin = lead_data.get('ultimo_itinerario_id', '') if lead_data else ''
+        # Valores por defecto basados en Lead o en la Consulta Cloud
+        def_nombre = st.session_state.get(f"val_nom_{id_itinerario_dig}", lead_data.get('nombre_pasajero', '') if lead_data else '')
+        def_tour = st.session_state.get(f"val_tour_{id_itinerario_dig}", "")
 
-        # ID Itinerario Digital: Botón para auto-completar
-        col_uuid, col_btn = st.columns([3, 1])
-        id_itinerario_dig = col_uuid.text_input(
-            "🆔 Código Itinerario Digital (CLOUD)", 
-            value=str(def_itin) if def_itin else "",
-            placeholder="UUID del diseño generado",
-            help="Pegue el código y presione 'Consultar' para auto-llenar el formulario."
-        )
-        
-        if col_btn.button("🔍 Consultar", use_container_width=True):
-            if id_itinerario_dig:
-                with st.spinner("Buscando itinerario..."):
-                    it_data = st.session_state.itinerario_digital_controller.get_itinerario_by_id(id_itinerario_dig)
-                    if it_data:
-                        # Extraer datos reales
-                        render = it_data.get('datos_render', {})
-                        nombre_pax_cloud = it_data.get('nombre_pasajero_itinerario', '')
-                        tour_nombre_cloud = render.get('titulo', '')
-                        
-                        # Guardar en session_state para que los inputs se actualicen
-                        st.session_state[f"val_nom_{id_itinerario_dig}"] = nombre_pax_cloud
-                        st.session_state[f"val_tour_{id_itinerario_dig}"] = tour_nombre_cloud
-                        st.success("¡Datos recuperados de la nube! 🚀")
-                        st.rerun()
-                    else:
-                        st.error("No se encontró el itinerario. Verifique el código.")
-
-        nombre = col1.text_input("Nombre Cliente", value=st.session_state.get(f"val_nom_{id_itinerario_dig}", def_nombre))
+        nombre = col1.text_input("Nombre Cliente", value=def_nombre)
         tel = col1.text_input("Celular", value=lead_data.get('numero_celular', '') if lead_data else '')
         
-        id_paquete = col2.text_input("ID_Paquete / Tour", value=st.session_state.get(f"val_tour_{id_itinerario_dig}", "")) 
+        id_paquete = col2.text_input("ID_Paquete / Tour", value=def_tour) 
 
         # 2. Selector de Vendedor Dinámico (Jalando de la tabla 'vendedor')
         vendedores_map = lead_controller.obtener_mapeo_vendedores()
