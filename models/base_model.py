@@ -34,7 +34,7 @@ class BaseModel:
 
     def save(self, data: dict) -> Optional[Any]:
         """Insertar un nuevo registro y devolver el valor de la PK."""
-        response = self.client.table(self.table_name).insert(data).select(self.primary_key).execute()
+        response = self.client.table(self.table_name).insert(data).execute()
 
         if response.data:
             return response.data[0].get(self.primary_key)
