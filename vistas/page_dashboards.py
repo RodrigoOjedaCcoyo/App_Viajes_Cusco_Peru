@@ -81,16 +81,23 @@ def render_ops_dashboard_visual(supabase_client):
         st.subheader("🏁 Verificador de Inclusiones (Itinerario)")
         
         if not df_servicios.empty:
-            # Filtrar solo los que tienen itinerario
-            ventas_itin = df_servicios[df_servicios['id_itinerario_digital'].notna()]
-            if not ventas_itin.empty:
-                # Usar selectbox para elegir cliente/venta
-                sel_v_id_ops = st.selectbox("Auditar Itinerario de la Venta:", 
-                                         ventas_itin['id_venta'].unique(),
-                                         key="sb_dash_ops_audit")
-                
-                # Obtener el UUID del itinerario
-                id_itin_audit_ops = ventas_itin[ventas_itin['id_venta'] == sel_v_id_ops]['id_itinerario_digital'].iloc[0]
+            # Mapeo defensivo para el itinerario
+            col_itin = 'ID Itinerario' if 'ID Itinerario' in df_servicios.columns else 'id_itinerario_digital'
+            
+            if col_itin in df_servicios.columns:
+                # Filtrar solo los que tienen itinerario
+                ventas_itin = df_servicios[df_servicios[col_itin].notna()]
+                if not ventas_itin.empty:
+                    # Usar selectbox para elegir cliente/venta
+                    # Nota: 'ID Venta' es el nombre en Operaciones
+                    col_id_v = 'ID Venta' if 'ID Venta' in df_servicios.columns else 'id_venta'
+                    
+                    sel_v_id_ops = st.selectbox("Auditar Itinerario de la Venta:", 
+                                             ventas_itin[col_id_v].unique(),
+                                             key="sb_dash_ops_audit")
+                    
+                    # Obtener el UUID del itinerario
+                    id_itin_audit_ops = ventas_itin[ventas_itin[col_id_v] == sel_v_id_ops][col_itin].iloc[0]
                 
                 if id_itin_audit_ops:
                     res_itin_ops = controller.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin_audit_ops).single().execute()
@@ -217,18 +224,22 @@ def render_contable_dashboard_visual(supabase_client):
     if not df_ventas.empty:
         st.dataframe(df_ventas[['id', 'monto_total', 'estado_pago', 'vendedor']].head(10), use_container_width=True, hide_index=True)
         
+        # Mapeo defensivo para Contabilidad
+        col_itin_cont = 'id_itinerario_digital' if 'id_itinerario_digital' in df_ventas.columns else 'id_itinerario'
+        
         # --- 🔍 VERIFICADOR DE INCLUSIONES (ESTILO IMAGEN) ---
         st.markdown("---")
         st.subheader("🏁 Verificador de Inclusiones (Itinerario)")
         
-        ventas_con_itin = df_ventas[df_ventas['id_itinerario_digital'].notna()]
-        if not ventas_con_itin.empty:
-            sel_v_id = st.selectbox("Auditar Itinerario de la Venta:", 
-                                  ventas_con_itin['id'].unique(),
-                                  key="sb_dash_cont_audit")
-            
-            # Obtener el UUID del itinerario
-            id_itin_audit = ventas_con_itin[ventas_con_itin['id'] == sel_v_id]['id_itinerario_digital'].iloc[0]
+        if col_itin_cont in df_ventas.columns:
+            ventas_con_itin = df_ventas[df_ventas[col_itin_cont].notna()]
+            if not ventas_con_itin.empty:
+                sel_v_id = st.selectbox("Auditar Itinerario de la Venta:", 
+                                      ventas_con_itin['id'].unique(),
+                                      key="sb_dash_cont_audit")
+                
+                # Obtener el UUID del itinerario
+                id_itin_audit = ventas_con_itin[ventas_con_itin['id'] == sel_v_id][col_itin_cont].iloc[0]
             
             if id_itin_audit:
                 res_itin = reporte_ctrl.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin_audit).single().execute()
