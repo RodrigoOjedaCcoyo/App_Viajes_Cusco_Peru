@@ -197,7 +197,6 @@ INSERT INTO vendedor (nombre, email) VALUES
 ('Angel', 'angel@agencia.com'),
 ('Abel', 'abel@agencia.com'),
 ('Admin', 'admin@agencia.com');
-('Admin', 'admin@agencia.com');
 
 -- Tours Básicos
 INSERT INTO tour (nombre, descripcion, duracion_horas, precio_base_usd) VALUES 
