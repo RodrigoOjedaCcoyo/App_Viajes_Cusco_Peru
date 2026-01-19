@@ -85,3 +85,7 @@ class ItinerarioDigitalController:
     def get_itinerario_by_id(self, it_id: str) -> Optional[Dict[str, Any]]:
         """Recupera un itinerario específico por su UUID."""
         return self.itinerario_model.get_by_id(it_id)
+
+    def listar_itinerarios_lead(self, id_lead: int) -> list:
+        """Retorna lista de itinerarios del lead."""
+        return self.itinerario_model.obtener_todos_por_lead(id_lead)

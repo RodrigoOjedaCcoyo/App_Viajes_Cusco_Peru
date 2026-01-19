@@ -77,33 +77,48 @@ def registro_ventas_directa():
     lead_sel = st.selectbox("🎯 Vincular con un Lead existente (Opcional)", lead_opt)
     lead_data = lead_map.get(lead_sel)
 
-    # --- 🕵️ BUSCADOR DE ITINERARIO (FUERA DEL FORMULARIO) ---
-    st.info("💡 Tip: Pegue el código del itinerario y pulse **Consultar** para llenar los datos automáticamente.")
-    col_uuid, col_btn = st.columns([3, 1])
+    # --- 🕵️ SELECTOR DE ITINERARIO (AUTOMÁTICO POR LEAD) ---
+    st.info("💡 Seleccione el itinerario del cliente para auto-llenar los datos.")
     
-    def_itin = lead_data.get('ultimo_itinerario_id', '') if lead_data else ''
-    id_itinerario_dig = col_uuid.text_input(
+    # Obtener itinerarios del lead seleccionado
+    itinerarios_lead = []
+    id_lead_seleccionado = lead_data.get('id_lead') if lead_data else None
+    
+    if id_lead_seleccionado:
+        itinerarios_lead = st.session_state.itinerario_digital_controller.listar_itinerarios_lead(id_lead_seleccionado)
+    
+    # Crear opciones para el selector
+    opciones_itinerario = ["--- Sin Itinerario ---"]
+    mapa_itinerarios = {}
+    
+    if itinerarios_lead:
+        for it in itinerarios_lead:
+            uuid = it.get('id_itinerario_digital', '')
+            titulo = it.get('datos_render', {}).get('titulo', 'Sin título')
+            fecha = it.get('fecha_generacion', '')[:10] if it.get('fecha_generacion') else 'Sin fecha'
+            label = f"{titulo} ({fecha})"
+            opciones_itinerario.append(label)
+            mapa_itinerarios[label] = it
+    
+    itinerario_seleccionado = st.selectbox(
         "🆔 Código Itinerario Digital (CLOUD)", 
-        value=str(def_itin) if def_itin else "",
-        placeholder="UUID del diseño generado",
-        key="uuid_input_external"
+        opciones_itinerario,
+        help="Seleccione el diseño que corresponde a esta venta"
     )
     
-    if col_btn.button("🔍 Consultar", use_container_width=True):
-        if id_itinerario_dig:
-            with st.spinner("Buscando itinerario..."):
-                it_data = st.session_state.itinerario_digital_controller.get_itinerario_by_id(id_itinerario_dig)
-                if it_data:
-                    render = it_data.get('datos_render', {})
-                    nombre_pax_cloud = it_data.get('nombre_pasajero_itinerario', '')
-                    tour_nombre_cloud = render.get('titulo', '')
-                    
-                    st.session_state[f"val_nom_{id_itinerario_dig}"] = nombre_pax_cloud
-                    st.session_state[f"val_tour_{id_itinerario_dig}"] = tour_nombre_cloud
-                    st.success("¡Datos recuperados de la nube! 🚀")
-                    st.rerun()
-                else:
-                    st.error("No se encontró el itinerario. Verifique el código.")
+    # Auto-completar datos si se seleccionó un itinerario
+    id_itinerario_dig = None
+    if itinerario_seleccionado != "--- Sin Itinerario ---":
+        it_data = mapa_itinerarios.get(itinerario_seleccionado)
+        if it_data:
+            id_itinerario_dig = it_data.get('id_itinerario_digital')
+            render = it_data.get('datos_render', {})
+            nombre_pax_cloud = it_data.get('nombre_pasajero_itinerario', '')
+            tour_nombre_cloud = render.get('titulo', '')
+            
+            st.session_state[f"val_nom_{id_itinerario_dig}"] = nombre_pax_cloud
+            st.session_state[f"val_tour_{id_itinerario_dig}"] = tour_nombre_cloud
+            st.success(f"✅ Itinerario cargado: **{tour_nombre_cloud}**")
 
     # --- 📝 FORMULARIO DE REGISTRO ---
     with st.form("form_registro_venta"):

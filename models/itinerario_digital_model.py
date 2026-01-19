@@ -32,3 +32,18 @@ class ItinerarioDigitalModel(BaseModel):
         except Exception as e:
             print(f"Error obteniendo itinerario digital: {e}")
             return None
+
+    def obtener_todos_por_lead(self, id_lead: int) -> list:
+        """Obtiene todos los itinerarios generados para un lead específico."""
+        try:
+            res = (
+                self.client.table(self.table_name)
+                .select('id_itinerario_digital, nombre_pasajero_itinerario, fecha_generacion, datos_render')
+                .eq('id_lead', id_lead)
+                .order('fecha_generacion', desc=True)
+                .execute()
+            )
+            return res.data if res.data else []
+        except Exception as e:
+            print(f"Error obteniendo lista de itinerarios: {e}")
+            return []
