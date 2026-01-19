@@ -492,8 +492,8 @@ def dashboard_simulador_costos(controller):
             if ventas_age:
                 # Crear opciones para el selector de pasajeros
                 # Formato: "Nombre Cliente | Tour (ID)"
-                opciones_pax = [f"{v['nombre_cliente']} | {v['tour']} ({v['id_venta']})" for v in ventas_age]
-                mapa_ventas_pax = {f"{v['nombre_cliente']} | {v['tour']} ({v['id_venta']})": v for v in ventas_age}
+                opciones_pax = [f"{v['nombre_cliente']} | {v.get('tour_nombre', 'Sin Tour')} ({v['id_venta']})" for v in ventas_age]
+                mapa_ventas_pax = {f"{v['nombre_cliente']} | {v.get('tour_nombre', 'Sin Tour')} ({v['id_venta']})": v for v in ventas_age}
                 
                 pax_sel = st.selectbox("2. Seleccionar Pasajero (Venta):", ["--- Seleccione ---"] + opciones_pax, key="sel_pax_sim")
                 
@@ -505,7 +505,7 @@ def dashboard_simulador_costos(controller):
                             "FECHA": date.fromisoformat(v['fecha_venta']) if v.get('fecha_venta') else date.today(),
                             "SERVICIO": f"INGRESO B2B: {v['nombre_cliente']}",
                             "MONEDA": "USD",
-                            "TOTAL": float(v.get('monto_total') or 0)
+                            "TOTAL": float(v.get('precio_total_cierre') or 0)
                         }
                         
                         st.session_state['simulador_data'].append(nuevo_item)
