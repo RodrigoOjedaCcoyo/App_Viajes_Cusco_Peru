@@ -1,7 +1,7 @@
 # vistas/page_ventas.py
 import streamlit as st
 import pandas as pd
-from datetime import date
+from datetime import date, timedelta
 from controllers.lead_controller import LeadController
 from controllers.venta_controller import VentaController
 
@@ -168,20 +168,18 @@ def registro_ventas_directa():
         monto_total = col1.number_input("Monto Total ($)", min_value=0.0, format="%.2f")
         monto_pagado = col2.number_input("Monto Pagado / Adelanto ($)", min_value=0.0, format="%.2f")
         
-        # --- 📅 SELECCIÓN DE FECHAS (Para Operaciones) ---
-        st.markdown("📅 **Programación de Viaje (Fechas Reales)**")
-        col_f1, col_f2 = st.columns(2)
-        
-        # Intentar extraer fecha del itinerario para el default
+        # --- 📅 CÁLCULO AUTOMÁTICO DE FECHAS (Para Operaciones) ---
         itin_fecha_inicio = date.today()
+        itin_fecha_fin = date.today()
+        
         if id_itinerario_dig:
             render = mapa_itinerarios.get(itinerario_seleccionado, {}).get('datos_render', {})
+            # 1. Extraer Inicio
             f_viaje = render.get('fecha_viaje')
             if f_viaje:
                 try: itin_fecha_inicio = date.fromisoformat(f_viaje)
                 except: pass
             else:
-                # Intentar parsear "fechas": "DEL 19/01 AL 19/01, 2026"
                 f_texto = render.get('fechas', '')
                 if "DEL " in f_texto and ", " in f_texto:
                     try:
@@ -191,9 +189,25 @@ def registro_ventas_directa():
                         dia, mes = dia_mes.split("/")
                         itin_fecha_inicio = date(int(anio), int(mes), int(dia))
                     except: pass
-
-        fecha_inicio_sel = col_f1.date_input("Fecha Inicio", value=itin_fecha_inicio)
-        fecha_fin_sel = col_f2.date_input("Fecha Fin", value=itin_fecha_inicio) # Default igual a inicio
+            
+            # 2. Calcular Fin basado en Duración (ej: "3D-2N")
+            itin_fecha_fin = itin_fecha_inicio
+            duracion = render.get('duracion', '')
+            if duracion and 'D' in duracion:
+                try:
+                    num_dias = int(duracion.split('D')[0])
+                    itin_fecha_fin = itin_fecha_inicio + timedelta(days=num_dias - 1)
+                except: pass
+            
+            st.info(f"🗓️ **Viaje Programado:** Del {itin_fecha_inicio.strftime('%d/%m/%Y')} al {itin_fecha_fin.strftime('%d/%m/%Y')}")
+            fecha_inicio_sel = itin_fecha_inicio
+            fecha_fin_sel = itin_fecha_fin
+        else:
+            # Si no hay itinerario, permitimos elegir fechas para no bloquear el registro manual
+            st.markdown("📅 **Programación de Viaje (Manual)**")
+            col_f1, col_f2 = st.columns(2)
+            fecha_inicio_sel = col_f1.date_input("Fecha Inicio", value=date.today())
+            fecha_fin_sel = col_f2.date_input("Fecha Fin", value=date.today())
         
         st.markdown("---")
         st.write("📂 **Adjuntar Documentos**")

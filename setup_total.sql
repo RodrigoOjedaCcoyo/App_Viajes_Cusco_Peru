@@ -54,8 +54,16 @@ CREATE TABLE tour (
     nombre VARCHAR(255) NOT NULL,
     descripcion TEXT,
     duracion_horas INTEGER,
-    precio_base_usd DECIMAL(10,2)
+    precio_base_usd DECIMAL(10,2),
+    highlights JSONB,
+    servicios_incluidos JSONB,
+    servicios_no_incluidos JSONB,
+    precio_nacional DECIMAL(10,2),
+    carpeta_img TEXT
 );
+
+COMMENT ON COLUMN tour.highlights IS 'Puntos clave del tour para el PDF';
+COMMENT ON COLUMN tour.servicios_incluidos IS 'Servicios con iconos para la culebrita';
 
 CREATE TABLE paquete (
     id_paquete SERIAL PRIMARY KEY,
