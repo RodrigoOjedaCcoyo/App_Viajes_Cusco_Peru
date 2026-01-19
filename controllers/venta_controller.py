@@ -108,37 +108,42 @@ class VentaController:
                                   monto_total: float,
                                   monto_depositado: float,
                                   id_agencia_aliada: Optional[int] = None,
-                                  estado_limpieza: str = "PENDIENTE"
+                                  estado_limpieza: str = "PENDIENTE",
+                                  fecha_inicio: Optional[date] = None,
+                                  fecha_fin: Optional[date] = None,
+                                  cantidad_pax: int = 1
                                   ) -> tuple[bool, str]:
-        """Registra una venta proveniente de un proveedor/agencia externa."""
-        
-        if not nombre_proveedor or not nombre_cliente or not tour:
-             return False, "Campos obligatorios faltantes (Proveedor, Cliente o Tour)."
-
-        saldo = monto_total - monto_depositado
-        
-        venta_data = {
-            "nombre_cliente": nombre_cliente,
-            "telefono_cliente": telefono,
-            "origen": f"PROVEEDOR: {nombre_proveedor}",
-            "vendedor": vendedor,
-            "tour": tour,
-            "fecha_inicio": date.today().isoformat(), # Simplificado
-            "monto_total": monto_total,
-            "monto_depositado": monto_depositado,
-            "saldo": saldo,
-            "estado_pago": "POR COBRAR" if saldo > 0 else "LIQUIDADO",
-            "tipo_comprobante": "Factura Proveedor",
-            "id_agencia_aliada": id_agencia_aliada,
-            "observaciones": f"Venta registrada vía: {nombre_proveedor}"
-        }
-        
-        nuevo_id = self.model.create_venta(venta_data)
-        
-        if nuevo_id:
-            return True, f"Venta de Proveedor ({nombre_proveedor}) registrada. ID: {nuevo_id}"
-        else:
-            return False, "Error al guardar en base de datos."
+        """Registra una venta proveniente de una agencia externa (B2B)."""
+        try:
+            # Sincronizado: saldo = monto_total - monto_depositado
+            saldo = monto_total - monto_depositado
+            estado_pago = "PAGADO" if saldo <= 0 else "DEBITO"
+            
+            venta_data = {
+                "nombre_cliente": nombre_cliente,
+                "telefono_cliente": telefono,
+                "vendedor": vendedor,
+                "tour": tour,
+                "monto_total": monto_total,
+                "monto_depositado": monto_depositado,
+                "saldo": saldo,
+                "estado_pago": estado_pago,
+                "origen": f"B2B: {nombre_proveedor}",
+                "id_agencia_aliada": id_agencia_aliada,
+                "fecha_inicio": (fecha_inicio or date.today()).isoformat(),
+                "fecha_fin": (fecha_fin or date.today()).isoformat(),
+                "cantidad_pasajeros": cantidad_pax
+            }
+            
+            res_id = self.venta_model.create_venta(venta_data)
+            
+            if res_id:
+                return True, f"Venta B2B de {nombre_proveedor} registrada éxito (ID: {res_id})"
+            return False, "No se pudo registrar la venta en la base de datos."
+            
+        except Exception as e:
+            print(f"Error en registro B2B: {e}")
+            return False, f"Error de base de datos: {e}"
 
     def obtener_agencias_aliadas(self) -> list:
         """Obtiene la lista de agencias aliadas (B2B)."""

@@ -339,6 +339,14 @@ def registro_ventas_proveedores(supabase_client):
         proveedor_sel = col1.selectbox("Seleccione la Agencia / Proveedor", ["--- Seleccione ---"] + nombres_agencias)
         nombre_pax = col1.text_input("Nombre del Pasajero Principal")
         
+        col1_a, col1_b = col1.columns(2)
+        f_inicio = col1_a.date_input("Fecha Inicio Servicio", value=date.today())
+        f_fin = col1_b.date_input("Fecha Fin Servicio", value=date.today() + timedelta(days=1))
+        
+        col1_c, col1_d = col1.columns(2)
+        cant_pax = col1_c.number_input("Total Pasajeros", min_value=1, value=1)
+        precio_pax = col1_d.number_input("Precio Neto por Pax ($)", min_value=0.0, value=0.0, format="%.2f")
+        
         # Obtener Catálogo (Tours y Paquetes)
         catalogo = venta_controller.obtener_catalogo_opciones()
         nombres_cat = [c['nombre'] for c in catalogo]
@@ -346,8 +354,10 @@ def registro_ventas_proveedores(supabase_client):
         
         item_sel = col2.selectbox("Seleccione Paquete / Tour", ["--- Seleccione ---"] + nombres_cat)
         
-        monto_neto = col1.number_input("Monto Neto (Lo que paga el proveedor) ($)", min_value=0.0, format="%.2f")
-        monto_adelanto = col2.number_input("Adelanto Recibido ($)", min_value=0.0, format="%.2f")
+        monto_neto_total = cant_pax * precio_pax
+        col2.metric("Monto Total a Cobrar", f"$ {monto_neto_total:,.2f}")
+        
+        monto_dep = col2.number_input("Monto Depositado (Adelanto)", min_value=0.0, value=0.0, format="%.2f")
         
         submitted = st.form_submit_button("REGISTRAR VENTA PROVEEDOR", use_container_width=True)
         
@@ -365,9 +375,12 @@ def registro_ventas_proveedores(supabase_client):
                     telefono="", # Eliminado de UI
                     vendedor=None,
                     tour=id_item, 
-                    monto_total=monto_neto,
-                    monto_depositado=monto_adelanto,
-                    id_agencia_aliada=id_age
+                    monto_total=monto_neto_total,
+                    monto_depositado=monto_dep,
+                    id_agencia_aliada=id_age,
+                    fecha_inicio=f_inicio,
+                    fecha_fin=f_fin,
+                    cantidad_pax=cant_pax
                 )
                 
                 if exito: st.success(msg)

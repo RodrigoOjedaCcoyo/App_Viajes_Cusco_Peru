@@ -172,7 +172,7 @@ class VentaModel(BaseModel):
                     "fecha_servicio": f_servicio.isoformat(),
                     "precio_applied": venta_data.get("monto_total") if i == 0 else 0,
                     "costo_applied": 0,
-                    "cantidad_pasajeros": 1,
+                    "cantidad_pasajeros": venta_data.get("cantidad_pasajeros", 1),
                     "observaciones": nombre_servicio_dia, # Usamos observaciones para guardar el nombre del tour diario
                     "id_itinerario_dia_index": i + 1
                 }
