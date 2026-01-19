@@ -100,7 +100,7 @@ class VentaController:
                                   nombre_proveedor: str,
                                   nombre_cliente: str,
                                   telefono: str, 
-                                  vendedor: str,
+                                  vendedor: Optional[int],
                                   tour: str, 
                                   monto_total: float,
                                   monto_depositado: float,

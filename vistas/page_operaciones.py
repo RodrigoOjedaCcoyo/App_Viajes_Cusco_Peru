@@ -343,12 +343,6 @@ def registro_ventas_proveedores(supabase_client):
         
         id_tour = col2.text_input("ID_Paquete / Tour") 
         
-        # Conectar con DB para vendedores
-        from controllers.lead_controller import LeadController
-        lc = LeadController(supabase_client)
-        vend_map = lc.obtener_mapeo_vendedores()
-        vendedor_ref = col2.selectbox("Referido por Vendedor", list(vend_map.values()))
-        
         monto_neto = col1.number_input("Monto Neto (Lo que paga el proveedor) ($)", min_value=0.0, format="%.2f")
         monto_adelanto = col2.number_input("Adelanto Recibido ($)", min_value=0.0, format="%.2f")
         
@@ -358,15 +352,14 @@ def registro_ventas_proveedores(supabase_client):
             if proveedor_sel == "--- Seleccione ---":
                 st.error("Por favor, seleccione una agencia.")
             else:
-                # Buscar IDs
-                id_vend = next((id for id, name in vend_map.items() if name == vendedor_ref), None)
+                # El ID de Vendedor se asigna como Admin (ID 3 aproximado o None para B2B)
                 id_age = mapa_agencias.get(proveedor_sel)
                 
                 exito, msg = venta_controller.registrar_venta_proveedor(
                     nombre_proveedor=proveedor_sel,
                     nombre_cliente=nombre_pax,
                     telefono=tel,
-                    vendedor=id_vend,
+                    vendedor=None, # Eliminado de UI, se puede manejar por defecto en BD o controller
                     tour=id_tour,
                     monto_total=monto_neto,
                     monto_depositado=monto_adelanto,
