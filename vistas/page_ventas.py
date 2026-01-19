@@ -199,25 +199,6 @@ def registro_ventas_directa():
             st.session_state[f"val_tour_{id_itinerario_dig}"] = tour_nombre_cloud
             st.success(f"✅ Itinerario cargado: **{tour_nombre_cloud}**")
 
-            # --- 📊 RESUMEN VISUAL (ESTILO CONTABILIDAD + ITINERARIO) ---
-            with st.expander("👁️ Ver Resumen del Itinerario Seleccionado", expanded=True):
-                # 1. Métricas de Precios (Estilo Contabilidad)
-                render_data = it_data.get('datos_render') or {}
-                precios = render_data.get('precios') or {}
-                
-                p_col1, p_col2, p_col3 = st.columns(3)
-                p_col1.metric("Nacional", f"$ {float(precios.get('nacional') or 0):,.2f}")
-                p_col2.metric("Extranjero", f"$ {float(precios.get('extranjero') or 0):,.2f}")
-                p_col3.metric("Comunidad Andina", f"$ {float(precios.get('can') or 0):,.2f}")
-                
-                st.divider()
-                
-                # 2. Línea de Tiempo del Programa (Estilo Imagen Itinerario)
-                render_itinerary_details_visual(render)
-                    
-                if it_data.get('url_pdf'):
-                    st.divider()
-                    st.markdown(f"🔗 [**Ver Itinerario PDF Original**]({it_data['url_pdf']})")
 
     # --- 📝 FORMULARIO DE REGISTRO ---
     with st.form("form_registro_venta"):
