@@ -450,6 +450,7 @@ def constructor_itinerarios():
         titulo_viaje = col2.text_input("Título del Programa", placeholder="Ej: Cusco Mágico & Machu Picchu")
         duracion = col1.text_input("Duración", placeholder="Ej: 4D-3N")
         fecha_viaje = col2.date_input("Fecha Tentativa")
+        es_b2b = st.checkbox("🚩 Este itinerario es para Venta B2B / Agencia", value=False)
 
     # 3. Construcción del Itinerario por Días
     st.markdown("---")
@@ -515,7 +516,8 @@ def constructor_itinerarios():
                 "metadata": {
                     "version": "1.0",
                     "snake_code": "snake_default_vcp",
-                    "generado_por": st.session_state.get('user_email')
+                    "generado_por": st.session_state.get('user_email'),
+                    "tipo_venta": "B2B" if es_b2b else "B2C"
                 }
             }
 

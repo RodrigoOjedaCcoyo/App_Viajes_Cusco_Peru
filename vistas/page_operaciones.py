@@ -223,16 +223,6 @@ def dashboard_requerimientos(controller):
         if st.form_submit_button("Guardar Requerimiento"):
             st.success("Requerimiento guardado correctamente.")
 
-# Vista de Ventas compartida para Operaciones y Contabilidad.
-def dashboard_registro_ventas_compartido(controller):
-    st.subheader("📊 Control de Ventas B2C (Directas)", divider='blue')
-    ventas = controller.client.table('venta').select('*').eq('id_agencia_aliada', 'null').order('fecha_venta', desc=True).execute().data
-    if ventas:
-        df = pd.DataFrame(ventas)
-        st.dataframe(df[['fecha_venta', 'nombre_cliente', 'tour', 'monto_total', 'estado_pago']], use_container_width=True)
-    else:
-        st.info("No hay ventas B2C registradas.")
-
 def registro_ventas_proveedores(supabase_client):
     from controllers.itinerario_digital_controller import ItinerarioDigitalController
     venta_controller = VentaController(supabase_client)
@@ -240,8 +230,12 @@ def registro_ventas_proveedores(supabase_client):
 
     st.subheader("🤝 Registro de Venta para Proveedores (B2B)")
     
-    # --- 🆔 SELECTOR DE ITINERARIO (ESTILO VENDEDORES) ---
-    itinerarios = it_controller.obtener_todos_recientes(limit=30)
+    # --- 🆔 SELECTOR DE ITINERARIO (FILTRADO SOLO B2B) ---
+    itinerarios_raw = it_controller.obtener_todos_recientes(limit=50)
+    
+    # Filtrar solo itinerarios marcados como B2B en sus metadatos
+    itinerarios = [it for it in itinerarios_raw if it.get('datos_render', {}).get('metadata', {}).get('tipo_venta') == 'B2B']
+    
     opciones_it = ["--- Sin Itinerario / Registro Manual ---"]
     mapa_it = {}
     
@@ -255,7 +249,7 @@ def registro_ventas_proveedores(supabase_client):
         opciones_it.append(label)
         mapa_it[label] = it
 
-    it_sel = st.selectbox("🎯 Vincular con un Itinerario Digital (CLOUD)", opciones_it, help="Al seleccionar un itinerario se auto-completarán los datos del pasajero, tour y fechas.")
+    it_sel = st.selectbox("🎯 Vincular con un Itinerario Digital (B2B CLOUD)", opciones_it, help="Solo se muestran itinerarios creados como B2B.")
     
     id_itinerario_dig = None
     def_pax = ""
@@ -412,65 +406,28 @@ def reporte_operativo(controller):
             if res.data:
                 render_itinerary_details_visual(res.data['datos_render'])
 
-def dashboard_b2b_liquidaciones(controller):
-    """Vista global de ventas B2B y sus estados financieros."""
-    st.subheader("💎 Panel de Liquidaciones B2B (Global)", divider='blue')
-    
-    venta_controller = VentaController(controller.client)
-    ventas_b2b = venta_controller.obtener_todas_ventas_b2b()
-    
-    if not ventas_b2b:
-        st.info("No se han registrado ventas B2B todavía.")
-        return
-
-    # Crear DataFrame para visualización
-    df = pd.DataFrame(ventas_b2b)
-    
-    # Formatear datos
-    df['Agencia'] = df['nombre_agencia']
-    df['Pasajero'] = df['nombre_cliente']
-    df['Inicio'] = df['fecha_inicio']
-    df['Monto'] = df['monto_total'].apply(lambda x: f"${x:,.2f}")
-    df['Saldo'] = df['saldo'].apply(lambda x: f"${x:,.2f}")
-    df['Estado'] = df['estado_pago'].apply(lambda x: f"✅ {x}" if x == 'PAGADO' else f"⏳ {x}")
-
-    st.dataframe(
-        df[['Agencia', 'Pasajero', 'Inicio', 'Monto', 'Saldo', 'Estado']],
-        use_container_width=True,
-        hide_index=True
-    )
-
-    st.info("💡 Para liquidar una de estas ventas, diríjase al módulo 'Estructurador de liquidación' y seleccione la agencia correspondiente.")
-
 def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
+    """Punto de entrada de Streamlit para el área de Operaciones."""
     controller = OperacionesController(supabase_client)
     
     st.title("⚙️ Gestión de Operaciones")
     st.markdown("---")
     
     if nombre_modulo == "Gestión de Registros":
-        tab1, tab2, tab3, tab4, tab5 = st.tabs([
-            "🤝 Registro Agencias (B2B)", 
-            "📋 Registro Directo (B2C)",
-            "📊 Estructurador de liquidación",
-            "💎 Dashboard B2B",
-            "📝 Requerimientos"
+        tab1, tab2, tab3 = st.tabs([
+            "📝 Registro de Requerimientos", 
+            "📊 Estructurador de Gastos",
+            "🤝 Ventas de Proveedores (B2B)"
         ])
         
         with tab1:
-            registro_ventas_proveedores(supabase_client)
+            dashboard_requerimientos(controller)
             
         with tab2:
-            dashboard_registro_ventas_compartido(controller)
+            dashboard_simulador_costos(controller)
             
         with tab3:
-            dashboard_simulador_costos(controller)
-
-        with tab4:
-            dashboard_b2b_liquidaciones(controller)
-
-        with tab5:
-            dashboard_requerimientos(controller)
+            registro_ventas_proveedores(supabase_client)
             
     elif nombre_modulo == "Dashboard Diario":
         dashboard_tablero_diario(controller)
@@ -478,6 +435,7 @@ def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
         reporte_operativo(controller)
     else:
         st.info("Seleccione una opción válida del menú lateral.")
+
 
 def dashboard_simulador_costos(controller):
     """
