@@ -185,9 +185,10 @@ def dashboard_tablero_diario(controller):
         df = pd.DataFrame(servicios)
         ed_df = st.data_editor(
             df,
-            column_order=('Hora', 'Día Itin.', 'Servicio', 'Pax', 'Cliente', 'Guía', 'Estado Pago', 'ID Itinerario'),
+            column_order=('Hora', 'Día Itin.', 'Servicio', 'Tipo', 'Pax', 'Cliente', 'Guía', 'Estado Pago', 'ID Itinerario'),
             column_config={
                 "Día Itin.": st.column_config.NumberColumn("Día", format="%d", disabled=True),
+                "Tipo": st.column_config.TextColumn("Tipo", disabled=True, width="small"),
                 "Guía": st.column_config.TextColumn("Asignar Guía ✏️"),
                 "Pax": st.column_config.NumberColumn(disabled=True),
                 "Servicio": st.column_config.TextColumn(disabled=True),
@@ -412,9 +413,10 @@ def reporte_operativo(controller):
         df_all = pd.DataFrame(todos_servicios)
         st.dataframe(
             df_all,
-            column_order=("Fecha", "Servicio", "Pax", "Cliente", "Guía", "Estado Pago"),
+            column_order=("Fecha", "Servicio", "Tipo", "Pax", "Cliente", "Guía", "Estado Pago"),
             column_config={
                 "Fecha": st.column_config.DateColumn("Fecha"),
+                "Tipo": st.column_config.TextColumn("Tipo", width="small"),
                 "Estado Pago": st.column_config.TextColumn("Pago")
             },
             hide_index=True,

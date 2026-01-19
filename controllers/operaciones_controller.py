@@ -134,6 +134,7 @@ class OperacionesController:
                     'Cliente': nombre_cliente,
                     'Guía': nombre_guia,
                     'Estado Pago': estado_pago,
+                    'Tipo': '💎 B2B' if 'B2B' in str(v.get('canal_venta', '')) else '👤 B2C',
                     'Día Itin.': s.get('id_itinerario_dia_index', 1),
                     'ID Itinerario': v.get('id_itinerario_digital')
                 })
@@ -228,6 +229,7 @@ class OperacionesController:
                     'Cliente': nombre_cliente,
                     'Guía': nombre_guia,
                     'Estado Pago': estado_pago,
+                    'Tipo': '💎 B2B' if 'B2B' in str(v.get('canal_venta', '')) else '👤 B2C',
                     'ID Venta': s['id_venta'],
                     'N Linea': s['n_linea'],
                     'Día Itin.': s.get('id_itinerario_dia_index', 1),
