@@ -86,7 +86,19 @@ class VentaModel(BaseModel):
             else:
                 raise Exception("No hay vendedores en la base de datos.")
         
-        id_tour_paquete = self.get_tour_id_by_name(venta_data.get('tour'))
+        tour_raw = venta_data.get('tour', '')
+        id_paquete = None
+        id_tour_catalogo = None
+        
+        if str(tour_raw).startswith("P-"):
+            try: id_paquete = int(tour_raw.replace("P-", ""))
+            except: pass
+        elif str(tour_raw).startswith("T-"):
+            try: id_tour_catalogo = int(tour_raw.replace("T-", ""))
+            except: pass
+            
+        if not id_tour_catalogo and not id_paquete:
+            id_tour_catalogo = self.get_tour_id_by_name(tour_raw)
 
         # 2. Preparar Payload para tabla 'venta' (Columnas del esquema SQL)
         datos_venta_sql = {
@@ -97,9 +109,10 @@ class VentaModel(BaseModel):
             "precio_total_cierre": venta_data.get("monto_total"),
             "moneda": "USD",
             "estado_venta": "CONFIRMADO",
-            "id_paquete": None,
-            "tour_nombre": venta_data.get("tour"),  # Guardar nombre directamente
-            "id_itinerario_digital": venta_data.get("id_itinerario_digital") # Sincronizado: Vínculo con Itinerario Digital
+            "id_paquete": id_paquete,
+            "tour_nombre": tour_raw,  # Guardar nombre o ID crudo
+            "id_agencia_aliada": venta_data.get("id_agencia_aliada"),
+            "id_itinerario_digital": venta_data.get("id_itinerario_digital")
         }
 
         # 3. Insertar Venta (esto lanzará excepción si falla)
@@ -155,7 +168,7 @@ class VentaModel(BaseModel):
                 detalle_tour = {
                     "id_venta": nuevo_id_venta,
                     "n_linea": i + 1,
-                    "id_tour": id_tour_paquete if i == 0 else None, # Solo vinculamos al catálogo el primer día por ahora
+                    "id_tour": id_tour_catalogo if i == 0 else None, # Solo vinculamos al catálogo el primer día por ahora
                     "fecha_servicio": f_servicio.isoformat(),
                     "precio_applied": venta_data.get("monto_total") if i == 0 else 0,
                     "costo_applied": 0,
