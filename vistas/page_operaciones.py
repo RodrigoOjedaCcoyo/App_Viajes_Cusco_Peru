@@ -655,10 +655,16 @@ def dashboard_simulador_costos(controller):
         margen = (utilidad / total_ingreso * 100) if total_ingreso > 0 else 0
 
         st.divider()
-        sc1, sc2, sc3 = st.columns(3)
-        sc1.metric("COSTO TOTAL GRUPO", f"$ {total_costos:,.2f}", delta_color="inverse")
-        sc2.metric("UTILIDAD NETA", f"$ {utilidad:,.2f}")
-        sc3.metric("MARGEN %", f"{margen:.1f}%")
+        col_tips, col_metrics = st.columns([1, 2])
+        
+        with col_tips:
+            st.info("💡 **Tip:** Para insertar un servicio en un día específico:\n1. Agrégalo al final de la tabla.\n2. Ponle la fecha de ese día.\n3. Al Guardar, se **ordenará automáticamente**.")
+        
+        with col_metrics:
+            sc1, sc2, sc3 = st.columns(3)
+            sc1.metric("COSTO TOTAL GRUPO", f"$ {total_costos:,.2f}", delta_color="inverse")
+            sc2.metric("UTILIDAD NETA", f"$ {utilidad:,.2f}")
+            sc3.metric("MARGEN %", f"{margen:.1f}%")
 
         c_actions_1, c_actions_2 = st.columns(2)
         
