@@ -283,6 +283,7 @@ def registro_ventas_proveedores(supabase_client):
     def_f_inicio = date.today()
     def_f_fin = date.today() + timedelta(days=1)
     def_cant_pax = 1
+    def_precio_pax = 0.0  # Inicialización segura
 
     if it_sel != "--- Sin Itinerario / Registro Manual ---":
         it_data = mapa_it.get(it_sel)
