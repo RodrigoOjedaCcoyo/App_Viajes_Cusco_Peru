@@ -200,6 +200,21 @@ class VentaController:
             print(f"Error obteniendo ventas de agencia: {e}")
             return []
 
+    def obtener_ventas_directas(self) -> list:
+        """Obtiene las ventas directas (B2C) que NO tienen agencia aliada."""
+        try:
+            # Join con cliente
+            res = self.client.table('venta').select('*, cliente(nombre)').is_('id_agencia_aliada', 'null').order('fecha_venta', desc=True).execute()
+            
+            data = []
+            for v in (res.data or []):
+                v['nombre_cliente'] = v.get('cliente', {}).get('nombre', 'Desconocido')
+                data.append(v)
+            return data
+        except Exception as e:
+            print(f"Error obteniendo ventas directas: {e}")
+            return []
+
     def obtener_detalles_itinerario_venta(self, id_venta: int) -> list:
         """Obtiene el desglose de días/servicios de una venta específica (venta_tour)."""
         try:

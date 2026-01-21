@@ -563,11 +563,20 @@ def dashboard_simulador_costos(controller):
         
         c_age, c_pax = st.columns(2)
         with c_age:
-            agencia_sel = st.selectbox("1. Filtrar por Agencia:", ["--- Seleccione ---"] + nombres_agencias, key="sel_agencia_sim")
+            # Opción especial para ver ventas directas
+            opcion_b2c = "--- Ventas Directas / B2C ---"
+            opciones_filtro = ["--- Seleccione ---", opcion_b2c] + nombres_agencias
+            agencia_sel = st.selectbox("1. Filtrar por Agencia / Tipo:", opciones_filtro, key="sel_agencia_sim")
         
         if agencia_sel != "--- Seleccione ---":
-            id_ag = mapa_agencias.get(agencia_sel)
-            ventas_age = vc.obtener_ventas_agencia(id_ag)
+            ventas_age = []
+            if agencia_sel == opcion_b2c:
+                # Cargar ventas sin agencia (Directas)
+                ventas_age = vc.obtener_ventas_directas()
+            else:
+                # Cargar ventas de la agencia seleccionada
+                id_ag = mapa_agencias.get(agencia_sel)
+                ventas_age = vc.obtener_ventas_agencia(id_ag)
             
             if ventas_age:
                 opciones_pax = [f"{v['nombre_cliente']} | {v.get('tour_nombre', 'Sin Tour')} ({v['id_venta']})" for v in ventas_age]
