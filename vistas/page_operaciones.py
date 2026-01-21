@@ -591,8 +591,10 @@ def dashboard_simulador_costos(controller):
                                 nuevos_items.append({
                                     "FECHA": date.fromisoformat(d['fecha_servicio']),
                                     "SERVICIO": d.get('observaciones') or "Servicio sin nombre",
-                                    "UNITARIO": 0.0,
-                                    "TOTAL": 0.0
+                                    "UNITARIO": float(d.get('costo_applied') or 0.0) / float(d.get('cantidad_pasajeros') or 1), # Intentar recuperar costo previo
+                                    "TOTAL": float(d.get('costo_applied') or 0.0),
+                                    "id_venta": d['id_venta'], # Oculto pero necesario para guardar
+                                    "n_linea": d['n_linea']
                                 })
                             st.session_state['simulador_data'] = nuevos_items
                             st.success(f"Itinerario de {len(detalles)} días cargado con éxito.")
@@ -611,10 +613,15 @@ def dashboard_simulador_costos(controller):
         # Lógica de cálculo automático: Total = Unitario * Pax_Total
         if not df.empty and 'UNITARIO' in df.columns:
             df['TOTAL'] = df['UNITARIO'] * pax_total
-
+        
+        # Obtener lista de proveedores para el selectbox
+        res_prov = controller.client.table('proveedor').select('id_proveedor, nombre, tipo_servicio').execute()
+        lista_proveedores = ["--- Sin Asignar ---"] + [f"{p['nombre']} ({p['tipo_servicio']})" for p in (res_prov.data or [])]
+        
         column_config = {
             "FECHA": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY", required=True),
             "SERVICIO": st.column_config.TextColumn("Servicio / Gasto", required=True, width="large"),
+            "PROVEEDOR": st.column_config.SelectboxColumn("Endosar a (Proveedor)", options=lista_proveedores, width="medium"),
             "UNITARIO": st.column_config.NumberColumn("Costo Unitario ($)", format="%.2f", min_value=0.0, width="medium"),
             "TOTAL": st.column_config.NumberColumn("Costo Total ($)", format="%.2f", min_value=0.0, disabled=True, width="medium")
         }
@@ -641,6 +648,38 @@ def dashboard_simulador_costos(controller):
         sc2.metric("UTILIDAD NETA", f"$ {utilidad:,.2f}")
         sc3.metric("MARGEN %", f"{margen:.1f}%")
 
-        if st.button("📥 Exportar Liquidación (CSV)"):
-            csv = edited_df.to_csv(index=False).encode('utf-8')
-            st.download_button("Descargar CSV", csv, f"liquidacion_{date.today()}.csv", "text/csv")
+        c_actions_1, c_actions_2 = st.columns(2)
+        
+        with c_actions_1:
+            if st.button("💾 Guardar Endosos (Base de Datos)", use_container_width=True):
+                # Lógica para guardar en la base de datos (venta_tour)
+                updated_count = 0
+                for index, row in edited_df.iterrows():
+                    # Solo intentar actualizar si tenemos los IDs (es decir, vino de la BD)
+                    if 'id_venta' in row and 'n_linea' in row and pd.notna(row['id_venta']):
+                        proveedor_txt = row.get('PROVEEDOR')
+                        id_prov = None
+                        if proveedor_txt and proveedor_txt != "--- Sin Asignar ---":
+                            # Buscar ID en la lista original (ineficiente pero funcional para pocos datos)
+                            nombre_prov = proveedor_txt.split(" (")[0]
+                            prov_match = next((p for p in res_prov.data if p['nombre'] == nombre_prov), None)
+                            if prov_match: id_prov = prov_match['id_proveedor']
+                        
+                        try:
+                            controller.client.table('venta_tour').update({
+                                'costo_applied': row['TOTAL'], # Guardamos el total ya que el unitario es calculadora
+                                'id_proveedor': id_prov
+                            }).match({'id_venta': row['id_venta'], 'n_linea': row['n_linea']}).execute()
+                            updated_count += 1
+                        except Exception as e:
+                            st.error(f"Error al guardar línea {index}: {e}")
+                
+                if updated_count > 0:
+                    st.success(f"✅ Se actualizaron {updated_count} servicios con sus proveedores y costos.")
+                else:
+                    st.warning("No se encontraron líneas vinculadas a la base de datos para actualizar.")
+
+        with c_actions_2:
+            if st.button("📥 Exportar Liquidación (CSV)", use_container_width=True):
+                csv = edited_df.to_csv(index=False).encode('utf-8')
+                st.download_button("Descargar CSV", csv, f"liquidacion_{date.today()}.csv", "text/csv")

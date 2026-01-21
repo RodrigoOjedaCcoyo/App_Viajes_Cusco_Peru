@@ -225,15 +225,98 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, su
     st.markdown("---")
     
     if funcionalidad_seleccionada == "Gestión de Registros":
-        tab1, tab2 = st.tabs(["📋 Requerimientos de Operaciones", "📊 Estructurador Financiero"])
+        tab1, tab2, tab3 = st.tabs(["📋 Requerimientos de Operaciones", "📊 Estructurador Financiero", "💎 Cuentas por Cobrar (B2B)"])
         
         with tab1:
             mostrar_requerimientos()
             
         with tab2:
             estructurador_contable()
+            
+        with tab3:
+            dashboard_cuentas_por_cobrar_b2b(supabase_client)
     else:
         st.info("Utilice el Dashboard Contable para ver reportes.")
+
+from controllers.venta_controller import VentaController
+
+def dashboard_cuentas_por_cobrar_b2b(supabase_client):
+    """Dashboard específico para controlar deudas de Agencias (B2B)."""
+    st.subheader("💎 Cuentas por Cobrar (B2B)", divider='blue')
+    
+    vc = VentaController(supabase_client)
+    ventas = vc.obtener_todas_ventas_b2b()
+    
+    if not ventas:
+        st.info("No hay ventas B2B registradas.")
+        return
+
+    # Obtener pagos de estas ventas para calcular saldo real
+    ids_ventas = [v['id_venta'] for v in ventas]
+    pagos = supabase_client.table('pago').select('id_venta, monto_pagado').in_('id_venta', ids_ventas).execute().data
+    
+    mapa_pagos = {}
+    for p in pagos:
+        pid = p['id_venta']
+        mapa_pagos[pid] = mapa_pagos.get(pid, 0) + (p['monto_pagado'] or 0)
+
+    # Procesar data
+    data_agencias = {}
+    lista_detalle = []
+    
+    for v in ventas:
+        id_agencia = v.get('id_agencia_aliada')
+        nombre_agencia = v.get('nombre_agencia', 'Sin Nombre')
+        monto = float(v.get('precio_total_cierre') or 0)
+        pagado = float(mapa_pagos.get(v['id_venta'], 0))
+        saldo = monto - pagado
+        
+        # Agregado por Agencia
+        if id_agencia not in data_agencias:
+            data_agencias[id_agencia] = {'Nombre': nombre_agencia, 'Total Ventas': 0.0, 'Cobrado': 0.0, 'Por Cobrar': 0.0, 'Count': 0}
+        
+        data_agencias[id_agencia]['Total Ventas'] += monto
+        data_agencias[id_agencia]['Cobrado'] += pagado
+        data_agencias[id_agencia]['Por Cobrar'] += saldo
+        data_agencias[id_agencia]['Count'] += 1
+        
+        lista_detalle.append({
+            'Agencia': nombre_agencia,
+            'Pasajero': v.get('nombre_cliente'),
+            'Fecha Venta': v.get('fecha_venta'),
+            'Total ($)': monto,
+            'A Cuenta ($)': pagado,
+            'Saldo ($)': saldo,
+            'Estado': '✅ PAGADO' if saldo <= 0.1 else '🔴 DEBE'
+        })
+        
+    # Visualización 1: Métricas Globales
+    total_deuda_b2b = sum(d['Por Cobrar'] for d in data_agencias.values())
+    c1, c2 = st.columns(2)
+    c1.metric("Total por Cobrar a Agencias", f"${total_deuda_b2b:,.2f}")
+    c2.metric("Agencias con Deuda", len([d for d in data_agencias.values() if d['Por Cobrar'] > 1]))
+    
+    st.divider()
+    
+    # Visualización 2: Tabla Resumen por Agencia
+    st.write("### 🏢 Resumen por Agencia")
+    df_agencias = pd.DataFrame(data_agencias.values())
+    if not df_agencias.empty:
+        st.dataframe(
+            df_agencias,
+            column_config={
+                "Total Ventas": st.column_config.NumberColumn(format="$ %.2f"),
+                "Cobrado": st.column_config.NumberColumn(format="$ %.2f"),
+                "Por Cobrar": st.column_config.NumberColumn(format="$ %.2f"),
+            },
+            hide_index=True,
+            use_container_width=True
+        )
+
+    # Visualización 3: Detalle Expandible
+    with st.expander("🔎 Ver Detalle de Todas las Ventas B2B"):
+        df_det = pd.DataFrame(lista_detalle)
+        st.dataframe(df_det, use_container_width=True, hide_index=True)
 
 def estructurador_contable():
     """
