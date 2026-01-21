@@ -615,9 +615,16 @@ def dashboard_simulador_costos(controller):
             df['TOTAL'] = df['UNITARIO'] * pax_total
         
         # Obtener lista de proveedores para el selectbox
-        res_prov = controller.client.table('proveedor').select('id_proveedor, nombre, tipo_servicio').execute()
-        lista_proveedores = ["--- Sin Asignar ---"] + [f"{p['nombre']} ({p['tipo_servicio']})" for p in (res_prov.data or [])]
-        
+        lista_proveedores = ["--- Sin Asignar ---"]
+        res_prov_data = [] # Variable segura para usar después
+        try:
+            res_prov = controller.client.table('proveedor').select('id_proveedor, nombre, tipo_servicio').execute()
+            res_prov_data = res_prov.data or []
+            lista_proveedores += [f"{p['nombre']} ({p['tipo_servicio']})" for p in res_prov_data]
+        except Exception as e:
+            # Si no existe la tabla aún, no romper la app, solo avisar en consola o mostrar vacío
+            print(f"Advertencia: No se pudo cargar proveedores (posiblemente falta tabla): {e}")
+
         column_config = {
             "FECHA": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY", required=True),
             "SERVICIO": st.column_config.TextColumn("Servicio / Gasto", required=True, width="large"),
@@ -662,7 +669,7 @@ def dashboard_simulador_costos(controller):
                         if proveedor_txt and proveedor_txt != "--- Sin Asignar ---":
                             # Buscar ID en la lista original (ineficiente pero funcional para pocos datos)
                             nombre_prov = proveedor_txt.split(" (")[0]
-                            prov_match = next((p for p in res_prov.data if p['nombre'] == nombre_prov), None)
+                            prov_match = next((p for p in res_prov_data if p['nombre'] == nombre_prov), None)
                             if prov_match: id_prov = prov_match['id_proveedor']
                         
                         try:
