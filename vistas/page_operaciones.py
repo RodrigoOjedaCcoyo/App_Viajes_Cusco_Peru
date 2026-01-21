@@ -521,7 +521,7 @@ def dashboard_simulador_costos(controller):
 
     if 'simulador_data' not in st.session_state:
         st.session_state['simulador_data'] = [
-            {"FECHA": date.today(), "SERVICIO": "Servicio Ejemplo", "UNITARIO": 0.0, "TOTAL": 0.0},
+            {"FECHA": date.today(), "SERVICIO": "Servicio Ejemplo", "MONEDA": "USD", "TOTAL": 0.0},
         ]
     
     if 'liq_pax_total' not in st.session_state:
@@ -547,7 +547,7 @@ def dashboard_simulador_costos(controller):
             
             # Botones de Acción
             if st.button("🗑️ Limpiar Todo", use_container_width=True, key="btn_clear_ops_sim"):
-                st.session_state['simulador_data'] = [{"FECHA": date.today(), "SERVICIO": "", "UNITARIO": 0.0, "TOTAL": 0.0}]
+                st.session_state['simulador_data'] = [{"FECHA": date.today(), "SERVICIO": "", "MONEDA": "USD", "TOTAL": 0.0}]
                 st.session_state['liq_precio_pax'] = 0.0
                 st.rerun()
 
@@ -609,21 +609,21 @@ def dashboard_simulador_costos(controller):
                             nuevos_items.append({
                                 "FECHA": date.fromisoformat(d['fecha_servicio']),
                                 "SERVICIO": d.get('observaciones') or "Servicio sin nombre",
-                                "UNITARIO": float(d.get('costo_applied') or 0.0) / float(d.get('cantidad_pasajeros') or 1), # Intentar recuperar costo previo
+                                "MONEDA": d.get('moneda_costo', 'USD'),  # Cargar moneda guardada o USD por defecto
                                 "TOTAL": float(d.get('costo_applied') or 0.0),
-                                "id_venta": d['id_venta'], # Oculto pero necesario para guardar
+                                "id_venta": d['id_venta'],
                                 "n_linea": d['n_linea']
                             })
-                            st.session_state['simulador_data'] = nuevos_items
-                            st.success(f"Itinerario de {len(detalles)} días cargado con éxito.")
-                            st.rerun()
-                        else:
-                            st.session_state['simulador_data'] = [
-                                {"FECHA": date.fromisoformat(v['fecha_venta']) if v.get('fecha_venta') else date.today(), 
-                                 "SERVICIO": f"INGRESO B2B: {v['nombre_cliente']}", "UNITARIO": 0.0, "TOTAL": 0.0}
-                            ]
-                            st.warning("Venta cargada, pero no tiene itinerario expandido.")
-                            st.rerun()
+                        st.session_state['simulador_data'] = nuevos_items
+                        st.success(f"Itinerario de {len(detalles)} días cargado con éxito.")
+                        st.rerun()
+                    else:
+                        st.session_state['simulador_data'] = [
+                            {"FECHA": date.fromisoformat(v['fecha_venta']) if v.get('fecha_venta') else date.today(), 
+                             "SERVICIO": f"INGRESO B2B: {v['nombre_cliente']}", "MONEDA": "USD", "TOTAL": 0.0}
+                        ]
+                        st.warning("Venta cargada, pero no tiene itinerario expandido.")
+                        st.rerun()
 
         # Data Editor (El "Excel")
         df = pd.DataFrame(st.session_state['simulador_data'])
@@ -631,10 +631,6 @@ def dashboard_simulador_costos(controller):
         # Ordenar por FECHA para que al agregar filas con misma fecha queden agrupadas
         if not df.empty and 'FECHA' in df.columns:
             df.sort_values(by='FECHA', inplace=True)
-        
-        # Lógica de cálculo automático: Total = Unitario * Pax_Total
-        if not df.empty and 'UNITARIO' in df.columns:
-            df['TOTAL'] = df['UNITARIO'] * pax_total
         
         # Obtener lista de proveedores para el selectbox
         lista_proveedores = ["--- Sin Asignar ---"]
@@ -649,10 +645,10 @@ def dashboard_simulador_costos(controller):
 
         column_config = {
             "FECHA": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY", required=True),
-            "SERVICIO": st.column_config.TextColumn("Descripción del Servicio (Editable)", required=True, width="large"),
+            "SERVICIO": st.column_config.TextColumn("Descripción del Servicio", required=True, width="large"),
             "PROVEEDOR": st.column_config.SelectboxColumn("Endosar a (Proveedor)", options=lista_proveedores, width="medium"),
-            "UNITARIO": st.column_config.NumberColumn("Costo Unitario ($)", format="%.2f", min_value=0.0, width="small"),
-            "TOTAL": st.column_config.NumberColumn("Costo Total ($)", format="%.2f", min_value=0.0, disabled=True, width="small")
+            "MONEDA": st.column_config.SelectboxColumn("💵 Moneda", options=["USD", "PEN"], default="USD", width="small"),
+            "TOTAL": st.column_config.NumberColumn("Costo Total", format="%.2f", min_value=0.0, width="medium")
         }
 
         st.info("💡 **Tip:** Para insertar un servicio en un día específico: **1.** Agrégalo al final. **2.** Pon la fecha deseada. **3.** Al Guardar, se ordenará solito.")
@@ -682,8 +678,8 @@ def dashboard_simulador_costos(controller):
         c_actions_1, c_actions_2 = st.columns(2)
         
         with c_actions_1:
-            if st.button("💾 Guardar Endosos (Base de Datos)", use_container_width=True):
-                # Lógica para guardar en la base de datos (venta_tour)
+            if st.button("💾 Guardar Borrador", use_container_width=True, type="secondary"):
+                # Guardar como borrador (en progreso)
                 updated_count = 0
                 for index, row in edited_df.iterrows():
                     proveedor_txt = row.get('PROVEEDOR')
@@ -698,6 +694,7 @@ def dashboard_simulador_costos(controller):
                         try:
                             controller.client.table('venta_tour').update({
                                 'costo_applied': row['TOTAL'],
+                                'moneda_costo': row.get('MONEDA', 'USD'),
                                 'id_proveedor': id_prov,
                                 'observaciones': row.get('SERVICIO')
                             }).match({'id_venta': row['id_venta'], 'n_linea': row['n_linea']}).execute()
@@ -709,16 +706,17 @@ def dashboard_simulador_costos(controller):
                         if ventas_age and pax_sel != "--- Seleccione ---":
                             v_actual = mapa_ventas_pax.get(pax_sel)
                             try:
-                                # Calcular siguiente n_linea (Seguro, consultamos cada vez para evitar bugs de concurrencia simple)
+                                # Calcular siguiente n_linea
                                 last_line = controller.client.table('venta_tour').select('n_linea').eq('id_venta', v_actual['id_venta']).order('n_linea', desc=True).limit(1).execute()
                                 next_n = (last_line.data[0]['n_linea'] + 1) if last_line.data else 1
                                 
                                 controller.client.table('venta_tour').insert({
                                     'id_venta': v_actual['id_venta'],
-                                    'n_linea': next_n + index, # Simple offset
+                                    'n_linea': next_n + index,
                                     'fecha_servicio': row['FECHA'].isoformat(),
                                     'observaciones': row.get('SERVICIO', 'Gasto Adicional'),
                                     'costo_applied': row['TOTAL'],
+                                    'moneda_costo': row.get('MONEDA', 'USD'),
                                     'id_proveedor': id_prov,
                                     'cantidad_pasajeros': pax_total
                                 }).execute()
@@ -727,11 +725,63 @@ def dashboard_simulador_costos(controller):
                                 st.error(f"Error creando línea nueva {index}: {e}")
                 
                 if updated_count > 0:
-                    st.success(f"✅ Se actualizaron {updated_count} servicios con sus proveedores y costos.")
+                    st.success(f"💾 Borrador guardado: {updated_count} servicios actualizados. Puedes seguir editando.")
                 else:
-                    st.warning("No se encontraron líneas vinculadas a la base de datos para actualizar.")
-
+                    st.warning("No se encontraron líneas para actualizar.")
+        
         with c_actions_2:
-            if st.button("📥 Exportar Liquidación (CSV)", use_container_width=True):
-                csv = edited_df.to_csv(index=False).encode('utf-8')
-                st.download_button("Descargar CSV", csv, f"liquidacion_{date.today()}.csv", "text/csv")
+            if st.button("✅ Guardar y Finalizar", use_container_width=True, type="primary"):
+                # Guardar y marcar como finalizado
+                updated_count = 0
+                for index, row in edited_df.iterrows():
+                    proveedor_txt = row.get('PROVEEDOR')
+                    id_prov = None
+                    if proveedor_txt and proveedor_txt != "--- Sin Asignar ---":
+                        nombre_prov = proveedor_txt.split(" (")[0]
+                        prov_match = next((p for p in res_prov_data if p['nombre'] == nombre_prov), None)
+                        if prov_match: id_prov = prov_match['id_proveedor']
+
+                    if pd.notna(row.get('id_venta')) and pd.notna(row.get('n_linea')):
+                        try:
+                            controller.client.table('venta_tour').update({
+                                'costo_applied': row['TOTAL'],
+                                'moneda_costo': row.get('MONEDA', 'USD'),
+                                'id_proveedor': id_prov,
+                                'observaciones': row.get('SERVICIO')
+                            }).match({'id_venta': row['id_venta'], 'n_linea': row['n_linea']}).execute()
+                            updated_count += 1
+                        except Exception as e:
+                            st.error(f"Error actualizando línea {index}: {e}")
+                    else:
+                        if ventas_age and pax_sel != "--- Seleccione ---":
+                            v_actual = mapa_ventas_pax.get(pax_sel)
+                            try:
+                                last_line = controller.client.table('venta_tour').select('n_linea').eq('id_venta', v_actual['id_venta']).order('n_linea', desc=True).limit(1).execute()
+                                next_n = (last_line.data[0]['n_linea'] + 1) if last_line.data else 1
+                                
+                                controller.client.table('venta_tour').insert({
+                                    'id_venta': v_actual['id_venta'],
+                                    'n_linea': next_n + index,
+                                    'fecha_servicio': row['FECHA'].isoformat(),
+                                    'observaciones': row.get('SERVICIO', 'Gasto Adicional'),
+                                    'costo_applied': row['TOTAL'],
+                                    'moneda_costo': row.get('MONEDA', 'USD'),
+                                    'id_proveedor': id_prov,
+                                    'cantidad_pasajeros': pax_total
+                                }).execute()
+                                updated_count += 1
+                            except Exception as e:
+                                st.error(f"Error creando línea nueva {index}: {e}")
+                
+                # Marcar la venta como liquidada
+                if updated_count > 0 and ventas_age and pax_sel != "--- Seleccione ---":
+                    v_actual = mapa_ventas_pax.get(pax_sel)
+                    try:
+                        controller.client.table('venta').update({
+                            'estado_liquidacion': 'FINALIZADO'
+                        }).eq('id_venta', v_actual['id_venta']).execute()
+                        st.success(f"✅ Liquidación FINALIZADA: {updated_count} servicios guardados. Estado actualizado a COMPLETADO.")
+                    except Exception as e:
+                        st.warning(f"Servicios guardados pero no se pudo actualizar estado: {e}")
+                else:
+                    st.warning("No se encontraron líneas para actualizar.")

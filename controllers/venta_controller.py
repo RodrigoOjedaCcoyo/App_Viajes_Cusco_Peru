@@ -187,8 +187,8 @@ class VentaController:
     def obtener_ventas_agencia(self, id_agencia: int) -> list:
         """Obtiene las ventas vinculadas a una agencia aliada específica con nombre de cliente."""
         try:
-            # Join con cliente para obtener el nombre
-            res = self.client.table('venta').select('*, cliente(nombre)').eq('id_agencia_aliada', id_agencia).order('fecha_venta', desc=True).execute()
+            # Join con cliente para obtener el nombre - Excluir finalizadas
+            res = self.client.table('venta').select('*, cliente(nombre)').eq('id_agencia_aliada', id_agencia).neq('estado_liquidacion', 'FINALIZADO').order('fecha_venta', desc=True).execute()
             
             # Aplanar el resultado para que 'nombre_cliente' esté al primer nivel
             data = []
@@ -203,8 +203,8 @@ class VentaController:
     def obtener_ventas_directas(self) -> list:
         """Obtiene las ventas directas (B2C) que NO tienen agencia aliada."""
         try:
-            # Join con cliente
-            res = self.client.table('venta').select('*, cliente(nombre)').is_('id_agencia_aliada', 'null').order('fecha_venta', desc=True).execute()
+            # Join con cliente - Excluir finalizadas
+            res = self.client.table('venta').select('*, cliente(nombre)').is_('id_agencia_aliada', 'null').neq('estado_liquidacion', 'FINALIZADO').order('fecha_venta', desc=True).execute()
             
             data = []
             for v in (res.data or []):
