@@ -663,24 +663,45 @@ def dashboard_simulador_costos(controller):
                 # Lógica para guardar en la base de datos (venta_tour)
                 updated_count = 0
                 for index, row in edited_df.iterrows():
-                    # Solo intentar actualizar si tenemos los IDs (es decir, vino de la BD)
-                    if 'id_venta' in row and 'n_linea' in row and pd.notna(row['id_venta']):
-                        proveedor_txt = row.get('PROVEEDOR')
-                        id_prov = None
-                        if proveedor_txt and proveedor_txt != "--- Sin Asignar ---":
-                            # Buscar ID en la lista original (ineficiente pero funcional para pocos datos)
-                            nombre_prov = proveedor_txt.split(" (")[0]
-                            prov_match = next((p for p in res_prov_data if p['nombre'] == nombre_prov), None)
-                            if prov_match: id_prov = prov_match['id_proveedor']
-                        
+                    proveedor_txt = row.get('PROVEEDOR')
+                    id_prov = None
+                    if proveedor_txt and proveedor_txt != "--- Sin Asignar ---":
+                        nombre_prov = proveedor_txt.split(" (")[0]
+                        prov_match = next((p for p in res_prov_data if p['nombre'] == nombre_prov), None)
+                        if prov_match: id_prov = prov_match['id_proveedor']
+
+                    if pd.notna(row.get('id_venta')) and pd.notna(row.get('n_linea')):
+                        # Actualizar existente
                         try:
                             controller.client.table('venta_tour').update({
-                                'costo_applied': row['TOTAL'], # Guardamos el total ya que el unitario es calculadora
-                                'id_proveedor': id_prov
+                                'costo_applied': row['TOTAL'],
+                                'id_proveedor': id_prov,
+                                'observaciones': row.get('SERVICIO') # Permitir actualizar descripción
                             }).match({'id_venta': row['id_venta'], 'n_linea': row['n_linea']}).execute()
                             updated_count += 1
                         except Exception as e:
-                            st.error(f"Error al guardar línea {index}: {e}")
+                            st.error(f"Error actualizando línea {index}: {e}")
+                    else:
+                        # Insertar NUEVA línea manual si tenemos contexto de venta cargada
+                        if ventas_age and pax_sel != "--- Seleccione ---":
+                            v_actual = mapa_ventas_pax.get(pax_sel)
+                            try:
+                                # Calcular siguiente n_linea
+                                last_line = controller.client.table('venta_tour').select('n_linea').eq('id_venta', v_actual['id_venta']).order('n_linea', desc=True).limit(1).execute()
+                                next_n = (last_line.data[0]['n_linea'] + 1) if last_line.data else 1
+                                
+                                controller.client.table('venta_tour').insert({
+                                    'id_venta': v_actual['id_venta'],
+                                    'n_linea': next_n + index, # Simple offset
+                                    'fecha_servicio': row['FECHA'].isoformat(),
+                                    'observaciones': row.get('SERVICIO', 'Gasto Adicional'),
+                                    'costo_applied': row['TOTAL'],
+                                    'id_proveedor': id_prov,
+                                    'cantidad_pasajeros': pax_total
+                                }).execute()
+                                updated_count += 1
+                            except Exception as e:
+                                st.error(f"Error creando línea nueva {index}: {e}")
                 
                 if updated_count > 0:
                     st.success(f"✅ Se actualizaron {updated_count} servicios con sus proveedores y costos.")
