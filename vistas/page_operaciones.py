@@ -552,7 +552,7 @@ def dashboard_simulador_costos(controller):
                 st.rerun()
 
     with col_main:
-        st.info("💡 Selecciona una agencia abajo para cargar sus datos.")
+        st.info("💡 Selecciona el tipo de venta y luego la venta específica para cargar sus datos.")
         
         # Barra de Agencias (Existente)
         from controllers.venta_controller import VentaController
@@ -561,51 +561,59 @@ def dashboard_simulador_costos(controller):
         nombres_agencias = [a['nombre'] for a in agencias]
         mapa_agencias = {a['nombre']: a['id_agencia'] for a in agencias}
         
-        c_age, c_pax = st.columns(2)
-        with c_age:
-            # Opción especial para ver ventas directas
-            opcion_b2c = "--- Ventas Directas / B2C ---"
-            opciones_filtro = ["--- Seleccione ---", opcion_b2c] + nombres_agencias
-            agencia_sel = st.selectbox("1. Filtrar por Agencia / Tipo:", opciones_filtro, key="sel_agencia_sim")
+        # PASO 1: Seleccionar Tipo de Venta
+        c_tipo, c_filtro, c_pax = st.columns([1, 2, 2])
         
-        if agencia_sel != "--- Seleccione ---":
-            ventas_age = []
-            if agencia_sel == opcion_b2c:
-                # Cargar ventas sin agencia (Directas)
-                ventas_age = vc.obtener_ventas_directas()
-            else:
-                # Cargar ventas de la agencia seleccionada
+        with c_tipo:
+            tipo_venta = st.selectbox("1️⃣ Tipo de Venta:", ["--- Seleccione ---", "🏢 B2B (Agencias)", "👤 B2C (Directas)"], key="sel_tipo_venta")
+        
+        ventas_age = []
+        agencia_sel = None
+        
+        # PASO 2: Filtro según tipo
+        if tipo_venta == "🏢 B2B (Agencias)":
+            with c_filtro:
+                agencia_sel = st.selectbox("2️⃣ Seleccione Agencia:", ["--- Seleccione ---"] + nombres_agencias, key="sel_agencia_b2b")
+            
+            if agencia_sel != "--- Seleccione ---":
                 id_ag = mapa_agencias.get(agencia_sel)
                 ventas_age = vc.obtener_ventas_agencia(id_ag)
+        
+        elif tipo_venta == "👤 B2C (Directas)":
+            with c_filtro:
+                st.info("📋 Mostrando todas las ventas directas")
+            ventas_age = vc.obtener_ventas_directas()
+        
+        # PASO 3: Seleccionar Venta Específica
+        if ventas_age:
+            opciones_pax = [f"{v['nombre_cliente']} | {v.get('tour_nombre', 'Sin Tour')} ({v['id_venta']})" for v in ventas_age]
+            mapa_ventas_pax = {f"{v['nombre_cliente']} | {v.get('tour_nombre', 'Sin Tour')} ({v['id_venta']})": v for v in ventas_age}
             
-            if ventas_age:
-                opciones_pax = [f"{v['nombre_cliente']} | {v.get('tour_nombre', 'Sin Tour')} ({v['id_venta']})" for v in ventas_age]
-                mapa_ventas_pax = {f"{v['nombre_cliente']} | {v.get('tour_nombre', 'Sin Tour')} ({v['id_venta']})": v for v in ventas_age}
-                with c_pax:
-                    pax_sel = st.selectbox("2. Cargar Venta específica:", ["--- Seleccione ---"] + opciones_pax, key="sel_pax_sim")
-                
-                if pax_sel != "--- Seleccione ---":
-                    if st.button(f"📥 Cargar Itinerario de {pax_sel.split('|')[0].strip()}", use_container_width=True):
-                        v = mapa_ventas_pax.get(pax_sel)
-                        
-                        # 1. Ajustar Datos Globales
-                        st.session_state['liq_pax_total'] = int(v.get('cantidad_pasajeros') or 1)
-                        st.session_state['liq_precio_pax'] = float(v.get('precio_total_cierre') or 0)
-                        
-                        # 2. Cargar Desglose de Servicios (Venta Tour)
-                        detalles = vc.obtener_detalles_itinerario_venta(v['id_venta'])
-                        
-                        if detalles:
-                            nuevos_items = []
-                            for d in detalles:
-                                nuevos_items.append({
-                                    "FECHA": date.fromisoformat(d['fecha_servicio']),
-                                    "SERVICIO": d.get('observaciones') or "Servicio sin nombre",
-                                    "UNITARIO": float(d.get('costo_applied') or 0.0) / float(d.get('cantidad_pasajeros') or 1), # Intentar recuperar costo previo
-                                    "TOTAL": float(d.get('costo_applied') or 0.0),
-                                    "id_venta": d['id_venta'], # Oculto pero necesario para guardar
-                                    "n_linea": d['n_linea']
-                                })
+            with c_pax:
+                pax_sel = st.selectbox("3️⃣ Cargar Venta:", ["--- Seleccione ---"] + opciones_pax, key="sel_pax_sim")
+            
+            if pax_sel != "--- Seleccione ---":
+                if st.button(f"📥 Cargar Itinerario de {pax_sel.split('|')[0].strip()}", use_container_width=True):
+                    v = mapa_ventas_pax.get(pax_sel)
+                    
+                    # 1. Ajustar Datos Globales
+                    st.session_state['liq_pax_total'] = int(v.get('cantidad_pasajeros') or 1)
+                    st.session_state['liq_precio_pax'] = float(v.get('precio_total_cierre') or 0)
+                    
+                    # 2. Cargar Desglose de Servicios (Venta Tour)
+                    detalles = vc.obtener_detalles_itinerario_venta(v['id_venta'])
+                    
+                    if detalles:
+                        nuevos_items = []
+                        for d in detalles:
+                            nuevos_items.append({
+                                "FECHA": date.fromisoformat(d['fecha_servicio']),
+                                "SERVICIO": d.get('observaciones') or "Servicio sin nombre",
+                                "UNITARIO": float(d.get('costo_applied') or 0.0) / float(d.get('cantidad_pasajeros') or 1), # Intentar recuperar costo previo
+                                "TOTAL": float(d.get('costo_applied') or 0.0),
+                                "id_venta": d['id_venta'], # Oculto pero necesario para guardar
+                                "n_linea": d['n_linea']
+                            })
                             st.session_state['simulador_data'] = nuevos_items
                             st.success(f"Itinerario de {len(detalles)} días cargado con éxito.")
                             st.rerun()
