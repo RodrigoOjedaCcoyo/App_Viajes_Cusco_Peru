@@ -591,8 +591,7 @@ def dashboard_simulador_costos(controller):
                             for d in detalles:
                                 nuevos_items.append({
                                     "FECHA": date.fromisoformat(d['fecha_servicio']),
-                                    "SERVICIO": d.get('observaciones', '').split(' | ')[0] or "Servicio s/n",
-                                    "NOTAS": d.get('observaciones', '').split(' | ')[1] if ' | ' in d.get('observaciones', '') else "",
+                                    "SERVICIO": d.get('observaciones') or "Servicio sin nombre",
                                     "UNITARIO": float(d.get('costo_applied') or 0.0) / float(d.get('cantidad_pasajeros') or 1), # Intentar recuperar costo previo
                                     "TOTAL": float(d.get('costo_applied') or 0.0),
                                     "id_venta": d['id_venta'], # Oculto pero necesario para guardar
@@ -604,13 +603,17 @@ def dashboard_simulador_costos(controller):
                         else:
                             st.session_state['simulador_data'] = [
                                 {"FECHA": date.fromisoformat(v['fecha_venta']) if v.get('fecha_venta') else date.today(), 
-                                 "SERVICIO": f"INGRESO B2B: {v['nombre_cliente']}", "NOTAS": "", "UNITARIO": 0.0, "TOTAL": 0.0}
+                                 "SERVICIO": f"INGRESO B2B: {v['nombre_cliente']}", "UNITARIO": 0.0, "TOTAL": 0.0}
                             ]
                             st.warning("Venta cargada, pero no tiene itinerario expandido.")
                             st.rerun()
 
         # Data Editor (El "Excel")
         df = pd.DataFrame(st.session_state['simulador_data'])
+        
+        # Ordenar por FECHA para que al agregar filas con misma fecha queden agrupadas
+        if not df.empty and 'FECHA' in df.columns:
+            df.sort_values(by='FECHA', inplace=True)
         
         # Lógica de cálculo automático: Total = Unitario * Pax_Total
         if not df.empty and 'UNITARIO' in df.columns:
@@ -629,8 +632,7 @@ def dashboard_simulador_costos(controller):
 
         column_config = {
             "FECHA": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY", required=True),
-            "SERVICIO": st.column_config.TextColumn("Concepto del Gasto", required=True, width="large"),
-            "NOTAS": st.column_config.TextColumn("📝 Detalles / Requerimientos (Opcional)", width="large"),
+            "SERVICIO": st.column_config.TextColumn("Descripción del Servicio (Editable)", required=True, width="large"),
             "PROVEEDOR": st.column_config.SelectboxColumn("Endosar a (Proveedor)", options=lista_proveedores, width="medium"),
             "UNITARIO": st.column_config.NumberColumn("Costo Unitario ($)", format="%.2f", min_value=0.0, width="small"),
             "TOTAL": st.column_config.NumberColumn("Costo Total ($)", format="%.2f", min_value=0.0, disabled=True, width="small")
@@ -672,18 +674,13 @@ def dashboard_simulador_costos(controller):
                         prov_match = next((p for p in res_prov_data if p['nombre'] == nombre_prov), None)
                         if prov_match: id_prov = prov_match['id_proveedor']
 
-                    observacion_final = row.get('SERVICIO', '')
-                    nota = row.get('NOTAS', '')
-                    if nota:
-                        observacion_final = f"{observacion_final} | {nota}"
-
                     if pd.notna(row.get('id_venta')) and pd.notna(row.get('n_linea')):
                         # Actualizar existente
                         try:
                             controller.client.table('venta_tour').update({
                                 'costo_applied': row['TOTAL'],
                                 'id_proveedor': id_prov,
-                                'observaciones': observacion_final
+                                'observaciones': row.get('SERVICIO')
                             }).match({'id_venta': row['id_venta'], 'n_linea': row['n_linea']}).execute()
                             updated_count += 1
                         except Exception as e:
@@ -693,7 +690,7 @@ def dashboard_simulador_costos(controller):
                         if ventas_age and pax_sel != "--- Seleccione ---":
                             v_actual = mapa_ventas_pax.get(pax_sel)
                             try:
-                                # Calcular siguiente n_linea
+                                # Calcular siguiente n_linea (Seguro, consultamos cada vez para evitar bugs de concurrencia simple)
                                 last_line = controller.client.table('venta_tour').select('n_linea').eq('id_venta', v_actual['id_venta']).order('n_linea', desc=True).limit(1).execute()
                                 next_n = (last_line.data[0]['n_linea'] + 1) if last_line.data else 1
                                 
@@ -701,7 +698,7 @@ def dashboard_simulador_costos(controller):
                                     'id_venta': v_actual['id_venta'],
                                     'n_linea': next_n + index, # Simple offset
                                     'fecha_servicio': row['FECHA'].isoformat(),
-                                    'observaciones': observacion_final,
+                                    'observaciones': row.get('SERVICIO', 'Gasto Adicional'),
                                     'costo_applied': row['TOTAL'],
                                     'id_proveedor': id_prov,
                                     'cantidad_pasajeros': pax_total
