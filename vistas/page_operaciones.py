@@ -628,7 +628,7 @@ def dashboard_simulador_costos(controller):
 
         column_config = {
             "FECHA": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY", required=True),
-            "SERVICIO": st.column_config.TextColumn("Servicio / Gasto", required=True, width="large"),
+            "SERVICIO": st.column_config.TextColumn("Descripción del Servicio (Editable)", required=True, width="large"),
             "PROVEEDOR": st.column_config.SelectboxColumn("Endosar a (Proveedor)", options=lista_proveedores, width="medium"),
             "UNITARIO": st.column_config.NumberColumn("Costo Unitario ($)", format="%.2f", min_value=0.0, width="medium"),
             "TOTAL": st.column_config.NumberColumn("Costo Total ($)", format="%.2f", min_value=0.0, disabled=True, width="medium")
