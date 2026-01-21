@@ -591,7 +591,8 @@ def dashboard_simulador_costos(controller):
                             for d in detalles:
                                 nuevos_items.append({
                                     "FECHA": date.fromisoformat(d['fecha_servicio']),
-                                    "SERVICIO": d.get('observaciones') or "Servicio sin nombre",
+                                    "SERVICIO": d.get('observaciones', '').split(' | ')[0] or "Servicio s/n",
+                                    "NOTAS": d.get('observaciones', '').split(' | ')[1] if ' | ' in d.get('observaciones', '') else "",
                                     "UNITARIO": float(d.get('costo_applied') or 0.0) / float(d.get('cantidad_pasajeros') or 1), # Intentar recuperar costo previo
                                     "TOTAL": float(d.get('costo_applied') or 0.0),
                                     "id_venta": d['id_venta'], # Oculto pero necesario para guardar
@@ -603,7 +604,7 @@ def dashboard_simulador_costos(controller):
                         else:
                             st.session_state['simulador_data'] = [
                                 {"FECHA": date.fromisoformat(v['fecha_venta']) if v.get('fecha_venta') else date.today(), 
-                                 "SERVICIO": f"INGRESO B2B: {v['nombre_cliente']}", "UNITARIO": 0.0, "TOTAL": 0.0}
+                                 "SERVICIO": f"INGRESO B2B: {v['nombre_cliente']}", "NOTAS": "", "UNITARIO": 0.0, "TOTAL": 0.0}
                             ]
                             st.warning("Venta cargada, pero no tiene itinerario expandido.")
                             st.rerun()
@@ -628,10 +629,11 @@ def dashboard_simulador_costos(controller):
 
         column_config = {
             "FECHA": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY", required=True),
-            "SERVICIO": st.column_config.TextColumn("Descripción del Servicio (Editable)", required=True, width="large"),
+            "SERVICIO": st.column_config.TextColumn("Concepto del Gasto", required=True, width="large"),
+            "NOTAS": st.column_config.TextColumn("📝 Detalles / Requerimientos (Opcional)", width="large"),
             "PROVEEDOR": st.column_config.SelectboxColumn("Endosar a (Proveedor)", options=lista_proveedores, width="medium"),
-            "UNITARIO": st.column_config.NumberColumn("Costo Unitario ($)", format="%.2f", min_value=0.0, width="medium"),
-            "TOTAL": st.column_config.NumberColumn("Costo Total ($)", format="%.2f", min_value=0.0, disabled=True, width="medium")
+            "UNITARIO": st.column_config.NumberColumn("Costo Unitario ($)", format="%.2f", min_value=0.0, width="small"),
+            "TOTAL": st.column_config.NumberColumn("Costo Total ($)", format="%.2f", min_value=0.0, disabled=True, width="small")
         }
 
         edited_df = st.data_editor(
@@ -670,13 +672,18 @@ def dashboard_simulador_costos(controller):
                         prov_match = next((p for p in res_prov_data if p['nombre'] == nombre_prov), None)
                         if prov_match: id_prov = prov_match['id_proveedor']
 
+                    observacion_final = row.get('SERVICIO', '')
+                    nota = row.get('NOTAS', '')
+                    if nota:
+                        observacion_final = f"{observacion_final} | {nota}"
+
                     if pd.notna(row.get('id_venta')) and pd.notna(row.get('n_linea')):
                         # Actualizar existente
                         try:
                             controller.client.table('venta_tour').update({
                                 'costo_applied': row['TOTAL'],
                                 'id_proveedor': id_prov,
-                                'observaciones': row.get('SERVICIO') # Permitir actualizar descripción
+                                'observaciones': observacion_final
                             }).match({'id_venta': row['id_venta'], 'n_linea': row['n_linea']}).execute()
                             updated_count += 1
                         except Exception as e:
@@ -694,7 +701,7 @@ def dashboard_simulador_costos(controller):
                                     'id_venta': v_actual['id_venta'],
                                     'n_linea': next_n + index, # Simple offset
                                     'fecha_servicio': row['FECHA'].isoformat(),
-                                    'observaciones': row.get('SERVICIO', 'Gasto Adicional'),
+                                    'observaciones': observacion_final,
                                     'costo_applied': row['TOTAL'],
                                     'id_proveedor': id_prov,
                                     'cantidad_pasajeros': pax_total
