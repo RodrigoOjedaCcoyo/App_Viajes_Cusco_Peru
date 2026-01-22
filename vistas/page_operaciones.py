@@ -523,162 +523,129 @@ def dashboard_simulador_costos(controller):
         st.session_state['simulador_data'] = [
             {"FECHA": date.today(), "SERVICIO": "Servicio Ejemplo", "MONEDA": "USD", "TOTAL": 0.0},
         ]
+
+    st.info("💡 Selecciona el tipo de venta y luego la venta específica para cargar sus datos.")
     
-    if 'liq_pax_total' not in st.session_state:
-        st.session_state['liq_pax_total'] = 1
-    if 'liq_precio_pax' not in st.session_state:
-        st.session_state['liq_precio_pax'] = 0.0
-
-    # --- PANEL LATERAL DE RESUMEN (INGRESOS vs COSTOS) ---
-    col_main, col_summary = st.columns([3, 1])
-
-    with col_summary:
-        st.markdown("### 📝 Resumen Liquidación")
-        with st.container(border=True):
-            pax_total = st.number_input("TOTAL PAXS", min_value=1, value=st.session_state['liq_pax_total'], key="in_pax_total")
-            precio_pax = st.number_input("COBRO POR PAX ($)", min_value=0.0, value=st.session_state['liq_precio_pax'], format="%.2f", key="in_precio_pax")
-            
-            st.session_state['liq_pax_total'] = pax_total
-            st.session_state['liq_precio_pax'] = precio_pax
-            
-            total_ingreso = pax_total * precio_pax
-            
-            st.metric("TOTAL INGRESO", f"$ {total_ingreso:,.2f}")
-            
-            # Botones de Acción
-            if st.button("🗑️ Limpiar Todo", use_container_width=True, key="btn_clear_ops_sim"):
-                st.session_state['simulador_data'] = [{"FECHA": date.today(), "SERVICIO": "", "MONEDA": "USD", "TOTAL": 0.0}]
-                st.session_state['liq_precio_pax'] = 0.0
-                st.rerun()
-
-    with col_main:
-        st.info("💡 Selecciona el tipo de venta y luego la venta específica para cargar sus datos.")
+    # Barra de Agencias (Existente)
+    from controllers.venta_controller import VentaController
+    vc = VentaController(controller.client)
+    agencias = vc.obtener_agencias_aliadas()
+    nombres_agencias = [a['nombre'] for a in agencias]
+    mapa_agencias = {a['nombre']: a['id_agencia'] for a in agencias}
+    
+    # PASO 1: Seleccionar Tipo de Venta
+    c_tipo, c_filtro, c_pax = st.columns([1, 2, 2])
+    
+    with c_tipo:
+        tipo_venta = st.selectbox("1️⃣ Tipo de Venta:", ["--- Seleccione ---", "🏢 B2B (Agencias)", "👤 B2C (Directas)"], key="sel_tipo_venta")
+    
+    ventas_age = []
+    agencia_sel = None
+    
+    # PASO 2: Filtro según tipo
+    if tipo_venta == "🏢 B2B (Agencias)":
+        with c_filtro:
+            agencia_sel = st.selectbox("2️⃣ Seleccione Agencia:", ["--- Seleccione ---"] + nombres_agencias, key="sel_agencia_b2b")
         
-        # Barra de Agencias (Existente)
-        from controllers.venta_controller import VentaController
-        vc = VentaController(controller.client)
-        agencias = vc.obtener_agencias_aliadas()
-        nombres_agencias = [a['nombre'] for a in agencias]
-        mapa_agencias = {a['nombre']: a['id_agencia'] for a in agencias}
+        if agencia_sel != "--- Seleccione ---":
+            id_ag = mapa_agencias.get(agencia_sel)
+            ventas_age = vc.obtener_ventas_agencia(id_ag)
+    
+    elif tipo_venta == "👤 B2C (Directas)":
+        with c_filtro:
+            st.info("📋 Mostrando todas las ventas directas")
+        ventas_age = vc.obtener_ventas_directas()
+    
+    # PASO 3: Seleccionar Venta Específica
+    if ventas_age:
+        opciones_pax = [f"{v['nombre_cliente']} | {v.get('tour_nombre', 'Sin Tour')} ({v['id_venta']})" for v in ventas_age]
+        mapa_ventas_pax = {f"{v['nombre_cliente']} | {v.get('tour_nombre', 'Sin Tour')} ({v['id_venta']})": v for v in ventas_age}
         
-        # PASO 1: Seleccionar Tipo de Venta
-        c_tipo, c_filtro, c_pax = st.columns([1, 2, 2])
+        with c_pax:
+            pax_sel = st.selectbox("3️⃣ Cargar Venta:", ["--- Seleccione ---"] + opciones_pax, key="sel_pax_sim")
         
-        with c_tipo:
-            tipo_venta = st.selectbox("1️⃣ Tipo de Venta:", ["--- Seleccione ---", "🏢 B2B (Agencias)", "👤 B2C (Directas)"], key="sel_tipo_venta")
-        
-        ventas_age = []
-        agencia_sel = None
-        
-        # PASO 2: Filtro según tipo
-        if tipo_venta == "🏢 B2B (Agencias)":
-            with c_filtro:
-                agencia_sel = st.selectbox("2️⃣ Seleccione Agencia:", ["--- Seleccione ---"] + nombres_agencias, key="sel_agencia_b2b")
-            
-            if agencia_sel != "--- Seleccione ---":
-                id_ag = mapa_agencias.get(agencia_sel)
-                ventas_age = vc.obtener_ventas_agencia(id_ag)
-        
-        elif tipo_venta == "👤 B2C (Directas)":
-            with c_filtro:
-                st.info("📋 Mostrando todas las ventas directas")
-            ventas_age = vc.obtener_ventas_directas()
-        
-        # PASO 3: Seleccionar Venta Específica
-        if ventas_age:
-            opciones_pax = [f"{v['nombre_cliente']} | {v.get('tour_nombre', 'Sin Tour')} ({v['id_venta']})" for v in ventas_age]
-            mapa_ventas_pax = {f"{v['nombre_cliente']} | {v.get('tour_nombre', 'Sin Tour')} ({v['id_venta']})": v for v in ventas_age}
-            
-            with c_pax:
-                pax_sel = st.selectbox("3️⃣ Cargar Venta:", ["--- Seleccione ---"] + opciones_pax, key="sel_pax_sim")
-            
-            if pax_sel != "--- Seleccione ---":
-                if st.button(f"📥 Cargar Itinerario de {pax_sel.split('|')[0].strip()}", use_container_width=True):
-                    v = mapa_ventas_pax.get(pax_sel)
-                    
-                    # 1. Ajustar Datos Globales
-                    st.session_state['liq_pax_total'] = int(v.get('cantidad_pasajeros') or 1)
-                    st.session_state['liq_precio_pax'] = float(v.get('precio_total_cierre') or 0)
-                    
-                    # 2. Cargar Desglose de Servicios (Venta Tour)
-                    detalles = vc.obtener_detalles_itinerario_venta(v['id_venta'])
-                    
-                    if detalles:
-                        nuevos_items = []
-                        for d in detalles:
-                            nuevos_items.append({
-                                "FECHA": date.fromisoformat(d['fecha_servicio']),
-                                "SERVICIO": d.get('observaciones') or "Servicio sin nombre",
-                                "MONEDA": d.get('moneda_costo', 'USD'),  # Cargar moneda guardada o USD por defecto
-                                "TOTAL": float(d.get('costo_applied') or 0.0),
-                                "id_venta": d['id_venta'],
-                                "n_linea": d['n_linea']
-                            })
-                        st.session_state['simulador_data'] = nuevos_items
-                        st.success(f"Itinerario de {len(detalles)} días cargado con éxito.")
-                        st.rerun()
-                    else:
-                        st.session_state['simulador_data'] = [
-                            {"FECHA": date.fromisoformat(v['fecha_venta']) if v.get('fecha_venta') else date.today(), 
-                             "SERVICIO": f"INGRESO B2B: {v['nombre_cliente']}", "MONEDA": "USD", "TOTAL": 0.0}
-                        ]
-                        st.warning("Venta cargada, pero no tiene itinerario expandido.")
-                        st.rerun()
+        if pax_sel != "--- Seleccione ---":
+            if st.button(f"📥 Cargar Itinerario de {pax_sel.split('|')[0].strip()}", use_container_width=True):
+                v = mapa_ventas_pax.get(pax_sel)
+                
+                # 1. Ajustar Datos Globales (ya no necesarios pero mantenemos compatibilidad)
+                
+                # 2. Cargar Desglose de Servicios (Venta Tour)
+                detalles = vc.obtener_detalles_itinerario_venta(v['id_venta'])
+                
+                if detalles:
+                    nuevos_items = []
+                    for d in detalles:
+                        nuevos_items.append({
+                            "FECHA": date.fromisoformat(d['fecha_servicio']),
+                            "SERVICIO": d.get('observaciones') or "Servicio sin nombre",
+                            "MONEDA": d.get('moneda_costo', 'USD'),  # Cargar moneda guardada o USD por defecto
+                            "TOTAL": float(d.get('costo_applied') or 0.0),
+                            "id_venta": d['id_venta'],
+                            "n_linea": d['n_linea']
+                        })
+                    st.session_state['simulador_data'] = nuevos_items
+                    st.success(f"Itinerario de {len(detalles)} días cargado con éxito.")
+                    st.rerun()
+                else:
+                    st.session_state['simulador_data'] = [
+                        {"FECHA": date.fromisoformat(v['fecha_venta']) if v.get('fecha_venta') else date.today(), 
+                         "SERVICIO": f"INGRESO B2B: {v['nombre_cliente']}", "MONEDA": "USD", "TOTAL": 0.0}
+                    ]
+                    st.warning("Venta cargada, pero no tiene itinerario expandido.")
+                    st.rerun()
 
-        # Data Editor (El "Excel")
-        df = pd.DataFrame(st.session_state['simulador_data'])
-        
-        # Ordenar por FECHA para que al agregar filas con misma fecha queden agrupadas
-        if not df.empty and 'FECHA' in df.columns:
-            df.sort_values(by='FECHA', inplace=True)
-        
-        # Obtener lista de proveedores para el selectbox
-        lista_proveedores = ["--- Sin Asignar ---"]
-        res_prov_data = [] # Variable segura para usar después
-        try:
-            res_prov = controller.client.table('proveedor').select('id_proveedor, nombre, tipo_servicio').execute()
-            res_prov_data = res_prov.data or []
-            lista_proveedores += [f"{p['nombre']} ({p['tipo_servicio']})" for p in res_prov_data]
-        except Exception as e:
-            # Si no existe la tabla aún, no romper la app, solo avisar en consola o mostrar vacío
-            print(f"Advertencia: No se pudo cargar proveedores (posiblemente falta tabla): {e}")
+    # Data Editor (El "Excel")
+    df = pd.DataFrame(st.session_state['simulador_data'])
+    
+    # Ordenar por FECHA para que al agregar filas con misma fecha queden agrupadas
+    if not df.empty and 'FECHA' in df.columns:
+        df.sort_values(by='FECHA', inplace=True)
+    
+    # Obtener lista de proveedores para el selectbox
+    lista_proveedores = ["--- Sin Asignar ---"]
+    res_prov_data = [] # Variable segura para usar después
+    try:
+        res_prov = controller.client.table('proveedor').select('id_proveedor, nombre, tipo_servicio').execute()
+        res_prov_data = res_prov.data or []
+        lista_proveedores += [f"{p['nombre']} ({p['tipo_servicio']})" for p in res_prov_data]
+    except Exception as e:
+        # Si no existe la tabla aún, no romper la app, solo avisar en consola o mostrar vacío
+        print(f"Advertencia: No se pudo cargar proveedores (posiblemente falta tabla): {e}")
 
-        column_config = {
-            "FECHA": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY", required=True),
-            "SERVICIO": st.column_config.TextColumn("Descripción del Servicio", required=True, width="large"),
-            "PROVEEDOR": st.column_config.SelectboxColumn("Endosar a (Proveedor)", options=lista_proveedores, width="medium"),
-            "MONEDA": st.column_config.SelectboxColumn("💵 Moneda", options=["USD", "PEN"], default="USD", width="small"),
-            "TOTAL": st.column_config.NumberColumn("Costo Total", format="%.2f", min_value=0.0, width="medium")
-        }
+    column_config = {
+        "FECHA": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY", required=True),
+        "SERVICIO": st.column_config.TextColumn("Descripción del Servicio", required=True, width="large"),
+        "PROVEEDOR": st.column_config.SelectboxColumn("Endosar a (Proveedor)", options=lista_proveedores, width="medium"),
+        "MONEDA": st.column_config.SelectboxColumn("💵 Moneda", options=["USD", "PEN"], default="USD", width="small"),
+        "TOTAL": st.column_config.NumberColumn("Costo Total", format="%.2f", min_value=0.0, width="medium")
+    }
 
-        st.info("💡 **Tip:** Para insertar un servicio en un día específico: **1.** Agrégalo al final. **2.** Pon la fecha deseada. **3.** Al Guardar, se ordenará solito.")
+    st.info("💡 **Tip:** Para insertar un servicio en un día específico: **1.** Agrégalo al final. **2.** Pon la fecha deseada. **3.** Al Guardar, se ordenará solito.")
 
-        edited_df = st.data_editor(
-            df,
-            column_config=column_config,
-            num_rows="dynamic",
-            use_container_width=True,
-            hide_index=True,
-            key="editor_simulador_ops"
-        )
+    edited_df = st.data_editor(
+        df,
+        column_config=column_config,
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        key="editor_simulador_ops"
+    )
 
-        st.session_state['simulador_data'] = edited_df.to_dict('records')
+    st.session_state['simulador_data'] = edited_df.to_dict('records')
 
-        # Totales Finales
-        total_costos = edited_df['TOTAL'].sum()
-        utilidad = total_ingreso - total_costos
-        margen = (utilidad / total_ingreso * 100) if total_ingreso > 0 else 0
+    # Totales Finales
+    total_costos = edited_df['TOTAL'].sum()
 
-        st.divider()
-        sc1, sc2, sc3 = st.columns(3)
-        sc1.metric("COSTO TOTAL GRUPO", f"$ {total_costos:,.2f}", delta_color="inverse")
-        sc2.metric("UTILIDAD NETA", f"$ {utilidad:,.2f}")
-        sc3.metric("MARGEN %", f"{margen:.1f}%")
+    st.divider()
+    sc1, sc2 = st.columns(2)
+    sc1.metric("COSTO TOTAL GRUPO", f"$ {total_costos:,.2f}", delta_color="inverse")
+    sc2.metric("Total Servicios", len(edited_df))
 
-        c_actions_1, c_actions_2 = st.columns(2)
-        
-        with c_actions_1:
-            if st.button("💾 Guardar Borrador", use_container_width=True, type="secondary"):
+    c_actions_1, c_actions_2 = st.columns(2)
+    
+    with c_actions_1:
+        if st.button("💾 Guardar Borrador", use_container_width=True, type="secondary"):
                 # Guardar como borrador (en progreso)
                 updated_count = 0
                 for index, row in edited_df.iterrows():
