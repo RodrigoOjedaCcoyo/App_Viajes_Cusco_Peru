@@ -142,7 +142,7 @@ class OperacionesController:
                     'Tipo': '👤 B2C',
                     'Día Itin.': s.get('id_itinerario_dia_index', 1),
                     'ID Itinerario': v.get('id_itinerario_digital'),
-                    'URL Cloud': v.get('url_itinerario')
+                    'URL Cloud': v.get('url_itinerario') or ""
                 })
             return resultado
         except Exception as e:
@@ -245,7 +245,7 @@ class OperacionesController:
                     'N Linea': s['n_linea'],
                     'Día Itin.': s.get('id_itinerario_dia_index', 1),
                     'ID Itinerario': v.get('id_itinerario_digital'),
-                    'URL Cloud': v.get('url_itinerario')
+                    'URL Cloud': v.get('url_itinerario') or ""
                 })
             return resultado
         except Exception as e:
