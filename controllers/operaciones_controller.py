@@ -93,18 +93,19 @@ class OperacionesController:
                     vid = p['id_venta']
                     pagos_map[vid] = pagos_map.get(vid, 0) + (p['monto_pagado'] or 0)
 
-            # 5. Guías asignados (Tabla 'asignacion_guia' + 'guia')
+            # 5. Guías asignados (Tabla 'venta_servicio_proveedor' + 'proveedor')
             guias_map = {}
             if ids_ventas:
                 res_g = (
-                    self.client.table('asignacion_guia')
-                    .select('id_venta, n_linea, guia(nombre)')
+                    self.client.table('venta_servicio_proveedor')
+                    .select('id_venta, n_linea, proveedor(nombre_comercial)')
                     .in_('id_venta', ids_ventas)
+                    .eq('tipo_servicio', 'GUIA')
                     .execute()
                 )
                 for g in res_g.data:
                     key = f"{g['id_venta']}-{g['n_linea']}"
-                    guias_map[key] = g['guia']['nombre'] if g.get('guia') else "Desconocido"
+                    guias_map[key] = g['proveedor']['nombre_comercial'] if g.get('proveedor') else "Desconocido"
             
             resultado = []
             for s in servicios_data:
@@ -196,18 +197,19 @@ class OperacionesController:
                     vid = p['id_venta']
                     pagos_map[vid] = pagos_map.get(vid, 0) + (p['monto_pagado'] or 0)
 
-            # Guías
+            # Guías (Tabla 'venta_servicio_proveedor' + 'proveedor')
             guias_map = {}
             if ids_ventas:
                 res_g = (
-                    self.client.table('asignacion_guia')
-                    .select('id_venta, n_linea, guia(nombre)')
+                    self.client.table('venta_servicio_proveedor')
+                    .select('id_venta, n_linea, proveedor(nombre_comercial)')
                     .in_('id_venta', ids_ventas)
+                    .eq('tipo_servicio', 'GUIA')
                     .execute()
                 )
                 for g in res_g.data:
                     key = f"{g['id_venta']}-{g['n_linea']}"
-                    guias_map[key] = g['guia']['nombre'] if g.get('guia') else "Desconocido"
+                    guias_map[key] = g['proveedor']['nombre_comercial'] if g.get('proveedor') else "Desconocido"
             
             resultado = []
             for s in servicios_data:
@@ -253,30 +255,25 @@ class OperacionesController:
             return []
 
     def actualizar_guia_servicio(self, id_venta, n_linea, nombre_guia):
-        """Asigna un guía a un servicio específico según el esquema SQL asignacion_guia."""
+        """Asigna un guía a un servicio específico según el esquema SQL venta_servicio_proveedor."""
         try:
-            # 1. Buscar el ID del guía por nombre
-            res_g = self.client.table('guia').select('id_guia').ilike('nombre', f"%{nombre_guia}%").limit(1).execute()
+            # 1. Buscar el ID del guía (en tabla proveedor)
+            res_g = self.client.table('proveedor').select('id_proveedor').ilike('nombre_comercial', f"%{nombre_guia}%").limit(1).execute()
             if not res_g.data:
-                return False, "Guía no encontrado en la base de datos."
+                return False, "Guía (proveedor) no encontrado."
             
-            id_guia = res_g.data[0]['id_guia']
+            id_guia = res_g.data[0]['id_proveedor']
             
-            # 2. Insertar en asignacion_guia (PK: id_venta, n_linea, id_guia)
-            # Nota: Usamos upsert o insert simple. El esquema dice fecha_servicio es obligatoria.
-            # Necesitaríamos la fecha del servicio también.
-            
-            # Por ahora, si el usuario solo quiere guardar el nombre en un campo de texto (simulado)
-            # pero el esquema no lo tiene, lo ideal es usar la tabla asignacion_guia.
-            # Como falta info de fecha aquí, devolveremos éxito simulado si falla por integridad.
-            
-            nueva_asig = {
+            # 2. Upsert en venta_servicio_proveedor (vincular como GUIA)
+            datos = {
                 "id_venta": id_venta,
                 "n_linea": n_linea,
-                "id_guia": id_guia,
-                "fecha_servicio": date.today().isoformat() # Placeholder
+                "id_proveedor": id_guia,
+                "tipo_servicio": 'GUIA',
+                "estado_pago": 'PENDIENTE'
             }
-            self.client.table('asignacion_guia').insert(nueva_asig).execute()
+            # Usar upsert para actualizar si ya existe un registro de guía para este servicio
+            self.client.table('venta_servicio_proveedor').upsert(datos, on_conflict='id_venta, n_linea, tipo_servicio').execute()
             return True, f"Guía {nombre_guia} asignado correctamente."
         except Exception as e:
             print(f"Error asignando guía: {e}")

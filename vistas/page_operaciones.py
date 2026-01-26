@@ -535,8 +535,8 @@ def dashboard_gestion_endoses(controller):
         s_act = mapa_s[sel_s]
         
         # 4. Selección de Proveedor (Endose)
-        res_prov = controller.client.table('proveedor').select('nombre, id_proveedor').execute()
-        prov_map = {p['nombre']: p['id_proveedor'] for p in (res_prov.data or [])}
+        res_prov = controller.client.table('proveedor').select('nombre_comercial, id_proveedor').execute()
+        prov_map = {p['nombre_comercial']: p['id_proveedor'] for p in (res_prov.data or [])}
         
         col1, col2 = st.columns(2)
         prov_sel = col1.selectbox("🏢 Proveedor / Agencia de Destino:", ["--- Seleccione ---"] + list(prov_map.keys()))
@@ -695,9 +695,9 @@ def dashboard_simulador_costos(controller):
     lista_proveedores = ["--- Sin Asignar ---"]
     res_prov_data = [] # Variable segura para usar después
     try:
-        res_prov = controller.client.table('proveedor').select('id_proveedor, nombre, tipo_servicio').execute()
+        res_prov = controller.client.table('proveedor').select('id_proveedor, nombre_comercial, servicios_ofrecidos').execute()
         res_prov_data = res_prov.data or []
-        lista_proveedores += [f"{p['nombre']} ({p['tipo_servicio']})" for p in res_prov_data]
+        lista_proveedores += [f"{p['nombre_comercial']} ({p.get('servicios_ofrecidos', ['N/A'])[0]})" for p in res_prov_data]
     except Exception as e:
         # Si no existe la tabla aún, no romper la app, solo avisar en consola o mostrar vacío
         print(f"Advertencia: No se pudo cargar proveedores (posiblemente falta tabla): {e}")
