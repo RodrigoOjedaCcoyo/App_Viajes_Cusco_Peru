@@ -97,17 +97,24 @@ def auditoria_de_pagos():
         
         # Un contador necesita ver el estado del pago, que en el modelo de ventas es 'estado_venta'
         # Usar nombres de columnas correctos según esquema
-        columnas_auditoria = ['id_venta', 'precio_total_cierre', 'fecha_venta', 'estado_venta']
+        columnas_auditoria = ['id_venta', 'precio_total_cierre', 'fecha_venta', 'estado_venta', 'url_itinerario']
         # Mapeo para visualización
         df_auditoria_show = df_auditoria.copy()
         df_auditoria_show.rename(columns={
             'id_venta': 'Venta ID',
             'precio_total_cierre': 'Monto ($)',
             'fecha_venta': 'Fecha',
-            'estado_venta': 'Estado'
+            'estado_venta': 'Estado',
+            'url_itinerario': 'PDF 📄'
         }, inplace=True)
         
-        st.dataframe(df_auditoria_show[['Venta ID', 'Monto ($)', 'Fecha', 'Estado']], use_container_width=True, hide_index=True)
+        st.dataframe(
+            df_auditoria_show[['Venta ID', 'Monto ($)', 'Fecha', 'Estado', 'PDF 📄']], 
+            column_config={
+                "PDF 📄": st.column_config.LinkColumn("PDF 📄", help="Abrir Itinerario Premium en la nube")
+            },
+            use_container_width=True, hide_index=True
+        )
 
         # --- 🔍 DETALLE VISUAL PARA AUDITORÍA (ESTILO IMAGEN) ---
         st.markdown("---")

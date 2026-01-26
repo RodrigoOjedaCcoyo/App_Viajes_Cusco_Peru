@@ -141,7 +141,8 @@ class OperacionesController:
                     'Estado Pago': estado_pago,
                     'Tipo': '👤 B2C',
                     'Día Itin.': s.get('id_itinerario_dia_index', 1),
-                    'ID Itinerario': v.get('id_itinerario_digital')
+                    'ID Itinerario': v.get('id_itinerario_digital'),
+                    'URL Cloud': v.get('url_itinerario')
                 })
             return resultado
         except Exception as e:
@@ -243,7 +244,8 @@ class OperacionesController:
                     'ID Venta': s['id_venta'],
                     'N Linea': s['n_linea'],
                     'Día Itin.': s.get('id_itinerario_dia_index', 1),
-                    'ID Itinerario': v.get('id_itinerario_digital')
+                    'ID Itinerario': v.get('id_itinerario_digital'),
+                    'URL Cloud': v.get('url_itinerario')
                 })
             return resultado
         except Exception as e:

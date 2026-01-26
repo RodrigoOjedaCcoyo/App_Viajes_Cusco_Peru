@@ -153,10 +153,11 @@ def dashboard_tablero_diario(controller):
         df = pd.DataFrame(servicios)
         ed_df = st.data_editor(
             df,
-            column_order=('Hora', 'Día Itin.', 'Servicio', 'Tipo', 'Pax', 'Cliente', 'Guía', 'Estado Pago', 'ID Itinerario'),
+            column_order=('Hora', 'Día Itin.', 'Servicio', 'Tipo', 'Pax', 'Cliente', 'URL Cloud', 'Guía', 'Estado Pago', 'ID Itinerario'),
             column_config={
                 "Día Itin.": st.column_config.NumberColumn("Día", format="%d", disabled=True),
                 "Tipo": st.column_config.TextColumn("Tipo", disabled=True, width="small"),
+                "URL Cloud": st.column_config.LinkColumn("PDF 📄", help="Abrir Itinerario Premium en la nube"),
                 "Guía": st.column_config.TextColumn("Asignar Guía ✏️"),
                 "Pax": st.column_config.NumberColumn(disabled=True),
                 "Servicio": st.column_config.TextColumn(disabled=True),
