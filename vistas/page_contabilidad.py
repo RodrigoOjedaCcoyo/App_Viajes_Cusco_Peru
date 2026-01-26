@@ -303,26 +303,39 @@ def estructurador_liquidacion_pro(controller):
     
     if st.button("✅ Sincronizar con Base de Datos", use_container_width=True, type="primary"):
         c_up = 0
-        for idx, row in edited_df.iterrows():
-            prov_txt = row.get('PROVEEDOR')
-            id_p = None
-            if prov_txt and prov_txt != "--- Sin Asignar ---":
-                n_p = prov_txt.split(" (")[0]
-                p_m = next((p for p in res_prov_data if p['nombre'] == n_p), None)
-                if p_m: id_p = p_m.get('id_proveedor') or p_m.get('id_provider')
+        c_err = 0
+        valid_rows = [row for _, row in edited_df.iterrows() if pd.notna(row.get('id_venta')) and pd.notna(row.get('n_linea'))]
+        
+        if not valid_rows:
+            st.warning("⚠️ No hay datos seleccionados de una venta real. Por favor, cargue una venta antes de sincronizar.")
+        else:
+            with st.status("Sincronizando con la base de datos...", expanded=False) as status:
+                for row in valid_rows:
+                    prov_txt = row.get('PROVEEDOR')
+                    id_p = None
+                    if prov_txt and prov_txt != "--- Sin Asignar ---":
+                        n_p = prov_txt.split(" (")[0]
+                        p_m = next((p for p in res_prov_data if p['nombre'] == n_p), None)
+                        if p_m: id_p = p_m.get('id_proveedor') or p_m.get('id_provider')
 
-            if pd.notna(row.get('id_venta')) and pd.notna(row.get('n_linea')):
-                try:
-                    controller.client.table('venta_tour').update({
-                        'costo_applied': row['TOTAL'],
-                        'moneda_costo': row.get('MONEDA', 'USD'),
-                        'id_proveedor': id_p,
-                        'observaciones': row.get('SERVICIO')
-                    }).match({'id_venta': row['id_venta'], 'n_linea': row['n_linea']}).execute()
-                    c_up += 1
-                except: pass
-        if c_up > 0:
-            st.success(f"¡{c_up} servicios actualizados en la nube!")
+                    try:
+                        controller.client.table('venta_tour').update({
+                            'costo_applied': row['TOTAL'],
+                            'moneda_costo': row.get('MONEDA', 'USD'),
+                            'id_proveedor': id_p,
+                            'observaciones': row.get('SERVICIO')
+                        }).match({'id_venta': row['id_venta'], 'n_linea': row['n_linea']}).execute()
+                        c_up += 1
+                    except Exception as e:
+                        c_err += 1
+                        st.error(f"Error en fila {row.get('SERVICIO')}: {e}")
+                
+                status.update(label="Sincronización finalizada", state="complete", expanded=False)
+
+            if c_up > 0:
+                st.success(f"✅ ¡{c_up} servicios actualizados correctamente en la nube!")
+            if c_err > 0:
+                st.error(f"❌ {c_err} servicios no pudieron actualizarse.")
 
 from controllers.venta_controller import VentaController
 

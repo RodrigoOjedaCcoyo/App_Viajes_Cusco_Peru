@@ -21,6 +21,8 @@ COMMENT ON COLUMN usuarios_app.rol IS 'Rol del usuario: VENTAS, OPERACIONES, CON
 CREATE TABLE vendedor (
     id_vendedor SERIAL PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
+    email VARCHAR(255) UNIQUE, -- Agregado para vinculación con usuarios_app
+    url_empresa VARCHAR(255),  -- Agregado para firmas/logos en PDFs
     estado VARCHAR(20) DEFAULT 'ACTIVO' CHECK (estado IN ('ACTIVO', 'INACTIVO')),
     fecha_ingreso DATE DEFAULT CURRENT_DATE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -176,19 +178,22 @@ COMMENT ON COLUMN venta.fecha_inicio IS 'Fecha de inicio del viaje (para calenda
 COMMENT ON COLUMN venta.fecha_fin IS 'Fecha de finalización del viaje';
 COMMENT ON COLUMN venta.tour_nombre IS 'Nombre del tour cuando no está en catálogo (tours externos/personalizados)';
 
-CREATE TABLE venta_tour ( -- Para que sirve esta tabla?
+CREATE TABLE venta_tour ( 
     id_venta INTEGER REFERENCES venta(id_venta) ON DELETE CASCADE,
     n_linea INTEGER NOT NULL,
     id_tour INTEGER REFERENCES tour(id_tour) ON DELETE RESTRICT,
+    id_proveedor INTEGER REFERENCES proveedor(id_proveedor) ON DELETE SET NULL, -- Agregado para liquidación rápida
     fecha_servicio DATE NOT NULL,
     hora_inicio TIME, 
     precio_applied DECIMAL(10,2),
     costo_applied DECIMAL(10,2),
+    moneda_costo VARCHAR(10) DEFAULT 'USD', -- Agregado para liquidación multimoneda
     cantidad_pasajeros INTEGER DEFAULT 1,
     punto_encuentro VARCHAR(255),
     observaciones TEXT,                   -- ✅ Usado para nombres de tours diarios específicos
     id_itinerario_dia_index INTEGER,
     estado_servicio VARCHAR(30) DEFAULT 'PENDIENTE' CHECK (estado_servicio IN ('PENDIENTE', 'CONFIRMADO', 'EN_CURSO', 'COMPLETADO', 'CANCELADO')),
+    es_endoso BOOLEAN DEFAULT FALSE,      -- Movido desde ALTER TABLE para definición limpia
     PRIMARY KEY (id_venta, n_linea)
 );
 
@@ -489,11 +494,7 @@ ADD COLUMN id_venta_servicio_proveedor INTEGER REFERENCES venta_servicio_proveed
 COMMENT ON COLUMN requerimiento.id_proveedor IS 'Proveedor asignado al requerimiento (reemplaza campo proveedor texto libre)';
 COMMENT ON COLUMN requerimiento.id_venta_servicio_proveedor IS 'Vincula el requerimiento con el servicio de proveedor específico';
 
--- Modificación de tabla existente: venta_tour
-ALTER TABLE venta_tour
-ADD COLUMN es_endoso BOOLEAN DEFAULT FALSE;
-
-COMMENT ON COLUMN venta_tour.es_endoso IS 'TRUE si el servicio está completamente tercerizado a otra operadora';
+-- (Secciones de ALTER TABLE eliminadas porque se integraron en la definición original de venta_tour)
 
 -- ==============================================================
 -- SECCIÓN 7: ÍNDICES DE RENDIMIENTO
