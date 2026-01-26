@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page {
+            size: A5 landscape;
+            margin: 1cm;
+        }
+
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            color: #000;
+            line-height: 1.2;
+            font-size: 10pt;
+        }
+
+        .header {
+            text-align: center;
+            border: 2px solid #000;
+            padding: 5pt;
+            margin-bottom: 10pt;
+        }
+
+        .title {
+            font-size: 16pt;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .info-box {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10pt;
+        }
+
+        .info-box td {
+            border: 1px solid #000;
+            padding: 5pt;
+            vertical-align: top;
+        }
+
+        .label {
+            font-weight: bold;
+            font-size: 8pt;
+            text-transform: uppercase;
+            display: block;
+        }
+
+        .value {
+            font-size: 11pt;
+        }
+
+        .footer {
+            margin-top: 20pt;
+            text-align: center;
+            font-size: 8pt;
+            border-top: 1px dashed #000;
+            padding-top: 5pt;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <div class="title">ORCHID DE ENDOSE / VOUCHER</div>
+        <div>VIAJES CUSCO PERÚ</div>
+    </div>
+
+    <table class="info-box">
+        <tr>
+            <td colspan="2">
+                <span class="label">Proveedor / Endosado a:</span>
+                <span class="value">{{ nombre_proveedor }}</span>
+            </td>
+            <td>
+                <span class="label">Fecha Servicio:</span>
+                <span class="value">{{ fecha_servicio }}</span>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                <span class="label">Servicio a Realizar:</span>
+                <span class="value">{{ nombre_servicio }}</span>
+            </td>
+            <td>
+                <span class="label">Hora:</span>
+                <span class="value">{{ hora_encuentro }}</span>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <span class="label">Pasajero Principal:</span>
+                <span class="value">{{ nombre_pasajero }}</span>
+            </td>
+            <td>
+                <span class="label">Cantidad Pax:</span>
+                <span class="value">{{ cantidad_pax }}</span>
+            </td>
+            <td>
+                <span class="label">Venta Ref:</span>
+                <span class="value">#{{ id_venta }}</span>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="3">
+                <span class="label">Observaciones / Inclusiones de Endose:</span>
+                <span class="value">{{ observaciones }}</span>
+            </td>
+        </tr>
+    </table>
+
+    <div class="footer">
+        Este documento certifica el endose del servicio. <br>
+        Generado el {{ hoy }}
+    </div>
+</body>
+
+</html>

@@ -206,12 +206,123 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, su
             mostrar_requerimientos()
             
         with tab2:
-            estructurador_contable()
+            # Ahora usamos la versión avanzada (Pro) en Contabilidad
+            estructurador_liquidacion_pro(st.session_state['reporte_controller'])
             
         with tab3:
             dashboard_cuentas_por_cobrar_b2b(supabase_client)
     else:
         st.info("Utilice el Dashboard Contable para ver reportes.")
+
+def estructurador_liquidacion_pro(controller):
+    """
+    Herramienta avanzada para estructurar liquidaciones (Versión Contabilidad).
+    Permite cargar ventas y asignar costos/proveedores directamente.
+    """
+    from datetime import date
+    st.subheader("📊 Estructurador de Liquidación Profesional", divider='rainbow')
+
+    if 'simulador_contable_adv_data' not in st.session_state:
+        st.session_state['simulador_contable_adv_data'] = [
+            {"FECHA": date.today(), "SERVICIO": "Servicio Ejemplo", "MONEDA": "USD", "TOTAL": 0.0},
+        ]
+
+    st.info("💡 Selecciona la venta para cargar su desglose de servicios e itinerario.")
+    
+    # Barra de ventas
+    from controllers.venta_controller import VentaController
+    vc = VentaController(controller.client)
+    
+    c_tipo, c_pax = st.columns([1, 2])
+    with c_tipo:
+        tipo_v = st.selectbox("1️⃣ Tipo:", ["--- Seleccione ---", "🏢 B2B (Agencias)", "👤 B2C (Directas)"], key="acc_sel_tipo")
+    
+    ventas_data = []
+    if tipo_v == "🏢 B2B (Agencias)":
+        agencias = vc.obtener_agencias_aliadas()
+        nombres_ag = [a['nombre'] for a in agencias]
+        mapa_ag = {a['nombre']: a['id_agencia'] for a in agencias}
+        ag_sel = st.selectbox("2️⃣ Agencia:", ["--- Seleccione ---"] + nombres_ag, key="acc_sel_ag")
+        if ag_sel != "--- Seleccione ---":
+            ventas_data = vc.obtener_ventas_agencia(mapa_ag[ag_sel])
+    elif tipo_v == "👤 B2C (Directas)":
+        ventas_data = vc.obtener_ventas_directas()
+
+    if ventas_data:
+        opciones_p = [f"{v['nombre_cliente']} | {v.get('tour_nombre', 'Sin Tour')} ({v['id_venta']})" for v in ventas_data]
+        mapa_v = {opciones_p[i]: v for i, v in enumerate(ventas_data)}
+        
+        with c_pax:
+            p_sel = st.selectbox("2️⃣ Cargar Venta:", ["--- Seleccione ---"] + opciones_p, key="acc_sel_pax")
+        
+        if p_sel != "--- Seleccione ---":
+            if st.button(f"📥 Cargar Datos de {p_sel.split('|')[0].strip()}", use_container_width=True):
+                v_act = mapa_v.get(p_sel)
+                detalles = vc.obtener_detalles_itinerario_venta(v_act['id_venta'])
+                if detalles:
+                    st.session_state['simulador_contable_adv_data'] = [{
+                        "FECHA": date.fromisoformat(d['fecha_servicio']),
+                        "SERVICIO": d.get('observaciones') or "Servicio",
+                        "MONEDA": d.get('moneda_costo', 'USD'),
+                        "TOTAL": float(d.get('costo_applied') or 0.0),
+                        "id_venta": d['id_venta'],
+                        "n_linea": d['n_linea']
+                    } for d in detalles]
+                    st.success("Datos cargados correctamente.")
+                    st.rerun()
+
+    # Editor estilo Excel
+    df = pd.DataFrame(st.session_state['simulador_contable_adv_data'])
+    if not df.empty and 'FECHA' in df.columns:
+        df.sort_values(by='FECHA', inplace=True)
+
+    lista_prov = ["--- Sin Asignar ---"]
+    res_prov_data = []
+    try:
+        res_prov = controller.client.table('proveedor').select('id_provider' if 'id_provider' in str(controller.client.table('proveedor').select('*').limit(1).execute().data) else 'id_proveedor', 'nombre', 'tipo_servicio').execute()
+        res_prov_data = res_prov.data or []
+        lista_prov += [f"{p['nombre']} ({p['tipo_servicio']})" for p in res_prov_data]
+    except: pass
+
+    config = {
+        "FECHA": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY", required=True),
+        "SERVICIO": st.column_config.TextColumn("Servicio", width="large"),
+        "PROVEEDOR": st.column_config.SelectboxColumn("Proveedor", options=lista_prov),
+        "MONEDA": st.column_config.SelectboxColumn("💵", options=["USD", "PEN"], default="USD", width="small"),
+        "TOTAL": st.column_config.NumberColumn("Costo", format="%.2f")
+    }
+
+    edited_df = st.data_editor(df, column_config=config, num_rows="dynamic", use_container_width=True, hide_index=True, key="ed_cont_adv")
+    st.session_state['simulador_contable_adv_data'] = edited_df.to_dict('records')
+
+    # Totales y Guardado
+    t_costos = edited_df['TOTAL'].sum()
+    st.divider()
+    c1, c2 = st.columns(2)
+    c1.metric("COSTO TOTAL", f"$ {t_costos:,.2f}")
+    
+    if st.button("✅ Sincronizar con Base de Datos", use_container_width=True, type="primary"):
+        c_up = 0
+        for idx, row in edited_df.iterrows():
+            prov_txt = row.get('PROVEEDOR')
+            id_p = None
+            if prov_txt and prov_txt != "--- Sin Asignar ---":
+                n_p = prov_txt.split(" (")[0]
+                p_m = next((p for p in res_prov_data if p['nombre'] == n_p), None)
+                if p_m: id_p = p_m.get('id_proveedor') or p_m.get('id_provider')
+
+            if pd.notna(row.get('id_venta')) and pd.notna(row.get('n_linea')):
+                try:
+                    controller.client.table('venta_tour').update({
+                        'costo_applied': row['TOTAL'],
+                        'moneda_costo': row.get('MONEDA', 'USD'),
+                        'id_proveedor': id_p,
+                        'observaciones': row.get('SERVICIO')
+                    }).match({'id_venta': row['id_venta'], 'n_linea': row['n_linea']}).execute()
+                    c_up += 1
+                except: pass
+        if c_up > 0:
+            st.success(f"¡{c_up} servicios actualizados en la nube!")
 
 from controllers.venta_controller import VentaController
 
