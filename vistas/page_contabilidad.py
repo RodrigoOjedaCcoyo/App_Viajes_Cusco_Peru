@@ -3,64 +3,32 @@ import streamlit as st
 import pandas as pd
 from controllers.reporte_controller import ReporteController
 
-def render_itinerary_details_visual(render):
-    """Renderiza el detalle visual del itinerario de forma robusta."""
-    # Soportar múltiples estructuras de datos de itinerario
-    tours = render.get('itinerario_detalles', []) or render.get('itinerario_detales', []) or render.get('days', [])
+# Renderiza el Botón para el PDF del Itinerario Simple.
+def render_itinerary_simple_download(render):
+    if not render:
+        st.warning("No hay datos de itinerario para descargar.")
+        return
+
+    from controllers.pdf_controller import PDFController
+    pdf_ctrl = PDFController()
     
     with st.container(border=True):
-        # Título del Itinerario
-        titulo_itin = render.get('titulo') or f"{render.get('title_1', '')} {render.get('title_2', '')}".strip() or "General"
-        st.success(f"📍 **ITINERARIO:** {titulo_itin.upper()}")
+        st.markdown(f"#### 📄 Resumen Financiero: {render.get('titulo', 'Sin Título')}")
+        st.info("Este documento es una versión simplificada (Ink Saver) para auditoría interna.")
         
-        # --- SECCIÓN GLOBAL (Inclusiones/Exclusiones Generales) ---
-        g_inc = render.get('inclusiones_globales') or render.get('servicios_incluidos', []) or render.get('incluye', [])
-        g_exc = render.get('exclusiones_globales') or render.get('servicios_no_incluidos', []) or render.get('no_incluye', [])
+        # Generar el PDF en memoria
+        pdf_buffer = pdf_ctrl.generar_itinerario_simple_pdf(render)
         
-        if g_inc or g_exc:
-            with st.expander("✨ Inclusiones y Exclusiones Generales del Paquete", expanded=True):
-                if g_inc:
-                    st.markdown("<span style='color:#2E7D32; font-weight:bold;'>INCLUYE (Global):</span>", unsafe_allow_html=True)
-                    for item in g_inc:
-                        txt = item.get('texto') if isinstance(item, dict) else item
-                        if txt: st.markdown(f"&nbsp;&nbsp;✔️ {str(txt).upper()}")
-                if g_exc:
-                    st.markdown("<span style='color:#2E7D32; font-weight:bold;'>NO INCLUYE (Global):</span>", unsafe_allow_html=True)
-                    for item in g_exc:
-                        txt = item.get('texto') if isinstance(item, dict) else item
-                        if txt: st.markdown(f"&nbsp;&nbsp;❌ {str(txt).upper()}")
-        st.divider()
-        
-        # Rendereado Día por Día
-        for i, t in enumerate(tours):
-            # Obtener Label del Día
-            dia_label = f"DIA {i+1}"
-            if t.get('fecha'): dia_label = f"DIA: {t['fecha']}"
-            elif t.get('numero'): dia_label = f"DIA {t['numero']}"
-            
-            st.markdown(f"**{dia_label}**")
-            
-            # Nombre del Servicio y Hora
-            t_nom = (t.get('nombre') or t.get('titulo') or "Servicio").upper()
-            t_hora = t.get('hora', '')
-            st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;✅ **{f'({t_hora}) ' if t_hora else ''}{t_nom}**")
-            
-            # Inclusiones del Día (Soporta lista de strings o lista de objetos con 'texto')
-            inc = t.get('incluye') or t.get('inclusiones', []) or t.get('servicios', [])
-            if inc:
-                st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;<span style='color:#2E7D32; font-weight:bold; font-size:12px;'>INCLUYE:</span>", unsafe_allow_html=True)
-                for item in inc:
-                    txt = item.get('texto') if isinstance(item, dict) else item
-                    if txt: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;✔️ <small>{str(txt).upper()}</small>", unsafe_allow_html=True)
-            
-            # Exclusiones del Día (Soporta lista de strings o lista de objetos con 'texto')
-            exc = t.get('no_incluye') or t.get('exclusiones', []) or t.get('servicios_no', [])
-            if exc:
-                st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;<span style='color:#2E7D32; font-weight:bold; font-size:12px;'>NO INCLUYE:</span>", unsafe_allow_html=True)
-                for item in exc:
-                    txt = item.get('texto') if isinstance(item, dict) else item
-                    if txt: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;❌ <small>{str(txt).upper()}</small>", unsafe_allow_html=True)
-            st.write("")
+        if pdf_buffer:
+            st.download_button(
+                label="📥 Descargar Resumen para Auditoría (PDF Simple)",
+                data=pdf_buffer,
+                file_name=f"auditoria_{render.get('titulo', 'itinerario')}.pdf",
+                mime="application/pdf",
+                use_container_width=True
+            )
+        else:
+            st.error("No se pudo generar el PDF en este momento.")
 
 # Inicializar controladores (Se hace dentro de mostrar_pagina ahora)
 
@@ -164,7 +132,7 @@ def auditoria_de_pagos():
                 if id_itin_audit:
                     res_itin = st.session_state['reporte_controller'].client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin_audit).single().execute()
                     if res_itin.data:
-                        render_itinerary_details_visual(res_itin.data['datos_render'])
+                        render_itinerary_simple_download(res_itin.data['datos_render'])
             else:
                 st.info("No hay ventas con itinerarios digitales para auditar en esta lista.")
     else:

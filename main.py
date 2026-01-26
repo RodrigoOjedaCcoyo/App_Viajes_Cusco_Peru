@@ -6,7 +6,7 @@ import importlib
 from supabase import create_client, Client
 
 # --- 1. Configuración de Roles y Rutas ---
-ROLES = ["VENTAS", "OPERACIONES", "CONTABLE", "GERENCIA"]
+ROLES = ["VENTAS", "OPERACIONES", "CONTABILIDAD", "GERENCIA"]
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # 1. Aseguramos que Python encuentre las carpetas, dándole la MÁXIMA PRIORIDAD

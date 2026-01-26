@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page {
+            size: A4;
+            margin: 1.5cm;
+            @frame footer_frame {
+                -pdf-frame-content: footer_content;
+                left: 1.5cm;
+                width: 18cm;
+                bottom: 1cm;
+                height: 1cm;
+            }
+        }
+        body {
+            font-family: Arial, sans-serif;
+            color: #000;
+            line-height: 1.2;
+            font-size: 10pt;
+        }
+        h1 {
+            font-size: 18pt;
+            text-align: center;
+            border-bottom: 2px solid #000;
+            margin-bottom: 10pt;
+            padding-bottom: 5pt;
+        }
+        h2 {
+            font-size: 14pt;
+            margin-top: 15pt;
+            margin-bottom: 5pt;
+            border-bottom: 1px solid #ccc;
+        }
+        .header-info {
+            margin-bottom: 20pt;
+        }
+        .header-info p {
+            margin: 2pt 0;
+        }
+        .day-box {
+            margin-bottom: 12pt;
+        }
+        .day-title {
+            font-weight: bold;
+            font-size: 11pt;
+            text-transform: uppercase;
+        }
+        .desc {
+            margin: 3pt 0 5pt 15pt;
+            font-style: italic;
+            color: #333;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-left: 15pt;
+        }
+        td {
+            vertical-align: top;
+            padding: 2pt;
+        }
+        .incl {
+            width: 50%;
+        }
+        .excl {
+            width: 50%;
+        }
+        .list-header {
+            font-weight: bold;
+            font-size: 8pt;
+            margin-bottom: 2pt;
+        }
+        .item {
+            font-size: 9pt;
+        }
+        .total-box {
+            margin-top: 30pt;
+            text-align: right;
+            font-size: 12pt;
+            font-weight: bold;
+            border-top: 1px solid #000;
+            padding-top: 5pt;
+        }
+        #footer_content {
+            text-align: center;
+            font-size: 8pt;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <h1>RESUMEN DE ITINERARIO</h1>
+    
+    <div class="header-info">
+        <p><strong>Pasajero:</strong> {{ cliente_nombre }}</p>
+        <p><strong>Fecha de Viaje:</strong> {{ fecha_viaje }}</p>
+        <p><strong>Pax:</strong> {{ num_adultos }} Adultos / {{ num_ninos }} Niños</p>
+    </div>
+
+    {% for tour in itinerario %}
+    <div class="day-box">
+        <div class="day-title">DÍA 0{{ loop.index }}: {{ tour.nombre or tour.titulo }}</div>
+        <div class="desc">{{ tour.descripcion[:200] }}...</div>
+        
+        <table>
+            <tr>
+                <td class="incl">
+                    <div class="list-header">INCLUYE:</div>
+                    <div class="item">✓ Transporte</div>
+                    <div class="item">✓ Guía</div>
+                    <div class="item">✓ Tickets</div>
+                </td>
+                <td class="excl">
+                    <div class="list-header">NO INCLUYE:</div>
+                    <div class="item">✗ Alimentación</div>
+                    <div class="item">✗ Gastos extras</div>
+                </td>
+            </tr>
+        </table>
+    </div>
+    {% endfor %}
+
+    <div class="total-box">
+        PRECIO TOTAL: USD {{ total|round(2) }}
+    </div>
+
+    <div id="footer_content">
+        Viajes Cusco Perú | www.viajescuscoperu.com | Impreso el {{ hoy }}
+    </div>
+</body>
+</html>

@@ -9,31 +9,32 @@ import urllib.parse
 from controllers.operaciones_controller import OperacionesController
 from controllers.venta_controller import VentaController
 
-# Renderiza el detalle visual del itinerario de forma robusta.
-def render_itinerary_details_visual(render):
+# Renderiza el Botón para el PDF del Itinerario Simple.
+def render_itinerary_simple_download(render):
     if not render:
-        st.warning("No hay datos de itinerario para mostrar.")
+        st.warning("No hay datos de itinerario para descargar.")
         return
 
-    st.markdown(f"#### 📅 Itinerario: {render.get('titulo', 'Sin Título')}")
+    from controllers.pdf_controller import PDFController
+    pdf_ctrl = PDFController()
     
-    # 1. Resumen de Inclusiones
-    servicios = render.get('servicios', [])
-    if servicios:
-        st.markdown("**Servicios Incluidos:**")
-        cols = st.columns(min(len(servicios), 4))
-        for i, s in enumerate(servicios):
-            cols[i % 4].markdown(f"✅ {s}")
-
-    # 2. Desglose por Días
-    days = render.get('days', [])
-    if days:
-        st.markdown("---")
-        for d in days:
-            with st.expander(f"📌 Día {d.get('day_number', '?')}: {d.get('title', 'Sin título')}", expanded=False):
-                st.write(d.get('description', 'Sin descripción.'))
-                if d.get('tour_name'):
-                    st.info(f"📍 Tour Principal: {d['tour_name']}")
+    with st.container(border=True):
+        st.markdown(f"#### 📄 Resumen de Viaje: {render.get('titulo', 'Sin Título')}")
+        st.info("Este documento es una versión simplificada (Ink Saver) ideal para imprimir y para el personal operativo.")
+        
+        # Generar el PDF en memoria
+        pdf_buffer = pdf_ctrl.generar_itinerario_simple_pdf(render)
+        
+        if pdf_buffer:
+            st.download_button(
+                label="📥 Descargar Resumen de Viaje (PDF Simple)",
+                data=pdf_buffer,
+                file_name=f"resumen_viaje_{render.get('titulo', 'itinerario')}.pdf",
+                mime="application/pdf",
+                use_container_width=True
+            )
+        else:
+            st.error("No se pudo generar el PDF en este momento.")
 
 # Dashboard 2: Tablero con vistas Duplicadas (Mensual/Semanal).
 def dashboard_tablero_diario(controller):
@@ -194,7 +195,7 @@ def dashboard_tablero_diario(controller):
             if len(id_itin_sel) > 0 and id_itin_sel[0]:
                 res_itin = controller.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin_sel[0]).single().execute()
                 if res_itin.data:
-                    render_itinerary_details_visual(res_itin.data['datos_render'])
+                    render_itinerary_simple_download(res_itin.data['datos_render'])
             else:
                 st.warning("Esta venta no tiene un itinerario digital vinculado.")
 
@@ -479,7 +480,7 @@ def reporte_operativo(controller):
             
             res = controller.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_it_audit).single().execute()
             if res.data:
-                render_itinerary_details_visual(res.data['datos_render'])
+                render_itinerary_simple_download(res.data['datos_render'])
 
 def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
     """Punto de entrada de Streamlit para el área de Operaciones."""
