@@ -208,7 +208,26 @@ def registro_ventas_directa():
         def_nombre = st.session_state.get(f"val_nom_{id_itinerario_dig}", lead_data.get('nombre_pasajero', '') if lead_data else '')
         def_tour = st.session_state.get(f"val_tour_{id_itinerario_dig}", "")
 
-        nombre = col1.text_input("Nombre Cliente", value=def_nombre)
+        # --- 💳 BALANCE Y ESTADO (TIEMPO REAL) ---
+        c_m1, c_m2 = st.columns(2)
+        monto_total = c_m1.number_input("Monto Total ($)", min_value=0.0, format="%.2f", key="m_total")
+        monto_pagado = c_m2.number_input("Monto Pagado / Adelanto ($)", min_value=0.0, format="%.2f", key="m_pago")
+        
+        saldo = monto_total - monto_pagado
+        if monto_total > 0:
+            if saldo <= 0:
+                st.success(f"✅ **VENTA SALDADA** (Saldo: $0.00)")
+            else:
+                st.warning(f"⏳ **SALDO PENDIENTE: ${saldo:.2f}** (Estado: ADELANTO)")
+        
+        st.divider()
+
+        # Opciones de bloqueo si hay itinerario
+        edit_manual = False
+        if id_itinerario_dig:
+            edit_manual = st.checkbox("🔓 Editar datos del itinerario manualmente", value=False)
+        
+        nombre = col1.text_input("Nombre Cliente", value=def_nombre, disabled=(id_itinerario_dig and not edit_manual))
         tel = col1.text_input("Celular", value=lead_data.get('numero_celular', '') if lead_data else '')
         
         # Tour: Auto-completado desde itinerario, pero editable manualmente
@@ -216,61 +235,40 @@ def registro_ventas_directa():
             "Nombre del Tour / Paquete", 
             value=def_tour,
             placeholder="Ej: Cusco Mágico & Machu Picchu",
-            help="Se auto-completa si seleccionas un itinerario, o escríbelo manualmente"
+            disabled=(id_itinerario_dig and not edit_manual),
+            help="Se auto-completa si seleccionas un itinerario"
         )
 
-        # 2. Selector de Vendedor Dinámico (Jalando de la tabla 'vendedor')
+        # 2. Selector de Vendedor Dinámico
         vendedores_map = lead_controller.obtener_mapeo_vendedores()
         nombres_vendedores = list(vendedores_map.values())
         vendedor_manual = col1.selectbox("Asignado a (Vendedor)", nombres_vendedores)
         tipo_comp = col2.radio("Tipo Comprobante", ["Boleta", "Factura", "Recibo Simple"], horizontal=True)
-
-        monto_total = col1.number_input("Monto Total ($)", min_value=0.0, format="%.2f")
-        monto_pagado = col2.number_input("Monto Pagado / Adelanto ($)", min_value=0.0, format="%.2f")
         
-        # --- 📅 CÁLCULO AUTOMÁTICO DE FECHAS (Para Operaciones) ---
+        # --- 📅 CÁLCULO AUTOMÁTICO DE FECHAS ---
         itin_fecha_inicio = date.today()
         itin_fecha_fin = date.today()
         
         if id_itinerario_dig:
             render = mapa_itinerarios.get(itinerario_seleccionado, {}).get('datos_render', {})
-            # 1. Extraer Inicio
             f_viaje = render.get('fecha_viaje')
             if f_viaje:
                 try: itin_fecha_inicio = date.fromisoformat(f_viaje)
                 except: pass
-            else:
-                f_texto = render.get('fechas', '')
-                if "DEL " in f_texto and ", " in f_texto:
-                    try:
-                        partes = f_texto.split(", ")
-                        anio = partes[1].strip()
-                        dia_mes = partes[0].replace("DEL ", "").split(" AL ")[0]
-                        dia, mes = dia_mes.split("/")
-                        itin_fecha_inicio = date(int(anio), int(mes), int(dia))
-                    except: pass
             
-            # 2. Calcular Fin basado en Duración (ej: "3D-2N")
+            # Calcular Fin basado en Duración (ej: "3D")
             itin_fecha_fin = itin_fecha_inicio
             duracion = render.get('duracion', '')
-            if duracion and 'D' in duracion:
+            if duracion and 'D' in duracion.upper():
                 try:
-                    num_dias = int(duracion.split('D')[0])
+                    num_dias = int(''.join(filter(str.isdigit, duracion.split('D')[0])))
                     itin_fecha_fin = itin_fecha_inicio + timedelta(days=num_dias - 1)
                 except: pass
             
-            msg_viaje = "🗓️ **Viaje Programado:** Sin fechas"
-            if itin_fecha_inicio and itin_fecha_fin:
-                try:
-                    inicio_str = itin_fecha_inicio.strftime('%d/%m/%Y')
-                    fin_str = itin_fecha_fin.strftime('%d/%m/%Y')
-                    msg_viaje = f"🗓️ **Viaje Programado:** Del {inicio_str} al {fin_str}"
-                except: pass
-            st.info(msg_viaje)
-            fecha_inicio_sel = itin_fecha_inicio or date.today()
-            fecha_fin_sel = itin_fecha_fin or date.today()
+            st.info(f"🗓️ **Fechas vinculadas:** Del {itin_fecha_inicio.strftime('%d/%m/%Y')} al {itin_fecha_fin.strftime('%d/%m/%Y')}")
+            fecha_inicio_sel = itin_fecha_inicio
+            fecha_fin_sel = itin_fecha_fin
         else:
-            # Si no hay itinerario, permitimos elegir fechas para no bloquear el registro manual
             st.markdown("📅 **Programación de Viaje (Manual)**")
             col_f1, col_f2 = st.columns(2)
             fecha_inicio_sel = col_f1.date_input("Fecha Inicio", value=date.today())
@@ -280,9 +278,10 @@ def registro_ventas_directa():
         st.write("📂 **Adjuntar Documentos**")
         c_file1, c_file2 = st.columns(2)
         file_itinerario = c_file1.file_uploader("Cargar Itinerario (PDF)", type=['pdf', 'docx'])
-        file_boleta = c_file2.file_uploader("Cargar Boleta de Pago (Img/PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
+        file_boleta = c_file2.file_uploader("Cargar Voucher de Pago (Img/PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
 
-        submitted = st.form_submit_button("✅ REGISTRAR VENTA Y SUBIR ARCHIVOS", use_container_width=True)
+        submitted = st.form_submit_button("🚀 REGISTRAR VENTA Y NOTIFICAR", use_container_width=True)
+
         
         if submitted:
             # Validación previa

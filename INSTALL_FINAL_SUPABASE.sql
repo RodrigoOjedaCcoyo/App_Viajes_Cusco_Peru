@@ -242,6 +242,7 @@ CREATE TABLE pasajero (
     nacionalidad VARCHAR(100),
     numero_documento VARCHAR(50),
     tipo_documento VARCHAR(20) CHECK (tipo_documento IN ('DNI', 'PASAPORTE', 'CARNET_EXTRANJERIA', 'OTRO')),
+    url_documento TEXT, -- Simplificación: El documento principal está aquí
     fecha_nacimiento DATE,
     genero VARCHAR(20),
     cuidados_especiales TEXT,
@@ -251,17 +252,8 @@ CREATE TABLE pasajero (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE documentacion (
-    id BIGSERIAL PRIMARY KEY,
-    id_pasajero INTEGER REFERENCES pasajero(id_pasajero) ON DELETE CASCADE,
-    tipo_documento VARCHAR(50) CHECK (tipo_documento IN ('PASAPORTE', 'VISA', 'SEGURO_VIAJE', 'CERTIFICADO_VACUNA', 'AUTORIZACION_MENOR', 'OTRO')),
-    url_archivo TEXT,
-    fecha_carga TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    fecha_vencimiento DATE,
-    estado_entrega VARCHAR(30) DEFAULT 'PENDIENTE' CHECK (estado_entrega IN ('PENDIENTE', 'RECIBIDO', 'VERIFICADO', 'RECHAZADO')),
-    es_critico BOOLEAN DEFAULT FALSE,
-    notas TEXT
-);
+COMMENT ON TABLE pasajero IS 'Datos de pasajeros asociados a una venta';
+COMMENT ON COLUMN pasajero.url_documento IS 'URL del scan del pasaporte o DNI (Storage)';
 
 CREATE TABLE requerimiento (
     id SERIAL PRIMARY KEY,
@@ -386,673 +378,539 @@ INSERT INTO agencia_aliada (nombre, pais, celular) VALUES
 ('Cave', 'Peru', '+51 982 167 776');
 
 -- 2.3. CATÁLOGO DE TOURS
--- Duplicate simplified INSERT INTO tour removed (kept detailed version below)
 -- 2.3. CATÁLOGO DE TOURS
 INSERT INTO tour (
-  nombre,
-  descripcion,
-  duracion_horas,
-  duracion_dias,
-  precio_adulto_extranjero,
-  precio_adulto_nacional,
-  precio_adulto_can,
-  precio_nino_extranjero,
-  precio_nino_nacional,
-  precio_nino_can,
-  activo,
-  hora_inicio
-) VALUES (
+  nombre, descripcion, duracion_horas, duracion_dias, precio_adulto_extranjero, precio_adulto_nacional,
+  categoria, dificultad, highlights, atractivos, servicios_incluidos, servicios_no_incluidos,
+  carpeta_img, hora_inicio, activo
+) VALUES 
+(
   'CITY TOUR CUSCO PULL',
-  'Recorrido histórico guiado.',
-  4,
-  1,
-  41,
-  98,
-  41,
-  28.7,
-  68.6,
-  28.7,
-  TRUE,
-  '08:00:00'
-);
-INSERT INTO tour (
-  nombre,
-  descripcion,
-  duracion_horas,
-  duracion_dias,
-  precio_adulto_extranjero,
-  precio_adulto_nacional,
-  precio_adulto_can,
-  precio_nino_extranjero,
-  precio_nino_nacional,
-  precio_nino_can,
-  activo,
-  hora_inicio
-) VALUES (
-  'VALLE SAGRADO VIP PULL',
-  'Día completo en el Valle Sagrado.',
-  8,
-  1,
-  48,
-  127,
-  48,
-  33.6,
-  88.9,
-  33.6,
-  TRUE,
-  '07:30:00'
-);
-INSERT INTO tour (
-  nombre,
-  descripcion,
-  duracion_horas,
-  duracion_dias,
-  precio_adulto_extranjero,
-  precio_adulto_nacional,
-  precio_adulto_can,
-  precio_nino_extranjero,
-  precio_nino_nacional,
-  precio_nino_can,
-  activo,
-  hora_inicio
-) VALUES (
-  'MACHU PICCHU FULL DAY PULL',
-  'Santuario histórico.',
-  16,
-  1,
-  270,
-  730,
-  240,
-  189,
-  511,
-  168,
-  TRUE,
-  '04:00:00'
-);
-INSERT INTO tour (
-  nombre,
-  descripcion,
-  duracion_horas,
-  duracion_dias,
-  precio_adulto_extranjero,
-  precio_adulto_nacional,
-  precio_adulto_can,
-  precio_nino_extranjero,
-  precio_nino_nacional,
-  precio_nino_can,
-  activo,
-  hora_inicio
-) VALUES (
-  'LAGUNA HUMANTAY PULL',
-  'Laguna turquesa andina.',
-  12,
-  1,
-  30,
-  98,
-  30,
-  21,
-  68.6,
-  21,
-  TRUE,
-  '04:30:00'
-);
-INSERT INTO tour (
-  nombre,
-  descripcion,
-  duracion_horas,
-  duracion_dias,
-  precio_adulto_extranjero,
-  precio_adulto_nacional,
-  precio_adulto_can,
-  precio_nino_extranjero,
-  precio_nino_nacional,
-  precio_nino_can,
-  activo,
-  hora_inicio
-) VALUES (
-  'MONTAÑA DE COLORES PULL',
-  'Caminata al Vinicunca.',
-  14,
-  1,
-  32,
-  104,
-  32,
-  22.4,
-  72.8,
-  22.4,
-  TRUE,
-  '04:00:00'
-);
-INSERT INTO tour (
-  nombre,
-  descripcion,
-  duracion_horas,
-  duracion_dias,
-  precio_adulto_extranjero,
-  precio_adulto_nacional,
-  precio_adulto_can,
-  precio_nino_extranjero,
-  precio_nino_nacional,
-  precio_nino_can,
-  activo,
-  hora_inicio
-) VALUES (
-  'CITY TOUR LIMA COLONIAL Y MODERNA',
-  'Recorrido por la capital.',
-  4,
-  1,
-  35,
-  85,
-  35,
-  24.5,
-  59.5,
-  24.5,
-  TRUE,
-  '09:00:00'
-);
-INSERT INTO tour (
-  nombre,
-  descripcion,
-  duracion_horas,
-  duracion_dias,
-  precio_adulto_extranjero,
-  precio_adulto_nacional,
-  precio_adulto_can,
-  precio_nino_extranjero,
-  precio_nino_nacional,
-  precio_nino_can,
-  activo,
-  hora_inicio
-) VALUES (
-  'PARACAS Y HUACACHINA PULL',
-  'Full Day Ica desde Lima.',
-  15,
-  1,
-  80,
-  150,
-  80,
-  56,
-  105,
-  56,
-  TRUE,
-  '04:00:00'
-);
-INSERT INTO tour (
-  nombre,
-  descripcion,
-  duracion_horas,
-  duracion_dias,
-  precio_adulto_extranjero,
-  precio_adulto_nacional,
-  precio_adulto_can,
-  precio_nino_extranjero,
-  precio_nino_nacional,
-  precio_nino_can,
-  activo,
-  hora_inicio
-) VALUES (
-  'DIA LIBRE Y SALIDA AL AEROPUERTO',
-  'Traslado de salida.',
-  2,
-  1,
-  15,
-  40,
-  15,
-  10.5,
-  28,
-  10.5,
-  TRUE,
-  '00:00:00'
-);
--- Additional tours provided by the user
-INSERT INTO tour (
-  nombre,
-  descripcion,
-  duracion_horas,
-  duracion_dias,
-  precio_adulto_extranjero,
-  precio_adulto_nacional,
-  categoria,
-  dificultad,
-  highlights,
-  atractivos,
-  servicios_incluidos,
-  servicios_no_incluidos,
-  carpeta_img,
-  hora_inicio,
-  activo
-) VALUES (
-  'CITY TOUR CUSCO PULL',
-  'Recorrido histórico guiado.',
-  4,
-  1,
-  41,
-  98,
-  'CITY TOUR',
-  'FACIL',
-  '{"itinerario": "[Cusco, el Despertar de un Imperio] La Experiencia: \"Descubra el corazón palpitante de los Andes...\"}'::jsonb,
-  '{"Lo que visitarás": ["✅ Catedral del Cusco (Arte religioso colonial)", "✅ Qoricancha (Templo del Sol Inca)", "✅ Sacsayhuamán (Fortaleza megalítica)", "✅ Qenqo (Laberinto sagrado)", "✅ Puka Pukara (Control militar inca)", "✅ Tambomachay (Templo del agua)"]}'::jsonb,
+  'Recorrido guiado por los principales atractivos históricos y culturales de la ciudad del Cusco.',
+  4, 1, 41.00, 98.00,
+  'CITY TOUR', 'FACIL',
+  '{"itinerario": "[Cusco, el Despertar de un Imperio] La Experiencia: \"Descubra el corazón palpitante de los Andes en un viaje a través del tiempo, donde la mampostería inca se funde con la elegancia colonial.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Catedral del Cusco", "✅ Qoricancha", "✅ Sacsayhuamán", "✅ Qenqo", "✅ Puka Pukara", "✅ Tambomachay"]}'::jsonb,
   '{"incluye": ["Guía profesional", "Transporte turístico", "Asistencia permanente"]}'::jsonb,
   '{"no_incluye": ["Entradas a atractivos", "Alimentación", "Gastos personales"]}'::jsonb,
-  'city_tour_cusco',
-  '08:00:00',
-  TRUE
-);
-INSERT INTO tour (
-  nombre,
-  descripcion,
-  duracion_horas,
-  duracion_dias,
-  precio_adulto_extranjero,
-  precio_adulto_nacional,
-  categoria,
-  dificultad,
-  highlights,
-  atractivos,
-  servicios_incluidos,
-  servicios_no_incluidos,
-  carpeta_img,
-  hora_inicio,
-  activo
-) VALUES (
+  'city_tour_cusco', '08:00:00', TRUE
+),
+(
   'CITY TOUR CUSCO + CATEDRAL PULL',
   'Recorrido cultural por el Cusco incluyendo visita guiada al interior de la Catedral.',
-  4,
-  1,
-  51,
-  138,
-  'CITY TOUR',
-  'FACIL',
-  '{"itinerario": "[Cusco Profundo y Sagrado] La Experiencia: \"Adéntrese en un museo vivo...\"}'::jsonb,
-  '{"Lo que visitarás": ["✅ Catedral del Cusco (Joya del arte cusqueño)", "✅ Qoricancha (Máxima expresión inca)", "✅ Sacsayhuamán (Ingeniería ciclópea)", "✅ Qenqo (Centro ceremonial subterráneo)", "✅ Puka Pukara (Vigía de los Andes)", "✅ Tambomachay (Culto al agua viva)"]}'::jsonb,
+  4, 1, 51.00, 138.00,
+  'CITY TOUR', 'FACIL',
+  '{"itinerario": "[Cusco Profundo y Sagrado] La Experiencia: \"Adéntrese en un museo vivo donde convergen siglos de historia.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Catedral del Cusco", "✅ Qoricancha", "✅ Sacsayhuamán", "✅ Qenqo", "✅ Puka Pukara", "✅ Tambomachay"]}'::jsonb,
   '{"incluye": ["Guía profesional", "Transporte turístico", "Asistencia permanente"]}'::jsonb,
   '{"no_incluye": ["Entradas adicionales", "Alimentación", "Gastos personales"]}'::jsonb,
-  'city_tour_cusco_catedral',
-  '08:00:00',
-  TRUE
-);
-INSERT INTO tour (
-  nombre,
-  descripcion,
-  duracion_horas,
-  duracion_dias,
-  precio_adulto_extranjero,
-  precio_adulto_nacional,
-  categoria,
-  dificultad,
-  highlights,
-  atractivos,
-  servicios_incluidos,
-  servicios_no_incluidos,
-  carpeta_img,
-  hora_inicio,
-  activo
-) VALUES (
+  'city_tour_cusco_catedral', '08:00:00', TRUE
+),
+(
   'VALLE SAGRADO VIP PULL',
   'Excursión de día completo por los principales atractivos culturales y paisajísticos del Valle Sagrado.',
-  8,
-  1,
-  48,
-  127,
-  'FULL DAY',
-  'MODERADO',
-  '{"itinerario": "[El Valle de los Emperadores] La Experiencia: \"Sumérjase en el fértil valle...\"}'::jsonb,
-  '{"Lo que visitarás": ["✅ Pisac (Terrazas y necrópolis)", "✅ Mercado de Pisac (Colores y artesanía)", "✅ Ollantaytambo (Ciudad inca viviente)", "✅ Chinchero (Tejido ancestral)"]}'::jsonb,
+  8, 1, 48.00, 127.00,
+  'FULL DAY', 'MODERADO',
+  '{"itinerario": "[El Valle de los Emperadores] La Experiencia: \"Sumérjase en el fértil valle que alimentó a un imperio, un paisaje impresionante de maizales y montañas infinitas.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Pisac", "✅ Mercado de Pisac", "✅ Ollantaytambo", "✅ Chinchero"]}'::jsonb,
   '{"incluye": ["Guía profesional", "Transporte turístico", "Asistencia permanente"]}'::jsonb,
   '{"no_incluye": ["Entradas a atractivos", "Alimentación", "Gastos personales"]}'::jsonb,
-  'valle_sagrado_vip',
-  '08:00:00',
-  TRUE
-);
-INSERT INTO tour (
-  nombre,
-  descripcion,
-  duracion_horas,
-  duracion_dias,
-  precio_adulto_extranjero,
-  precio_adulto_nacional,
-  categoria,
-  dificultad,
-  highlights,
-  atractivos,
-  servicios_incluidos,
-  servicios_no_incluidos,
-  carpeta_img,
-  hora_inicio,
-  activo
-) VALUES (
+  'valle_sagrado_vip', '08:00:00', TRUE
+),
+(
   'VALLE SAGRADO VIP (ROSARIO) PULL',
   'Recorrido extendido por el Valle Sagrado con paradas culturales y paisajísticas adicionales.',
-  8,
-  1,
-  56,
-  154,
-  'FULL DAY',
-  'MODERADO',
-  '{"itinerario": "[Valle Sagrado: Esencia Andina] La Experiencia: \"Deambule por el Valle Sagrado...\"}'::jsonb,
-  '{"Lo que visitarás": ["✅ Mirador Taray (Vista panorámica)", "✅ Pisac (Agricultura vertical)", "✅ Ollantaytambo (Fortaleza de resistencia)", "✅ Chinchero (Cultura textil)"]}'::jsonb,
+  8, 1, 56.00, 154.00,
+  'FULL DAY', 'MODERADO',
+  '{"itinerario": "[Valle Sagrado: Esencia Andina] La Experiencia: \"Deambule por el Valle Sagrado de los Incas, un lugar de belleza mística y cultura vibrante.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Mirador Taray", "✅ Pisac", "✅ Ollantaytambo", "✅ Chinchero"]}'::jsonb,
   '{"incluye": ["Guía profesional", "Transporte turístico", "Asistencia permanente"]}'::jsonb,
   '{"no_incluye": ["Entradas a atractivos", "Alimentación", "Gastos personales"]}'::jsonb,
-  'valle_sagrado_vip_rosario',
-  '08:00:00',
-  TRUE
-);
-INSERT INTO tour (
-  nombre,
-  descripcion,
-  duracion_horas,
-  duracion_dias,
-  precio_adulto_extranjero,
-  precio_adulto_nacional,
-  categoria,
-  dificultad,
-  highlights,
-  atractivos,
-  servicios_incluidos,
-  servicios_no_incluidos,
-  carpeta_img,
-  hora_inicio,
-  activo
-) VALUES (
+  'valle_sagrado_vip_rosario', '08:00:00', TRUE
+),
+(
   'MACHU PICCHU FULL DAY PULL',
   'Excursión de día completo al santuario histórico de Machu Picchu desde la ciudad del Cusco.',
-  8,
-  1,
-  270,
-  730,
-  'FULL DAY',
-  'MODERADO',
-  '{"itinerario": "[Machu Picchu, La Ciudad Perdida] La Experiencia: \"Embárquese en una peregrinación a la Joya de la Corona de los Andes...\"}'::jsonb,
-  '{"Lo que visitarás": ["✅ Aguas Calientes (Pueblo cosmopolita)", "✅ Machu Picchu (Maravilla del Mundo)", "✅ Templo del Sol (Astronomía sagrada)", "✅ Intihuatana (Reloj solar)"]}'::jsonb,
+  8, 1, 270.00, 730.00,
+  'FULL DAY', 'MODERADO',
+  '{"itinerario": "[Machu Picchu, La Ciudad Perdida] La Experiencia: \"Embárquese en una peregrinación a la Joya de la Corona de los Andes, una ciudad oculta entre las nubes.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Aguas Calientes", "✅ Machu Picchu", "✅ Templo del Sol", "✅ Intihuatana"]}'::jsonb,
   '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
   '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'machu_picchu_full_day',
-  '08:00:00',
-  TRUE
-);
-INSERT INTO tour (
-  nombre,
-  descripcion,
-  duracion_horas,
-  duracion_dias,
-  precio_adulto_extranjero,
-  precio_adulto_nacional,
-  categoria,
-  dificultad,
-  highlights,
-  atractivos,
-  servicios_incluidos,
-  servicios_no_incluidos,
-  carpeta_img,
-  hora_inicio,
-  activo
-) VALUES (
+  'machu_picchu_full_day', '08:00:00', TRUE
+),
+(
   'LAGUNA HUMANTAY PULL',
-  'Excursión de día completo a una de las lagunas más impresionantes de la cordillera andina, ideal para amantes de la naturaleza y caminatas de altura.',
-  12,
-  1,
-  30,
-  98,
-  'Naturaleza y Aventura',
-  'MODERADO',
-  '{"itinerario": "[Humantay: El Espejo Turquesa] La Experiencia: \"Ascienda a una joya escondida...\"}'::jsonb,
-  '{"Lo que visitarás": ["✅ Mollepata (Desayuno andino)", "✅ Soraypampa (Campamento base)", "✅ Laguna Humantay (Turquesa glaciar)", "✅ Nevado Salkantay (Apu protector)"]}'::jsonb,
+  'Excursión de día completo a una de las lagunas más impresionantes de la cordillera andina.',
+  12, 1, 30.00, 98.00,
+  'NATURALEZA', 'MODERADO',
+  '{"itinerario": "[Humantay: El Espejo Turquesa] La Experiencia: \"Ascienda a una joya escondida acunada por picos nevados, donde el agua brilla como un espejo turquesa.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Mollepata", "✅ Soraypampa", "✅ Laguna Humantay", "✅ Nevado Salkantay"]}'::jsonb,
   '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
   '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'laguna_humantay',
-  '08:00:00',
-  TRUE
-);
-INSERT INTO tour (
-  nombre,
-  descripcion,
-  duracion_horas,
-  duracion_dias,
-  precio_adulto_extranjero,
-  precio_adulto_nacional,
-  categoria,
-  dificultad,
-  highlights,
-  atractivos,
-  servicios_incluidos,
-  servicios_no_incluidos,
-  carpeta_img,
-  hora_inicio,
-  activo
-) VALUES (
+  'laguna_humantay', '08:00:00', TRUE
+),
+(
   'MONTAÑA DE COLORES PULL',
-  'Excursión de alta montaña hacia uno de los paisajes más icónicos del Perú, atravesando comunidades andinas y rutas naturales hasta la famosa Montaña de Colores.',
-  14,
-  1,
-  32,
-  104,
-  'Naturaleza y Aventura',
-  'DIFICIL',
-  '{"itinerario": "[Vinicunca, El Arcoíris de Piedra] La Experiencia: \"Desafíe su espíritu en una caminata hacia el techo del mundo...\"}'::jsonb,
-  '{"Lo que visitarás": ["✅ Cusipata (Pueblo tradicional)", "✅ Vinicunca (Montaña Arcoíris)", "✅ Valle Rojo (Paisaje marciano)", "✅ Nevado Ausangate (Vista lejana)"]}'::jsonb,
+  'Excursión de alta montaña hacia uno de los paisajes más icónicos del Perú.',
+  14, 1, 32.00, 104.00,
+  'AVENTURA', 'DIFICIL',
+  '{"itinerario": "[Vinicunca, El Arcoíris de Piedra] La Experiencia: \"Desafíe su espíritu en una caminata hacia el techo del mundo, donde la tierra se niega a ser de un solo color.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Cusipata", "✅ Vinicunca", "✅ Valle Rojo", "✅ Nevado Ausangate"]}'::jsonb,
   '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
   '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'montana_de_colores',
-  '08:00:00',
-  TRUE
-);
-INSERT INTO tour (
-  nombre,
-  descripcion,
-  duracion_horas,
-  duracion_dias,
-  precio_adulto_extranjero,
-  precio_adulto_nacional,
-  categoria,
-  dificultad,
-  highlights,
-  atractivos,
-  servicios_incluidos,
-  servicios_no_incluidos,
-  carpeta_img,
-  hora_inicio,
-  activo
-) VALUES (
+  'montana_de_colores', '08:00:00', TRUE
+),
+(
   'PALCCOYO PULL',
-  'Excursión alternativa a la Montaña de Colores que permite apreciar formaciones multicolores, paisajes abiertos y caminatas suaves en zonas altoandinas poco concurridas.',
-  10,
-  1,
-  37,
-  124,
-  'Naturaleza y Aventura',
-  'MODERADO',
-  '{"itinerario": "[Palccoyo: La Cordillera Pintada] La Experiencia: \"Descubra la hermana serena de la Montaña de Colores...\"}'::jsonb,
-  '{"Lo que visitarás": ["✅ Checacupe (Puente colonial)", "✅ Palccoyo (Tres montañas de colores)", "✅ Bosque de Piedras (Formaciones geológicas)", "✅ Río Rojo (Fenómeno natural)"]}'::jsonb,
+  'Excursión alternativa a la Montaña de Colores con caminatas suaves en zonas poco concurridas.',
+  10, 1, 37.00, 124.00,
+  'AVENTURA', 'MODERADO',
+  '{"itinerario": "[Palccoyo: La Cordillera Pintada] La Experiencia: \"Descubra la hermana serena de la Montaña de Colores, un lugar de majestuosidad tranquila.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Checacupe", "✅ Palccoyo", "✅ Bosque de Piedras", "✅ Río Rojo"]}'::jsonb,
   '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
   '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'palccoyo',
-  '08:00:00',
-  TRUE
-);
-INSERT INTO tour (
-  nombre,
-  descripcion,
-  duracion_horas,
-  duracion_dias,
-  precio_adulto_extranjero,
-  precio_adulto_nacional,
-  categoria,
-  dificultad,
-  highlights,
-  atractivos,
-  servicios_incluidos,
-  servicios_no_incluidos,
-  carpeta_img,
-  hora_inicio,
-  activo
-) VALUES (
+  'palccoyo', '08:00:00', TRUE
+),
+(
   'PUENTE QESWACHAKA + 4 LAGUNAS PULL',
-  'Excursión cultural y natural que combina historia viva inca con paisajes altoandinos, lagunas de altura y tradiciones ancestrales aún vigentes.',
-  14,
-  1,
-  44,
-  146,
-  'Cultura y Naturaleza',
-  'MODERADO',
-  '{"itinerario": "[Qeswachaka y el Legado Vivo] La Experiencia: \"Sea testigo del increíble legado del último puente inca...\"}'::jsonb,
-  '{"Lo que visitarás": ["✅ Laguna Pomacanchi (Espejo de agua)", "✅ Laguna Asnaqocha (Fauna andina)", "✅ Puente Qeswachaka (Ingeniería de ichu)", "✅ Río Apurímago (Gran hablador)"]}'::jsonb,
+  'Excursión que combina historia viva inca con paisajes altoandinos.',
+  14, 1, 44.00, 146.00,
+  'CULTURA', 'MODERADO',
+  '{"itinerario": "[Qeswachaka y el Legado Vivo] La Experiencia: \"Sea testigo del increíble legado del último puente inca, una obra maestra tejida a mano.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Laguna Pomacanchi", "✅ Laguna Asnaqocha", "✅ Puente Qeswachaka", "✅ Río Apurímac"]}'::jsonb,
   '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
   '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'puente_qeswachaka_4_lagunas',
-  '08:00:00',
-  TRUE
-);
-INSERT INTO tour (
-  nombre,
-  descripcion,
-  duracion_horas,
-  duracion_dias,
-  precio_adulto_extranjero,
-  precio_adulto_nacional,
-  categoria,
-  dificultad,
-  highlights,
-  atractivos,
-  servicios_incluidos,
-  servicios_no_incluidos,
-  carpeta_img,
-  hora_inicio,
-  activo
-) VALUES (
+  'puente_qeswachaka_4_lagunas', '08:00:00', TRUE
+),
+(
   'WAQRAPUKARA PULL',
-  'Excursión de aventura hacia un complejo arqueológico de ubicación estratégica, rodeado de cañones profundos y paisajes altoandinos de gran valor histórico.',
-  13,
-  1,
-  39,
-  130,
-  'Aventura y Cultura',
-  'MODERADO',
-  '{"itinerario": "[Waqrapukara: La Fortaleza de los Cuernos] La Experiencia: \"Aventúrese fuera de los caminos trillados...\"}'::jsonb,
-  '{"Lo que visitarás": ["✅ Comunidad Acomayo (Cultura rural)", "✅ Waqrapukara (Fortaleza pre-inca)", "✅ Cañón del Apurímac (Abismo natural)", "✅ Pinturas Rupestres (Huellas antiguas)"]}'::jsonb,
+  'Excursión de aventura hacia un complejo arqueológico rodeado de cañones profundos.',
+  13, 1, 39.00, 130.00,
+  'AVENTURA', 'MODERADO',
+  '{"itinerario": "[Waqrapukara: La Fortaleza de los Cuernos] La Experiencia: \"Aventúrese fuera de los caminos trillados hacia la fortaleza en forma de cuernos de Waqrapukara.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Comunidad Acomayo", "✅ Waqrapukara", "✅ Cañón del Apurímac", "✅ Pinturas Rupestres"]}'::jsonb,
   '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
   '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'waqrapukara',
-  '08:00:00',
-  TRUE
-);
-INSERT INTO tour (
-  nombre,
-  descripcion,
-  duracion_horas,
-  duracion_dias,
-  precio_adulto_extranjero,
-  precio_adulto_nacional,
-  categoria,
-  dificultad,
-  highlights,
-  atractivos,
-  servicios_incluidos,
-  servicios_no_incluidos,
-  carpeta_img,
-  hora_inicio,
-  activo
-) VALUES (
+  'waqrapukara', '08:00:00', TRUE
+),
+(
   'SIETE LAGUNAS AUSANGATE PULL',
-  'Ruta de caminata escénica alrededor del nevado Ausangate que permite visitar lagunas de colores intensos y paisajes de alta montaña.',
-  14,
-  1,
-  42,
-  140,
-  'Naturaleza y Aventura',
-  'MODERADO',
-  '{"itinerario": "[Ausangate y el Circuito de Cristal] La Experiencia: \"Entre en un paisaje onírico de gran altitud...\"}'::jsonb,
-  '{"Lo que visitarás": ["✅ Pacchanta (Aguas termales)", "✅ Laguna Azulcocha (Azul intenso)", "✅ Laguna Pucacocha (Rojiza mineral)", "✅ Nevado Ausangate (Apu sagrado)"]}'::jsonb,
+  'Ruta de caminata escénica que permite visitar lagunas de colores intensos a los pies del Ausangate.',
+  14, 1, 42.00, 140.00,
+  'NATURALEZA', 'MODERADO',
+  '{"itinerario": "[Ausangate y el Circuito de Cristal] La Experiencia: \"Entre en un paisaje onírico de gran altitud dominado por el poderoso Ausangate.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Pacchanta", "✅ Laguna Azulcocha", "✅ Laguna Pucacocha", "✅ Nevado Ausangate"]}'::jsonb,
   '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
   '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'siete_lagunas_ausangate',
-  '08:00:00',
-  TRUE
-);
-INSERT INTO tour (
-  nombre,
-  descripcion,
-  duracion_horas,
-  duracion_dias,
-  precio_adulto_extranjero,
-  precio_adulto_nacional,
-  categoria,
-  dificultad,
-  highlights,
-  atractivos,
-  servicios_incluidos,
-  servicios_no_incluidos,
-  carpeta_img,
-  hora_inicio,
-  activo
-) VALUES (
+  'siete_lagunas_ausangate', '08:00:00', TRUE
+),
+(
   'VALLE SUR PULL',
-  'Recorrido cultural por el Valle Sur de Cusco que combina sitios arqueológicos, arquitectura colonial y tradiciones vivas de comunidades locales.',
-  6,
-  1,
-  28,
-  92,
-  'Cultura',
-  'FACIL',
-  '{"itinerario": "[Valle Sur: Ingeniería y Fe] La Experiencia: \"Viaje por el camino menos transitado para descubrir la sofisticada ingeniería...\"}'::jsonb,
-  '{"Lo que visitarás": ["✅ Tipón (Ingeniería hidráulica)", "✅ Pikillacta (Urbanismo Wari)", "✅ Andahuaylillas (Capilla Sixtina de América)", "✅ Laguna de Huacarpay (Humedal protegido)"]}'::jsonb,
+  'Recorrido cultural que combina sitios arqueológicos, arquitectura colonial y tradiciones vivas.',
+  6, 1, 28.00, 92.00,
+  'CULTURA', 'FACIL',
+  '{"itinerario": "[Valle Sur: Ingeniería y Fe] La Experiencia: \"Viaje por el camino menos transitado para descubrir la sofisticada ingeniería Wari e Inca.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Tipón", "✅ Pikillacta", "✅ Andahuaylillas", "✅ Laguna de Huacarpay"]}'::jsonb,
   '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
   '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'valle_sur',
-  '08:00:00',
-  TRUE
-);
-INSERT INTO tour (
-  nombre,
-  descripcion,
-  duracion_horas,
-  duracion_dias,
-  precio_adulto_extranjero,
-  precio_adulto_nacional,
-  categoria,
-  dificultad,
-  highlights,
-  atractivos,
-  servicios_incluidos,
-  servicios_no_incluidos,
-  carpeta_img,
-  hora_inicio,
-  activo
-) VALUES (
+  'valle_sur', '08:00:00', TRUE
+),
+(
   'CHURIN PULL',
-  'Excursion a CHURIN PULL',
-  0,
-  1,
-  28,
-  94,
-  'TURISMO',
-  'FACIL',
-  '{"itinerario": "[Churín: Santuario Termal] La Experiencia: \"Entréguese al abrazo curativo de la tierra...\"}'::jsonb,
-  '{"Lo que visitarás": ["✅ Complejo Mamahuarmi (Pozas naturales)", "✅ Baños de Tingo (Aguas ferrosas)", "✅ Velo de la Novia (Cascada natural)", "✅ Plaza de Churín (Encanto serrano)"]}'::jsonb,
+  'Excursión a los baños termales de Churín, conocidos por sus propiedades medicinales.',
+  12, 1, 28.0, 94.0,
+  'TURISMO', 'FACIL',
+  '{"itinerario": "[Churín: Santuario Termal] La Experiencia: \"Entréguese al abrazo curativo de la tierra en los baños termales de Churín.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Complejo Mamahuarmi", "✅ Baños de Tingo", "✅ Velo de la Novia", "✅ Plaza de Churín"]}'::jsonb,
   '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
   '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'churin',
-  '08:00:00',
-  TRUE
+  'churin', '08:00:00', TRUE
+),
+(
+  'CIRCUITO MAGICO + LA CANDELARIA PULL',
+  'Espectáculo de luces en el Circuito Mágico del Agua seguido de un show folclórico.',
+  4, 1, 132.0, 440.0,
+  'TURISMO', 'FACIL',
+  '{"itinerario": "[Lima de Noche: Luces y Tradición] La Experiencia: \"Encienda sus sentidos en un deslumbrante espectáculo de luz, agua y música.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Parque de la Reserva", "✅ Circuito Mágico", "✅ Show Multimedia", "✅ Cena Show"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'circuito_magico_la_candelaria', '18:00:00', TRUE
+),
+(
+  'MORADA DE LOS DIOSES PULL',
+  'Esculturas gigantes modernas talladas en piedra honrando deidades andinas.',
+  4, 1, 15.0, 44.0,
+  'TURISMO', 'FACIL',
+  '{"itinerario": "[Apukunaq Tianan: Morada Divina] La Experiencia: \"Visite un santuario moderno tallado en la roca viva, donde el arte contemporáneo honra a las deidades antiguas.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Sencca", "✅ El Puma", "✅ La Pachamama", "✅ Mirador del Cusco"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'morada_de_los_dioses', '09:00:00', TRUE
+),
+(
+  'RUTA DEL SOL CUSCO - PUNO PULL',
+  'Traslado turístico de lujo con paradas en los sitios arqueológicos más importantes entre Cusco y Puno.',
+  10, 1, 68.0, 222.0,
+  'TURISMO', 'FACIL',
+  '{"itinerario": "[La Ruta del Sol: Altiplano Ancestral] La Experiencia: \"Transforme un simple traslado en una odisea a través del Altiplano.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Andahuaylillas", "✅ Raqchi", "✅ La Raya", "✅ Pucará"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'ruta_del_sol_cusco_puno', '07:00:00', TRUE
+),
+(
+  'BARRANCO + HUACA PUCLLANA PULL',
+  'Visita al barrio bohemio de Barranco y a la pirámide pre-inca de Huaca Pucllana.',
+  4, 1, 57.0, 189.0,
+  'TURISMO', 'FACIL',
+  '{"itinerario": "[Lima: Contrastes de Tiempo] La Experiencia: \"Experimente el cautivador contraste de Lima, donde una pirámide de adobe pre-inca se alza en medio de la ciudad moderna.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Huaca Pucllana", "✅ Puente de los Suspiros", "✅ Bajada de Baños", "✅ Malecón"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'barranco_huaca_pucllana', '09:00:00', TRUE
+),
+(
+  'PACHACAMAC + CABALLOS DE PASO PULL',
+  'Exploración del santuario de Pachacamac y exhibición del Caballo Peruano de Paso.',
+  6, 1, 144.0, 482.0,
+  'TURISMO', 'FACIL',
+  '{"itinerario": "[Pachacamac: Oráculo y Tradición] La Experiencia: \"Párese ante el oráculo del Pacífico y sea testigo de la gracia del Caballo Peruano de Paso.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Templo del Sol", "✅ Museo de Sitio", "✅ Hacienda Mamacona", "✅ Show Ecuestre"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'pachacamac_caballos_de_paso', '09:00:00', TRUE
+),
+(
+  'SOBREVUELO LINEAS DE NAZCA - NAZCA PULL',
+  'Vuelo inolvidable sobre las misteriosas líneas y geoglifos de Nazca.',
+  1, 1, 135.0, 453.0,
+  'TURISMO', 'FACIL',
+  '{"itinerario": "[Nazca: Mensajes del Cielo] La Experiencia: \"Vuele sobre el enigma del desierto donde líneas antiguas dibujan mensajes a los dioses.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Aeropuerto Nazca", "✅ El Colibrí", "✅ El Mono", "✅ La Araña"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'sobrevuelo_lineas_de_nazca_nazca', '08:00:00', TRUE
+),
+(
+  'LUNAHUANA PULL',
+  'Día de aventura con canotaje y cata de vinos en el valle de Cañete.',
+  12, 1, 25.0, 82.0,
+  'TURISMO', 'FACIL',
+  '{"itinerario": "[Lunahuaná: Aventura y Vino] La Experiencia: \"Disfrute del canotaje en el río Cañete y visite viñedos locales.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Río Cañete", "✅ Catapalla", "✅ Viñedos", "✅ Apicultura"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'lunahuana', '06:00:00', TRUE
 );
+
 INSERT INTO tour (
-  nombre,
-  descripcion,
-  duracion_horas,
-  duracion_dias,
-  precio_adulto_extranjero,
-  precio_adulto_nacional,
-  categoria,
-  dificultad,
-  highlights,
-  atractivos,
-  servicios_incluidos,
-  servicios_no_incluidos,
-  carpeta_img,
-  hora_inicio,
-  activo
-) VALUES (
-  'CIRCUITO MAGICO + LA CAND... (truncated for brevity)'
-);;
+  nombre, descripcion, duracion_horas, duracion_dias, precio_adulto_extranjero, precio_adulto_nacional,
+  categoria, dificultad, highlights, atractivos, servicios_incluidos, servicios_no_incluidos,
+  carpeta_img, hora_inicio, activo
+) VALUES 
+(
+  'PARACAS Y HUACACHINA PULL',
+  'Full day a la costa y el desierto: Islas Ballestas y Oasis de Huacachina.',
+  15, 1, 56.0, 188.0,
+  'TURISMO', 'FACIL',
+  '{"itinerario": "[Paracas y Huacachina: Mar y Dunas] La Experiencia: \"Navegue hacia las Islas Ballestas y monte en tubulares en el Oasis de Huacachina.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Islas Ballestas", "✅ El Candelabro", "✅ Oasis Huacachina", "✅ Dunas"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'paracas_y_huacachina', '04:00:00', TRUE
+),
+(
+  'PLAYA LA MINA PULL',
+  'Día de relax en una de las playas más hermosas de la Reserva Nacional de Paracas.',
+  12, 1, 34.0, 112.0,
+  'TURISMO', 'FACIL',
+  '{"itinerario": "[La Mina: Paraíso Costero] La Experiencia: \"Relájese en una de las playas más hermosas de la Reserva de Paracas.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Reserva de Paracas", "✅ Playa La Mina", "✅ Playa Lagunillas", "✅ Miradores"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'playa_la_mina', '04:00:00', TRUE
+),
+(
+  'MARAS, MORAY Y SALINERAS PULL',
+  'Descubra el laboratorio agrícola inca de Moray y las milenarias minas de sal de Maras.',
+  6, 1, 43.0, 107.0,
+  'TURISMO', 'FACIL',
+  '{"itinerario": "[Maras y Moray: Ingenio Inca] La Experiencia: \"Visite los laboratorios agrícolas enigmáticos de Moray y las espectaculares minas de sal de Maras.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Moray", "✅ Salineras de Maras", "✅ Pueblo de Maras", "✅ Cordillera Vilcanota"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'maras_moray_y_salineras', '08:00:00', TRUE
+),
+(
+  'CORDILLERA PULL',
+  'Exploración de paisajes altoandinos y lagunas glaciares en la Cordillera Central.',
+  12, 1, 28.0, 94.0,
+  'TURISMO', 'FACIL',
+  '{"itinerario": "[Cordillera: Reino del Hielo] La Experiencia: \"Experimente la belleza cruda de los Andes en la Cordillera.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Lagunas Glaciares", "✅ Nevados", "✅ Valles", "✅ Flora Altoandina"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'cordillera', '05:00:00', TRUE
+),
+(
+  'PLAYA TUQUILLO PULL',
+  'Visita a la "Piscina del Pacífico", una de las playas más limpias y tranquilas del Perú.',
+  12, 1, 34.0, 112.0,
+  'TURISMO', 'FACIL',
+  '{"itinerario": "[Tuquillo: La Piscina del Pacífico] La Experiencia: \"Descubra la Pool of the Pacific en la playa de Tuquillo.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Playa Tuquillo", "✅ Playa Pocitas", "✅ Huarmey", "✅ Balneario"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'playa_tuquillo', '04:00:00', TRUE
+),
+(
+  'MUSEO LARCO PULL',
+  'Inmersión en el arte precolombino en una de las mejores galerías del mundo, en Lima.',
+  4, 1, 69.0, 231.0,
+  'TURISMO', 'FACIL',
+  '{"itinerario": "[Museo Larco: Tesoros del Pasado] La Experiencia: \"Viaje en el tiempo en el Museo Larco, hogar de una incomparable colección de arte precolombino.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Galería de Oro", "✅ Sala Erótica", "✅ Depósitos", "✅ Jardines"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'museo_larco', '09:00:00', TRUE
+),
+(
+  'CUATRIMOTO HUAYPO Y SALINERAS PULL',
+  'Aventura en cuatrimoto visitando la laguna de Huaypo y las salineras de Maras.',
+  5, 1, 42.0, 138.0,
+  'TURISMO', 'FACIL',
+  '{"itinerario": "[Cuatrimotos: Aventura sobre Ruedas] La Experiencia: \"Acelere su adrenalina con una aventura en cuatrimotos por Chinchero.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Laguna Huaypo", "✅ Pampa de Chinchero", "✅ Salineras", "✅ Comunidades"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'cuatrimoto_huaypo_y_salineras', '08:00:00', TRUE
+),
+(
+  'PARACAS Y HUACACHINA SUNSET PULL',
+  'Experiencia completa en Paracas e Ica terminando con un atardecer mágico en las dunas.',
+  15, 1, 64.0, 213.0,
+  'TURISMO', 'FACIL',
+  '{"itinerario": "[Paracas y Atardecer en el Desierto] La Experiencia: \"Experimente la magia del atardecer en el desierto.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ El Candelabro", "✅ Islas Ballestas", "✅ Oasis Huacachina", "✅ Sunset"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'paracas_y_huacachina_sunset', '04:00:00', TRUE
+),
+(
+  'CUATRIMOTO MORAY, MARAS Y SALINERAS PULL',
+  'Ruta extrema en cuatrimoto por Cruzpata visitando Moray y Salineras.',
+  6, 1, 34.0, 113.0,
+  'TURISMO', 'FACIL',
+  '{"itinerario": "[Cuatrimotos: Moray y Salineras] La Experiencia: \"Conduzca cuatrimotos a través de las llanuras de Cruzpata.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Cruzpata", "✅ Moray", "✅ Salineras", "✅ Vistas del Valle"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'cuatrimoto_moray_maras_y_salineras', '08:00:00', TRUE
+),
+(
+  'CUATRIMOTO MONTAÑA DE COLORES + VALLE ROJO PULL',
+  'La forma más rápida y emocionante de llegar a la Montaña de Colores: en cuatrimoto.',
+  14, 1, 66.0, 218.0,
+  'TURISMO', 'FACIL',
+  '{"itinerario": "[Cuatrimotos a la Montaña de Colores] La Experiencia: \"Combine la emoción de los ATVs con la belleza de la Montaña de Colores.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Valle del Sur", "✅ Cuatrimotos", "✅ Vinicunca", "✅ Valle Rojo"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'cuatrimoto_montana_de_colores_valle_rojo', '04:00:00', TRUE
+);
+
+INSERT INTO tour (
+  nombre, descripcion, duracion_horas, duracion_dias, precio_adulto_extranjero, precio_adulto_nacional,
+  categoria, dificultad, highlights, atractivos, servicios_incluidos, servicios_no_incluidos,
+  carpeta_img, hora_inicio, activo
+) VALUES 
+(
+  'SOBREVUELO LINEAS DE NAZCA - PISCO PULL',
+  'Vuelo directo sobre las Líneas de Nazca partiendo desde el aeropuerto de Pisco.',
+  4, 1, 348.0, 1165.0,
+  'TURISMO', 'FACIL',
+  '{"itinerario": "[Nazca desde Pisco: Vuelo Directo] La Experiencia: \"Desbloquee el misterio de las Líneas de Nazca con la comodidad de una salida costera.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Aeropuerto Pisco", "✅ Geoglifos", "✅ Desierto de Ica", "✅ Costa Peruana"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'sobrevuelo_lineas_de_nazca_pisco', '08:00:00', TRUE
+),
+(
+  'PALLAY PUNCHU PULL',
+  'Caminata a la impresionante montaña con picos afilados y colores vibrantes en Canas.',
+  14, 1, 45.0, 150.0,
+  'TURISMO', 'FACIL',
+  '{"itinerario": "[Pallay Punchu: La Montaña Filuda] La Experiencia: \"Descubra las crestas afiladas, similares a un poncho, de Pallay Punchu.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Laguna Langui", "✅ Pallay Punchu", "✅ Canas", "✅ Vistas"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'pallay_punchu', '04:00:00', TRUE
+),
+(
+  'LOMAS DE LACHAY PULL',
+  'Visita a la reserva nacional, un ecosistema único de nieblas en el desierto peruano.',
+  10, 1, 36.0, 119.0,
+  'TURISMO', 'FACIL',
+  '{"itinerario": "[Lomas de Lachay: Oasis de Niebla] La Experiencia: \"Visite el oasis de niebla estacional de Lomas de Lachay.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Reserva Nacional", "✅ Senderos", "✅ Flora", "✅ Fauna"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'lomas_de_lachay', '07:00:00', TRUE
+),
+(
+  'CHANCAY PULL',
+  'Día de playa y visita al pintoresco Castillo de Chancay, una joya arquitectónica frente al mar.',
+  10, 1, 30.0, 99.0,
+  'TURISMO', 'FACIL',
+  '{"itinerario": "[Castillo de Chancay: Historia y Mar] La Experiencia: \"Adéntrese en un curioso mezcla de historia y fantasía en el Castillo de Chancay.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Castillo", "✅ Museo", "✅ Mirador", "✅ Plaza de Armas"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'chancay', '08:00:00', TRUE
+),
+(
+  'CIUDADELA SAGRADA DE CARAL PULL',
+  'Viaje al pasado visitando la ciudad más antigua de América y centro de la civilización Caral.',
+  14, 1, 219.0, 733.0,
+  'TURISMO', 'FACIL',
+  '{"itinerario": "[Caral: La Civilización Más Antigua] La Experiencia: \"Camine por las calles de la ciudad más antigua de América.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Ciudadela", "✅ Pirámides", "✅ Plazas Circulares", "✅ Valle de Supe"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'ciudadela_sagrada_de_caral', '07:00:00', TRUE
+),
+(
+  'ISLAS PALOMINO PULL',
+  'Nado con lobos marinos en su hábitat natural frente a las costas del Callao.',
+  6, 1, 82.0, 273.0,
+  'TURISMO', 'FACIL',
+  '{"itinerario": "[Islas Palomino: Nado con Lobos] La Experiencia: \"Sumérjase en el Pacífico para nadar con los juguetones guardianes de la costa.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Callao", "✅ Islas Palomino", "✅ El Frontón", "✅ Fauna"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'islas_palomino', '09:00:00', TRUE
+),
+(
+  'ANTIOQUIA PULL',
+  'Visita al "pueblo de los cuentos", famoso por sus fachadas pintadas con flores y ángeles.',
+  12, 1, 23.0, 75.0,
+  'TURISMO', 'FACIL',
+  '{"itinerario": "[Antioquía: El Pueblo de Colores] La Experiencia: \"Entre en un libro de cuentos donde cada pared es un lienzo de flores y ángeles.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Pueblo Pintado", "✅ Iglesia", "✅ Huertos", "✅ Mirador"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'antioquia', '06:00:00', TRUE
+),
+(
+  'PACHACAMAC + BARRANCO PULL',
+  'Combinación de historia ancestral en Pachacamac y cultura moderna en el bohemio Barranco.',
+  6, 1, 44.0, 147.0,
+  'TURISMO', 'FACIL',
+  '{"itinerario": "[Lima: Pasado y Bohemio] La Experiencia: \"Atraviese el tiempo desde los rituales de barro de Pachacamac hasta el arte callejero de Barranco.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Pachacamac", "✅ Barranco", "✅ Puente de los Suspiros", "✅ Arte Urbano"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'pachacamac_barranco', '09:00:00', TRUE
+),
+(
+  'CIRCUITO MAGICO DEL AGUA PULL',
+  'Recorrido por las fuentes ornamentales más impresionantes de Lima con show de láser.',
+  3, 1, 22.0, 72.0,
+  'TURISMO', 'FACIL',
+  '{"itinerario": "[Circuito Mágico: Fantasía Acuática] La Experiencia: \"Deje que la noche brille en una fantasía de agua y luz.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Fuente Mágica", "✅ Fuente de la Fantasía", "✅ Túnel de las Sorpresas", "✅ Parque de la Reserva"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'circuito_magico_del_agua', '18:00:00', TRUE
+),
+(
+  'CITY TOUR LIMA COLONIAL Y MODERNA',
+  'Recorrido histórico por el centro de Lima y los distritos costeros modernos.',
+  4, 1, 30.0, 101.0,
+  'CULTURA', 'FACIL',
+  '{"itinerario": "[Lima: La Ciudad de los Reyes] La Experiencia: \"Viaje a través de los siglos en la Ciudad de los Reyes.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Plaza Mayor", "✅ Catedral de Lima", "✅ Catacumbas San Francisco", "✅ Miraflores", "✅ Parque del Amor"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'city_tour_lima_colonial_y_moderna', '09:00:00', TRUE
+);
+
+INSERT INTO tour (
+  nombre, descripcion, duracion_horas, duracion_dias, precio_adulto_extranjero, precio_adulto_nacional,
+  categoria, dificultad, highlights, atractivos, servicios_incluidos, servicios_no_incluidos,
+  carpeta_img, hora_inicio, activo
+) VALUES 
+(
+  'TOUR GASTRONOMICO PERUANO',
+  'Experiencia culinaria visitando mercados locales y participando en clases de cocina peruana.',
+  4, 1, 104.0, 349.0,
+  'GASTRONOMÍA', 'FACIL',
+  '{"itinerario": "[Sabores del Perú: Aventura Culinaria] La Experiencia: \"Sumerja sus sentidos en la capital gastronómica de América y aprenda los secretos de su sabor.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Mercado Local", "✅ Clase de Cocina", "✅ Degustación de Pisco", "✅ Almuerzo"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'tour_gastronomico_peruano', '11:00:00', TRUE
+),
+(
+  'CITY TOUR NOCTURNO',
+  'Paseo panorámico por Lima iluminada, recorriendo los monumentos y barrios más emblemáticos.',
+  3, 1, 78.0, 262.0,
+  'CULTURA', 'FACIL',
+  '{"itinerario": "[Luces de la Noche: Encanto Urbano] La Experiencia: \"Descubra una cara diferente de la ciudad cuando el sol se pone y las luces se encienden.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Centro Histórico Iluminado", "✅ Plaza San Martín", "✅ Barranco", "✅ Puente de los Suspiros"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'city_tour_nocturno', '18:00:00', TRUE
+),
+(
+  'TOUR MISTICO',
+  'Encuentro espiritual con las tradiciones andinas, lectura de coca y ceremonia de agradecimiento.',
+  3, 1, 25.0, 82.0,
+  'MÍSTICO', 'FACIL',
+  '{"itinerario": "[Conexión Sagrada: Ritual Andino] La Experiencia: \"Conecte con la sabiduría ancestral de los Andes en una ceremonia privada de sanación.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Altar Sagrado", "✅ Chamán Andino", "✅ Lectura de Coca", "✅ Ofrenda a la Pachamama"]}'::jsonb,
+  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Gastos extras"]}'::jsonb,
+  'tour_mistico', '09:00:00', TRUE
+),
+(
+  'DIA LIBRE',
+  'Día dedicado al descanso o actividades personales sin itinerario fijo.',
+  0, 1, 0.00, 0.00,
+  'LIBRE', 'FACIL',
+  '{"itinerario": "[Día Libre: Su Propio Ritmo] La Experiencia: \"Disfrute de la libertad de explorar a su propio ritmo sin la presión de un horario.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Exploración personal", "✅ Gastronomía local", "✅ Descanso", "✅ Compras"]}'::jsonb,
+  '{"incluye": ["Asistencia informativa"]}'::jsonb,
+  '{"no_incluye": ["Guiado", "Transporte", "Entradas", "Alimentacion"]}'::jsonb,
+  'dia_libre', '00:00:00', TRUE
+),
+(
+  'RECEPCION EN EL AEROPUERTO',
+  'Servicio de bienvenida y traslado privado desde el aeropuerto al hotel.',
+  0, 1, 0.00, 0.00,
+  'LOGISTICA', 'FACIL',
+  '{"itinerario": "[Bienvenida al Perú: Comience su Aventura] La Experiencia: \"A su llegada, nuestro equipo lo estará esperando con una sonrisa.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Recepción personalizada", "✅ Traslado privado", "✅ Asistencia de equipaje", "✅ Briefing del viaje"]}'::jsonb,
+  '{"incluye": ["Transporte privado", "Asistencia personalizada"]}'::jsonb,
+  '{"no_incluye": ["Alimentación", "Propinas"]}'::jsonb,
+  'recepcion_aeropuerto', '00:00:00', TRUE
+),
+(
+  'DIA LIBRE Y SALIDA AL AEROPUERTO',
+  'Mañana libre para las últimas compras y traslado programado al aeropuerto.',
+  0, 1, 0.00, 0.00,
+  'LOGISTICA', 'FACIL',
+  '{"itinerario": "[Despedida: Memorias y Últimos Tesoros] La Experiencia: \"Aproveche sus últimas horas para comprar recuerdos y prepararse para su vuelo.\""}'::jsonb,
+  '{"Lo que visitarás": ["✅ Tiempo libre", "✅ Recojo de hotel", "✅ Traslado al aeropuerto", "✅ Asistencia en embarque"]}'::jsonb,
+  '{"incluye": ["Transporte privado", "Asistencia"]}'::jsonb,
+  '{"no_incluye": ["Alimentación", "Gastos personales"]}'::jsonb,
+  'dia_libre_salida', '00:00:00', TRUE
+);
+
+
+
 
 -- 2.4. PROVEEDORES (DATOS BANCARIOS)
 INSERT INTO proveedor (nombre_comercial, servicios_ofrecidos, banco_dolares, cuenta_dolares, cci_dolares)
