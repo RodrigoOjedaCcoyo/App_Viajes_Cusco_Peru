@@ -515,8 +515,9 @@ def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
     st.markdown("---")
     
     if nombre_modulo == "Gestión de Registros":
-        tab1, tab2 = st.tabs([
+        tab1, tab2, tab3 = st.tabs([
             "📊 Estructurador de Gastos (Master Sheet)",
+            "📋 Rooming List (Pasajeros)",
             "🤝 Ventas B2B (Entrada)"
         ])
         
