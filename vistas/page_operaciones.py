@@ -698,8 +698,12 @@ def dashboard_simulador_costos(controller):
                         nuevos_items.append({
                             "FECHA": date.fromisoformat(d['fecha_servicio']),
                             "SERVICIO": d.get('observaciones') or "Servicio sin nombre",
-                            "MONEDA": d.get('moneda_costo', 'USD'),  # Cargar moneda guardada o USD por defecto
+                            "PROVEEDOR": next((f"{p['nombre_comercial']} ({p.get('servicios_ofrecidos', ['N/A'])[0]})" for p in res_prov_data if p['id_proveedor'] == d.get('id_proveedor')), "--- Sin Asignar ---"),
+                            "MONEDA": d.get('moneda_costo', 'USD'),
                             "TOTAL": float(d.get('costo_applied') or 0.0),
+                            "💵 Pago Op.": d.get('estado_pago_operativo', 'NO_REQUERIDO'),
+                            "📝 Info Pago": d.get('datos_pago_operativo', ''),
+                            "📎 Voucher": d.get('url_voucher_operativo', ''),
                             "id_venta": d['id_venta'],
                             "n_linea": d['n_linea']
                         })
@@ -715,8 +719,13 @@ def dashboard_simulador_costos(controller):
                     st.rerun()
 
     # Data Editor (El "Excel")
-    df = pd.DataFrame(st.session_state['simulador_data'])
-    
+    if not df.empty:
+        # Asegurar columnas necesarias if empty
+        for col in ["💵 Pago Op.", "📝 Info Pago", "📎 Voucher"]:
+            if col not in df.columns: df[col] = ""
+    else:
+        df = pd.DataFrame(columns=["FECHA", "SERVICIO", "PROVEEDOR", "MONEDA", "TOTAL", "💵 Pago Op.", "📝 Info Pago", "📎 Voucher"])
+
     # Ordenar por FECHA para que al agregar filas con misma fecha queden agrupadas
     if not df.empty and 'FECHA' in df.columns:
         df.sort_values(by='FECHA', inplace=True)
@@ -737,7 +746,10 @@ def dashboard_simulador_costos(controller):
         "SERVICIO": st.column_config.TextColumn("Descripción del Servicio", required=True, width="large"),
         "PROVEEDOR": st.column_config.SelectboxColumn("Endosar a (Proveedor)", options=lista_proveedores, width="medium"),
         "MONEDA": st.column_config.SelectboxColumn("💵 Moneda", options=["USD", "PEN"], default="USD", width="small"),
-        "TOTAL": st.column_config.NumberColumn("Costo Total", format="%.2f", min_value=0.0, width="medium")
+        "TOTAL": st.column_config.NumberColumn("Costo Total", format="%.2f", min_value=0.0, width="medium"),
+        "💵 Pago Op.": st.column_config.SelectboxColumn("💵 Pago Op.", options=["NO_REQUERIDO", "PENDIENTE", "PAGADO"], default="NO_REQUERIDO"),
+        "📝 Info Pago": st.column_config.TextColumn("📝 Info Pago (Cuentas/Yape)", width="medium"),
+        "📎 Voucher": st.column_config.LinkColumn("📎 Voucher", width="small")
     }
 
     st.info("💡 **Tip:** Para insertar un servicio en un día específico: **1.** Agrégalo al final. **2.** Pon la fecha deseada. **3.** Al Guardar, se ordenará solito.")
@@ -782,7 +794,10 @@ def dashboard_simulador_costos(controller):
                                 'costo_applied': row['TOTAL'],
                                 'moneda_costo': row.get('MONEDA', 'USD'),
                                 'id_proveedor': id_prov,
-                                'observaciones': row.get('SERVICIO')
+                                'observaciones': row.get('SERVICIO'),
+                                'estado_pago_operativo': row.get('💵 Pago Op.', 'NO_REQUERIDO'),
+                                'datos_pago_operativo': row.get('📝 Info Pago', ''),
+                                'es_endoso': True if id_prov else False # Simplificado: si hay proveedor hay endoso/servicio
                             }).match({'id_venta': row['id_venta'], 'n_linea': row['n_linea']}).execute()
                             updated_count += 1
                         except Exception as e:
@@ -804,7 +819,10 @@ def dashboard_simulador_costos(controller):
                                     'costo_applied': row['TOTAL'],
                                     'moneda_costo': row.get('MONEDA', 'USD'),
                                     'id_proveedor': id_prov,
-                                    'cantidad_pasajeros': pax_total
+                                    'cantidad_pasajeros': v_actual.get('num_pasajeros', 1),
+                                    'estado_pago_operativo': row.get('💵 Pago Op.', 'NO_REQUERIDO'),
+                                    'datos_pago_operativo': row.get('📝 Info Pago', ''),
+                                    'es_endoso': True if id_prov else False
                                 }).execute()
                                 updated_count += 1
                             except Exception as e:
@@ -833,7 +851,10 @@ def dashboard_simulador_costos(controller):
                                 'costo_applied': row['TOTAL'],
                                 'moneda_costo': row.get('MONEDA', 'USD'),
                                 'id_proveedor': id_prov,
-                                'observaciones': row.get('SERVICIO')
+                                'observaciones': row.get('SERVICIO'),
+                                'estado_pago_operativo': row.get('💵 Pago Op.', 'NO_REQUERIDO'),
+                                'datos_pago_operativo': row.get('📝 Info Pago', ''),
+                                'es_endoso': True if id_prov else False
                             }).match({'id_venta': row['id_venta'], 'n_linea': row['n_linea']}).execute()
                             updated_count += 1
                         except Exception as e:
@@ -853,7 +874,10 @@ def dashboard_simulador_costos(controller):
                                     'costo_applied': row['TOTAL'],
                                     'moneda_costo': row.get('MONEDA', 'USD'),
                                     'id_proveedor': id_prov,
-                                    'cantidad_pasajeros': pax_total
+                                    'cantidad_pasajeros': v_actual.get('num_pasajeros', 1),
+                                    'estado_pago_operativo': row.get('💵 Pago Op.', 'NO_REQUERIDO'),
+                                    'datos_pago_operativo': row.get('📝 Info Pago', ''),
+                                    'es_endoso': True if id_prov else False
                                 }).execute()
                                 updated_count += 1
                             except Exception as e:

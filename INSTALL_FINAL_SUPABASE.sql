@@ -217,7 +217,11 @@ CREATE TABLE venta_tour (
     observaciones TEXT,
     id_itinerario_dia_index INTEGER,
     estado_servicio VARCHAR(30) DEFAULT 'PENDIENTE' CHECK (estado_servicio IN ('PENDIENTE', 'CONFIRMADO', 'EN_CURSO', 'COMPLETADO', 'CANCELADO')),
-    es_endoso BOOLEAN DEFAULT FALSE,
+    -- Flujo de Caja Maestro (Liquidación + Requerimientos + Endosos)
+    estado_pago_operativo VARCHAR(20) DEFAULT 'NO_REQUERIDO' CHECK (estado_pago_operativo IN ('NO_REQUERIDO', 'PENDIENTE', 'PAGADO')),
+    datos_pago_operativo TEXT, -- Cuentas, Yape, Plin del proveedor o guía
+    url_voucher_operativo TEXT, -- Comprobante subido por contabilidad
+    es_endoso BOOLEAN DEFAULT FALSE, -- Flag para identificar si fue tercerizado
     PRIMARY KEY (id_venta, n_linea)
 );
 

@@ -16,11 +16,28 @@ class ReporteController:
         self.req_model = RequerimientoModel(supabase_client)
         
     def obtener_requerimientos(self):
-        """Obtiene la lista de requerimientos desde Operaciones."""
+        """Obtiene la lista de requerimientos (Versión Master Sheet)."""
         try:
-            return self.req_model.get_all()
+            # Traer servicios que piden pago operativo
+            res = self.client.table('venta_tour').select('*, venta(cliente(nombre))').eq('estado_pago_operativo', 'PENDIENTE').execute()
+            data = res.data or []
+            # Homogeneizar para la vista
+            final = []
+            for d in data:
+                final.append({
+                    "id_venta": d['id_venta'],
+                    "n_linea": d['n_linea'],
+                    "fecha": d['fecha_servicio'],
+                    "cliente": d.get('venta', {}).get('cliente', {}).get('nombre', 'Desconocido'),
+                    "concepto": d['observaciones'],
+                    "monto": d['costo_applied'],
+                    "moneda": d.get('moneda_costo', 'USD'),
+                    "datos_pago": d.get('datos_pago_operativo', 'Sin datos'),
+                    "estado": d['estado_pago_operativo']
+                })
+            return final
         except Exception as e:
-            print(f"Error obteniendo requerimientos en ReporteController: {e}")
+            print(f"Error obteniendo requerimientos unificados: {e}")
             return []
         
     def obtener_resumen_ventas(self):
