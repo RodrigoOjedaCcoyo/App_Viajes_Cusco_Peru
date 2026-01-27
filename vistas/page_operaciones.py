@@ -628,6 +628,14 @@ def dashboard_simulador_costos(controller):
     """
     st.subheader("📊 Estructurador de Liquidación Profesional", divider='rainbow')
 
+    # Pre-cargar proveedores para evitar errores de scope
+    prov_items = []
+    try:
+        res_prov = controller.client.table('proveedor').select('id_proveedor, nombre_comercial, servicios_ofrecidos').execute()
+        prov_items = res_prov.data or []
+    except Exception as e:
+        print(f"Error cargando proveedores init: {e}")
+
     if 'simulador_data' not in st.session_state:
         st.session_state['simulador_data'] = [
             {"FECHA": date.today(), "SERVICIO": "Servicio Ejemplo", "MONEDA": "USD", "TOTAL": 0.0},
@@ -688,7 +696,7 @@ def dashboard_simulador_costos(controller):
                         nuevos_items.append({
                             "FECHA": date.fromisoformat(d['fecha_servicio']),
                             "SERVICIO": d.get('observaciones') or "Servicio sin nombre",
-                            "PROVEEDOR": next((f"{p['nombre_comercial']} ({p.get('servicios_ofrecidos', ['N/A'])[0]})" for p in res_prov_data if p['id_proveedor'] == d.get('id_proveedor')), "--- Sin Asignar ---"),
+                            "PROVEEDOR": next((f"{p['nombre_comercial']} ({p.get('servicios_ofrecidos', ['N/A'])[0]})" for p in prov_items if p['id_proveedor'] == d.get('id_proveedor')), "--- Sin Asignar ---"),
                             "MONEDA": d.get('moneda_costo', 'USD'),
                             "CANT": d.get('cantidad_items') or v.get('num_pasajeros', 1),
                             "UNIT": float(d.get('costo_unitario') or 0.0),
@@ -736,15 +744,9 @@ def dashboard_simulador_costos(controller):
     df_full['FECHA'] = pd.to_datetime(df_full['FECHA']).dt.date
     df_full.sort_values(by=['FECHA'], inplace=True)
     
-    # Obtener lista de proveedores
+    # Obtener lista de proveedores (usando la carga inicial)
     lista_proveedores = ["--- Sin Asignar ---"]
-    prov_items = []
-    try:
-        res_prov = controller.client.table('proveedor').select('id_proveedor, nombre_comercial, servicios_ofrecidos').execute()
-        prov_items = res_prov.data or []
-        lista_proveedores += [f"{p['nombre_comercial']} ({p.get('servicios_ofrecidos', ['N/A'])[0]})" for p in prov_items]
-    except Exception as e:
-        print(f"Error cargando proveedores: {e}")
+    lista_proveedores += [f"{p['nombre_comercial']} ({p.get('servicios_ofrecidos', ['N/A'])[0]})" for p in prov_items]
 
     col_config = {
         "FECHA": st.column_config.DateColumn("FECHA", disabled=True),
