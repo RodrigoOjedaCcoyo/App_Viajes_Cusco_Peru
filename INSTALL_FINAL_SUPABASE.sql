@@ -224,6 +224,7 @@ CREATE TABLE venta_tour (
     es_endoso BOOLEAN DEFAULT FALSE, -- Flag para identificar si fue tercerizado
     costo_unitario DECIMAL(10,2) DEFAULT 0,
     cantidad_items INTEGER DEFAULT 1,
+    precio_vendedor DECIMAL(10,2) DEFAULT 0, -- Precio proyectado por el vendedor (referencia)
     PRIMARY KEY (id_venta, n_linea)
 );
 
@@ -373,7 +374,7 @@ INSERT INTO usuarios_app (email, rol) VALUES
 ('angel@agencia.com', 'VENTAS'),
 ('abel@agencia.com', 'VENTAS'),
 ('maria@agencia.com', 'OPERACIONES'),
-('elizabeth@agencia.com', 'OPERACIONES'),
+('elizabeth@agencia.com', 'CONTABILIDAD'),
 ('vanessa@agencia.com', 'GERENCIA'),
 ('henrry@agencia.com', 'GERENCIA');
 

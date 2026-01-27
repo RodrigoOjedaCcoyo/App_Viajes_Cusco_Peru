@@ -783,7 +783,7 @@ def dashboard_simulador_costos(controller):
                 use_container_width=True,
                 hide_index=True,
                 key=f"editor_day_{d_key}_{day_num}",
-                column_order=["SERVICIO", "MONEDA", "UNIT", "TOTAL"]
+                column_order=["SERVICIO", "PROVEEDOR", "MONEDA", "UNIT", "TOTAL"]
             )
             
             # Recalcular totales tras edición
