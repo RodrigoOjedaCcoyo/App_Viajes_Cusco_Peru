@@ -186,6 +186,7 @@ class VentaModel(BaseModel):
                     "id_tour": id_tour_catalogo if i == 0 else None, # Solo vinculamos al catálogo el primer día por ahora
                     "fecha_servicio": f_servicio.isoformat(),
                     "precio_applied": venta_data.get("monto_total") if i == 0 else 0,
+                    "precio_vendedor": venta_data.get("monto_total") if i == 0 else 0, # Guardar el original
                     "costo_applied": 0,
                     "cantidad_pasajeros": num_pax_final,
                     "observaciones": nombre_servicio_dia, # Usamos observaciones para guardar el nombre del tour diario

@@ -694,6 +694,7 @@ def dashboard_simulador_costos(controller):
                             "UNIT": float(d.get('costo_unitario') or 0.0),
                             "TOTAL": float(d.get('costo_applied') or 0.0),
                             "VENTA": float(d.get('precio_applied') or 0.0),
+                            "VTA_VENDEDOR": float(d.get('precio_vendedor') or d.get('precio_applied') or 0.0), # Jalamos el precio original del vendedor
                             "💵 Pago Op.": d.get('estado_pago_operativo', 'NO_REQUERIDO'),
                             "📝 Info Pago": d.get('datos_pago_operativo', ''),
                             "📎 Voucher": d.get('url_voucher_operativo', ''),
@@ -719,12 +720,13 @@ def dashboard_simulador_costos(controller):
     df_full = pd.DataFrame(st.session_state['simulador_data'])
     
     # Asegurar columnas nuevas y existentes
-    required_cols = ["CANT", "UNIT", "VENTA", "💵 Pago Op.", "📝 Info Pago", "📎 Voucher", "PROVEEDOR", "SERVICIO", "MONEDA", "TOTAL"]
+    required_cols = ["CANT", "UNIT", "VENTA", "VTA_VENDEDOR", "💵 Pago Op.", "📝 Info Pago", "📎 Voucher", "PROVEEDOR", "SERVICIO", "MONEDA", "TOTAL"]
     for col in required_cols:
         if col not in df_full.columns:
             if col == "CANT": df_full[col] = 1
             elif col == "UNIT": df_full[col] = df_full["TOTAL"] if "TOTAL" in df_full.columns else 0.0
             elif col == "VENTA": df_full[col] = 0.0
+            elif col == "VTA_VENDEDOR": df_full[col] = df_full["VENTA"] if "VENTA" in df_full.columns else 0.0
             elif col == "TOTAL": df_full[col] = 0.0
             elif col == "MONEDA": df_full[col] = "USD"
             elif col == "PROVEEDOR": df_full[col] = "--- Sin Asignar ---"
@@ -787,44 +789,51 @@ def dashboard_simulador_costos(controller):
             # Recalcular totales tras edición
             ed_day['TOTAL'] = ed_day['CANT'] * ed_day['UNIT']
             day_costo = ed_day['TOTAL'].sum()
-            day_venta = ed_day['VENTA'].sum()
-            day_utilidad = day_venta - day_costo
+            day_venta_vendedor = ed_day['VTA_VENDEDOR'].sum() # Lo que dio el vendedor
+            day_utilidad = day_venta_vendedor - day_costo
             
             total_general += day_costo
             
             # Resumen High-End (Glassmorphism & Icons)
             summary_html = f"""
             <div style='
-                background: linear-gradient(135deg, rgba(30, 33, 48, 0.9), rgba(46, 51, 74, 0.7));
-                backdrop-filter: blur(10px);
-                padding: 20px;
-                border-radius: 16px;
+                background: linear-gradient(135deg, rgba(30, 33, 48, 0.95), rgba(46, 51, 74, 0.85));
+                backdrop-filter: blur(12px);
+                padding: 22px;
+                border-radius: 18px;
                 margin-top: 15px;
-                border: 1px solid rgba(255, 255, 255, 0.1);
-                box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
-                font-family: "Inter", sans-serif;
+                border: 1px solid rgba(255, 255, 255, 0.15);
+                box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+                font-family: "Segoe UI", Roboto, Helvetica, sans-serif;
             '>
-                <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 15px;'>
-                    <div style='background: rgba(255, 255, 255, 0.05); padding: 12px; border-radius: 10px;'>
-                        <div style='color: #888; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.5px;'>📉 Costo Operativo</div>
-                        <div style='color: #ffffff; font-weight: 700; font-size: 1.2em; margin-top: 4px;'>$ {day_costo:,.2f}</div>
+                <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;'>
+                    <div style='background: rgba(255, 255, 255, 0.05); padding: 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);'>
+                        <div style='color: #bbb; font-size: 0.8em; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;'>📉 Costo Operativo</div>
+                        <div style='color: #ffffff; font-weight: 700; font-size: 1.3em; margin-top: 5px;'>$ {day_costo:,.2f}</div>
                     </div>
-                    <div style='background: rgba(33, 150, 243, 0.1); padding: 12px; border-radius: 10px;'>
-                        <div style='color: #2196F3; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.5px;'>💰 Ingresos (Venta)</div>
-                        <div style='color: #ffffff; font-weight: 700; font-size: 1.2em; margin-top: 4px;'>$ {day_venta:,.2f}</div>
+                    <div style='background: rgba(255, 193, 7, 0.1); padding: 14px; border-radius: 12px; border: 1px solid rgba(255, 193, 7, 0.15);'>
+                        <div style='color: #FFC107; font-size: 0.8em; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;'>🏷️ Precio Vendedor</div>
+                        <div style='color: #ffffff; font-weight: 700; font-size: 1.3em; margin-top: 5px;'>$ {day_venta_vendedor:,.2f}</div>
                     </div>
                 </div>
+
                 <div style='
-                    margin-top: 15px;
-                    padding: 15px;
-                    border-radius: 12px;
-                    background: {"rgba(76, 175, 80, 0.15)" if day_utilidad >= 0 else "rgba(255, 82, 82, 0.15)"};
-                    text-align: center;
-                    border: 1px solid {"rgba(76, 175, 80, 0.3)" if day_utilidad >= 0 else "rgba(255, 82, 82, 0.3)"};
+                    padding: 18px;
+                    border-radius: 14px;
+                    background: {"linear-gradient(90deg, rgba(76, 175, 80, 0.1), rgba(76, 175, 80, 0.2))" if day_utilidad >= 0 else "linear-gradient(90deg, rgba(244, 67, 54, 0.1), rgba(244, 67, 54, 0.2))"};
+                    border: 1px solid {"rgba(76, 175, 80, 0.4)" if day_utilidad >= 0 else "rgba(244, 67, 54, 0.4)"};
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
                 '>
-                    <div style='color: #ffffff; font-size: 0.9em; margin-bottom: 2px;'>BENEFICIO DEL DÍA</div>
-                    <div style='color: {"#4CAF50" if day_utilidad >= 0 else "#FF5252"}; font-size: 1.8em; font-weight: 900;'>
-                        $ {day_utilidad:,.2f}
+                    <div>
+                        <div style='color: #ffffff; font-size: 0.85em; font-weight: 500; text-transform: uppercase; opacity: 0.8;'>Utilidad (vs Venta Original)</div>
+                        <div style='color: {"#81C784" if day_utilidad >= 0 else "#E57373"}; font-size: 1.8em; font-weight: 800; margin-top: 2px;'>
+                            $ {day_utilidad:,.2f}
+                        </div>
+                    </div>
+                    <div style='font-size: 2.5em; opacity: 0.3;'>
+                        {"🚀" if day_utilidad >= 0 else "⚠️"}
                     </div>
                 </div>
             </div>
