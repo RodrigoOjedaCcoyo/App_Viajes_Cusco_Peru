@@ -95,7 +95,16 @@ class VentaController:
         try:
             nuevo_id = self.model.create_venta(venta_data)
             if nuevo_id:
-                return True, f"Venta registrada. ID: {nuevo_id}. Saldo pendiente: ${float(saldo or 0):.2f}"
+                # 5. Si viene de un Lead, marcar como CONVERTIDO
+                if id_itinerario_digital:
+                    try:
+                        # Buscar el id_lead desde el itinerario
+                        res_it = self.client.table('itinerario_digital').select('id_lead').eq('id_itinerario_digital', id_itinerario_digital).single().execute()
+                        if res_it.data and res_it.data.get('id_lead'):
+                            self.client.table('lead').update({'estado_lead': 'CONVERTIDO'}).eq('id_lead', res_it.data['id_lead']).execute()
+                    except: pass
+                
+                return True, f"Venta registrada. ID: {nuevo_id}. Saldo pendiente: {moneda} {float(saldo or 0):.2f}"
             else:
                 return False, "Error: no se pudo crear la venta."
         except Exception as e:

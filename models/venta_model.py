@@ -101,18 +101,33 @@ class VentaModel(BaseModel):
             id_tour_catalogo = self.get_tour_id_by_name(tour_raw)
 
         # 2. Preparar Payload para tabla 'venta' (Columnas del esquema SQL)
+        id_itin = venta_data.get("id_itinerario_digital")
+        num_pax_final = 1
+        
+        # Intentar extraer info extra del itinerario si existe
+        if id_itin:
+            try:
+                res_it = self.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin).single().execute()
+                if res_it.data:
+                    render = res_it.data.get('datos_render', {})
+                    # Extraer Pax
+                    num_pax_final = int(render.get('cantidad_pax') or render.get('pax_count') or 1)
+            except: pass
+
         datos_venta_sql = {
             "id_cliente": id_cliente,
             "id_vendedor": id_vendedor,
             "fecha_venta": venta_data.get("fecha_registro", datetime.now().strftime("%Y-%m-%d")),
             "canal_venta": venta_data.get("origen", "DIRECTO"),
             "precio_total_cierre": venta_data.get("monto_total"),
-            "moneda": "USD",
+            "moneda": venta_data.get("moneda", "USD"),
+            "estado_pago": "COMPLETADO" if (venta_data.get("monto_total", 0) - venta_data.get("monto_depositado", 0)) <= 0 else "PENDIENTE",
             "estado_venta": "CONFIRMADO",
             "id_paquete": id_paquete,
-            "tour_nombre": tour_raw,  # Guardar nombre o ID crudo
+            "tour_nombre": tour_raw,
+            "num_pasajeros": num_pax_final,
             "id_agencia_aliada": venta_data.get("id_agencia_aliada"),
-            "id_itinerario_digital": venta_data.get("id_itinerario_digital")
+            "id_itinerario_digital": id_itin
         }
 
         # 3. Insertar Venta (esto lanzará excepción si falla)
@@ -128,7 +143,7 @@ class VentaModel(BaseModel):
                     "id_venta": nuevo_id_venta,
                     "fecha_pago": datetime.now().strftime("%Y-%m-%d"),
                     "monto_pagado": venta_data.get("monto_depositado"),
-                    "moneda": "USD",
+                    "moneda": venta_data.get("moneda", "USD"),
                     "metodo_pago": "OTRO",
                     "tipo_pago": "ADELANTO",
                     "observacion": f"Pago inicial registrado. Saldo: {venta_data.get('saldo')}"
@@ -172,7 +187,7 @@ class VentaModel(BaseModel):
                     "fecha_servicio": f_servicio.isoformat(),
                     "precio_applied": venta_data.get("monto_total") if i == 0 else 0,
                     "costo_applied": 0,
-                    "cantidad_pasajeros": venta_data.get("cantidad_pasajeros", 1),
+                    "cantidad_pasajeros": num_pax_final,
                     "observaciones": nombre_servicio_dia, # Usamos observaciones para guardar el nombre del tour diario
                     "id_itinerario_dia_index": i + 1
                 }

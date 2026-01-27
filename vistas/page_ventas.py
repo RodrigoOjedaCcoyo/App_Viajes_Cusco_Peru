@@ -138,22 +138,21 @@ def registro_ventas_directa():
     lead_sel = st.selectbox("🎯 Vincular con un Lead existente (Opcional)", lead_opt)
     lead_data = lead_map.get(lead_sel)
 
-    # --- 🕵️ SELECTOR DE ITINERARIO (AUTOMÁTICO POR LEAD) ---
-    st.info("💡 Seleccione el itinerario del cliente para auto-llenar los datos.")
-    
-    # Obtener itinerarios del lead seleccionado
-    itinerarios_lead = []
+    # --- 🕵️ SELECTOR DE ITINERARIO (Buscador por Contacto) ---
     id_lead_seleccionado = lead_data.get('id_lead') if lead_data else None
     
     if id_lead_seleccionado:
-        itinerarios_lead = it_controller.listar_itinerarios_lead(id_lead_seleccionado)
+        itinerarios_recuperados = it_controller.listar_itinerarios_lead(id_lead_seleccionado)
+    else:
+        # Si no hay lead, mostrar itinerarios recientes (opción de búsqueda global)
+        itinerarios_recuperados = it_controller.obtener_todos_recientes(limit=30)
     
     # Crear opciones para el selector
     opciones_itinerario = ["--- Sin Itinerario ---"]
     mapa_itinerarios = {}
     
-    if itinerarios_lead:
-        for it in itinerarios_lead:
+    if itinerarios_recuperados:
+        for it in itinerarios_recuperados:
             uuid = it.get('id_itinerario_digital', '')
             render_data = it.get('datos_render', {})
             
@@ -165,12 +164,17 @@ def registro_ventas_directa():
                 titulo = f"{title_1} {title_2}".strip() or 'Sin título'
             
             fecha = it.get('fecha_generacion', '')[:10] if it.get('fecha_generacion') else 'Sin fecha'
-            label = f"{titulo} ({fecha})"
+            
+            # Celular para el label (muy importante según feedback)
+            celular = it.get('lead', {}).get('numero_celular', '') if it.get('lead') else lead_data.get('numero_celular', '') if lead_data else ''
+            cel_label = f"📱 {celular} | " if celular else ""
+            
+            label = f"{cel_label}{titulo} ({fecha})"
             opciones_itinerario.append(label)
             mapa_itinerarios[label] = it
     
     itinerario_seleccionado = st.selectbox(
-        "🆔 Código Itinerario Digital (CLOUD)", 
+        "✨ Seleccionar Itinerario Visual (Diseño Cloud)", 
         opciones_itinerario,
         help="Seleccione el diseño que corresponde a esta venta"
     )
@@ -268,7 +272,9 @@ def registro_ventas_directa():
                 except Exception as e:
                     print(f"Error calculando fecha fin: {e}")
             
-            st.success(f"🗓️ **Viaje Programado:** Del {itin_fecha_inicio.strftime('%d/%m/%Y')} al {itin_fecha_fin.strftime('%d/%m/%Y')}")
+            # Mostrar Pax Count si existe
+            num_pax = render.get('cantidad_pax') or render.get('pax_count') or 1
+            st.success(f"🗓️ **Viaje Programado:** Del {itin_fecha_inicio.strftime('%d/%m/%Y')} al {itin_fecha_fin.strftime('%d/%m/%Y')} | 👥 **Pax:** {num_pax}")
             fecha_inicio_sel = itin_fecha_inicio
             fecha_fin_sel = itin_fecha_fin
         else:

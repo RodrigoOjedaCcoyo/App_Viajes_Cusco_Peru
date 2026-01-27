@@ -33,8 +33,6 @@ MODULOS_VISIBLES = {
     ],
     "OPERACIONES": [
         ("Dashboard Operaciones", "page_dashboards"),
-        ("Reporte Operativo", "page_operaciones"),
-        ("Dashboard Diario", "page_operaciones"),
         ("Gestión de Registros", "page_operaciones")
     ],
     "CONTABILIDAD": [

@@ -291,7 +291,12 @@ def registro_ventas_proveedores(supabase_client):
         titulo = render.get('titulo') or (f"{t1} {t2}").strip() or "Sin Título"
         pax = it.get('nombre_pasajero_itinerario') or render.get('pasajero', 'Sin Nombre')
         fecha = it.get('fecha_generacion', '')[:10]
-        label = f"[{fecha}] {pax} - {titulo} ({uuid[:8]})"
+        
+        # Obtener celular si existe (viene del join extra)
+        celular = it.get('lead', {}).get('numero_celular', '') if it.get('lead') else ''
+        cel_label = f"📱 {celular} | " if celular else ""
+        
+        label = f"[{fecha}] {cel_label}{pax} - {titulo}"
         opciones_it.append(label)
         mapa_it[label] = it
 
