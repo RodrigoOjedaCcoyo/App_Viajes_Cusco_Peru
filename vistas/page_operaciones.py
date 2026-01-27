@@ -529,6 +529,13 @@ def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
 
         with tab3:
             registro_ventas_proveedores(supabase_client)
+
+    elif nombre_modulo == "Dashboard Diario":
+        dashboard_tablero_diario(controller)
+    elif nombre_modulo == "Reporte Operativo":
+        reporte_operativo(controller)
+    else:
+        st.info("Seleccione una opción válida del menú lateral.")
             
 def dashboard_pasajeros(controller):
     """Gestión de Rooming List / Pasajeros."""
@@ -613,12 +620,6 @@ def dashboard_pasajeros(controller):
                 st.rerun()
             
             
-    elif nombre_modulo == "Dashboard Diario":
-        dashboard_tablero_diario(controller)
-    elif nombre_modulo == "Reporte Operativo":
-        reporte_operativo(controller)
-    else:
-        st.info("Seleccione una opción válida del menú lateral.")
 
 
 def dashboard_simulador_costos(controller):
