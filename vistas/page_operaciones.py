@@ -528,11 +528,10 @@ def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
     st.markdown("---")
     
     if nombre_modulo == "Gestión de Registros":
-        tab1, tab2, tab3, tab4 = st.tabs([
+        tab1, tab2, tab3 = st.tabs([
             "📝 Registro de Requerimientos", 
-            "📊 Estructurador de Gastos",
-            "🤝 Ventas B2B (Entrada)",
-            "📤 Gestión de Endoses (Salida)"
+            "📊 Estructurador de Gastos (Master Sheet)",
+            "🤝 Ventas B2B (Entrada)"
         ])
         
         with tab1:
@@ -543,92 +542,7 @@ def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
             
         with tab3:
             registro_ventas_proveedores(supabase_client)
-
-        with tab4:
-            dashboard_gestion_endoses(controller)
             
-def dashboard_gestion_endoses(controller):
-    """Herramienta creativa para gestionar la salida de servicios a otros proveedores."""
-    st.subheader("📤 Centro de Control de Endoses", divider='violet')
-    st.info("💡 Utiliza esta herramienta para formalizar el traspaso de un servicio a un proveedor externo.")
-
-    # 1. Filtro de Fecha para buscar servicios
-    f_endose = st.date_input("Fecha del servicio a endosar:", value=date.today())
-    
-    # 2. Obtener servicios del día
-    servicios = controller.get_servicios_por_fecha(f_endose)
-    
-    if not servicios:
-        st.warning(f"No hay servicios programados para el {f_endose.strftime('%d/%m/%Y')}.")
-        return
-
-    # 3. Selección de Servicio
-    opciones_s = [f"{s['Cliente']} | {s['Servicio']} ({s['ID Venta']})" for s in servicios]
-    mapa_s = {opciones_s[i]: s for i, s in enumerate(servicios)}
-    
-    sel_s = st.selectbox("🎯 Seleccione el servicio a endosar:", ["--- Seleccione ---"] + opciones_s)
-    
-    if sel_s != "--- Seleccione ---":
-        s_act = mapa_s[sel_s]
-        
-        # 4. Selección de Proveedor (Endose)
-        res_prov = controller.client.table('proveedor').select('nombre_comercial, id_proveedor').execute()
-        prov_map = {p['nombre_comercial']: p['id_proveedor'] for p in (res_prov.data or [])}
-        
-        col1, col2 = st.columns(2)
-        prov_sel = col1.selectbox("🏢 Proveedor / Agencia de Destino:", ["--- Seleccione ---"] + list(prov_map.keys()))
-        obs_endose = col2.text_area("🗒️ Notas para el Proveedor:", value=f"Favor de brindar excelente atención a {s_act['Cliente']}.")
-        
-        if prov_sel != "--- Seleccione ---":
-            st.markdown("---")
-            st.markdown("### 📋 Vista Previa del Endose")
-            
-            pax_count = s_act.get('Pax', 1)
-            
-            data_v = {
-                "nombre_proveedor": prov_sel,
-                "fecha_servicio": f_endose.strftime("%d/%m/%Y"),
-                "nombre_servicio": s_act['Servicio'],
-                "hora_encuentro": s_act['Hora'],
-                "nombre_pasajero": s_act['Cliente'],
-                "cantidad_pax": pax_count,
-                "id_venta": s_act['ID Venta'],
-                "observaciones": obs_endose
-            }
-            
-            with st.container(border=True):
-                st.write(f"**Para:** {prov_sel}")
-                st.write(f"**Servicio:** {s_act['Servicio']} ({f_endose})")
-                st.write(f"**Pasajero:** {s_act['Cliente']} (PAX: {pax_count})")
-            
-            # 5. Acciones
-            ca1, ca2 = st.columns(2)
-            
-            from controllers.pdf_controller import PDFController
-            pdf_ctrl = PDFController()
-            
-            # Botón PDF
-            pdf_v = pdf_ctrl.generar_voucher_endose_pdf(data_v)
-            if pdf_v:
-                ca1.download_button(
-                    label="📄 Descargar Vale de Endose (PDF)",
-                    data=pdf_v,
-                    file_name=f"vale_endose_{s_act['Cliente'].replace(' ','_')}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True
-                )
-            
-            # Botón WhatsApp
-            msg_wa = f"✅ *ORDEN DE ENDOSE - VIAJES CUSCO PERÚ*\n\n"
-            msg_wa += f"👤 *Pax:* {s_act['Cliente']}\n"
-            msg_wa += f"📅 *Fecha:* {f_endose.strftime('%d/%m/%Y')}\n"
-            msg_wa += f"📍 *Servicio:* {s_act['Servicio']}\n"
-            msg_wa += f"👥 *Cantidad:* {pax_count} Pax\n"
-            msg_wa += f"💬 *Notas:* {obs_endose}"
-            
-            import urllib.parse
-            url_wa = f"https://wa.me/?text={urllib.parse.quote(msg_wa)}"
-            ca2.link_button("📲 Enviar por WhatsApp", url_wa, use_container_width=True)
             
     elif nombre_modulo == "Dashboard Diario":
         dashboard_tablero_diario(controller)
@@ -904,3 +818,61 @@ def dashboard_simulador_costos(controller):
                         st.warning(f"Servicios guardados pero no se pudo actualizar estado: {e}")
                 else:
                     st.warning("No se encontraron líneas para actualizar.")
+
+    # --- 📤 ACCIONES DE ENDOSO (UNIFICADO) ---
+    if not edited_df.empty:
+        st.markdown("---")
+        st.subheader("📄 Acciones Rápidas de Endoso")
+        st.info("💡 Selecciona un servicio de la tabla de arriba (haciendo clic en cualquier celda de la fila) para generar su vale de endose.")
+        
+        # Como data_editor no devuelve la selección de fila fácilmente en esta versión,
+        # usamos un selector simple basado en los datos editados para acciones rápidas.
+        servicios_con_proveedor = edited_df[edited_df['PROVEEDOR'] != "--- Sin Asignar ---"]
+        
+        if not servicios_con_proveedor.empty:
+            opciones_e = [f"{r['SERVICIO']} | {r['PROVEEDOR']} ({r['FECHA']})" for _, r in servicios_con_proveedor.iterrows()]
+            sel_e_idx = st.selectbox("🎯 Generar Vale para:", opciones_e)
+            
+            if sel_e_idx:
+                idx_original = opciones_e.index(sel_e_idx)
+                row_e = servicios_con_proveedor.iloc[idx_original]
+                
+                ce1, ce2 = st.columns(2)
+                
+                # Datos para el PDF
+                pax_nombre = pax_sel.split('|')[0].strip() if pax_sel != "--- Seleccione ---" else "Cliente"
+                data_endose = {
+                    "nombre_proveedor": row_e['PROVEEDOR'].split(" (")[0],
+                    "fecha_servicio": row_e['FECHA'].strftime("%d/%m/%Y"),
+                    "nombre_servicio": row_e['SERVICIO'],
+                    "hora_encuentro": "Por confirmar",
+                    "nombre_pasajero": pax_nombre,
+                    "cantidad_pax": 1, # Podría extraerse de la venta si se desea
+                    "id_venta": row_e.get('id_venta', 'N/A'),
+                    "observaciones": row_e.get('📝 Info Pago', '')
+                }
+                
+                from controllers.pdf_controller import PDFController
+                pdf_ctrl = PDFController()
+                
+                with ce1:
+                    pdf_v = pdf_ctrl.generar_voucher_endose_pdf(data_endose)
+                    if pdf_v:
+                        st.download_button(
+                            label="📄 Descargar Vale de Endose (PDF)",
+                            data=pdf_v,
+                            file_name=f"vale_{pax_nombre.replace(' ','_')}.pdf",
+                            mime="application/pdf",
+                            use_container_width=True
+                        )
+                
+                with ce2:
+                    msg_wa = f"✅ *ORDEN DE ENDOSE - VIAJES CUSCO PERÚ*\n\n"
+                    msg_wa += f"👤 *Pax:* {pax_nombre}\n"
+                    msg_wa += f"📅 *Fecha:* {data_endose['fecha_servicio']}\n"
+                    msg_wa += f"📍 *Servicio:* {data_endose['nombre_servicio']}\n"
+                    msg_wa += f"💬 *Info:* {data_endose['observaciones']}"
+                    url_wa = f"https://wa.me/?text={urllib.parse.quote(msg_wa)}"
+                    st.link_button("📲 Enviar por WhatsApp", url_wa, use_container_width=True)
+        else:
+            st.write("No hay servicios asignados a proveedores externos en esta liquidación.")
