@@ -766,53 +766,52 @@ def dashboard_simulador_costos(controller):
     
     for idx, d_key in enumerate(unique_dates):
         day_num = idx + 1
-        st.markdown(f"#### 🗓️ DÍA {day_num:02d} - {d_key.strftime('%d/%m/%Y')}")
-        
         df_day = df_full[df_full['FECHA'] == d_key].copy()
+        main_service = df_day['SERVICIO'].iloc[0] if not df_day.empty else "Servicio"
         
-        # Calcular Total Dinámicamente para la vista
-        df_day['TOTAL'] = df_day['CANT'] * df_day['UNIT']
-        
-        # Editor para el día
-        ed_day = st.data_editor(
-            df_day,
-            column_config=col_config,
-            num_rows="dynamic",
-            use_container_width=True,
-            hide_index=True,
-            key=f"editor_day_{d_key}_{day_num}"
-        )
-        
-        # Recalcular totales tras edición
-        ed_day['TOTAL'] = ed_day['CANT'] * ed_day['UNIT']
-        day_costo = ed_day['TOTAL'].sum()
-        day_venta = ed_day['VENTA'].sum()
-        day_utilidad = day_venta - day_costo
-        
-        total_general += day_costo
-        
-        # Resumen al estilo Excel (Image 2)
-        summary_html = f"""
-        <div style='background-color: #1e2130; padding: 10px; border-radius: 5px; margin-top: -15px; border-left: 5px solid #4CAF50;'>
-            <table style='width:100%; color: white;'>
-                <tr>
-                    <td style='text-align: right;'><b>TOTAL GASTO DIA {day_num}:</b></td>
-                    <td style='width: 120px; text-align: right;'><b>$ {day_costo:,.2f}</b></td>
-                </tr>
-                <tr style='color: #2196F3;'>
-                    <td style='text-align: right;'><b>TOTAL VENTA (REVENUE):</b></td>
-                    <td style='text-align: right;'><b>$ {day_venta:,.2f}</b></td>
-                </tr>
-                <tr style='background-color: #2e334a;'>
-                    <td style='text-align: right;'><b>UTILIDAD NETA:</b></td>
-                    <td style='text-align: right; color: {"#4CAF50" if day_utilidad >= 0 else "#FF5252"};'><b>$ {day_utilidad:,.2f}</b></td>
-                </tr>
-            </table>
-        </div>
-        <br>
-        """
-        st.markdown(summary_html, unsafe_allow_html=True)
-        edited_results.append(ed_day)
+        with st.expander(f"✨ {d_key.strftime('%d/%m/%Y')} - DÍA {day_num}: {main_service.upper()}", expanded=True):
+            # Calcular Total Dinámicamente para la vista
+            df_day['TOTAL'] = df_day['CANT'] * df_day['UNIT']
+            
+            # Editor para el día
+            ed_day = st.data_editor(
+                df_day,
+                column_config=col_config,
+                num_rows="dynamic",
+                use_container_width=True,
+                hide_index=True,
+                key=f"editor_day_{d_key}_{day_num}"
+            )
+            
+            # Recalcular totales tras edición
+            ed_day['TOTAL'] = ed_day['CANT'] * ed_day['UNIT']
+            day_costo = ed_day['TOTAL'].sum()
+            day_venta = ed_day['VENTA'].sum()
+            day_utilidad = day_venta - day_costo
+            
+            total_general += day_costo
+            
+            # Resumen al estilo Excel (Image 2)
+            summary_html = f"""
+            <div style='background-color: #1e2130; padding: 10px; border-radius: 5px; margin-top: 5px; border-left: 5px solid #4CAF50;'>
+                <table style='width:100%; color: white; border-collapse: collapse;'>
+                    <tr>
+                        <td style='text-align: right; padding: 2px;'><b>TOTAL GASTO DIA {day_num}:</b></td>
+                        <td style='width: 120px; text-align: right; padding: 2px;'><b>$ {day_costo:,.2f}</b></td>
+                    </tr>
+                    <tr style='color: #2196F3;'>
+                        <td style='text-align: right; padding: 2px;'><b>TOTAL VENTA (REVENUE):</b></td>
+                        <td style='text-align: right; padding: 2px;'><b>$ {day_venta:,.2f}</b></td>
+                    </tr>
+                    <tr style='background-color: #2e334a;'>
+                        <td style='text-align: right; padding: 5px;'><b>UTILIDAD NETA:</b></td>
+                        <td style='text-align: right; padding: 5px; color: {"#4CAF50" if day_utilidad >= 0 else "#FF5252"};'><b>$ {day_utilidad:,.2f}</b></td>
+                    </tr>
+                </table>
+            </div>
+            """
+            st.markdown(summary_html, unsafe_allow_html=True)
+            edited_results.append(ed_day)
 
     # Consolidar resultados en session_state para persistencia temporal
     df_final = pd.concat(edited_results)
