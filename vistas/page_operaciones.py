@@ -796,48 +796,48 @@ def dashboard_simulador_costos(controller):
             
             # Resumen High-End (Glassmorphism & Icons)
             summary_html = f"""
-            <div style='
-                background: linear-gradient(135deg, rgba(30, 33, 48, 0.95), rgba(46, 51, 74, 0.85));
-                backdrop-filter: blur(12px);
-                padding: 22px;
-                border-radius: 18px;
-                margin-top: 15px;
-                border: 1px solid rgba(255, 255, 255, 0.15);
-                box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
-                font-family: "Segoe UI", Roboto, Helvetica, sans-serif;
-            '>
-                <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;'>
-                    <div style='background: rgba(255, 255, 255, 0.05); padding: 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);'>
-                        <div style='color: #bbb; font-size: 0.8em; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;'>📉 Costo Operativo</div>
-                        <div style='color: #ffffff; font-weight: 700; font-size: 1.3em; margin-top: 5px;'>$ {day_costo:,.2f}</div>
-                    </div>
-                    <div style='background: rgba(255, 193, 7, 0.1); padding: 14px; border-radius: 12px; border: 1px solid rgba(255, 193, 7, 0.15);'>
-                        <div style='color: #FFC107; font-size: 0.8em; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;'>🏷️ Precio Vendedor</div>
-                        <div style='color: #ffffff; font-weight: 700; font-size: 1.3em; margin-top: 5px;'>$ {day_venta_vendedor:,.2f}</div>
-                    </div>
-                </div>
+<div style='
+    background: linear-gradient(135deg, rgba(30, 33, 48, 0.95), rgba(46, 51, 74, 0.85));
+    backdrop-filter: blur(12px);
+    padding: 22px;
+    border-radius: 18px;
+    margin-top: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+    font-family: "Segoe UI", Roboto, Helvetica, sans-serif;
+'>
+    <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;'>
+        <div style='background: rgba(255, 255, 255, 0.05); padding: 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);'>
+            <div style='color: #bbb; font-size: 0.8em; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;'>📉 Costo Operativo</div>
+            <div style='color: #ffffff; font-weight: 700; font-size: 1.3em; margin-top: 5px;'>$ {day_costo:,.2f}</div>
+        </div>
+        <div style='background: rgba(255, 193, 7, 0.1); padding: 14px; border-radius: 12px; border: 1px solid rgba(255, 193, 7, 0.15);'>
+            <div style='color: #FFC107; font-size: 0.8em; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;'>🏷️ Precio Vendedor</div>
+            <div style='color: #ffffff; font-weight: 700; font-size: 1.3em; margin-top: 5px;'>$ {day_venta_vendedor:,.2f}</div>
+        </div>
+    </div>
 
-                <div style='
-                    padding: 18px;
-                    border-radius: 14px;
-                    background: {"linear-gradient(90deg, rgba(76, 175, 80, 0.1), rgba(76, 175, 80, 0.2))" if day_utilidad >= 0 else "linear-gradient(90deg, rgba(244, 67, 54, 0.1), rgba(244, 67, 54, 0.2))"};
-                    border: 1px solid {"rgba(76, 175, 80, 0.4)" if day_utilidad >= 0 else "rgba(244, 67, 54, 0.4)"};
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                '>
-                    <div>
-                        <div style='color: #ffffff; font-size: 0.85em; font-weight: 500; text-transform: uppercase; opacity: 0.8;'>Utilidad (vs Venta Original)</div>
-                        <div style='color: {"#81C784" if day_utilidad >= 0 else "#E57373"}; font-size: 1.8em; font-weight: 800; margin-top: 2px;'>
-                            $ {day_utilidad:,.2f}
-                        </div>
-                    </div>
-                    <div style='font-size: 2.5em; opacity: 0.3;'>
-                        {"🚀" if day_utilidad >= 0 else "⚠️"}
-                    </div>
-                </div>
+    <div style='
+        padding: 18px;
+        border-radius: 14px;
+        background: {"linear-gradient(90deg, rgba(76, 175, 80, 0.1), rgba(76, 175, 80, 0.2))" if day_utilidad >= 0 else "linear-gradient(90deg, rgba(244, 67, 54, 0.1), rgba(244, 67, 54, 0.2))"};
+        border: 1px solid {"rgba(76, 175, 80, 0.4)" if day_utilidad >= 0 else "rgba(244, 67, 54, 0.4)"};
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    '>
+        <div>
+            <div style='color: #ffffff; font-size: 0.85em; font-weight: 500; text-transform: uppercase; opacity: 0.8;'>Utilidad (vs Venta Original)</div>
+            <div style='color: {"#81C784" if day_utilidad >= 0 else "#E57373"}; font-size: 1.8em; font-weight: 800; margin-top: 2px;'>
+                $ {day_utilidad:,.2f}
             </div>
-            """
+        </div>
+        <div style='font-size: 2.5em; opacity: 0.3;'>
+            {"🚀" if day_utilidad >= 0 else "⚠️"}
+        </div>
+    </div>
+</div>
+"""
             st.markdown(summary_html, unsafe_allow_html=True)
             edited_results.append(ed_day)
 
