@@ -738,12 +738,12 @@ def dashboard_simulador_costos(controller):
     
     # Obtener lista de proveedores
     lista_proveedores = ["--- Sin Asignar ---"]
-    res_prov_data = []
     try:
         res_prov = controller.client.table('proveedor').select('id_proveedor, nombre_comercial, servicios_ofrecidos').execute()
-        res_prov_data = res_prov.data or []
-        lista_proveedores += [f"{p['nombre_comercial']} ({p.get('servicios_ofrecidos', ['N/A'])[0]})" for p in res_prov_data]
-    except: pass
+        prov_items = res_prov.data or []
+        lista_proveedores += [f"{p['nombre_comercial']} ({p.get('servicios_ofrecidos', ['N/A'])[0]})" for p in prov_items]
+    except Exception as e:
+        print(f"Error cargando proveedores: {e}")
 
     col_config = {
         "FECHA": st.column_config.DateColumn("FECHA", disabled=True),
