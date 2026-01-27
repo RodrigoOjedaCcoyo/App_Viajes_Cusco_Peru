@@ -690,7 +690,7 @@ def dashboard_simulador_costos(controller):
                             "SERVICIO": d.get('observaciones') or "Servicio sin nombre",
                             "PROVEEDOR": next((f"{p['nombre_comercial']} ({p.get('servicios_ofrecidos', ['N/A'])[0]})" for p in res_prov_data if p['id_proveedor'] == d.get('id_proveedor')), "--- Sin Asignar ---"),
                             "MONEDA": d.get('moneda_costo', 'USD'),
-                            "CANT": d.get('cantidad_items') or 1,
+                            "CANT": d.get('cantidad_items') or v.get('num_pasajeros', 1),
                             "UNIT": float(d.get('costo_unitario') or 0.0),
                             "TOTAL": float(d.get('costo_applied') or 0.0),
                             "VENTA": float(d.get('precio_applied') or 0.0),
@@ -781,7 +781,7 @@ def dashboard_simulador_costos(controller):
                 use_container_width=True,
                 hide_index=True,
                 key=f"editor_day_{d_key}_{day_num}",
-                column_order=["SERVICIO", "MONEDA", "CANT", "UNIT", "TOTAL"]
+                column_order=["SERVICIO", "MONEDA", "UNIT", "TOTAL"]
             )
             
             # Recalcular totales tras edición
@@ -792,23 +792,22 @@ def dashboard_simulador_costos(controller):
             
             total_general += day_costo
             
-            # Resumen al estilo Excel (Image 2)
+            # Resumen Premium (Card-based)
             summary_html = f"""
-            <div style='background-color: #1e2130; padding: 10px; border-radius: 5px; margin-top: 5px; border-left: 5px solid #4CAF50;'>
-                <table style='width:100%; color: white; border-collapse: collapse;'>
-                    <tr>
-                        <td style='text-align: right; padding: 2px;'><b>TOTAL GASTO DIA {day_num}:</b></td>
-                        <td style='width: 120px; text-align: right; padding: 2px;'><b>$ {day_costo:,.2f}</b></td>
-                    </tr>
-                    <tr style='color: #2196F3;'>
-                        <td style='text-align: right; padding: 2px;'><b>TOTAL VENTA (REVENUE):</b></td>
-                        <td style='text-align: right; padding: 2px;'><b>$ {day_venta:,.2f}</b></td>
-                    </tr>
-                    <tr style='background-color: #2e334a;'>
-                        <td style='text-align: right; padding: 5px;'><b>UTILIDAD NETA:</b></td>
-                        <td style='text-align: right; padding: 5px; color: {"#4CAF50" if day_utilidad >= 0 else "#FF5252"};'><b>$ {day_utilidad:,.2f}</b></td>
-                    </tr>
-                </table>
+            <div style='background-color: #1e2130; padding: 15px; border-radius: 12px; margin-top: 10px; border: 1px solid #3e445e; box-shadow: 0 4px 6px rgba(0,0,0,0.3);'>
+                <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;'>
+                    <span style='color: #a0a0a0; font-size: 0.95em;'>Gasto Total DÍA {day_num}:</span>
+                    <span style='color: #ffffff; font-weight: bold; font-size: 1.1em;'>$ {day_costo:,.2f}</span>
+                </div>
+                <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;'>
+                    <span style='color: #2196F3; font-size: 0.95em;'>Ingreso Estimado (Venta):</span>
+                    <span style='color: #2196F3; font-weight: bold; font-size: 1.1em;'>$ {day_venta:,.2f}</span>
+                </div>
+                <div style='height: 1px; background-color: #3e445e; margin: 10px 0;'></div>
+                <div style='display: flex; justify-content: space-between; align-items: center;'>
+                    <span style='color: #ffffff; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;'>Utilidad Neta:</span>
+                    <span style='color: {"#4CAF50" if day_utilidad >= 0 else "#FF5252"}; font-weight: 800; font-size: 1.4em;'>$ {day_utilidad:,.2f}</span>
+                </div>
             </div>
             """
             st.markdown(summary_html, unsafe_allow_html=True)
