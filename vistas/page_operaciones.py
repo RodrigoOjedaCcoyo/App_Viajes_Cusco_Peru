@@ -693,6 +693,7 @@ def dashboard_simulador_costos(controller):
                             "CANT": d.get('cantidad_items') or 1,
                             "UNIT": float(d.get('costo_unitario') or 0.0),
                             "TOTAL": float(d.get('costo_applied') or 0.0),
+                            "VENTA": float(d.get('precio_applied') or 0.0),
                             "💵 Pago Op.": d.get('estado_pago_operativo', 'NO_REQUERIDO'),
                             "📝 Info Pago": d.get('datos_pago_operativo', ''),
                             "📎 Voucher": d.get('url_voucher_operativo', ''),
@@ -718,11 +719,12 @@ def dashboard_simulador_costos(controller):
     df_full = pd.DataFrame(st.session_state['simulador_data'])
     
     # Asegurar columnas nuevas y existentes
-    required_cols = ["CANT", "UNIT", "💵 Pago Op.", "📝 Info Pago", "📎 Voucher", "PROVEEDOR", "SERVICIO", "MONEDA", "TOTAL"]
+    required_cols = ["CANT", "UNIT", "VENTA", "💵 Pago Op.", "📝 Info Pago", "📎 Voucher", "PROVEEDOR", "SERVICIO", "MONEDA", "TOTAL"]
     for col in required_cols:
         if col not in df_full.columns:
             if col == "CANT": df_full[col] = 1
             elif col == "UNIT": df_full[col] = df_full["TOTAL"] if "TOTAL" in df_full.columns else 0.0
+            elif col == "VENTA": df_full[col] = 0.0
             elif col == "TOTAL": df_full[col] = 0.0
             elif col == "MONEDA": df_full[col] = "USD"
             elif col == "PROVEEDOR": df_full[col] = "--- Sin Asignar ---"
@@ -742,16 +744,17 @@ def dashboard_simulador_costos(controller):
     except: pass
 
     col_config = {
-        "FECHA": st.column_config.DateColumn("Fecha", disabled=True),
-        "SERVICIO": st.column_config.TextColumn("Descripción", required=True, width="large"),
-        "PROVEEDOR": st.column_config.SelectboxColumn("Endoso", options=lista_proveedores, width="medium"),
-        "CANT": st.column_config.NumberColumn("Cant", min_value=1, default=1, width="small"),
-        "UNIT": st.column_config.NumberColumn("P. Unit", format="%.2f", min_value=0.0, width="small"),
-        "TOTAL": st.column_config.NumberColumn("Total", format="%.2f", disabled=True, width="small"),
-        "MONEDA": st.column_config.SelectboxColumn("Moneda", options=["USD", "PEN"], default="USD", width="small"),
-        "💵 Pago Op.": st.column_config.SelectboxColumn("Estado Pago", options=["NO_REQUERIDO", "PENDIENTE", "PAGADO"], default="NO_REQUERIDO"),
-        "📝 Info Pago": st.column_config.TextColumn("Info Pago", width="medium"),
-        "📎 Voucher": st.column_config.LinkColumn("Voucher", width="small")
+        "FECHA": st.column_config.DateColumn("FECHA", disabled=True),
+        "SERVICIO": st.column_config.TextColumn("SERVICIO", required=True, width="large"),
+        "PROVEEDOR": st.column_config.SelectboxColumn("TRANSPORTE/PROVEEDOR", options=lista_proveedores, width="medium"),
+        "UNIT": st.column_config.NumberColumn("COSTO UNITARIO", format="$ %.2f", min_value=0.0, width="small"),
+        "CANT": st.column_config.NumberColumn("CANT", min_value=1, default=1, width="small"),
+        "TOTAL": st.column_config.NumberColumn("COSTO TOTAL", format="$ %.2f", disabled=True, width="small"),
+        "VENTA": st.column_config.NumberColumn("PRECIO VENTA", format="$ %.2f", min_value=0.0, width="small"),
+        "MONEDA": st.column_config.SelectboxColumn("MONEDA", options=["USD", "PEN"], default="USD", width="small"),
+        "💵 Pago Op.": st.column_config.SelectboxColumn("PAGO OP.", options=["NO_REQUERIDO", "PENDIENTE", "PAGADO"], default="NO_REQUERIDO"),
+        "📝 Info Pago": st.column_config.TextColumn("INFO PAGO", width="medium"),
+        "📎 Voucher": st.column_config.LinkColumn("VOUCHER", width="small")
     }
 
     # AGRUPAR POR DÍAS
@@ -782,10 +785,33 @@ def dashboard_simulador_costos(controller):
         
         # Recalcular totales tras edición
         ed_day['TOTAL'] = ed_day['CANT'] * ed_day['UNIT']
-        day_total = ed_day['TOTAL'].sum()
-        total_general += day_total
+        day_costo = ed_day['TOTAL'].sum()
+        day_venta = ed_day['VENTA'].sum()
+        day_utilidad = day_venta - day_costo
         
-        st.markdown(f"<p style='text-align:right; color:#4CAF50;'><b>Subtotal Día {day_num}: $ {day_total:,.2f}</b></p>", unsafe_allow_html=True)
+        total_general += day_costo
+        
+        # Resumen al estilo Excel (Image 2)
+        summary_html = f"""
+        <div style='background-color: #1e2130; padding: 10px; border-radius: 5px; margin-top: -15px; border-left: 5px solid #4CAF50;'>
+            <table style='width:100%; color: white;'>
+                <tr>
+                    <td style='text-align: right;'><b>TOTAL GASTO DIA {day_num}:</b></td>
+                    <td style='width: 120px; text-align: right;'><b>$ {day_costo:,.2f}</b></td>
+                </tr>
+                <tr style='color: #2196F3;'>
+                    <td style='text-align: right;'><b>TOTAL VENTA (REVENUE):</b></td>
+                    <td style='text-align: right;'><b>$ {day_venta:,.2f}</b></td>
+                </tr>
+                <tr style='background-color: #2e334a;'>
+                    <td style='text-align: right;'><b>UTILIDAD NETA:</b></td>
+                    <td style='text-align: right; color: {"#4CAF50" if day_utilidad >= 0 else "#FF5252"};'><b>$ {day_utilidad:,.2f}</b></td>
+                </tr>
+            </table>
+        </div>
+        <br>
+        """
+        st.markdown(summary_html, unsafe_allow_html=True)
         edited_results.append(ed_day)
 
     # Consolidar resultados en session_state para persistencia temporal
@@ -797,58 +823,60 @@ def dashboard_simulador_costos(controller):
     sc1.metric("COSTO TOTAL LIQUIDACIÓN", f"$ {total_general:,.2f}", delta_color="inverse")
     sc2.metric("Total Días", len(unique_dates))
 
-    c_actions_1, c_actions_2 = st.columns(2)
+    # Botones de Acción
+    c_save, c_finalize = st.columns(2)
     
-    with c_actions_1:
-        if st.button("💾 Guardar Todo como Borrador", use_container_width=True, type="secondary"):
-            updated_count = 0
-            for index, row in df_final.iterrows():
-                # Lógica de resolución de proveedor (mismo de antes)
-                id_prov = None
-                p_txt = row.get('PROVEEDOR')
-                if p_txt and p_txt != "--- Sin Asignar ---":
-                    n_p = p_txt.split(" (")[0]
-                    match = next((p for p in res_prov_data if p['nombre_comercial'] == n_p), None)
-                    if match: id_prov = match['id_proveedor']
+    # Función de guardado compartida
+    def salvar_datos_actuales():
+        updated_count = 0
+        for index, row in df_final.iterrows():
+            id_prov = None
+            p_txt = row.get('PROVEEDOR')
+            if p_txt and p_txt != "--- Sin Asignar ---":
+                n_p = p_txt.split(" (")[0]
+                match = next((p for p in res_prov_data if p['nombre_comercial'] == n_p), None)
+                if match: id_prov = match['id_proveedor']
 
-                data_save = {
-                    'costo_applied': row['CANT'] * row['UNIT'],
-                    'costo_unitario': row['UNIT'],
-                    'cantidad_items': row['CANT'],
-                    'moneda_costo': row.get('MONEDA', 'USD'),
-                    'id_proveedor': id_prov,
-                    'observaciones': row.get('SERVICIO'),
-                    'estado_pago_operativo': row.get('💵 Pago Op.', 'NO_REQUERIDO'),
-                    'datos_pago_operativo': row.get('📝 Info Pago', ''),
-                    'es_endoso': True if id_prov else False
-                }
+            data_save = {
+                'costo_applied': row['CANT'] * row['UNIT'],
+                'costo_unitario': row['UNIT'],
+                'cantidad_items': row['CANT'],
+                'precio_applied': row.get('VENTA', 0.0),
+                'moneda_costo': row.get('MONEDA', 'USD'),
+                'id_proveedor': id_prov,
+                'observaciones': row.get('SERVICIO'),
+                'estado_pago_operativo': row.get('💵 Pago Op.', 'NO_REQUERIDO'),
+                'datos_pago_operativo': row.get('📝 Info Pago', ''),
+                'es_endoso': True if id_prov else False
+            }
 
-                if pd.notna(row.get('id_venta')) and pd.notna(row.get('n_linea')):
-                    controller.client.table('venta_tour').update(data_save).match({'id_venta': row['id_venta'], 'n_linea': row['n_linea']}).execute()
+            if pd.notna(row.get('id_venta')) and pd.notna(row.get('n_linea')):
+                controller.client.table('venta_tour').update(data_save).match({'id_venta': row['id_venta'], 'n_linea': row['n_linea']}).execute()
+                updated_count += 1
+            else:
+                if ventas_age and pax_sel != "--- Seleccione ---":
+                    v_act = mapa_ventas_pax.get(pax_sel)
+                    last_line = controller.client.table('venta_tour').select('n_linea').eq('id_venta', v_act['id_venta']).order('n_linea', desc=True).limit(1).execute()
+                    next_n = (last_line.data[0]['n_linea'] + 1) if last_line.data else 1
+                    data_save.update({
+                        'id_venta': v_act['id_venta'],
+                        'n_linea': next_n + index,
+                        'fecha_servicio': row['FECHA'].isoformat() if isinstance(row['FECHA'], date) else row['FECHA'],
+                        'cantidad_pasajeros': v_act.get('num_pasajeros', 1)
+                    })
+                    controller.client.table('venta_tour').insert(data_save).execute()
                     updated_count += 1
-                else:
-                    # Nueva línea (solo si hay contexto)
-                    if ventas_age and pax_sel != "--- Seleccione ---":
-                        v_act = mapa_ventas_pax.get(pax_sel)
-                        last_line = controller.client.table('venta_tour').select('n_linea').eq('id_venta', v_act['id_venta']).order('n_linea', desc=True).limit(1).execute()
-                        next_n = (last_line.data[0]['n_linea'] + 1) if last_line.data else 1
-                        data_save.update({
-                            'id_venta': v_act['id_venta'],
-                            'n_linea': next_n + index,
-                            'fecha_servicio': row['FECHA'].isoformat() if isinstance(row['FECHA'], date) else row['FECHA'],
-                            'cantidad_pasajeros': v_act.get('num_pasajeros', 1)
-                        })
-                        controller.client.table('venta_tour').insert(data_save).execute()
-                        updated_count += 1
-            
-            if updated_count > 0:
-                st.success(f"💾 Liquidación guardada: {updated_count} filas actualizadas.")
-                st.rerun()
+        return updated_count
 
-    with c_actions_2:
+    with c_save:
+        if st.button("💾 Guardar Borrador", use_container_width=True, type="secondary"):
+            count = salvar_datos_actuales()
+            st.success(f"💾 {count} cambios guardados.")
+            st.rerun()
+
+    with c_finalize:
         if st.button("✅ Finalizar y Cerrar Liquidación", use_container_width=True, type="primary"):
-            # Lógica similar a Guardar pero actualiza estado_liquidacion
-            # (Repetimos por simplicidad en este MVP, idealmente refactorizar a función interna)
+            salvar_datos_actuales()
             v_act = mapa_ventas_pax.get(pax_sel) if pax_sel != "--- Seleccione ---" else None
             if v_act:
                 controller.client.table('venta').update({'estado_liquidacion': 'FINALIZADO'}).eq('id_venta', v_act['id_venta']).execute()
