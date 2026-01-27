@@ -426,3 +426,33 @@ class OperacionesController:
         except Exception as e:
             print(f"Error en get_data_for_analytics: {e}")
             return pd.DataFrame()
+
+    def obtener_ventas_pendientes(self):
+        """Obtiene ventas confirmadas que requieren atención operativa (Rooming List, etc)."""
+        try:
+            # Traer ventas confirmadas
+            res = self.client.table('venta').select('*').in_('estado_venta', ['CONFIRMADO', 'EN_VIAJE']).order('fecha_venta', desc=True).execute()
+            ventas = res.data or []
+            
+            # Enriquecer con nombre de cliente (como en get_all_ventas)
+            ids_clientes = list(set([v['id_cliente'] for v in ventas]))
+            clientes_map = {}
+            if ids_clientes:
+                res_c = self.client.table('cliente').select('id_cliente, nombre').in_('id_cliente', ids_clientes).execute()
+                for c in res_c.data:
+                    clientes_map[c['id_cliente']] = c['nombre']
+            
+            resultado = []
+            for v in ventas:
+                nombre_cliente = clientes_map.get(v['id_cliente'], "Cliente Desconocido")
+                resultado.append({
+                    'id_venta': v['id_venta'],
+                    'nombre_cliente': nombre_cliente,
+                    'tour_nombre': v.get('tour_nombre'),
+                    'fecha_venta': v['fecha_venta'],
+                    'num_pasajeros': v.get('num_pasajeros', 1)
+                })
+            return resultado
+        except Exception as e:
+            print(f"Error obtener_ventas_pendientes: {e}")
+            return []
