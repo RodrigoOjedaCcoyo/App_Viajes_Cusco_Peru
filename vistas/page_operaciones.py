@@ -738,6 +738,7 @@ def dashboard_simulador_costos(controller):
     
     # Obtener lista de proveedores
     lista_proveedores = ["--- Sin Asignar ---"]
+    prov_items = []
     try:
         res_prov = controller.client.table('proveedor').select('id_proveedor, nombre_comercial, servicios_ofrecidos').execute()
         prov_items = res_prov.data or []
@@ -837,7 +838,7 @@ def dashboard_simulador_costos(controller):
             p_txt = row.get('PROVEEDOR')
             if p_txt and p_txt != "--- Sin Asignar ---":
                 n_p = p_txt.split(" (")[0]
-                match = next((p for p in res_prov_data if p['nombre_comercial'] == n_p), None)
+                match = next((p for p in prov_items if p['nombre_comercial'] == n_p), None)
                 if match: id_prov = match['id_proveedor']
 
             data_save = {
