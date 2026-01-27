@@ -222,6 +222,8 @@ CREATE TABLE venta_tour (
     datos_pago_operativo TEXT, -- Cuentas, Yape, Plin del proveedor o guía
     url_voucher_operativo TEXT, -- Comprobante subido por contabilidad
     es_endoso BOOLEAN DEFAULT FALSE, -- Flag para identificar si fue tercerizado
+    costo_unitario DECIMAL(10,2) DEFAULT 0,
+    cantidad_items INTEGER DEFAULT 1,
     PRIMARY KEY (id_venta, n_linea)
 );
 

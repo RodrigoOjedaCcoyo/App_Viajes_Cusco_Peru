@@ -233,19 +233,6 @@ def generar_mensaje_whatsapp(data):
     url = f"https://wa.me/?text={urllib.parse.quote(texto)}"
     return url
 
-# Módulo para el registro de requerimientos de operaciones.
-def dashboard_requerimientos(controller):
-    st.subheader("📝 Registro de Requerimientos de Operaciones", divider='orange')
-    with st.form("form_requerimientos"):
-        st.info("Formulario simplificado para operaciones.")
-        col1, col2 = st.columns(2)
-        nombre = col1.text_input("Referencia / Nombre Pax")
-        fecha = col1.date_input("Fecha Servicio", value=date.today())
-        req = col2.text_area("Descripción del Requerimiento")
-        prioridad = col2.selectbox("Prioridad", ["Baja", "Media", "Alta"])
-        
-        if st.form_submit_button("Guardar Requerimiento"):
-            st.success("Requerimiento guardado correctamente.")
 
 def registro_ventas_proveedores(supabase_client):
     from controllers.itinerario_digital_controller import ItinerarioDigitalController
@@ -528,19 +515,15 @@ def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
     st.markdown("---")
     
     if nombre_modulo == "Gestión de Registros":
-        tab1, tab2, tab3 = st.tabs([
-            "📝 Registro de Requerimientos", 
+        tab1, tab2 = st.tabs([
             "📊 Estructurador de Gastos (Master Sheet)",
             "🤝 Ventas B2B (Entrada)"
         ])
         
         with tab1:
-            dashboard_requerimientos(controller)
-            
-        with tab2:
             dashboard_simulador_costos(controller)
             
-        with tab3:
+        with tab2:
             registro_ventas_proveedores(supabase_client)
             
             
@@ -621,6 +604,8 @@ def dashboard_simulador_costos(controller):
                             "SERVICIO": d.get('observaciones') or "Servicio sin nombre",
                             "PROVEEDOR": next((f"{p['nombre_comercial']} ({p.get('servicios_ofrecidos', ['N/A'])[0]})" for p in res_prov_data if p['id_proveedor'] == d.get('id_proveedor')), "--- Sin Asignar ---"),
                             "MONEDA": d.get('moneda_costo', 'USD'),
+                            "CANT": d.get('cantidad_items') or 1,
+                            "UNIT": float(d.get('costo_unitario') or 0.0),
                             "TOTAL": float(d.get('costo_applied') or 0.0),
                             "💵 Pago Op.": d.get('estado_pago_operativo', 'NO_REQUERIDO'),
                             "📝 Info Pago": d.get('datos_pago_operativo', ''),
@@ -639,240 +624,182 @@ def dashboard_simulador_costos(controller):
                     st.warning("Venta cargada, pero no tiene itinerario expandido.")
                     st.rerun()
 
-    # Data Editor (El "Excel")
-    df = pd.DataFrame(st.session_state['simulador_data'])
-    
-    if not df.empty:
-        # Asegurar columnas necesarias if empty
-        for col in ["💵 Pago Op.", "📝 Info Pago", "📎 Voucher"]:
-            if col not in df.columns: df[col] = ""
-    else:
-        df = pd.DataFrame(columns=["FECHA", "SERVICIO", "PROVEEDOR", "MONEDA", "TOTAL", "💵 Pago Op.", "📝 Info Pago", "📎 Voucher"])
+    # Data Editor (El "Excel" por Días)
+    if 'simulador_data' not in st.session_state or not st.session_state['simulador_data']:
+        st.info("Seleccione una venta para estructurar su liquidación.")
+        return
 
-    # Ordenar por FECHA para que al agregar filas con misma fecha queden agrupadas
-    if not df.empty and 'FECHA' in df.columns:
-        df.sort_values(by='FECHA', inplace=True)
+    df_full = pd.DataFrame(st.session_state['simulador_data'])
     
-    # Obtener lista de proveedores para el selectbox
+    # Asegurar columnas nuevas
+    for col in ["CANT", "UNIT", "💵 Pago Op.", "📝 Info Pago", "📎 Voucher"]:
+        if col not in df_full.columns:
+            if col == "CANT": df_full[col] = 1
+            elif col == "UNIT": df_full[col] = df_full["TOTAL"] if "TOTAL" in df_full.columns else 0.0
+            else: df_full[col] = ""
+
+    # Ordenar por FECHA
+    df_full['FECHA'] = pd.to_datetime(df_full['FECHA']).dt.date
+    df_full.sort_values(by=['FECHA'], inplace=True)
+    
+    # Obtener lista de proveedores
     lista_proveedores = ["--- Sin Asignar ---"]
-    res_prov_data = [] # Variable segura para usar después
+    res_prov_data = []
     try:
         res_prov = controller.client.table('proveedor').select('id_proveedor, nombre_comercial, servicios_ofrecidos').execute()
         res_prov_data = res_prov.data or []
         lista_proveedores += [f"{p['nombre_comercial']} ({p.get('servicios_ofrecidos', ['N/A'])[0]})" for p in res_prov_data]
-    except Exception as e:
-        # Si no existe la tabla aún, no romper la app, solo avisar en consola o mostrar vacío
-        print(f"Advertencia: No se pudo cargar proveedores (posiblemente falta tabla): {e}")
+    except: pass
 
-    column_config = {
-        "FECHA": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY", required=True),
-        "SERVICIO": st.column_config.TextColumn("Descripción del Servicio", required=True, width="large"),
-        "PROVEEDOR": st.column_config.SelectboxColumn("Endosar a (Proveedor)", options=lista_proveedores, width="medium"),
-        "MONEDA": st.column_config.SelectboxColumn("💵 Moneda", options=["USD", "PEN"], default="USD", width="small"),
-        "TOTAL": st.column_config.NumberColumn("Costo Total", format="%.2f", min_value=0.0, width="medium"),
-        "💵 Pago Op.": st.column_config.SelectboxColumn("💵 Pago Op.", options=["NO_REQUERIDO", "PENDIENTE", "PAGADO"], default="NO_REQUERIDO"),
-        "📝 Info Pago": st.column_config.TextColumn("📝 Info Pago (Cuentas/Yape)", width="medium"),
-        "📎 Voucher": st.column_config.LinkColumn("📎 Voucher", width="small")
+    col_config = {
+        "FECHA": st.column_config.DateColumn("Fecha", disabled=True),
+        "SERVICIO": st.column_config.TextColumn("Descripción", required=True, width="large"),
+        "PROVEEDOR": st.column_config.SelectboxColumn("Endoso", options=lista_proveedores, width="medium"),
+        "CANT": st.column_config.NumberColumn("Cant", min_value=1, default=1, width="small"),
+        "UNIT": st.column_config.NumberColumn("P. Unit", format="%.2f", min_value=0.0, width="small"),
+        "TOTAL": st.column_config.NumberColumn("Total", format="%.2f", disabled=True, width="small"),
+        "MONEDA": st.column_config.SelectboxColumn("Moneda", options=["USD", "PEN"], default="USD", width="small"),
+        "💵 Pago Op.": st.column_config.SelectboxColumn("Estado Pago", options=["NO_REQUERIDO", "PENDIENTE", "PAGADO"], default="NO_REQUERIDO"),
+        "📝 Info Pago": st.column_config.TextColumn("Info Pago", width="medium"),
+        "📎 Voucher": st.column_config.LinkColumn("Voucher", width="small")
     }
 
-    st.info("💡 **Tip:** Para insertar un servicio en un día específico: **1.** Agrégalo al final. **2.** Pon la fecha deseada. **3.** Al Guardar, se ordenará solito.")
+    # AGRUPAR POR DÍAS
+    unique_dates = sorted(df_full['FECHA'].unique())
+    edited_results = []
+    total_general = 0.0
 
-    edited_df = st.data_editor(
-        df,
-        column_config=column_config,
-        num_rows="dynamic",
-        use_container_width=True,
-        hide_index=True,
-        key="editor_simulador_ops"
-    )
+    st.write("### 📅 Desglose de Gastos por Jornada")
+    
+    for idx, d_key in enumerate(unique_dates):
+        day_num = idx + 1
+        st.markdown(f"#### 🗓️ DÍA {day_num:02d} - {d_key.strftime('%d/%m/%Y')}")
+        
+        df_day = df_full[df_full['FECHA'] == d_key].copy()
+        
+        # Calcular Total Dinámicamente para la vista
+        df_day['TOTAL'] = df_day['CANT'] * df_day['UNIT']
+        
+        # Editor para el día
+        ed_day = st.data_editor(
+            df_day,
+            column_config=col_config,
+            num_rows="dynamic",
+            use_container_width=True,
+            hide_index=True,
+            key=f"editor_day_{d_key}_{day_num}"
+        )
+        
+        # Recalcular totales tras edición
+        ed_day['TOTAL'] = ed_day['CANT'] * ed_day['UNIT']
+        day_total = ed_day['TOTAL'].sum()
+        total_general += day_total
+        
+        st.markdown(f"<p style='text-align:right; color:#4CAF50;'><b>Subtotal Día {day_num}: $ {day_total:,.2f}</b></p>", unsafe_allow_html=True)
+        edited_results.append(ed_day)
 
-    st.session_state['simulador_data'] = edited_df.to_dict('records')
-
-    # Totales Finales
-    total_costos = edited_df['TOTAL'].sum()
+    # Consolidar resultados en session_state para persistencia temporal
+    df_final = pd.concat(edited_results)
+    st.session_state['simulador_data'] = df_final.to_dict('records')
 
     st.divider()
     sc1, sc2 = st.columns(2)
-    sc1.metric("COSTO TOTAL GRUPO", f"$ {total_costos:,.2f}", delta_color="inverse")
-    sc2.metric("Total Servicios", len(edited_df))
+    sc1.metric("COSTO TOTAL LIQUIDACIÓN", f"$ {total_general:,.2f}", delta_color="inverse")
+    sc2.metric("Total Días", len(unique_dates))
 
     c_actions_1, c_actions_2 = st.columns(2)
     
     with c_actions_1:
-        if st.button("💾 Guardar Borrador", use_container_width=True, type="secondary"):
-                # Guardar como borrador (en progreso)
-                updated_count = 0
-                for index, row in edited_df.iterrows():
-                    proveedor_txt = row.get('PROVEEDOR')
-                    id_prov = None
-                    if proveedor_txt and proveedor_txt != "--- Sin Asignar ---":
-                        nombre_prov = proveedor_txt.split(" (")[0]
-                        prov_match = next((p for p in res_prov_data if p['nombre'] == nombre_prov), None)
-                        if prov_match: id_prov = prov_match['id_proveedor']
+        if st.button("💾 Guardar Todo como Borrador", use_container_width=True, type="secondary"):
+            updated_count = 0
+            for index, row in df_final.iterrows():
+                # Lógica de resolución de proveedor (mismo de antes)
+                id_prov = None
+                p_txt = row.get('PROVEEDOR')
+                if p_txt and p_txt != "--- Sin Asignar ---":
+                    n_p = p_txt.split(" (")[0]
+                    match = next((p for p in res_prov_data if p['nombre_comercial'] == n_p), None)
+                    if match: id_prov = match['id_proveedor']
 
-                    if pd.notna(row.get('id_venta')) and pd.notna(row.get('n_linea')):
-                        # Actualizar existente
-                        try:
-                            controller.client.table('venta_tour').update({
-                                'costo_applied': row['TOTAL'],
-                                'moneda_costo': row.get('MONEDA', 'USD'),
-                                'id_proveedor': id_prov,
-                                'observaciones': row.get('SERVICIO'),
-                                'estado_pago_operativo': row.get('💵 Pago Op.', 'NO_REQUERIDO'),
-                                'datos_pago_operativo': row.get('📝 Info Pago', ''),
-                                'es_endoso': True if id_prov else False # Simplificado: si hay proveedor hay endoso/servicio
-                            }).match({'id_venta': row['id_venta'], 'n_linea': row['n_linea']}).execute()
-                            updated_count += 1
-                        except Exception as e:
-                            st.error(f"Error actualizando línea {index}: {e}")
-                    else:
-                        # Insertar NUEVA línea manual si tenemos contexto de venta cargada
-                        if ventas_age and pax_sel != "--- Seleccione ---":
-                            v_actual = mapa_ventas_pax.get(pax_sel)
-                            try:
-                                # Calcular siguiente n_linea
-                                last_line = controller.client.table('venta_tour').select('n_linea').eq('id_venta', v_actual['id_venta']).order('n_linea', desc=True).limit(1).execute()
-                                next_n = (last_line.data[0]['n_linea'] + 1) if last_line.data else 1
-                                
-                                controller.client.table('venta_tour').insert({
-                                    'id_venta': v_actual['id_venta'],
-                                    'n_linea': next_n + index,
-                                    'fecha_servicio': row['FECHA'].isoformat(),
-                                    'observaciones': row.get('SERVICIO', 'Gasto Adicional'),
-                                    'costo_applied': row['TOTAL'],
-                                    'moneda_costo': row.get('MONEDA', 'USD'),
-                                    'id_proveedor': id_prov,
-                                    'cantidad_pasajeros': v_actual.get('num_pasajeros', 1),
-                                    'estado_pago_operativo': row.get('💵 Pago Op.', 'NO_REQUERIDO'),
-                                    'datos_pago_operativo': row.get('📝 Info Pago', ''),
-                                    'es_endoso': True if id_prov else False
-                                }).execute()
-                                updated_count += 1
-                            except Exception as e:
-                                st.error(f"Error creando línea nueva {index}: {e}")
-                
-                if updated_count > 0:
-                    st.success(f"💾 Borrador guardado: {updated_count} servicios actualizados. Puedes seguir editando.")
-                else:
-                    st.warning("No se encontraron líneas para actualizar.")
-        
-        with c_actions_2:
-            if st.button("✅ Guardar y Finalizar", use_container_width=True, type="primary"):
-                # Guardar y marcar como finalizado
-                updated_count = 0
-                for index, row in edited_df.iterrows():
-                    proveedor_txt = row.get('PROVEEDOR')
-                    id_prov = None
-                    if proveedor_txt and proveedor_txt != "--- Sin Asignar ---":
-                        nombre_prov = proveedor_txt.split(" (")[0]
-                        prov_match = next((p for p in res_prov_data if p['nombre'] == nombre_prov), None)
-                        if prov_match: id_prov = prov_match['id_proveedor']
+                data_save = {
+                    'costo_applied': row['CANT'] * row['UNIT'],
+                    'costo_unitario': row['UNIT'],
+                    'cantidad_items': row['CANT'],
+                    'moneda_costo': row.get('MONEDA', 'USD'),
+                    'id_proveedor': id_prov,
+                    'observaciones': row.get('SERVICIO'),
+                    'estado_pago_operativo': row.get('💵 Pago Op.', 'NO_REQUERIDO'),
+                    'datos_pago_operativo': row.get('📝 Info Pago', ''),
+                    'es_endoso': True if id_prov else False
+                }
 
-                    if pd.notna(row.get('id_venta')) and pd.notna(row.get('n_linea')):
-                        try:
-                            controller.client.table('venta_tour').update({
-                                'costo_applied': row['TOTAL'],
-                                'moneda_costo': row.get('MONEDA', 'USD'),
-                                'id_proveedor': id_prov,
-                                'observaciones': row.get('SERVICIO'),
-                                'estado_pago_operativo': row.get('💵 Pago Op.', 'NO_REQUERIDO'),
-                                'datos_pago_operativo': row.get('📝 Info Pago', ''),
-                                'es_endoso': True if id_prov else False
-                            }).match({'id_venta': row['id_venta'], 'n_linea': row['n_linea']}).execute()
-                            updated_count += 1
-                        except Exception as e:
-                            st.error(f"Error actualizando línea {index}: {e}")
-                    else:
-                        if ventas_age and pax_sel != "--- Seleccione ---":
-                            v_actual = mapa_ventas_pax.get(pax_sel)
-                            try:
-                                last_line = controller.client.table('venta_tour').select('n_linea').eq('id_venta', v_actual['id_venta']).order('n_linea', desc=True).limit(1).execute()
-                                next_n = (last_line.data[0]['n_linea'] + 1) if last_line.data else 1
-                                
-                                controller.client.table('venta_tour').insert({
-                                    'id_venta': v_actual['id_venta'],
-                                    'n_linea': next_n + index,
-                                    'fecha_servicio': row['FECHA'].isoformat(),
-                                    'observaciones': row.get('SERVICIO', 'Gasto Adicional'),
-                                    'costo_applied': row['TOTAL'],
-                                    'moneda_costo': row.get('MONEDA', 'USD'),
-                                    'id_proveedor': id_prov,
-                                    'cantidad_pasajeros': v_actual.get('num_pasajeros', 1),
-                                    'estado_pago_operativo': row.get('💵 Pago Op.', 'NO_REQUERIDO'),
-                                    'datos_pago_operativo': row.get('📝 Info Pago', ''),
-                                    'es_endoso': True if id_prov else False
-                                }).execute()
-                                updated_count += 1
-                            except Exception as e:
-                                st.error(f"Error creando línea nueva {index}: {e}")
-                
-                # Marcar la venta como liquidada
-                if updated_count > 0 and ventas_age and pax_sel != "--- Seleccione ---":
-                    v_actual = mapa_ventas_pax.get(pax_sel)
-                    try:
-                        controller.client.table('venta').update({
-                            'estado_liquidacion': 'FINALIZADO'
-                        }).eq('id_venta', v_actual['id_venta']).execute()
-                        st.success(f"✅ Liquidación FINALIZADA: {updated_count} servicios guardados. Estado actualizado a COMPLETADO.")
-                    except Exception as e:
-                        st.warning(f"Servicios guardados pero no se pudo actualizar estado: {e}")
+                if pd.notna(row.get('id_venta')) and pd.notna(row.get('n_linea')):
+                    controller.client.table('venta_tour').update(data_save).match({'id_venta': row['id_venta'], 'n_linea': row['n_linea']}).execute()
+                    updated_count += 1
                 else:
-                    st.warning("No se encontraron líneas para actualizar.")
+                    # Nueva línea (solo si hay contexto)
+                    if ventas_age and pax_sel != "--- Seleccione ---":
+                        v_act = mapa_ventas_pax.get(pax_sel)
+                        last_line = controller.client.table('venta_tour').select('n_linea').eq('id_venta', v_act['id_venta']).order('n_linea', desc=True).limit(1).execute()
+                        next_n = (last_line.data[0]['n_linea'] + 1) if last_line.data else 1
+                        data_save.update({
+                            'id_venta': v_act['id_venta'],
+                            'n_linea': next_n + index,
+                            'fecha_servicio': row['FECHA'].isoformat() if isinstance(row['FECHA'], date) else row['FECHA'],
+                            'cantidad_pasajeros': v_act.get('num_pasajeros', 1)
+                        })
+                        controller.client.table('venta_tour').insert(data_save).execute()
+                        updated_count += 1
+            
+            if updated_count > 0:
+                st.success(f"💾 Liquidación guardada: {updated_count} filas actualizadas.")
+                st.rerun()
+
+    with c_actions_2:
+        if st.button("✅ Finalizar y Cerrar Liquidación", use_container_width=True, type="primary"):
+            # Lógica similar a Guardar pero actualiza estado_liquidacion
+            # (Repetimos por simplicidad en este MVP, idealmente refactorizar a función interna)
+            v_act = mapa_ventas_pax.get(pax_sel) if pax_sel != "--- Seleccione ---" else None
+            if v_act:
+                controller.client.table('venta').update({'estado_liquidacion': 'FINALIZADO'}).eq('id_venta', v_act['id_venta']).execute()
+                st.success("✅ ¡Liquidación FINALIZADA!")
+                st.balloons()
+                st.rerun()
 
     # --- 📤 ACCIONES DE ENDOSO (UNIFICADO) ---
-    if not edited_df.empty:
+    if not df_final.empty:
         st.markdown("---")
-        st.subheader("📄 Acciones Rápidas de Endoso")
-        st.info("💡 Selecciona un servicio de la tabla de arriba (haciendo clic en cualquier celda de la fila) para generar su vale de endose.")
-        
-        # Como data_editor no devuelve la selección de fila fácilmente en esta versión,
-        # usamos un selector simple basado en los datos editados para acciones rápidas.
-        servicios_con_proveedor = edited_df[edited_df['PROVEEDOR'] != "--- Sin Asignar ---"]
+        st.subheader("📄 Acciones de Endoso")
+        servicios_con_proveedor = df_final[df_final['PROVEEDOR'] != "--- Sin Asignar ---"]
         
         if not servicios_con_proveedor.empty:
             opciones_e = [f"{r['SERVICIO']} | {r['PROVEEDOR']} ({r['FECHA']})" for _, r in servicios_con_proveedor.iterrows()]
-            sel_e_idx = st.selectbox("🎯 Generar Vale para:", opciones_e)
+            sel_e_idx = st.selectbox("🎯 Seleccionar servicio para trámites:", opciones_e)
             
             if sel_e_idx:
-                idx_original = opciones_e.index(sel_e_idx)
-                row_e = servicios_con_proveedor.iloc[idx_original]
-                
+                idx_orig = opciones_e.index(sel_e_idx)
+                row_e = servicios_con_proveedor.iloc[idx_orig]
                 ce1, ce2 = st.columns(2)
+                pax_n = pax_sel.split('|')[0].strip() if pax_sel != "--- Seleccione ---" else "Cliente"
                 
-                # Datos para el PDF
-                pax_nombre = pax_sel.split('|')[0].strip() if pax_sel != "--- Seleccione ---" else "Cliente"
-                data_endose = {
+                data_e = {
                     "nombre_proveedor": row_e['PROVEEDOR'].split(" (")[0],
-                    "fecha_servicio": row_e['FECHA'].strftime("%d/%m/%Y"),
+                    "fecha_servicio": row_e['FECHA'].strftime("%d/%m/%Y") if isinstance(row_e['FECHA'], date) else row_e['FECHA'],
                     "nombre_servicio": row_e['SERVICIO'],
                     "hora_encuentro": "Por confirmar",
-                    "nombre_pasajero": pax_nombre,
-                    "cantidad_pax": 1, # Podría extraerse de la venta si se desea
+                    "nombre_pasajero": pax_n,
+                    "cantidad_pax": row_e['CANT'],
                     "id_venta": row_e.get('id_venta', 'N/A'),
                     "observaciones": row_e.get('📝 Info Pago', '')
                 }
                 
                 from controllers.pdf_controller import PDFController
                 pdf_ctrl = PDFController()
-                
                 with ce1:
-                    pdf_v = pdf_ctrl.generar_voucher_endose_pdf(data_endose)
-                    if pdf_v:
-                        st.download_button(
-                            label="📄 Descargar Vale de Endose (PDF)",
-                            data=pdf_v,
-                            file_name=f"vale_{pax_nombre.replace(' ','_')}.pdf",
-                            mime="application/pdf",
-                            use_container_width=True
-                        )
-                
+                    pdf = pdf_ctrl.generar_voucher_endose_pdf(data_e)
+                    if pdf: st.download_button("📄 Bajar Vale PDF", data=pdf, file_name=f"vale_{pax_n}.pdf", use_container_width=True)
                 with ce2:
-                    msg_wa = f"✅ *ORDEN DE ENDOSE - VIAJES CUSCO PERÚ*\n\n"
-                    msg_wa += f"👤 *Pax:* {pax_nombre}\n"
-                    msg_wa += f"📅 *Fecha:* {data_endose['fecha_servicio']}\n"
-                    msg_wa += f"📍 *Servicio:* {data_endose['nombre_servicio']}\n"
-                    msg_wa += f"💬 *Info:* {data_endose['observaciones']}"
-                    url_wa = f"https://wa.me/?text={urllib.parse.quote(msg_wa)}"
-                    st.link_button("📲 Enviar por WhatsApp", url_wa, use_container_width=True)
+                    msg = f"✅ *ORDEN DE ENDOSE*\n\n👤 *Pax:* {pax_n}\n📅 *Fecha:* {data_e['fecha_servicio']}\n📍 *Servicio:* {data_e['nombre_servicio']}\n👥 *Cant:* {data_e['cantidad_pax']}"
+                    st.link_button("📲 Enviar WhatsApp", f"https://wa.me/?text={urllib.parse.quote(msg)}", use_container_width=True)
         else:
-            st.write("No hay servicios asignados a proveedores externos en esta liquidación.")
+            st.info("No hay servicios asignados a proveedores en esta lista.")
