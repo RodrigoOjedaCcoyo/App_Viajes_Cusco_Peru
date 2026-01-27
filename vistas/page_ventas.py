@@ -201,9 +201,39 @@ def registro_ventas_directa():
             
             st.session_state[f"val_nom_{id_itinerario_dig}"] = nombre_pax_cloud
             st.session_state[f"val_tour_{id_itinerario_dig}"] = tour_nombre_cloud
-            st.success(f"✅ Itinerario cargado: **{tour_nombre_cloud}**")
+            if id_itinerario_dig and id_itinerario_dig != st.session_state.get('last_loaded_itin'):
+                precios = render.get('precios', {})
+                # Priorizar precio Extranjero, luego Nacional, luego CAN
+                p_sug = precios.get('extranjero') or precios.get('nacional') or precios.get('can') or 0.0
+                st.session_state['m_total'] = float(p_sug)
+                st.session_state['last_loaded_itin'] = id_itinerario_dig
+                st.success(f"✅ Itinerario cargado: **{tour_nombre_cloud}** (Precio sugerido: ${p_sug})")
+            else:
+                st.success(f"✅ Itinerario cargado: **{tour_nombre_cloud}**")
 
 
+    # --- 💳 BALANCE Y MONEDA (TIEMPO REAL / INTERACTIVO) ---
+    st.markdown("### 💰 Detalles de Pago")
+    c_m0, c_m1, c_m2 = st.columns([1, 2, 2])
+    moneda_sel = c_m0.selectbox("Moneda", ["USD", "PEN"], help="Seleccione la moneda del pago")
+    # Usamos session_state para persistencia y auto-llenado
+    if 'm_total' not in st.session_state: st.session_state['m_total'] = 0.0
+    if 'm_pago' not in st.session_state: st.session_state['m_pago'] = 0.0
+    
+    monto_total = c_m1.number_input(f"Monto Total ({moneda_sel})", min_value=0.0, format="%.2f", key="m_total")
+    monto_pagado = c_m2.number_input(f"Monto Pagado ({moneda_sel})", min_value=0.0, format="%.2f", key="m_pago")
+    
+    saldo = monto_total - monto_pagado
+    
+    # Visualización Dinámica del Saldo
+    if monto_total > 0:
+        col_saldo = st.container()
+        if saldo <= 0.01: # Margen de error flotante
+             col_saldo.success(f"✅ **VENTA SALDADA** (Saldo: $0.00)")
+        else:
+             porcentaje = (monto_pagado / monto_total) * 100
+             col_saldo.warning(f"⏳ **SALDO PENDIENTE: ${saldo:,.2f}** (A cuenta: {porcentaje:.0f}%)")
+             
     # --- 📝 FORMULARIO DE REGISTRO ---
     with st.form("form_registro_venta"):
         col1, col2 = st.columns(2)
@@ -212,18 +242,7 @@ def registro_ventas_directa():
         def_nombre = st.session_state.get(f"val_nom_{id_itinerario_dig}", lead_data.get('nombre_pasajero', '') if lead_data else '')
         def_tour = st.session_state.get(f"val_tour_{id_itinerario_dig}", "")
 
-        # --- 💳 BALANCE Y MONEDA (TIEMPO REAL) ---
-        c_m0, c_m1, c_m2 = st.columns([1, 2, 2])
-        moneda_sel = c_m0.selectbox("Moneda", ["USD", "PEN"], help="Seleccione la moneda del pago")
-        monto_total = c_m1.number_input(f"Monto Total ({moneda_sel})", min_value=0.0, format="%.2f", key="m_total")
-        monto_pagado = c_m2.number_input(f"Monto Pagado ({moneda_sel})", min_value=0.0, format="%.2f", key="m_pago")
-        
-        saldo = monto_total - monto_pagado
-        if monto_total > 0:
-            if saldo <= 0:
-                st.success(f"✅ **VENTA SALDADA** (Saldo: $0.00)")
-            else:
-                st.warning(f"⏳ **SALDO PENDIENTE: ${saldo:.2f}** (Estado: ADELANTO)")
+        # --- SE HA MOVIDO EL BALANCE FUERA DEL FORMULARIO PARA INTERACTIVIDAD --
         
         st.divider()
 

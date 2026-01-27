@@ -67,8 +67,8 @@ CREATE TABLE lead (
     red_social VARCHAR(50),
     estado_lead VARCHAR(50) DEFAULT 'NUEVO', -- Requerido por Funnel
     estrategia_venta VARCHAR(50) DEFAULT 'General' CHECK (estrategia_venta IN ('Opciones', 'Matriz', 'General')),
-    comentario TEXT, -- Requerido por app
-    whatsapp BOOLEAN DEFAULT TRUE, -- Requerido por app
+    comentario TEXT, -- Requerido por app --> Por que es necesario esto no entiendo
+    whatsapp BOOLEAN DEFAULT TRUE, -- Requerido por app --> Por que es necesario esto no entiendo
     fecha_seguimiento DATE,
     fecha_creacion TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     pais_origen VARCHAR(100) DEFAULT 'Nacional' CHECK (pais_origen IN ('Nacional', 'Extranjero', 'Mixto')),
@@ -187,6 +187,7 @@ CREATE TABLE venta (
     utilidad_bruta DECIMAL(10,2) DEFAULT 0,
     moneda VARCHAR(10) DEFAULT 'USD' CHECK (moneda IN ('USD', 'PEN', 'EUR')),
     tipo_cambio DECIMAL(8,4),
+    estado_pago VARCHAR(50) DEFAULT 'PENDIENTE' CHECK (estado_pago IN ('PENDIENTE', 'PARCIAL', 'COMPLETADO', 'REEMBOLSADO')),
     estado_venta VARCHAR(50) DEFAULT 'CONFIRMADO' CHECK (estado_venta IN ('CONFIRMADO', 'EN_VIAJE', 'COMPLETADO', 'CANCELADO')),
     canal_venta VARCHAR(50) DEFAULT 'DIRECTO',
     estado_liquidacion VARCHAR(30) DEFAULT 'PENDIENTE' CHECK (estado_liquidacion IN ('PENDIENTE', 'PARCIAL', 'FINALIZADO')),
@@ -242,6 +243,30 @@ CREATE TABLE pago (
     url_comprobante TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS paquete_personalizado (
+    id_paquete_personalizado UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nombre TEXT NOT NULL,
+    itinerario JSONB NOT NULL,
+    creado_por TEXT, -- Email del vendedor
+    es_publico BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS plantilla_servicio (
+    id SERIAL PRIMARY KEY,
+    titulo TEXT NOT NULL,
+    descripcion TEXT,
+    costo_nac DECIMAL(10,2) DEFAULT 0,
+    costo_ext DECIMAL(10,2) DEFAULT 0,
+    categoria VARCHAR(50) DEFAULT 'OTROS',
+    icono VARCHAR(50) DEFAULT 'default_in'
+);
+
+INSERT INTO plantilla_servicio (titulo, descripcion, icono) VALUES 
+('Día Libre / Descanso', 'Día destinado al descanso o actividades personales. No incluye tours.', 'calendario'),
+('Traslado Aeropuerto ➡️ Hotel', 'Recepción en el aeropuerto y traslado en unidad privada hacia el hotel.', 'transporte'),
+('Traslado Hotel ➡️ Aeropuerto', 'Traslado desde el hotel hacia el aeropuerto para su vuelo de salida.', 'transporte');
 
 CREATE TABLE pasajero (
     id_pasajero SERIAL PRIMARY KEY,
