@@ -208,10 +208,11 @@ def registro_ventas_directa():
         def_nombre = st.session_state.get(f"val_nom_{id_itinerario_dig}", lead_data.get('nombre_pasajero', '') if lead_data else '')
         def_tour = st.session_state.get(f"val_tour_{id_itinerario_dig}", "")
 
-        # --- 💳 BALANCE Y ESTADO (TIEMPO REAL) ---
-        c_m1, c_m2 = st.columns(2)
-        monto_total = c_m1.number_input("Monto Total ($)", min_value=0.0, format="%.2f", key="m_total")
-        monto_pagado = c_m2.number_input("Monto Pagado / Adelanto ($)", min_value=0.0, format="%.2f", key="m_pago")
+        # --- 💳 BALANCE Y MONEDA (TIEMPO REAL) ---
+        c_m0, c_m1, c_m2 = st.columns([1, 2, 2])
+        moneda_sel = c_m0.selectbox("Moneda", ["USD", "PEN"], help="Seleccione la moneda del pago")
+        monto_total = c_m1.number_input(f"Monto Total ({moneda_sel})", min_value=0.0, format="%.2f", key="m_total")
+        monto_pagado = c_m2.number_input(f"Monto Pagado ({moneda_sel})", min_value=0.0, format="%.2f", key="m_pago")
         
         saldo = monto_total - monto_pagado
         if monto_total > 0:
@@ -231,6 +232,9 @@ def registro_ventas_directa():
         nombre = col1.text_input("Nombre Cliente", value=def_nombre, disabled=is_disabled)
         tel = col1.text_input("Celular", value=lead_data.get('numero_celular', '') if lead_data else '')
         
+        vendedor_actual = st.session_state.get('user_id', 'Admin')
+        col1.markdown(f"👤 **Vendedor:** {vendedor_actual}")
+        
         # Tour: Auto-completado desde itinerario, pero editable manualmente
         id_paquete = col2.text_input(
             "Nombre del Tour / Paquete", 
@@ -239,11 +243,6 @@ def registro_ventas_directa():
             disabled=is_disabled,
             help="Se auto-completa si seleccionas un itinerario"
         )
-
-        # 2. Selector de Vendedor Dinámico
-        vendedores_map = lead_controller.obtener_mapeo_vendedores()
-        nombres_vendedores = list(vendedores_map.values())
-        vendedor_manual = col1.selectbox("Asignado a (Vendedor)", nombres_vendedores)
         tipo_comp = col2.radio("Tipo Comprobante", ["Boleta", "Factura", "Recibo Simple"], horizontal=True)
         
         # --- 📅 CÁLCULO AUTOMÁTICO DE FECHAS ---
@@ -269,14 +268,14 @@ def registro_ventas_directa():
                 except Exception as e:
                     print(f"Error calculando fecha fin: {e}")
             
-            st.info(f"🗓️ **Fechas vinculadas:** Del {itin_fecha_inicio.strftime('%d/%m/%Y')} al {itin_fecha_fin.strftime('%d/%m/%Y')}")
+            st.success(f"🗓️ **Viaje Programado:** Del {itin_fecha_inicio.strftime('%d/%m/%Y')} al {itin_fecha_fin.strftime('%d/%m/%Y')}")
             fecha_inicio_sel = itin_fecha_inicio
             fecha_fin_sel = itin_fecha_fin
         else:
-            st.markdown("📅 **Programación de Viaje (Manual)**")
-            col_f1, col_f2 = st.columns(2)
-            fecha_inicio_sel = col_f1.date_input("Fecha Inicio", value=date.today())
-            fecha_fin_sel = col_f2.date_input("Fecha Fin", value=date.today())
+            with st.expander("📅 Programación de Viaje (Manual)", expanded=True):
+                col_f1, col_f2 = st.columns(2)
+                fecha_inicio_sel = col_f1.date_input("Fecha Inicio", value=date.today())
+                fecha_fin_sel = col_f2.date_input("Fecha Fin", value=date.today())
         
         st.markdown("---")
         st.write("📂 **Adjuntar Documentos**")
@@ -300,7 +299,7 @@ def registro_ventas_directa():
                     nombre_cliente=nombre,
                     telefono=tel,
                     origen="Directo",
-                    vendedor=vendedor_manual, 
+                    vendedor=vendedor_actual, 
                     tour=id_paquete,
                     tipo_hotel="Estándar", 
                     fecha_inicio=fecha_inicio_sel.isoformat(),
@@ -308,6 +307,7 @@ def registro_ventas_directa():
                     monto_total=monto_total,
                     monto_depositado=monto_pagado,
                     tipo_comprobante=tipo_comp,
+                    moneda=moneda_sel,
                     id_itinerario_digital=id_itinerario_dig if id_itinerario_dig else None,
                     file_itinerario=file_itinerario,
                     file_pago=file_boleta

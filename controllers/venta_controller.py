@@ -48,6 +48,7 @@ class VentaController:
                                 monto_total: float,
                                 monto_depositado: float,
                                 tipo_comprobante: str,
+                                moneda: str = "USD",
                                 id_itinerario_digital: Optional[str] = None, # Vínculo opcional
                                 file_itinerario: Optional[Any] = None,
                                 file_pago: Optional[Any] = None
@@ -81,6 +82,7 @@ class VentaController:
             "saldo": saldo,
             "estado_pago": estado_pago,
             "tipo_comprobante": tipo_comprobante,
+            "moneda": moneda,
             "url_itinerario": url_itinerario,
             "url_comprobante_pago": url_pago,
             "id_itinerario_digital": id_itinerario_digital
