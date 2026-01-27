@@ -477,7 +477,9 @@ def reporte_operativo(controller):
     # 2. Detalle de Operaciones (Auditoría)
     st.write("### 📋 Detalle de Servicios Programados")
     # Traer todos los servicios (no solo los de un día)
-    todos_servicios = controller.get_servicios_rango_fechas(date.today() - timedelta(days=30), date.today() + timedelta(days=60))
+    range_start = date.today() - timedelta(days=30)
+    range_end = date.today() + timedelta(days=60)
+    todos_servicios = controller.get_servicios_rango_fechas(range_start, range_end)
     
     if not todos_servicios:
         st.info("No hay servicios registrados en el rango de tiempo seleccionado.")
@@ -499,19 +501,24 @@ def reporte_operativo(controller):
         st.markdown("---")
         st.subheader("🏁 Verificador de Inclusiones (Itinerario)")
         
-        ventas_con_itin = df_all[df_all['ID Itinerario'].notna()]
-        if not ventas_con_itin.empty:
-            sel_id_v = st.selectbox("Auditar Itinerario de la Venta:", 
-                                  ventas_con_itin['ID Venta'].unique(),
-                                  format_func=lambda x: f"{ventas_con_itin[ventas_con_itin['ID Venta']==x]['Cliente'].values[0]} ({x})",
-                                  key="sb_ops_audit_it")
-            
-            # Reutilizar lógica de detalle visual
-            id_it_audit = df_all[df_all['ID Venta'] == sel_id_v]['ID Itinerario'].dropna().unique()[0]
-            
-            res = controller.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_it_audit).single().execute()
-            if res.data:
-                render_itinerary_simple_download(res.data['datos_render'])
+        if 'ID Itinerario' in df_all.columns:
+            ventas_con_itin = df_all[df_all['ID Itinerario'].notna()]
+            if not ventas_con_itin.empty:
+                sel_id_v = st.selectbox("Auditar Itinerario de la Venta:", 
+                                      ventas_con_itin['ID Venta'].unique(),
+                                      format_func=lambda x: f"{ventas_con_itin[ventas_con_itin['ID Venta']==x]['Cliente'].values[0]} ({x})",
+                                      key="sb_ops_audit_it")
+                
+                # Reutilizar lógica de detalle visual
+                df_match = df_all[df_all['ID Venta'] == sel_id_v]
+                id_itin_audit = df_match['ID Itinerario'].dropna().unique()[0] if not df_match['ID Itinerario'].dropna().empty else None
+                
+                if id_itin_audit:
+                    res = controller.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin_audit).single().execute()
+                    if res.data:
+                        render_itinerary_simple_download(res.data['datos_render'])
+            else:
+                st.info("Seleccione un servicio con itinerario para ver su detalle.")
 
 def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
     """Punto de entrada de Streamlit para el área de Operaciones."""
@@ -719,6 +726,8 @@ def dashboard_simulador_costos(controller):
                     st.rerun()
 
     # Data Editor (El "Excel")
+    df = pd.DataFrame(st.session_state['simulador_data'])
+    
     if not df.empty:
         # Asegurar columnas necesarias if empty
         for col in ["💵 Pago Op.", "📝 Info Pago", "📎 Voucher"]:
