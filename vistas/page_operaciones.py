@@ -524,7 +524,92 @@ def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
             dashboard_simulador_costos(controller)
             
         with tab2:
+            dashboard_pasajeros(controller)
+
+        with tab3:
             registro_ventas_proveedores(supabase_client)
+            
+def dashboard_pasajeros(controller):
+    """Gestión de Rooming List / Pasajeros."""
+    st.subheader("📋 Lista de Pasajeros (Rooming List)", divider='blue')
+    
+    # 1. Selector de Venta (Idealmente global, pero por si acaso replicamos lógica local si no hay state)
+    ventas_data = controller.obtener_ventas_pendientes() 
+    if not ventas_data:
+        st.info("No hay ventas activas para gestionar pasajeros.")
+        return
+
+    opciones_v = [f"{v['nombre_cliente']} | {v.get('tour_nombre','')} ({v['id_venta']})" for v in ventas_data]
+    mapa_v = {opciones_v[i]: v for i, v in enumerate(ventas_data)}
+    
+    col_sel, _ = st.columns([2,1])
+    sel_v = col_sel.selectbox("Seleccionar Grupo / Venta:", ["--- Seleccione ---"] + opciones_v, key="sel_pax_rooming")
+    
+    if sel_v != "--- Seleccione ---":
+        v_act = mapa_v[sel_v]
+        id_venta = v_act['id_venta']
+        
+        # 2. Cargar Pasajeros
+        res_pax = controller.client.table('pasajero').select('*').eq('id_venta', id_venta).execute()
+        df_pax = pd.DataFrame(res_pax.data)
+        
+        if df_pax.empty:
+            # Crear filas vacías según num_pasajeros de la venta
+            num_pax = v_act.get('num_pasajeros', 1)
+            df_pax = pd.DataFrame([{
+                'nombre_completo': '', 
+                'numero_documento': '', 
+                'nacionalidad': '', 
+                'fecha_nacimiento': None,
+                'cuidados_especiales': '',
+                'es_principal': False
+            } for _ in range(num_pax)])
+        
+        # 3. Editor
+        col_cfg = {
+            "nombre_completo": st.column_config.TextColumn("Nombre Completo", required=True, width="medium"),
+            "numero_documento": st.column_config.TextColumn("Nro. Documento", width="small"),
+            "nacionalidad": st.column_config.TextColumn("Nacionalidad", width="small"),
+            "fecha_nacimiento": st.column_config.DateColumn("Fecha Nac.", width="small"),
+            "cuidados_especiales": st.column_config.TextColumn("Dietas / Obs.", width="medium"),
+            "es_principal": st.column_config.CheckboxColumn("Líder", default=False)
+        }
+        
+        st.info("💡 Edita los datos de los pasajeros directamente en la tabla.")
+        
+        edited_pax = st.data_editor(
+            df_pax,
+            column_config=col_cfg,
+            num_rows="dynamic",
+            use_container_width=True,
+            key=f"editor_pax_{id_venta}",
+            column_order=["nombre_completo", "numero_documento", "nacionalidad", "fecha_nacimiento", "cuidados_especiales", "es_principal"]
+        )
+        
+        # 4. Guardar
+        if st.button("💾 Guardar Lista de Pasajeros", type="primary"):
+            updated = 0
+            for i, row in edited_pax.iterrows():
+                if row.get('nombre_completo'): # Solo guardar si tiene nombre
+                    data_p = {
+                        'id_venta': id_venta,
+                        'nombre_completo': row['nombre_completo'],
+                        'numero_documento': row.get('numero_documento'),
+                        'nacionalidad': row.get('nacionalidad'),
+                        'fecha_nacimiento': row.get('fecha_nacimiento').isoformat() if row.get('fecha_nacimiento') else None,
+                        'cuidados_especiales': row.get('cuidados_especiales'),
+                        'es_principal': row.get('es_principal', False)
+                    }
+                    
+                    if 'id_pasajero' in row and pd.notna(row['id_pasajero']):
+                        controller.client.table('pasajero').update(data_p).eq('id_pasajero', row['id_pasajero']).execute()
+                    else:
+                        controller.client.table('pasajero').insert(data_p).execute()
+                    updated += 1
+            
+            if updated > 0:
+                st.success(f"✅ Se actualizaron {updated} pasajeros para el grupo de {v_act['nombre_cliente']}.")
+                st.rerun()
             
             
     elif nombre_modulo == "Dashboard Diario":
