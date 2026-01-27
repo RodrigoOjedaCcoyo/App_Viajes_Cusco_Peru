@@ -338,12 +338,15 @@ def registro_ventas_proveedores(supabase_client):
                 except: pass
         
         # Calcular fecha fin desde duración
-        duracion = render.get('duracion', '')
-        if duracion and 'D' in duracion:
+        duracion_raw = render.get('duracion')
+        if duracion_raw and isinstance(duracion_raw, str) and 'D' in duracion_raw.upper():
             try:
-                num_dias = int(duracion.split('D')[0])
-                def_f_fin = def_f_inicio + timedelta(days=num_dias - 1)
-            except: pass
+                num_dias_str = ''.join(filter(str.isdigit, duracion_raw.split('D')[0]))
+                if num_dias_str:
+                    num_dias = int(num_dias_str)
+                    def_f_fin = def_f_inicio + timedelta(days=num_dias - 1)
+            except Exception as e:
+                print(f"Error parsing duracion in B2B: {e}")
         elif "AL " in render.get('fechas', ''):
             # Intentar extraer fecha fin desde "fechas"
             try:

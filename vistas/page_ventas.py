@@ -224,10 +224,11 @@ def registro_ventas_directa():
 
         # Opciones de bloqueo si hay itinerario
         edit_manual = False
-        if id_itinerario_dig:
-            edit_manual = st.checkbox("🔓 Editar datos del itinerario manualmente", value=False)
-        
-        nombre = col1.text_input("Nombre Cliente", value=def_nombre, disabled=(id_itinerario_dig and not edit_manual))
+        is_disabled = False
+        if id_itinerario_dig and not edit_manual:
+            is_disabled = True
+            
+        nombre = col1.text_input("Nombre Cliente", value=def_nombre, disabled=is_disabled)
         tel = col1.text_input("Celular", value=lead_data.get('numero_celular', '') if lead_data else '')
         
         # Tour: Auto-completado desde itinerario, pero editable manualmente
@@ -235,7 +236,7 @@ def registro_ventas_directa():
             "Nombre del Tour / Paquete", 
             value=def_tour,
             placeholder="Ej: Cusco Mágico & Machu Picchu",
-            disabled=(id_itinerario_dig and not edit_manual),
+            disabled=is_disabled,
             help="Se auto-completa si seleccionas un itinerario"
         )
 
@@ -258,12 +259,15 @@ def registro_ventas_directa():
             
             # Calcular Fin basado en Duración (ej: "3D")
             itin_fecha_fin = itin_fecha_inicio
-            duracion = render.get('duracion', '')
-            if duracion and 'D' in duracion.upper():
+            duracion_raw = render.get('duracion')
+            if duracion_raw and isinstance(duracion_raw, str) and 'D' in duracion_raw.upper():
                 try:
-                    num_dias = int(''.join(filter(str.isdigit, duracion.split('D')[0])))
-                    itin_fecha_fin = itin_fecha_inicio + timedelta(days=num_dias - 1)
-                except: pass
+                    num_dias_str = ''.join(filter(str.isdigit, duracion_raw.split('D')[0]))
+                    if num_dias_str:
+                        num_dias = int(num_dias_str)
+                        itin_fecha_fin = itin_fecha_inicio + timedelta(days=num_dias - 1)
+                except Exception as e:
+                    print(f"Error calculando fecha fin: {e}")
             
             st.info(f"🗓️ **Fechas vinculadas:** Del {itin_fecha_inicio.strftime('%d/%m/%Y')} al {itin_fecha_fin.strftime('%d/%m/%Y')}")
             fecha_inicio_sel = itin_fecha_inicio
