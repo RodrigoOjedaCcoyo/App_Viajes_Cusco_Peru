@@ -746,13 +746,13 @@ def dashboard_simulador_costos(controller):
     col_config = {
         "FECHA": st.column_config.DateColumn("FECHA", disabled=True),
         "SERVICIO": st.column_config.TextColumn("SERVICIO", required=True, width="large"),
-        "PROVEEDOR": st.column_config.SelectboxColumn("TRANSPORTE/PROVEEDOR", options=lista_proveedores, width="medium"),
+        "PROVEEDOR": st.column_config.SelectboxColumn("PROVEEDOR", options=lista_proveedores, width="medium"),
         "UNIT": st.column_config.NumberColumn("COSTO UNITARIO", format="$ %.2f", min_value=0.0, width="small"),
         "CANT": st.column_config.NumberColumn("CANT", min_value=1, default=1, width="small"),
         "TOTAL": st.column_config.NumberColumn("COSTO TOTAL", format="$ %.2f", disabled=True, width="small"),
         "VENTA": st.column_config.NumberColumn("PRECIO VENTA", format="$ %.2f", min_value=0.0, width="small"),
         "MONEDA": st.column_config.SelectboxColumn("MONEDA", options=["USD", "PEN"], default="USD", width="small"),
-        "💵 Pago Op.": st.column_config.SelectboxColumn("PAGO OP.", options=["NO_REQUERIDO", "PENDIENTE", "PAGADO"], default="NO_REQUERIDO"),
+        "💵 Pago Op.": st.column_config.SelectboxColumn("ESTADO PAGO", options=["NO_REQUERIDO", "PENDIENTE", "PAGADO"], default="NO_REQUERIDO"),
         "📝 Info Pago": st.column_config.TextColumn("INFO PAGO", width="medium"),
         "📎 Voucher": st.column_config.LinkColumn("VOUCHER", width="small")
     }
@@ -780,7 +780,8 @@ def dashboard_simulador_costos(controller):
                 num_rows="dynamic",
                 use_container_width=True,
                 hide_index=True,
-                key=f"editor_day_{d_key}_{day_num}"
+                key=f"editor_day_{d_key}_{day_num}",
+                column_order=["SERVICIO", "MONEDA", "CANT", "UNIT", "TOTAL"]
             )
             
             # Recalcular totales tras edición
