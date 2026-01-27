@@ -93,19 +93,22 @@ class OperacionesController:
                     vid = p['id_venta']
                     pagos_map[vid] = pagos_map.get(vid, 0) + (p['monto_pagado'] or 0)
 
-            # 5. Guías asignados (Tabla 'venta_servicio_proveedor' + 'proveedor')
+            # Guías y Endosos (Tabla 'venta_servicio_proveedor' + 'proveedor')
             guias_map = {}
+            proveedor_endoso_map = {}
             if ids_ventas:
                 res_g = (
                     self.client.table('venta_servicio_proveedor')
-                    .select('id_venta, n_linea, proveedor(nombre_comercial)')
+                    .select('id_venta, n_linea, tipo_servicio, proveedor(nombre_comercial)')
                     .in_('id_venta', ids_ventas)
-                    .eq('tipo_servicio', 'GUIA')
                     .execute()
                 )
                 for g in res_g.data:
                     key = f"{g['id_venta']}-{g['n_linea']}"
-                    guias_map[key] = g['proveedor']['nombre_comercial'] if g.get('proveedor') else "Desconocido"
+                    if g.get('tipo_servicio') == 'GUIA':
+                        guias_map[key] = g['proveedor']['nombre_comercial'] if g.get('proveedor') else "Desconocido"
+                    elif g.get('tipo_servicio') == 'PROVEEDOR_ENDOSO' or g.get('tipo_servicio') == 'AGENCIA_ENDOSO':
+                        proveedor_endoso_map[key] = g['proveedor']['nombre_comercial'] if g.get('proveedor') else "Desconocido"
             
             resultado = []
             for s in servicios_data:
@@ -126,9 +129,11 @@ class OperacionesController:
                 # Prioridad: 1. Observaciones del día, 2. Catálogo de tours, 3. Nombre general de la venta
                 nombre_tour = s.get('observaciones') or tours_map.get(s['id_tour']) or v.get('tour_nombre') or "Tour Desconocido"
                 
-                # Guía desde el mapa relacional
+                # Guía y Endoso desde el mapa relacional
                 key_g = f"{s['id_venta']}-{s['n_linea']}"
                 nombre_guia = guias_map.get(key_g, "Por Asignar")
+                nombre_endoso = proveedor_endoso_map.get(key_g, "---")
+                es_endoso = s.get('es_endoso', False)
                 
                 resultado.append({
                     'ID Venta': s['id_venta'],
@@ -136,9 +141,11 @@ class OperacionesController:
                     'Fecha': s['fecha_servicio'],
                     'Hora': "08:00 AM",
                     'Servicio': nombre_tour,
+                    'Endoso?': es_endoso,
                     'Pax': s.get('cantidad_pasajeros', 1),
                     'Cliente': nombre_cliente,
                     'Guía': nombre_guia,
+                    'Agencia Endoso': nombre_endoso,
                     'Estado Pago': estado_pago,
                     'Tipo': '👤 B2C',
                     'Día Itin.': s.get('id_itinerario_dia_index', 1),
@@ -197,19 +204,22 @@ class OperacionesController:
                     vid = p['id_venta']
                     pagos_map[vid] = pagos_map.get(vid, 0) + (p['monto_pagado'] or 0)
 
-            # Guías (Tabla 'venta_servicio_proveedor' + 'proveedor')
+            # Guías y Endosos (Tabla 'venta_servicio_proveedor' + 'proveedor')
             guias_map = {}
+            proveedor_endoso_map = {}
             if ids_ventas:
                 res_g = (
                     self.client.table('venta_servicio_proveedor')
-                    .select('id_venta, n_linea, proveedor(nombre_comercial)')
+                    .select('id_venta, n_linea, tipo_servicio, proveedor(nombre_comercial)')
                     .in_('id_venta', ids_ventas)
-                    .eq('tipo_servicio', 'GUIA')
                     .execute()
                 )
                 for g in res_g.data:
                     key = f"{g['id_venta']}-{g['n_linea']}"
-                    guias_map[key] = g['proveedor']['nombre_comercial'] if g.get('proveedor') else "Desconocido"
+                    if g.get('tipo_servicio') == 'GUIA':
+                        guias_map[key] = g['proveedor']['nombre_comercial'] if g.get('proveedor') else "Desconocido"
+                    elif g.get('tipo_servicio') == 'PROVEEDOR_ENDOSO' or g.get('tipo_servicio') == 'AGENCIA_ENDOSO':
+                        proveedor_endoso_map[key] = g['proveedor']['nombre_comercial'] if g.get('proveedor') else "Desconocido"
             
             resultado = []
             for s in servicios_data:
@@ -230,17 +240,29 @@ class OperacionesController:
                 # Prioridad: 1. Observaciones del día, 2. Catálogo de tours, 3. Nombre general de la venta
                 nombre_tour = s.get('observaciones') or tours_map.get(s['id_tour']) or v.get('tour_nombre') or "Tour Desconocido"
                 
-                # Guía desde el mapa relacional
+                # Guía y Endoso desde el mapa relacional
                 key_g = f"{s['id_venta']}-{s['n_linea']}"
                 nombre_guia = guias_map.get(key_g, "Por Asignar")
+                nombre_endoso = proveedor_endoso_map.get(key_g, "---")
                 
+                # Semáforo de Logística
+                es_endoso = s.get('es_endoso', False)
+                status_log = "🟢"
+                if es_endoso:
+                    if nombre_endoso == "---" or nombre_endoso == "Por Asignar": status_log = "🔴"
+                else:
+                    if nombre_guia == "Por Asignar": status_log = "🔴"
+
                 resultado.append({
                     'ID Servicio': f"{s['id_venta']}-{s['n_linea']}", 
                     'Hora': "08:00 AM",
+                    'Log.': status_log,
                     'Servicio': nombre_tour,
+                    'Endoso?': es_endoso,
                     'Pax': s.get('cantidad_pasajeros', 1),
                     'Cliente': nombre_cliente,
                     'Guía': nombre_guia,
+                    'Agencia Endoso': nombre_endoso,
                     'Estado Pago': estado_pago,
                     'Tipo': '👤 B2C',
                     'ID Venta': s['id_venta'],
@@ -257,6 +279,9 @@ class OperacionesController:
     def actualizar_guia_servicio(self, id_venta, n_linea, nombre_guia):
         """Asigna un guía a un servicio específico según el esquema SQL venta_servicio_proveedor."""
         try:
+            if not nombre_guia or nombre_guia == "Por Asignar":
+                return False, "Nombre de guía no válido."
+                
             # 1. Buscar el ID del guía (en tabla proveedor)
             res_g = self.client.table('proveedor').select('id_proveedor').ilike('nombre_comercial', f"%{nombre_guia}%").limit(1).execute()
             if not res_g.data:
@@ -272,11 +297,51 @@ class OperacionesController:
                 "tipo_servicio": 'GUIA',
                 "estado_pago": 'PENDIENTE'
             }
-            # Usar upsert para actualizar si ya existe un registro de guía para este servicio
             self.client.table('venta_servicio_proveedor').upsert(datos, on_conflict='id_venta, n_linea, tipo_servicio').execute()
             return True, f"Guía {nombre_guia} asignado correctamente."
         except Exception as e:
             print(f"Error asignando guía: {e}")
+            return False, f"Error: {e}"
+
+    def actualizar_endoso_servicio(self, id_venta, n_linea, nombre_agencia):
+        """Asigna una agencia proveedora para un servicio de endoso."""
+        try:
+            if not nombre_agencia or nombre_agencia == "---":
+                return False, "Nombre de agencia no válido."
+
+            # 1. Buscar el ID de la agencia (en tabla proveedor)
+            res_p = self.client.table('proveedor').select('id_proveedor').ilike('nombre_comercial', f"%{nombre_agencia}%").limit(1).execute()
+            if not res_p.data:
+                # Si no existe, podríamos intentar buscar en agencia_aliada si es un B2B puro
+                return False, "Agencia/Proveedor no encontrado."
+            
+            id_prov = res_p.data[0]['id_proveedor']
+            
+            # 2. Upsert en venta_servicio_proveedor (vincular como PROVEEDOR_ENDOSO)
+            datos = {
+                "id_venta": id_venta,
+                "n_linea": n_linea,
+                "id_proveedor": id_prov,
+                "tipo_servicio": 'PROVEEDOR_ENDOSO',
+                "estado_pago": 'PENDIENTE'
+            }
+            self.client.table('venta_servicio_proveedor').upsert(datos, on_conflict='id_venta, n_linea, tipo_servicio').execute()
+            
+            # Además actualizar la tabla venta_tour para marcar es_endoso = True
+            self.client.table('venta_tour').update({"es_endoso": True}).match({"id_venta": id_venta, "n_linea": n_linea}).execute()
+            
+            return True, f"Endoso a {nombre_agencia} registrado."
+        except Exception as e:
+            print(f"Error registrando endoso: {e}")
+            return False, f"Error: {e}"
+
+    def toggle_endoso_servicio(self, id_venta, n_linea, es_endoso):
+        """Activa o desactiva el flag de endoso para un servicio."""
+        try:
+            self.client.table('venta_tour').update({"es_endoso": es_endoso}).match({"id_venta": id_venta, "n_linea": n_linea}).execute()
+            return True, "Estado de endoso actualizado."
+        except Exception as e:
+            print(f"Error haciendo toggle de endoso: {e}")
             return False, f"Error: {e}"
 
     # ------------------------------------------------------------------

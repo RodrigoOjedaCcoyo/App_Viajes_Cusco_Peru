@@ -129,9 +129,14 @@ def dashboard_tablero_diario(controller):
                 else:
                     for s in s_dia:
                         with st.container(border=True):
-                            st.markdown(f"<p style='font-size:11px; margin:0;'><b>{s['Servicio']}</b></p>", unsafe_allow_html=True)
-                            st.markdown(f"<p style='font-size:9px; margin:0; color:#aaa;'>{s['Cliente']}</p>", unsafe_allow_html=True)
-                            st.markdown(f"<p style='font-size:9px; margin:0;'>👮 {s['Guía']}</p>", unsafe_allow_html=True)
+                            # Título con indicador de endoso
+                            titulo_serv = f"🤝 {s['Servicio']}" if s.get('Endoso?') else s['Servicio']
+                            st.markdown(f"<p style='font-size:11px; margin:0;'><b>{titulo_serv}</b></p>", unsafe_allow_html=True)
+                            st.markdown(f"<p style='font-size:9px; margin:0; color:#aaa;'>{s['Cliente']} ({s['Pax']} Pax)</p>", unsafe_allow_html=True)
+                            
+                            # Responsable (Guía o Agencia)
+                            responsable = f"🏢 {s['Agencia Endoso']}" if s.get('Endoso?') else f"👮 {s['Guía']}"
+                            st.markdown(f"<p style='font-size:9px; margin:0;'>{responsable}</p>", unsafe_allow_html=True)
                 
                 if st.button("Ver", key=f"v_{f_dia}", use_container_width=True):
                     st.session_state['cal_selected_date'] = f_dia
@@ -153,30 +158,47 @@ def dashboard_tablero_diario(controller):
         df = pd.DataFrame(servicios)
         ed_df = st.data_editor(
             df,
-            column_order=('Hora', 'Día Itin.', 'Servicio', 'Tipo', 'Pax', 'Cliente', 'URL Cloud', 'Guía', 'Estado Pago', 'ID Itinerario'),
+            column_order=('Log.', 'Hora', 'Día Itin.', 'Servicio', 'Pax', 'Endoso?', 'Guía', 'Agencia Endoso', 'Estado Pago', 'Cliente', 'URL Cloud'),
             column_config={
-                "Día Itin.": st.column_config.NumberColumn("Día", format="%d", disabled=True),
-                "Tipo": st.column_config.TextColumn("Tipo", disabled=True, width="small"),
-                "URL Cloud": st.column_config.LinkColumn("PDF 📄", help="Abrir Itinerario Premium en la nube"),
-                "Guía": st.column_config.TextColumn("Asignar Guía ✏️"),
+                "Log.": st.column_config.TextColumn("Log.", help="Semáforo de Logística (🟢 Todo OK, 🔴 Falta asignar)", disabled=True, width="small"),
+                "Día Itin.": st.column_config.NumberColumn("Día", format="%d", disabled=True, width="small"),
+                "Endoso?": st.column_config.CheckboxColumn("¿Endoso?", help="Marcar si el servicio se pasa a otra agencia"),
+                "Agencia Endoso": st.column_config.TextColumn("Agencia/Proveedor 🏢", help="Nombre de la agencia que recibe el endoso"),
+                "URL Cloud": st.column_config.LinkColumn("PDF 📄", help="Abrir Itinerario Premium"),
+                "Guía": st.column_config.TextColumn("Guía ✏️", help="Asignar guía (solo si NO es endoso)"),
                 "Pax": st.column_config.NumberColumn(disabled=True),
                 "Servicio": st.column_config.TextColumn(disabled=True),
                 "Cliente": st.column_config.TextColumn(disabled=True),
                 "Estado Pago": st.column_config.TextColumn(disabled=True),
-                "ID Itinerario": st.column_config.TextColumn("Itin. Cloud ☁️", disabled=True, help="UUID del diseño original en la nube"),
             },
             hide_index=True, use_container_width=True, key=f"ed_{f_p}"
         )
 
-        if st.button("💾 Guardar Asignaciones"):
-            cc = 0
+        if st.button("💾 Guardar Cambios de Logística"):
+            changes_count = 0
             for i, r in ed_df.iterrows():
-                if r['Guía'] != df.iloc[i]['Guía']:
-                    # Nueva firma usando claves compuestas SQL
-                    if controller.actualizar_guia_servicio(r['ID Venta'], r['N Linea'], r['Guía'])[0]: 
-                        cc += 1
-            if cc > 0:
-                st.success(f"¡{cc} cambios guardados!")
+                old_r = df.iloc[i]
+                vid, n_lin = r['ID Venta'], r['N Linea']
+                
+                # 1. Cambios en Flag Endoso
+                if r['Endoso?'] != old_r['Endoso?']:
+                    controller.toggle_endoso_servicio(vid, n_lin, r['Endoso?'])
+                    changes_count += 1
+                
+                # 2. Cambios en Guía (Solo si no es endoso)
+                if not r['Endoso?'] and r['Guía'] != old_r['Guía']:
+                    success, msg = controller.actualizar_guia_servicio(vid, n_lin, r['Guía'])
+                    if success: changes_count += 1
+                    else: st.error(msg)
+                
+                # 3. Cambios en Agencia Endoso
+                if r['Endoso?'] and r['Agencia Endoso'] != old_r['Agencia Endoso']:
+                    success, msg = controller.actualizar_endoso_servicio(vid, n_lin, r['Agencia Endoso'])
+                    if success: changes_count += 1
+                    else: st.error(msg)
+
+            if changes_count > 0:
+                st.success(f"¡{changes_count} cambios de logística aplicados!")
                 st.rerun()
 
         # --- 🔍 DETALLE VISUAL DEL ITINERARIO (ESTILO IMAGEN) ---
