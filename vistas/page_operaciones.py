@@ -792,21 +792,40 @@ def dashboard_simulador_costos(controller):
             
             total_general += day_costo
             
-            # Resumen Premium (Card-based)
+            # Resumen High-End (Glassmorphism & Icons)
             summary_html = f"""
-            <div style='background-color: #1e2130; padding: 15px; border-radius: 12px; margin-top: 10px; border: 1px solid #3e445e; box-shadow: 0 4px 6px rgba(0,0,0,0.3);'>
-                <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;'>
-                    <span style='color: #a0a0a0; font-size: 0.95em;'>Gasto Total DÍA {day_num}:</span>
-                    <span style='color: #ffffff; font-weight: bold; font-size: 1.1em;'>$ {day_costo:,.2f}</span>
+            <div style='
+                background: linear-gradient(135deg, rgba(30, 33, 48, 0.9), rgba(46, 51, 74, 0.7));
+                backdrop-filter: blur(10px);
+                padding: 20px;
+                border-radius: 16px;
+                margin-top: 15px;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+                font-family: "Inter", sans-serif;
+            '>
+                <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 15px;'>
+                    <div style='background: rgba(255, 255, 255, 0.05); padding: 12px; border-radius: 10px;'>
+                        <div style='color: #888; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.5px;'>📉 Costo Operativo</div>
+                        <div style='color: #ffffff; font-weight: 700; font-size: 1.2em; margin-top: 4px;'>$ {day_costo:,.2f}</div>
+                    </div>
+                    <div style='background: rgba(33, 150, 243, 0.1); padding: 12px; border-radius: 10px;'>
+                        <div style='color: #2196F3; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.5px;'>💰 Ingresos (Venta)</div>
+                        <div style='color: #ffffff; font-weight: 700; font-size: 1.2em; margin-top: 4px;'>$ {day_venta:,.2f}</div>
+                    </div>
                 </div>
-                <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;'>
-                    <span style='color: #2196F3; font-size: 0.95em;'>Ingreso Estimado (Venta):</span>
-                    <span style='color: #2196F3; font-weight: bold; font-size: 1.1em;'>$ {day_venta:,.2f}</span>
-                </div>
-                <div style='height: 1px; background-color: #3e445e; margin: 10px 0;'></div>
-                <div style='display: flex; justify-content: space-between; align-items: center;'>
-                    <span style='color: #ffffff; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;'>Utilidad Neta:</span>
-                    <span style='color: {"#4CAF50" if day_utilidad >= 0 else "#FF5252"}; font-weight: 800; font-size: 1.4em;'>$ {day_utilidad:,.2f}</span>
+                <div style='
+                    margin-top: 15px;
+                    padding: 15px;
+                    border-radius: 12px;
+                    background: {"rgba(76, 175, 80, 0.15)" if day_utilidad >= 0 else "rgba(255, 82, 82, 0.15)"};
+                    text-align: center;
+                    border: 1px solid {"rgba(76, 175, 80, 0.3)" if day_utilidad >= 0 else "rgba(255, 82, 82, 0.3)"};
+                '>
+                    <div style='color: #ffffff; font-size: 0.9em; margin-bottom: 2px;'>BENEFICIO DEL DÍA</div>
+                    <div style='color: {"#4CAF50" if day_utilidad >= 0 else "#FF5252"}; font-size: 1.8em; font-weight: 900;'>
+                        $ {day_utilidad:,.2f}
+                    </div>
                 </div>
             </div>
             """
