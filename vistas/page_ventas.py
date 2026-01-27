@@ -202,12 +202,37 @@ def registro_ventas_directa():
             st.session_state[f"val_nom_{id_itinerario_dig}"] = nombre_pax_cloud
             st.session_state[f"val_tour_{id_itinerario_dig}"] = tour_nombre_cloud
             if id_itinerario_dig and id_itinerario_dig != st.session_state.get('last_loaded_itin'):
-                precios = render.get('precios', {})
-                # Priorizar precio Extranjero, luego Nacional, luego CAN
-                p_sug = precios.get('extranjero') or precios.get('nacional') or precios.get('can') or 0.0
-                st.session_state['m_total'] = float(p_sug)
+                # 1. Intentar obtener el precio de cierre directo (Nivel raíz)
+                precio_raw = render.get('precio_cierre')
+                
+                # 2. Si no existe, buscar en la estructura de precios (Nivel 'precios')
+                if not precio_raw:
+                    precios = render.get('precios', {})
+                    # La estructura puede ser directa (float) o diccionario ({"monto": "..."})
+                    def extract_val(val):
+                        if isinstance(val, dict): return val.get('total') or val.get('monto')
+                        return val
+
+                    p_ext = extract_val(precios.get('extranjero') or precios.get('ext'))
+                    p_nac = extract_val(precios.get('nacional') or precios.get('nac'))
+                    p_can = extract_val(precios.get('can'))
+                    
+                    precio_raw = p_ext or p_nac or p_can or "0.00"
+
+                # 3. Limpiar y convertir a float
+                try:
+                    if isinstance(precio_raw, (int, float)):
+                        p_sug = float(precio_raw)
+                    else:
+                        # Eliminar comas y espacios, ej: "1,180.00" -> "1180.00"
+                        clean_str = str(precio_raw).replace(',', '').replace(' ', '').strip()
+                        p_sug = float(clean_str) if clean_str else 0.0
+                except:
+                    p_sug = 0.0
+
+                st.session_state['m_total'] = p_sug
                 st.session_state['last_loaded_itin'] = id_itinerario_dig
-                st.success(f"✅ Itinerario cargado: **{tour_nombre_cloud}** (Precio sugerido: ${p_sug})")
+                st.success(f"✅ Itinerario cargado: **{tour_nombre_cloud}** (Precio sugerido: ${p_sug:,.2f})")
             else:
                 st.success(f"✅ Itinerario cargado: **{tour_nombre_cloud}**")
 
