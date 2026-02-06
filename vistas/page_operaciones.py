@@ -929,10 +929,10 @@ def dashboard_simulador_costos(controller):
                 if match: id_prov = match['id_proveedor']
 
             data_save = {
-                'costo_applied': row['CANT'] * row['UNIT'],
-                'costo_unitario': row['UNIT'],
-                'cantidad_items': row['CANT'],
-                'precio_applied': row.get('VENTA', 0.0),
+                'costo_applied': float(row['CANT'] * row['UNIT']),
+                'costo_unitario': float(row['UNIT']),
+                'cantidad_items': int(float(row['CANT'])),
+                'precio_applied': float(row.get('VENTA', 0.0)),
                 'moneda_costo': row.get('MONEDA', 'USD'),
                 'id_proveedor': id_prov,
                 'observaciones': row.get('SERVICIO'),
@@ -942,7 +942,10 @@ def dashboard_simulador_costos(controller):
             }
 
             if pd.notna(row.get('id_venta')) and pd.notna(row.get('n_linea')):
-                controller.client.table('venta_tour').update(data_save).match({'id_venta': row['id_venta'], 'n_linea': row['n_linea']}).execute()
+                controller.client.table('venta_tour').update(data_save).match({
+                    'id_venta': int(float(row['id_venta'])), 
+                    'n_linea': int(float(row['n_linea']))
+                }).execute()
                 updated_count += 1
             else:
                 if ventas_age and pax_sel != "--- Seleccione ---":
@@ -950,10 +953,10 @@ def dashboard_simulador_costos(controller):
                     last_line = controller.client.table('venta_tour').select('n_linea').eq('id_venta', v_act['id_venta']).order('n_linea', desc=True).limit(1).execute()
                     next_n = (last_line.data[0]['n_linea'] + 1) if last_line.data else 1
                     data_save.update({
-                        'id_venta': v_act['id_venta'],
-                        'n_linea': next_n + index,
+                        'id_venta': int(v_act['id_venta']),
+                        'n_linea': int(next_n + index),
                         'fecha_servicio': row['FECHA'].isoformat() if isinstance(row['FECHA'], date) else row['FECHA'],
-                        'cantidad_pasajeros': v_act.get('num_pasajeros', 1)
+                        'cantidad_pasajeros': int(v_act.get('num_pasajeros', 1))
                     })
                     controller.client.table('venta_tour').insert(data_save).execute()
                     updated_count += 1
