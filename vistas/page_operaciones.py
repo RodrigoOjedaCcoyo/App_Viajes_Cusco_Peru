@@ -636,6 +636,12 @@ def dashboard_simulador_costos(controller):
         prov_items = res_prov.data or []
     except Exception as e:
         print(f"Error cargando proveedores init: {e}")
+    
+    # Inicializar variables de scope
+    ventas_age = []
+    mapa_ventas_pax = {}
+    pax_sel = "--- Seleccione ---"
+    all_edited = pd.DataFrame()
 
     if 'simulador_data' not in st.session_state:
         st.session_state['simulador_data'] = [
