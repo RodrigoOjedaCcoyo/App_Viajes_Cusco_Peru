@@ -928,25 +928,35 @@ def dashboard_simulador_costos(controller):
                 match = next((p for p in prov_items if p['nombre_comercial'] == n_p), None)
                 if match: id_prov = match['id_proveedor']
 
+            def safe_float(val):
+                try:
+                    res = float(val)
+                    return res if not pd.isna(res) else 0.0
+                except:
+                    return 0.0
+
             data_save = {
-                'costo_applied': float(row['CANT'] * row['UNIT']),
-                'costo_unitario': float(row['UNIT']),
-                'cantidad_items': int(float(row['CANT'])),
-                'precio_applied': float(row.get('VENTA', 0.0)),
-                'moneda_costo': row.get('MONEDA', 'USD'),
+                'costo_applied': safe_float(row['CANT'] * row['UNIT']),
+                'costo_unitario': safe_float(row['UNIT']),
+                'cantidad_items': int(safe_float(row['CANT'])),
+                'precio_applied': safe_float(row.get('VENTA', 0.0)),
+                'moneda_costo': row.get('MONEDA', 'USD') if pd.notna(row.get('MONEDA')) else 'USD',
                 'id_proveedor': id_prov,
-                'observaciones': row.get('SERVICIO'),
+                'observaciones': str(row.get('SERVICIO', '')),
                 'estado_pago_operativo': row.get('💵 Pago Op.', 'NO_REQUERIDO'),
-                'datos_pago_operativo': row.get('📝 Info Pago', ''),
+                'datos_pago_operativo': str(row.get('📝 Info Pago', '')),
                 'es_endoso': True if id_prov else False
             }
 
             if pd.notna(row.get('id_venta')) and pd.notna(row.get('n_linea')):
-                controller.client.table('venta_tour').update(data_save).match({
-                    'id_venta': int(float(row['id_venta'])), 
-                    'n_linea': int(float(row['n_linea']))
-                }).execute()
-                updated_count += 1
+                v_id = int(safe_float(row['id_venta']))
+                l_id = int(safe_float(row['n_linea']))
+                if v_id > 0:
+                    controller.client.table('venta_tour').update(data_save).match({
+                        'id_venta': v_id, 
+                        'n_linea': l_id
+                    }).execute()
+                    updated_count += 1
             else:
                 if ventas_age and pax_sel != "--- Seleccione ---":
                     v_act = mapa_ventas_pax.get(pax_sel)
