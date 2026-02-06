@@ -782,13 +782,21 @@ def dashboard_simulador_costos(controller):
 
     df_master = st.session_state['df_master']
     
-    # --- ASEGURAR COLUMNAS CRÍTICAS EN EL MASTER ---
-    for col in ["n_linea", "id_venta", "ORIGINAL_SERVICE", "UNIT", "CANT", "TOTAL", "VTA_VENDEDOR"]:
+    # --- ASEGURAR COLUMNAS CRÍTICAS EN EL MASTER (Blindaje Total) ---
+    all_needed = [
+        "n_linea", "id_venta", "ORIGINAL_SERVICE", "UNIT", "CANT", "TOTAL", "VTA_VENDEDOR",
+        "PROVEEDOR", "SERVICIO", "FECHA", "MONEDA", "💵 Pago Op.", "📝 Info Pago", "📎 Voucher"
+    ]
+    for col in all_needed:
         if col not in df_master.columns:
             if col == "ORIGINAL_SERVICE": df_master[col] = df_master['SERVICIO'] if 'SERVICIO' in df_master.columns else ""
             elif col in ["UNIT", "TOTAL", "VTA_VENDEDOR"]: df_master[col] = 0.0
             elif col == "CANT": df_master[col] = 1.0
-            else: df_master[col] = None
+            elif col == "FECHA": df_master[col] = date.today()
+            elif col == "PROVEEDOR": df_master[col] = "--- Sin Asignar ---"
+            elif col == "MONEDA": df_master[col] = "USD"
+            elif col == "💵 Pago Op.": df_master[col] = "NO_REQUERIDO"
+            else: df_master[col] = ""
 
     unique_dates = sorted(df_master['FECHA'].unique())
     
