@@ -814,39 +814,23 @@ def dashboard_simulador_costos(controller):
     
     # Sincronizar cambios de vuelta al Master de forma inmediata pero estable
     if not ed_day.equals(df_day):
-        # Limpiar Nones del editor antes de procesar
+        # 1. Limpiar Nones y forzar cálculos
         ed_day['UNIT'] = pd.to_numeric(ed_day['UNIT'], errors='coerce').fillna(0.0)
         ed_day['CANT'] = pax_count 
         ed_day['TOTAL'] = ed_day['UNIT'] * pax_count
         ed_day['VTA_VENDEDOR'] = pd.to_numeric(ed_day.get('VTA_VENDEDOR', 0.0), errors='coerce').fillna(0.0)
 
-        for _, row in ed_day.iterrows():
-            # Intentar encontrar fila existente
-            mask = (df_master['FECHA'] == d_key) & (df_master['SERVICIO'] == row['SERVICIO'])
-            if row.get('id_venta') and row.get('n_linea'):
-                mask = (df_master['id_venta'] == row['id_venta']) & (df_master['n_linea'] == row['n_linea'])
-            
-            if df_master[mask].empty:
-                # ES UNA FILA NUEVA (Añadida por el usuario)
-                new_row = row.to_dict()
-                new_row['FECHA'] = d_key
-                new_row['CANT'] = pax_count
-                new_row['TOTAL'] = float(row['UNIT']) * pax_count
-                # Asegurar id_venta si tenemos una activa
-                if 'v' in locals(): new_row['id_venta'] = v['id_venta']
-                
-                df_master = pd.concat([df_master, pd.DataFrame([new_row])], ignore_index=True)
-            else:
-                # ACTUALIZAR EXISTENTE
-                df_master.loc[mask, 'UNIT'] = float(row['UNIT'])
-                df_master.loc[mask, 'CANT'] = pax_count 
-                df_master.loc[mask, 'MONEDA'] = row['MONEDA']
-                df_master.loc[mask, 'PROVEEDOR'] = row['PROVEEDOR'] or "--- Sin Asignar ---"
-                df_master.loc[mask, 'TOTAL'] = float(row['UNIT']) * pax_count
-                df_master.loc[mask, 'VTA_VENDEDOR'] = float(row.get('VTA_VENDEDOR', 0.0))
+        # 2. Filtrar el Master para quitar lo viejo de este día y reemplazar con lo editado
+        df_others = df_master[df_master['FECHA'] != d_key]
         
+        # Asegurar que todas las filas de ed_day tengan la fecha y pax correctos
+        ed_day['FECHA'] = d_key
+        ed_day['CANT'] = pax_count
+        
+        # Consolidar
+        df_master = pd.concat([df_others, ed_day], ignore_index=True)
         st.session_state['df_master'] = df_master
-        st.rerun() # Requerido para que la tabla widget vea los nuevos TOTALES calculados
+        st.rerun() 
 
     # Recalcular totales para el resumen (asegura que el total cambie en vivo)
     ed_day['TOTAL'] = ed_day['UNIT'] * pax_count
