@@ -737,7 +737,7 @@ def dashboard_simulador_costos(controller):
     df_full = pd.DataFrame(st.session_state['simulador_data'])
     
     # Asegurar columnas nuevas y existentes
-    required_cols = ["CANT", "UNIT", "VENTA", "VTA_VENDEDOR", "💵 Pago Op.", "📝 Info Pago", "📎 Voucher", "PROVEEDOR", "SERVICIO", "MONEDA", "TOTAL"]
+    required_cols = ["CANT", "UNIT", "VENTA", "VTA_VENDEDOR", "💵 Pago Op.", "📝 Info Pago", "📎 Voucher", "PROVEEDOR", "SERVICIO", "MONEDA", "TOTAL", "id_venta", "n_linea"]
     for col in required_cols:
         if col not in df_full.columns:
             if col == "CANT": df_full[col] = 1
@@ -747,6 +747,7 @@ def dashboard_simulador_costos(controller):
             elif col == "TOTAL": df_full[col] = 0.0
             elif col == "MONEDA": df_full[col] = "USD"
             elif col == "PROVEEDOR": df_full[col] = "--- Sin Asignar ---"
+            elif col in ["id_venta", "n_linea"]: df_full[col] = None
             else: df_full[col] = ""
 
     # Ordenar por FECHA
