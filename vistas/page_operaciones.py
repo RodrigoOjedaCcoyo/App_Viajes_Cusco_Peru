@@ -786,12 +786,13 @@ def dashboard_simulador_costos(controller):
     # Extraer slice del día para el editor
     df_day = df_master[df_master['FECHA'] == d_key].copy()
     
-    st.markdown(f"#### 🎭 Operación de la Jornada: {d_key.strftime('%d/%m/%Y')}")
-    
-    # Calcular Total Dinámicamente con seguridad para Nones
-    # Asegurar que CANT y UNIT tengan valores por defecto si son nuevos o None
+    # --- LÓGICA DE PAX FIJO ---
+    pax_count = float(st.session_state.get('master_pax_count', 1))
+    st.markdown(f"#### 🎭 Operación de la Jornada: {d_key.strftime('%d/%m/%Y')} ({int(pax_count)} PAX)")
+
+    # Asegurar que UNIT tenga valor y calcular TOTAL basado en PAX fijo
     df_day['UNIT'] = pd.to_numeric(df_day['UNIT'], errors='coerce').fillna(0.0)
-    df_day['CANT'] = pd.to_numeric(df_day['CANT'], errors='coerce').fillna(1.0)
+    df_day['CANT'] = pax_count # Forzamos cantidad = pax
     df_day['TOTAL'] = df_day['CANT'] * df_day['UNIT']
     
     # ÚNICO EDITOR ACTIVO (Garantiza estabilidad total)
@@ -802,30 +803,48 @@ def dashboard_simulador_costos(controller):
         use_container_width=True,
         hide_index=True,
         key=f"stable_editor_day_{day_num}", 
-        column_order=["SERVICIO", "PROVEEDOR", "MONEDA", "UNIT", "CANT", "TOTAL"]
+        column_order=["SERVICIO", "PROVEEDOR", "MONEDA", "UNIT", "TOTAL"] # CANT OCULTO
     )
     
     # Sincronizar cambios de vuelta al Master de forma inmediata pero estable
     if not ed_day.equals(df_day):
         # Limpiar Nones del editor antes de procesar
         ed_day['UNIT'] = pd.to_numeric(ed_day['UNIT'], errors='coerce').fillna(0.0)
-        ed_day['CANT'] = pd.to_numeric(ed_day['CANT'], errors='coerce').fillna(1.0)
+        ed_day['CANT'] = pax_count 
+        ed_day['TOTAL'] = ed_day['UNIT'] * pax_count
         ed_day['VTA_VENDEDOR'] = pd.to_numeric(ed_day.get('VTA_VENDEDOR', 0.0), errors='coerce').fillna(0.0)
 
         for _, row in ed_day.iterrows():
+            # Intentar encontrar fila existente
             mask = (df_master['FECHA'] == d_key) & (df_master['SERVICIO'] == row['SERVICIO'])
-            if row.get('n_linea'):
+            if row.get('id_venta') and row.get('n_linea'):
                 mask = (df_master['id_venta'] == row['id_venta']) & (df_master['n_linea'] == row['n_linea'])
             
-            df_master.loc[mask, 'UNIT'] = float(row['UNIT'])
-            df_master.loc[mask, 'CANT'] = float(row['CANT'])
-            df_master.loc[mask, 'MONEDA'] = row['MONEDA']
-            df_master.loc[mask, 'PROVEEDOR'] = row['PROVEEDOR'] or "--- Sin Asignar ---"
-            df_master.loc[mask, 'TOTAL'] = float(row['UNIT']) * float(row['CANT'])
-            df_master.loc[mask, 'VTA_VENDEDOR'] = float(row.get('VTA_VENDEDOR', 0.0))
+            if df_master[mask].empty:
+                # ES UNA FILA NUEVA (Añadida por el usuario)
+                new_row = row.to_dict()
+                new_row['FECHA'] = d_key
+                new_row['CANT'] = pax_count
+                new_row['TOTAL'] = float(row['UNIT']) * pax_count
+                # Asegurar id_venta si tenemos una activa
+                if 'v' in locals(): new_row['id_venta'] = v['id_venta']
+                
+                df_master = pd.concat([df_master, pd.DataFrame([new_row])], ignore_index=True)
+            else:
+                # ACTUALIZAR EXISTENTE
+                df_master.loc[mask, 'UNIT'] = float(row['UNIT'])
+                df_master.loc[mask, 'CANT'] = pax_count 
+                df_master.loc[mask, 'MONEDA'] = row['MONEDA']
+                df_master.loc[mask, 'PROVEEDOR'] = row['PROVEEDOR'] or "--- Sin Asignar ---"
+                df_master.loc[mask, 'TOTAL'] = float(row['UNIT']) * pax_count
+                df_master.loc[mask, 'VTA_VENDEDOR'] = float(row.get('VTA_VENDEDOR', 0.0))
         
         st.session_state['df_master'] = df_master
+        st.rerun() # Requerido para que la tabla widget vea los nuevos TOTALES calculados
 
+    # Recalcular totales para el resumen (asegura que el total cambie en vivo)
+    ed_day['TOTAL'] = ed_day['UNIT'] * pax_count
+    
     # Totales del día seleccionado
     day_costo = ed_day['TOTAL'].sum()
     day_venta_vendedor = ed_day['VTA_VENDEDOR'].sum()
