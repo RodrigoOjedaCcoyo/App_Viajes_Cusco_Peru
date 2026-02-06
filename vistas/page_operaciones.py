@@ -764,42 +764,71 @@ def dashboard_simulador_costos(controller):
         "📎 Voucher": st.column_config.LinkColumn("VOUCHER", width="small")
     }
 
-    # AGRUPAR POR DÍAS
-    unique_dates = sorted(df_full['FECHA'].unique())
-    edited_results = []
-    total_general = 0.0
+    st.write("### 📅 Desglose de Gastos y Operaciones")
 
-    st.write("### 📅 Desglose de Gastos por Jornada")
-    
-    for idx, d_key in enumerate(unique_dates):
-        day_num = idx + 1
-        df_day = df_full[df_full['FECHA'] == d_key].copy()
-        main_service = df_day['SERVICIO'].iloc[0] if not df_day.empty else "Servicio"
+    # --- NUEVA LÓGICA: SELECTOR DE VISTA ---
+    vista_modo = st.radio("Modo de Edición:", ["📋 Tabla Unificada (Rápido)", "📂 Vista por Días (Detallado)"], horizontal=True, key="master_sheet_view_mode")
+
+    if vista_modo == "📋 Tabla Unificada (Rápido)":
+        # Asegurar un solo editor para todo
+        df_full['TOTAL'] = df_full['CANT'] * df_full['UNIT']
         
-        with st.expander(f"✨ {d_key.strftime('%d/%m/%Y')} - DÍA {day_num}: {main_service.upper()}", expanded=True):
-            # Calcular Total Dinámicamente para la vista
-            df_day['TOTAL'] = df_day['CANT'] * df_day['UNIT']
+        ed_full = st.data_editor(
+            df_full,
+            column_config=col_config,
+            num_rows="dynamic",
+            use_container_width=True,
+            hide_index=True,
+            key="editor_master_unified",
+            column_order=["FECHA", "SERVICIO", "PROVEEDOR", "MONEDA", "UNIT", "TOTAL", "VTA_VENDEDOR", "💵 Pago Op.", "📝 Info Pago"]
+        )
+        
+        # Sincronizar cambios de vuelta al state de forma eficiente
+        if not ed_full.equals(df_full):
+            ed_full['TOTAL'] = ed_full['CANT'] * ed_full['UNIT']
+            st.session_state['simulador_data'] = ed_full.to_dict('records')
+            st.rerun()
+
+        total_general = ed_full['TOTAL'].sum()
+        total_pax_venta = ed_full['VTA_VENDEDOR'].sum()
+        utilidad_total = total_pax_venta - total_general
+
+    else:
+        # MANTENER VISTA POR DÍAS PERO OPTIMIZADA
+        unique_dates = sorted(df_full['FECHA'].unique())
+        edited_results = []
+        total_general = 0.0
+        total_pax_venta = 0.0
+
+        for idx, d_key in enumerate(unique_dates):
+            day_num = idx + 1
+            df_day = df_full[df_full['FECHA'] == d_key].copy()
+            main_service = df_day['SERVICIO'].iloc[0] if not df_day.empty else "Servicio"
             
-            # Editor para el día
-            ed_day = st.data_editor(
-                df_day,
-                column_config=col_config,
-                num_rows="dynamic",
-                use_container_width=True,
-                hide_index=True,
-                key=f"editor_day_{d_key}_{day_num}",
-                column_order=["SERVICIO", "PROVEEDOR", "MONEDA", "UNIT", "TOTAL", "VTA_VENDEDOR"]
-            )
-            
-            # Recalcular totales tras edición
-            ed_day['TOTAL'] = ed_day['CANT'] * ed_day['UNIT']
-            day_costo = ed_day['TOTAL'].sum()
-            day_venta_vendedor = ed_day['VTA_VENDEDOR'].sum() # Lo que dio el vendedor
-            day_utilidad = day_venta_vendedor - day_costo
-            
-            total_general += day_costo
-            
-            # Resumen High-End (Glassmorphism & Icons)
+            with st.expander(f"✨ {d_key.strftime('%d/%m/%Y')} - DÍA {day_num}: {main_service.upper()}", expanded=True):
+                df_day['TOTAL'] = df_day['CANT'] * df_day['UNIT']
+                
+                ed_day = st.data_editor(
+                    df_day,
+                    column_config=col_config,
+                    num_rows="dynamic",
+                    use_container_width=True,
+                    hide_index=True,
+                    key=f"editor_day_{d_key}_{day_num}",
+                    column_order=["SERVICIO", "PROVEEDOR", "MONEDA", "UNIT", "TOTAL", "VTA_VENDEDOR"]
+                )
+                
+                ed_day['TOTAL'] = ed_day['CANT'] * ed_day['UNIT']
+                day_costo = ed_day['TOTAL'].sum()
+                day_venta_vendedor = ed_day['VTA_VENDEDOR'].sum()
+                day_utilidad = day_venta_vendedor - day_costo
+                
+                total_general += day_costo
+                total_pax_venta += day_venta_vendedor
+                
+                # Resumen Day (Simplificado para performance si es necesario, pero mantenemos tu diseño de lujo)
+                summary_html = f"<div style='background: linear-gradient(135deg, rgba(30,33,48,0.95), rgba(46,51,74,0.85)); backdrop-filter: blur(12px); padding: 22px; border-radius: 18px; margin-top: 15px; border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 12px 40px rgba(0,0,0,0.6); font-family: \"Segoe UI\", Roboto, Helvetica, sans-serif;'>"
+                # ... (resto de tu HTML impecable)
             summary_html = f"<div style='background: linear-gradient(135deg, rgba(30,33,48,0.95), rgba(46,51,74,0.85)); backdrop-filter: blur(12px); padding: 22px; border-radius: 18px; margin-top: 15px; border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 12px 40px rgba(0,0,0,0.6); font-family: \"Segoe UI\", Roboto, Helvetica, sans-serif;'>"
             summary_html += f"<div style='display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;'>"
             summary_html += f"<div style='background: rgba(255,255,255,0.05); padding: 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);'>"

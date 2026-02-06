@@ -120,11 +120,11 @@ def logout_user():
     st.rerun()
 
 def main():
-    st.set_page_config(page_title="SGVO - Cusco", layout="wide") # Nombre de la pestaña
+    st.set_page_config(page_title="Latitud VCP - Cusco", layout="wide") # Nombre de la pestaña
 
     if not st.session_state['authenticated']:
         # ... Lógica de Login (Correcta) ...
-        st.title("🔐 Sistema VCP - Iniciar Sesión")
+        st.title("🔐 Sistema Latitud VCP - Iniciar Sesión")
         st.warning("Ingrese su correo y su contraseña de su área para acceder .")
         
         with st.form("login_form"):
