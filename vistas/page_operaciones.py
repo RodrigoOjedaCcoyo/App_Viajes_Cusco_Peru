@@ -845,27 +845,37 @@ def dashboard_simulador_costos(controller):
     )
     
     # Sincronizar cambios de vuelta al Master de forma inmediata pero estable
-    if not ed_day.equals(df_day):
-        # 1. Limpiar Nones y forzar cálculos
-        ed_day['UNIT'] = pd.to_numeric(ed_day['UNIT'], errors='coerce').fillna(0.0)
-        ed_day['CANT'] = pax_count 
-        ed_day['TOTAL'] = ed_day['UNIT'] * pax_count
-        ed_day['VTA_VENDEDOR'] = pd.to_numeric(ed_day.get('VTA_VENDEDOR', 0.0), errors='coerce').fillna(0.0)
+    # Solo comparar columnas editables para evitar bucles por columnas técnicas
+    cols_eval = ["SERVICIO", "PROVEEDOR", "MONEDA", "UNIT"]
+    
+    # Asegurar tipos consistentes para la comparación
+    ed_clean = ed_day.copy()
+    ed_clean['UNIT'] = pd.to_numeric(ed_clean['UNIT'], errors='coerce').fillna(0.0)
+    df_day_comp = df_day.copy()
+    df_day_comp['UNIT'] = pd.to_numeric(df_day_comp['UNIT'], errors='coerce').fillna(0.0)
 
-        # 2. Filtrar el Master para quitar lo viejo de este día y reemplazar con lo editado
+    if not ed_clean[cols_eval].equals(df_day_comp[cols_eval]):
+        # 1. Limpiar filas fantasma (vacías) y asegurar cálculos
+        ed_clean = ed_clean[ed_clean['SERVICIO'].notna() & (ed_clean['SERVICIO'] != "")]
+        ed_clean['UNIT'] = pd.to_numeric(ed_clean['UNIT'], errors='coerce').fillna(0.0)
+        ed_clean['CANT'] = pax_count 
+        ed_clean['TOTAL'] = ed_clean['UNIT'] * pax_count
+        ed_clean['VTA_VENDEDOR'] = pd.to_numeric(ed_clean.get('VTA_VENDEDOR', 0.0), errors='coerce').fillna(0.0)
+
+        # 2. Filtrar el Master y reemplazar
         df_others = df_master[df_master['FECHA'] != d_key]
         
-        # Asegurar que todas las filas de ed_day tengan la fecha y pax correctos
-        ed_day['FECHA'] = d_key
-        ed_day['CANT'] = pax_count
+        # Asegurar datos de identidad
+        ed_clean['FECHA'] = d_key
         
-        # PROTEGER NOMBRE ORIGINAL: Si tiene n_linea, restauramos el SERVICIO desde ORIGINAL_SERVICE
-        if 'ORIGINAL_SERVICE' in ed_day.columns:
-            mask_orig = ed_day['n_linea'].notna()
-            ed_day.loc[mask_orig, 'SERVICIO'] = ed_day.loc[mask_orig, 'ORIGINAL_SERVICE']
+        # PROTEGER NOMBRE ORIGINAL
+        if 'ORIGINAL_SERVICE' in ed_clean.columns:
+            mask_orig = ed_clean['n_linea'].notna()
+            ed_clean.loc[mask_orig, 'SERVICIO'] = ed_clean.loc[mask_orig, 'ORIGINAL_SERVICE']
         
-        # Consolidar
-        df_master = pd.concat([df_others, ed_day], ignore_index=True)
+        # Consolidar y Ordenar
+        df_master = pd.concat([df_others, ed_clean], ignore_index=True)
+        df_master = df_master.sort_values(by=['FECHA']).reset_index(drop=True)
         st.session_state['df_master'] = df_master
         st.rerun() 
 
