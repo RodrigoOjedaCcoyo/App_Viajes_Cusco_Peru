@@ -781,10 +781,15 @@ def dashboard_simulador_costos(controller):
         st.session_state['last_id_venta'] = pax_sel if 'pax_sel' in locals() else None
 
     df_master = st.session_state['df_master']
-    # Asegurar columna ORIGINAL_SERVICE
-    if 'ORIGINAL_SERVICE' not in df_master.columns:
-        df_master['ORIGINAL_SERVICE'] = df_master['SERVICIO']
-        
+    
+    # --- ASEGURAR COLUMNAS CRÍTICAS EN EL MASTER ---
+    for col in ["n_linea", "id_venta", "ORIGINAL_SERVICE", "UNIT", "CANT", "TOTAL"]:
+        if col not in df_master.columns:
+            if col == "ORIGINAL_SERVICE": df_master[col] = df_master['SERVICIO'] if 'SERVICIO' in df_master.columns else ""
+            elif col in ["UNIT", "TOTAL"]: df_master[col] = 0.0
+            elif col == "CANT": df_master[col] = 1.0
+            else: df_master[col] = None
+
     unique_dates = sorted(df_master['FECHA'].unique())
     
     # Selector de día (Mucho más estable que pestañas)
@@ -793,7 +798,12 @@ def dashboard_simulador_costos(controller):
     for i, d in enumerate(unique_dates):
         df_t = df_master[df_master['FECHA'] == d]
         # Buscar la primera fila que sea 'original' para el nombre del selector
-        original_row = df_t[df_t['n_linea'].notna()]
+        # Usar .get() para evitar KeyError si la columna faltara por algún motivo
+        if 'n_linea' in df_t.columns:
+            original_row = df_t[df_t['n_linea'].notna()]
+        else:
+            original_row = pd.DataFrame()
+            
         base_name = original_row.iloc[0]['ORIGINAL_SERVICE'] if not original_row.empty else df_t.iloc[0]['SERVICIO']
         opciones_dias.append(f"DÍA {i+1}: {base_name[:25]}... ({d.strftime('%d/%m/%Y')})")
     
