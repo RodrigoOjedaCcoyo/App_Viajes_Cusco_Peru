@@ -715,7 +715,8 @@ def dashboard_simulador_costos(controller):
                             "📝 Info Pago": d.get('datos_pago_operativo') or '',
                             "📎 Voucher": d.get('url_voucher_operativo', ''),
                             "id_venta": d['id_venta'],
-                            "n_linea": d['n_linea']
+                            "n_linea": d['n_linea'],
+                            "ORIGINAL_SERVICE": d.get('observaciones') or "Servicio sin nombre"
                         })
                     st.session_state['simulador_data'] = nuevos_items
                     st.success(f"Itinerario de {len(detalles)} días cargado con éxito.")
@@ -779,10 +780,22 @@ def dashboard_simulador_costos(controller):
         st.session_state['last_id_venta'] = pax_sel if 'pax_sel' in locals() else None
 
     df_master = st.session_state['df_master']
+    # Asegurar columna ORIGINAL_SERVICE
+    if 'ORIGINAL_SERVICE' not in df_master.columns:
+        df_master['ORIGINAL_SERVICE'] = df_master['SERVICIO']
+        
     unique_dates = sorted(df_master['FECHA'].unique())
     
     # Selector de día (Mucho más estable que pestañas)
-    opciones_dias = [f"DÍA {i+1}: {df_master[df_master['FECHA'] == d].iloc[0]['SERVICIO'][:25]}... ({d.strftime('%d/%m/%Y')})" for i, d in enumerate(unique_dates)]
+    # Usar ORIGINAL_SERVICE para que el selector no cambie de nombre
+    opciones_dias = []
+    for i, d in enumerate(unique_dates):
+        df_t = df_master[df_master['FECHA'] == d]
+        # Buscar la primera fila que sea 'original' para el nombre del selector
+        original_row = df_t[df_t['n_linea'].notna()]
+        base_name = original_row.iloc[0]['ORIGINAL_SERVICE'] if not original_row.empty else df_t.iloc[0]['SERVICIO']
+        opciones_dias.append(f"DÍA {i+1}: {base_name[:25]}... ({d.strftime('%d/%m/%Y')})")
+    
     dia_sel_txt = st.selectbox("Seleccionar día para configurar:", opciones_dias, key="master_sheet_day_selector")
     
     idx_dia = opciones_dias.index(dia_sel_txt)
@@ -809,7 +822,7 @@ def dashboard_simulador_costos(controller):
         use_container_width=True,
         hide_index=True,
         key=f"stable_editor_day_{day_num}", 
-        column_order=["SERVICIO", "PROVEEDOR", "MONEDA", "UNIT", "TOTAL"] # CANT OCULTO
+        column_order=["SERVICIO", "PROVEEDOR", "MONEDA", "UNIT", "TOTAL"] 
     )
     
     # Sincronizar cambios de vuelta al Master de forma inmediata pero estable
@@ -826,6 +839,11 @@ def dashboard_simulador_costos(controller):
         # Asegurar que todas las filas de ed_day tengan la fecha y pax correctos
         ed_day['FECHA'] = d_key
         ed_day['CANT'] = pax_count
+        
+        # PROTEGER NOMBRE ORIGINAL: Si tiene n_linea, restauramos el SERVICIO desde ORIGINAL_SERVICE
+        if 'ORIGINAL_SERVICE' in ed_day.columns:
+            mask_orig = ed_day['n_linea'].notna()
+            ed_day.loc[mask_orig, 'SERVICIO'] = ed_day.loc[mask_orig, 'ORIGINAL_SERVICE']
         
         # Consolidar
         df_master = pd.concat([df_others, ed_day], ignore_index=True)
