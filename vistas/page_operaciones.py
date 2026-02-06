@@ -158,14 +158,13 @@ def dashboard_tablero_diario(controller):
         df = pd.DataFrame(servicios)
         ed_df = st.data_editor(
             df,
-            column_order=('Log.', 'Hora', 'Día Itin.', 'Servicio', 'Pax', 'Endoso?', 'Guía', 'Agencia Endoso', 'Estado Pago', 'Cliente', 'URL Cloud'),
+            column_order=('Log.', 'Hora', 'Día Itin.', 'Servicio', 'Pax', 'Endoso?', 'Agencia Endoso', 'Estado Pago', 'Cliente', 'URL Cloud'),
             column_config={
                 "Log.": st.column_config.TextColumn("Log.", help="Semáforo de Logística (🟢 Todo OK, 🔴 Falta asignar)", disabled=True, width="small"),
                 "Día Itin.": st.column_config.NumberColumn("Día", format="%d", disabled=True, width="small"),
                 "Endoso?": st.column_config.CheckboxColumn("¿Endoso?", help="Marcar si el servicio se pasa a otra agencia"),
                 "Agencia Endoso": st.column_config.TextColumn("Agencia/Proveedor 🏢", help="Nombre de la agencia que recibe el endoso"),
                 "URL Cloud": st.column_config.LinkColumn("PDF 📄", help="Abrir Itinerario Premium"),
-                "Guía": st.column_config.TextColumn("Guía ✏️", help="Asignar guía (solo si NO es endoso)"),
                 "Pax": st.column_config.NumberColumn(disabled=True),
                 "Servicio": st.column_config.TextColumn(disabled=True),
                 "Cliente": st.column_config.TextColumn(disabled=True),
