@@ -783,10 +783,10 @@ def dashboard_simulador_costos(controller):
     df_master = st.session_state['df_master']
     
     # --- ASEGURAR COLUMNAS CRÍTICAS EN EL MASTER ---
-    for col in ["n_linea", "id_venta", "ORIGINAL_SERVICE", "UNIT", "CANT", "TOTAL"]:
+    for col in ["n_linea", "id_venta", "ORIGINAL_SERVICE", "UNIT", "CANT", "TOTAL", "VTA_VENDEDOR"]:
         if col not in df_master.columns:
             if col == "ORIGINAL_SERVICE": df_master[col] = df_master['SERVICIO'] if 'SERVICIO' in df_master.columns else ""
-            elif col in ["UNIT", "TOTAL"]: df_master[col] = 0.0
+            elif col in ["UNIT", "TOTAL", "VTA_VENDEDOR"]: df_master[col] = 0.0
             elif col == "CANT": df_master[col] = 1.0
             else: df_master[col] = None
 
