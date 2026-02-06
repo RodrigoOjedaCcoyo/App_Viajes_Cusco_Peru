@@ -757,7 +757,7 @@ def dashboard_simulador_costos(controller):
         "CANT": st.column_config.NumberColumn("CANT", min_value=1, default=1, width="small"),
         "TOTAL": st.column_config.NumberColumn("COSTO TOTAL", format="$ %.2f", disabled=True, width="small"),
         "VENTA": st.column_config.NumberColumn("PRECIO VENTA", format="$ %.2f", min_value=0.0, width="small"),
-        "VTA_VENDEDOR": st.column_config.NumberColumn("PRECIO VENDEDOR", format="$ %.2f", min_value=0.0, width="small"),
+        "VTA_VENDEDOR": st.column_config.NumberColumn("PRECIO VENDEDOR", format="$ %.2f", min_value=0.0, width="small", disabled=True),
         "MONEDA": st.column_config.SelectboxColumn("MONEDA", options=["USD", "PEN"], default="USD", width="small"),
         "💵 Pago Op.": st.column_config.SelectboxColumn("ESTADO PAGO", options=["NO_REQUERIDO", "PENDIENTE", "PAGADO"], default="NO_REQUERIDO"),
         "📝 Info Pago": st.column_config.TextColumn("INFO PAGO", width="medium"),

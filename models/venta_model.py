@@ -167,7 +167,6 @@ class VentaModel(BaseModel):
                 res_itin = self.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin).single().execute()
                 if res_itin.data:
                     render = res_itin.data.get('datos_render', {})
-                    # Soportar todas las estructuras: 'itinerario_detalles' (nuevo), 'itinerario_detales' (viejo) o 'days' (externo)
                     itin_detalles = render.get('itinerario_detalles', []) or render.get('itinerario_detales', []) or render.get('days', [])
 
             for i in range(num_dias):
