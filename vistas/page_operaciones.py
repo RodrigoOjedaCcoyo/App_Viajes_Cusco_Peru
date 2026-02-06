@@ -764,101 +764,78 @@ def dashboard_simulador_costos(controller):
         "📎 Voucher": st.column_config.LinkColumn("VOUCHER", width="small")
     }
 
-    st.write("### 📅 Desglose de Gastos y Operaciones")
+    st.write("### 📅 Navegador de Itinerario por Días")
 
-    # --- NUEVA LÓGICA: SELECTOR DE VISTA ---
-    vista_modo = st.radio("Modo de Edición:", ["📋 Tabla Unificada (Rápido)", "📂 Vista por Días (Detallado)"], horizontal=True, key="master_sheet_view_mode")
+    # --- NUEVA LÓGICA: PESTAÑAS POR DÍA (RÁPIDO Y ORGANIZADO) ---
+    unique_dates = sorted(df_full['FECHA'].unique())
+    n_days = len(unique_dates)
+    
+    # Crear nombres de pestañas descriptivos
+    titulos_tabs = []
+    for i, d_key in enumerate(unique_dates):
+        df_temp = df_full[df_full['FECHA'] == d_key]
+        svc_name = df_temp['SERVICIO'].iloc[0] if not df_temp.empty else "Día"
+        titulos_tabs.append(f"Día {i+1}: {svc_name[:15]}...")
 
-    if vista_modo == "📋 Tabla Unificada (Rápido)":
-        # Asegurar un solo editor para todo
-        df_full['TOTAL'] = df_full['CANT'] * df_full['UNIT']
-        
-        ed_full = st.data_editor(
-            df_full,
-            column_config=col_config,
-            num_rows="dynamic",
-            use_container_width=True,
-            hide_index=True,
-            key="editor_master_unified",
-            column_order=["FECHA", "SERVICIO", "PROVEEDOR", "MONEDA", "UNIT", "TOTAL", "VTA_VENDEDOR", "💵 Pago Op.", "📝 Info Pago"]
-        )
-        
-        # Sincronizar cambios de vuelta al state de forma eficiente
-        if not ed_full.equals(df_full):
-            ed_full['TOTAL'] = ed_full['CANT'] * ed_full['UNIT']
-            st.session_state['simulador_data'] = ed_full.to_dict('records')
-            st.rerun()
+    tabs = st.tabs(titulos_tabs)
+    
+    total_general = 0.0
+    total_pax_venta = 0.0
+    updated_records = []
 
-        total_general = ed_full['TOTAL'].sum()
-        total_pax_venta = ed_full['VTA_VENDEDOR'].sum()
-        utilidad_total = total_pax_venta - total_general
-
-    else:
-        # MANTENER VISTA POR DÍAS PERO OPTIMIZADA
-        unique_dates = sorted(df_full['FECHA'].unique())
-        edited_results = []
-        total_general = 0.0
-        total_pax_venta = 0.0
-
-        for idx, d_key in enumerate(unique_dates):
+    for idx, d_key in enumerate(unique_dates):
+        with tabs[idx]:
             day_num = idx + 1
             df_day = df_full[df_full['FECHA'] == d_key].copy()
-            main_service = df_day['SERVICIO'].iloc[0] if not df_day.empty else "Servicio"
             
-            with st.expander(f"✨ {d_key.strftime('%d/%m/%Y')} - DÍA {day_num}: {main_service.upper()}", expanded=True):
-                df_day['TOTAL'] = df_day['CANT'] * df_day['UNIT']
-                
-                ed_day = st.data_editor(
-                    df_day,
-                    column_config=col_config,
-                    num_rows="dynamic",
-                    use_container_width=True,
-                    hide_index=True,
-                    key=f"editor_day_{d_key}_{day_num}",
-                    column_order=["SERVICIO", "PROVEEDOR", "MONEDA", "UNIT", "TOTAL", "VTA_VENDEDOR"]
-                )
-                
-                ed_day['TOTAL'] = ed_day['CANT'] * ed_day['UNIT']
-                day_costo = ed_day['TOTAL'].sum()
-                day_venta_vendedor = ed_day['VTA_VENDEDOR'].sum()
-                day_utilidad = day_venta_vendedor - day_costo
-                
-                total_general += day_costo
-                total_pax_venta += day_venta_vendedor
-                
-                # Resumen Day (Simplificado para performance si es necesario, pero mantenemos tu diseño de lujo)
-                summary_html = f"<div style='background: linear-gradient(135deg, rgba(30,33,48,0.95), rgba(46,51,74,0.85)); backdrop-filter: blur(12px); padding: 22px; border-radius: 18px; margin-top: 15px; border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 12px 40px rgba(0,0,0,0.6); font-family: \"Segoe UI\", Roboto, Helvetica, sans-serif;'>"
-                # ... (resto de tu HTML impecable)
-            summary_html = f"<div style='background: linear-gradient(135deg, rgba(30,33,48,0.95), rgba(46,51,74,0.85)); backdrop-filter: blur(12px); padding: 22px; border-radius: 18px; margin-top: 15px; border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 12px 40px rgba(0,0,0,0.6); font-family: \"Segoe UI\", Roboto, Helvetica, sans-serif;'>"
-            summary_html += f"<div style='display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;'>"
-            summary_html += f"<div style='background: rgba(255,255,255,0.05); padding: 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);'>"
-            summary_html += f"<div style='color: #bbb; font-size: 0.8em; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;'>📉 Costo Operativo</div>"
-            summary_html += f"<div style='color: #ffffff; font-weight: 700; font-size: 1.3em; margin-top: 5px;'>$ {day_costo:,.2f}</div></div>"
-            summary_html += f"<div style='background: rgba(255, 193, 7, 0.1); padding: 14px; border-radius: 12px; border: 1px solid rgba(255, 193, 7, 0.15);'>"
-            summary_html += f"<div style='color: #FFC107; font-size: 0.8em; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;'>🏷️ Precio Vendedor</div>"
-            summary_html += f"<div style='color: #ffffff; font-weight: 700; font-size: 1.3em; margin-top: 5px;'>$ {day_venta_vendedor:,.2f}</div></div></div>"
+            # Encabezado Minimalista pero Elegante
+            st.markdown(f"#### 🎭 Operación de la Jornada: {d_key.strftime('%d/%m/%Y')}")
             
-            # Utilidad Box
-            uti_bg = "linear-gradient(90deg, rgba(76, 175, 80, 0.1), rgba(76, 175, 80, 0.2))" if day_utilidad >= 0 else "linear-gradient(90deg, rgba(244, 67, 54, 0.1), rgba(244, 67, 54, 0.2))"
-            uti_border = "rgba(76, 175, 80, 0.4)" if day_utilidad >= 0 else "rgba(244, 67, 54, 0.4)"
+            df_day['TOTAL'] = df_day['CANT'] * df_day['UNIT']
+            
+            # Editor para el día (Ahora es estable porque está en su propio Tab)
+            ed_day = st.data_editor(
+                df_day,
+                column_config=col_config,
+                num_rows="dynamic",
+                use_container_width=True,
+                hide_index=True,
+                key=f"editor_tab_day_{d_key}_{day_num}",
+                column_order=["SERVICIO", "PROVEEDOR", "MONEDA", "UNIT", "TOTAL", "VTA_VENDEDOR", "💵 Pago Op.", "📝 Info Pago"]
+            )
+            
+            # Recalcular totales tras edición
+            ed_day['TOTAL'] = ed_day['CANT'] * ed_day['UNIT']
+            day_costo = ed_day['TOTAL'].sum()
+            day_venta_vendedor = ed_day['VTA_VENDEDOR'].sum()
+            day_utilidad = day_venta_vendedor - day_costo
+            
+            total_general += day_costo
+            total_pax_venta += day_venta_vendedor
+            updated_records.append(ed_day)
+            
+            # Resumen Day (Glassmorphism UI)
+            summary_html = f"<div style='background: linear-gradient(135deg, rgba(30,33,48,0.95), rgba(46,51,74,0.85)); backdrop-filter: blur(12px); padding: 18px; border-radius: 12px; margin-top: 10px; border: 1px solid rgba(255,255,255,0.1);'>"
+            summary_html += f"<div style='display: flex; gap: 20px; align-items: center;'>"
+            summary_html += f"<div><span style='color: #aaa; font-size: 0.8em;'>COSTO:</span> <b style='color: white;'>$ {day_costo:,.2f}</b></div>"
+            summary_html += f"<div><span style='color: #FFC107; font-size: 0.8em;'>VENTA:</span> <b style='color: white;'>$ {day_venta_vendedor:,.2f}</b></div>"
             uti_color = "#81C784" if day_utilidad >= 0 else "#E57373"
-            uti_icon = "🚀" if day_utilidad >= 0 else "⚠️"
-            
-            summary_html += f"<div style='padding: 18px; border-radius: 14px; background: {uti_bg}; border: 1px solid {uti_border}; display: flex; justify-content: space-between; align-items: center;'>"
-            summary_html += f"<div><div style='color: #ffffff; font-size: 0.85em; font-weight: 500; text-transform: uppercase; opacity: 0.8;'>Utilidad (vs Venta Original)</div>"
-            summary_html += f"<div style='color: {uti_color}; font-size: 1.8em; font-weight: 800; margin-top: 2px;'>$ {day_utilidad:,.2f}</div></div>"
-            summary_html += f"<div style='font-size: 2.5em; opacity: 0.3;'>{uti_icon}</div></div></div>"
+            summary_html += f"<div><span style='color: {uti_color}; font-size: 0.8em;'>UTILIDAD:</span> <b style='color: {uti_color};'>$ {day_utilidad:,.2f}</b></div>"
+            summary_html += f"</div></div>"
             st.markdown(summary_html, unsafe_allow_html=True)
-            edited_results.append(ed_day)
 
-    # Consolidar resultados en session_state para persistencia temporal
-    df_final = pd.concat(edited_results)
-    st.session_state['simulador_data'] = df_final.to_dict('records')
+    # Sincronizar cambios de forma consolidada al final para evitar reruns infinitos
+    all_edited = pd.concat(updated_records)
+    if not all_edited.equals(df_full):
+         st.session_state['simulador_data'] = all_edited.to_dict('records')
+         # No hacemos st.rerun() aquí para dejar que el usuario siga editando fluidamente
 
     st.divider()
-    sc1, sc2 = st.columns(2)
-    sc1.metric("COSTO TOTAL LIQUIDACIÓN", f"$ {total_general:,.2f}", delta_color="inverse")
-    sc2.metric("Total Días", len(unique_dates))
+    sc1, sc2, sc3 = st.columns(3)
+    sc1.metric("COSTO TOTAL", f"$ {total_general:,.2f}", delta_color="inverse")
+    uti_global = total_pax_venta - total_general
+    sc2.metric("UTILIDAD GLOBAL", f"$ {uti_global:,.2f}", delta=f"{uti_global:,.2f}")
+    sc3.metric("Total Días", len(unique_dates))
 
     # Botones de Acción
     c_save, c_finalize = st.columns(2)
@@ -866,7 +843,8 @@ def dashboard_simulador_costos(controller):
     # Función de guardado compartida
     def salvar_datos_actuales():
         updated_count = 0
-        for index, row in df_final.iterrows():
+        # Usar all_edited que viene del procesamiento de las pestañas
+        for index, row in all_edited.iterrows():
             id_prov = None
             p_txt = row.get('PROVEEDOR')
             if p_txt and p_txt != "--- Sin Asignar ---":
