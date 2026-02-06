@@ -685,6 +685,7 @@ def dashboard_simulador_costos(controller):
         if pax_sel != "--- Seleccione ---":
             if st.button(f"📥 Cargar Itinerario de {pax_sel.split('|')[0].strip()}", use_container_width=True):
                 v = mapa_ventas_pax.get(pax_sel)
+                st.session_state['master_pax_count'] = v.get('num_pasajeros', 1)
                 
                 # 1. Ajustar Datos Globales (ya no necesarios pero mantenemos compatibilidad)
                 
@@ -754,7 +755,7 @@ def dashboard_simulador_costos(controller):
         "SERVICIO": st.column_config.TextColumn("SERVICIO", required=True, width="large"),
         "PROVEEDOR": st.column_config.SelectboxColumn("PROVEEDOR", options=lista_proveedores, width="medium"),
         "UNIT": st.column_config.NumberColumn("COSTO UNITARIO", format="$ %.2f", min_value=0.0, width="small"),
-        "CANT": st.column_config.NumberColumn("CANT", min_value=1, default=1, width="small"),
+        "CANT": st.column_config.NumberColumn("CANT", min_value=1, default=float(st.session_state.get('master_pax_count', 1)), width="small"),
         "TOTAL": st.column_config.NumberColumn("COSTO TOTAL", format="$ %.2f", disabled=True, width="small"),
         "VENTA": st.column_config.NumberColumn("PRECIO VENTA", format="$ %.2f", min_value=0.0, width="small"),
         "VTA_VENDEDOR": st.column_config.NumberColumn("PRECIO VENDEDOR", format="$ %.2f", min_value=0.0, width="small", disabled=True),
@@ -788,6 +789,7 @@ def dashboard_simulador_costos(controller):
     st.markdown(f"#### 🎭 Operación de la Jornada: {d_key.strftime('%d/%m/%Y')}")
     
     # Calcular Total Dinámicamente con seguridad para Nones
+    # Asegurar que CANT y UNIT tengan valores por defecto si son nuevos o None
     df_day['UNIT'] = pd.to_numeric(df_day['UNIT'], errors='coerce').fillna(0.0)
     df_day['CANT'] = pd.to_numeric(df_day['CANT'], errors='coerce').fillna(1.0)
     df_day['TOTAL'] = df_day['CANT'] * df_day['UNIT']
@@ -800,7 +802,7 @@ def dashboard_simulador_costos(controller):
         use_container_width=True,
         hide_index=True,
         key=f"stable_editor_day_{day_num}", 
-        column_order=["SERVICIO", "PROVEEDOR", "MONEDA", "UNIT", "TOTAL", "VTA_VENDEDOR"]
+        column_order=["SERVICIO", "PROVEEDOR", "MONEDA", "UNIT", "CANT", "TOTAL"]
     )
     
     # Sincronizar cambios de vuelta al Master de forma inmediata pero estable
