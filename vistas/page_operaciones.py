@@ -787,7 +787,9 @@ def dashboard_simulador_costos(controller):
     
     st.markdown(f"#### 🎭 Operación de la Jornada: {d_key.strftime('%d/%m/%Y')}")
     
-    # Calcular Total Dinámicamente
+    # Calcular Total Dinámicamente con seguridad para Nones
+    df_day['UNIT'] = pd.to_numeric(df_day['UNIT'], errors='coerce').fillna(0.0)
+    df_day['CANT'] = pd.to_numeric(df_day['CANT'], errors='coerce').fillna(1.0)
     df_day['TOTAL'] = df_day['CANT'] * df_day['UNIT']
     
     # ÚNICO EDITOR ACTIVO (Garantiza estabilidad total)
@@ -797,26 +799,28 @@ def dashboard_simulador_costos(controller):
         num_rows="dynamic",
         use_container_width=True,
         hide_index=True,
-        key=f"stable_editor_day_{day_num}", # El key cambia solo si cambiamos de día
+        key=f"stable_editor_day_{day_num}", 
         column_order=["SERVICIO", "PROVEEDOR", "MONEDA", "UNIT", "TOTAL", "VTA_VENDEDOR"]
     )
     
     # Sincronizar cambios de vuelta al Master de forma inmediata pero estable
     if not ed_day.equals(df_day):
-        # Actualizar los registros en el dataframe maestro
-        # Buscamos por n_linea o fecha/servicio
+        # Limpiar Nones del editor antes de procesar
+        ed_day['UNIT'] = pd.to_numeric(ed_day['UNIT'], errors='coerce').fillna(0.0)
+        ed_day['CANT'] = pd.to_numeric(ed_day['CANT'], errors='coerce').fillna(1.0)
+        ed_day['VTA_VENDEDOR'] = pd.to_numeric(ed_day.get('VTA_VENDEDOR', 0.0), errors='coerce').fillna(0.0)
+
         for _, row in ed_day.iterrows():
             mask = (df_master['FECHA'] == d_key) & (df_master['SERVICIO'] == row['SERVICIO'])
             if row.get('n_linea'):
                 mask = (df_master['id_venta'] == row['id_venta']) & (df_master['n_linea'] == row['n_linea'])
             
-            df_master.loc[mask, 'UNIT'] = row['UNIT']
-            df_master.loc[mask, 'CANT'] = row['CANT']
+            df_master.loc[mask, 'UNIT'] = float(row['UNIT'])
+            df_master.loc[mask, 'CANT'] = float(row['CANT'])
             df_master.loc[mask, 'MONEDA'] = row['MONEDA']
-            df_master.loc[mask, 'PROVEEDOR'] = row['PROVEEDOR']
-            df_master.loc[mask, '💵 Pago Op.'] = row['💵 Pago Op.']
-            df_master.loc[mask, '📝 Info Pago'] = row['📝 Info Pago']
-            df_master.loc[mask, 'TOTAL'] = row['UNIT'] * row['CANT']
+            df_master.loc[mask, 'PROVEEDOR'] = row['PROVEEDOR'] or "--- Sin Asignar ---"
+            df_master.loc[mask, 'TOTAL'] = float(row['UNIT']) * float(row['CANT'])
+            df_master.loc[mask, 'VTA_VENDEDOR'] = float(row.get('VTA_VENDEDOR', 0.0))
         
         st.session_state['df_master'] = df_master
         st.rerun()
@@ -826,10 +830,14 @@ def dashboard_simulador_costos(controller):
     day_venta_vendedor = ed_day['VTA_VENDEDOR'].sum()
     day_utilidad = day_venta_vendedor - day_costo
     
-    # Totales Globales (Cálculo directo del master)
+    # Totales Globales reforzados contra Nones
+    df_master['UNIT'] = pd.to_numeric(df_master['UNIT'], errors='coerce').fillna(0.0)
+    df_master['CANT'] = pd.to_numeric(df_master['CANT'], errors='coerce').fillna(1.0)
+    df_master['VTA_VENDEDOR'] = pd.to_numeric(df_master['VTA_VENDEDOR'], errors='coerce').fillna(0.0)
+    
     total_general = (df_master['UNIT'] * df_master['CANT']).sum()
     total_pax_venta = df_master['VTA_VENDEDOR'].sum()
-    all_edited = df_master # Alias para el resto de la función salvar_datos_actuales
+    all_edited = df_master 
 
     # Resumen Day (Glassmorphism UI)
     summary_html = f"<div style='background: linear-gradient(135deg, rgba(30,33,48,0.95), rgba(46,51,74,0.85)); backdrop-filter: blur(12px); padding: 18px; border-radius: 12px; margin-top: 10px; border: 1px solid rgba(255,255,255,0.1);'>"
