@@ -766,69 +766,80 @@ def dashboard_simulador_costos(controller):
 
     st.write("### 📅 Navegador de Itinerario por Días")
 
-    # --- NUEVA LÓGICA: PESTAÑAS POR DÍA (RÁPIDO Y ORGANIZADO) ---
-    unique_dates = sorted(df_full['FECHA'].unique())
-    n_days = len(unique_dates)
+    # --- INICIALIZACIÓN ESTABLE (DATAFRAME) ---
+    if 'df_master' not in st.session_state or st.session_state.get('last_id_venta') != (pax_sel if 'pax_sel' in locals() else None):
+        st.session_state['df_master'] = pd.DataFrame(st.session_state['simulador_data'])
+        st.session_state['last_id_venta'] = pax_sel if 'pax_sel' in locals() else None
+
+    df_master = st.session_state['df_master']
+    unique_dates = sorted(df_master['FECHA'].unique())
     
-    # Crear nombres de pestañas descriptivos
-    titulos_tabs = []
-    for i, d_key in enumerate(unique_dates):
-        df_temp = df_full[df_full['FECHA'] == d_key]
-        svc_name = df_temp['SERVICIO'].iloc[0] if not df_temp.empty else "Día"
-        titulos_tabs.append(f"Día {i+1}: {svc_name[:15]}...")
-
-    tabs = st.tabs(titulos_tabs)
+    # Selector de día (Mucho más estable que pestañas)
+    opciones_dias = [f"DÍA {i+1}: {df_master[df_master['FECHA'] == d].iloc[0]['SERVICIO'][:25]}... ({d.strftime('%d/%m/%Y')})" for i, d in enumerate(unique_dates)]
+    dia_sel_txt = st.selectbox("Seleccionar día para configurar:", opciones_dias, key="master_sheet_day_selector")
     
-    total_general = 0.0
-    total_pax_venta = 0.0
-    updated_records = []
+    idx_dia = opciones_dias.index(dia_sel_txt)
+    d_key = unique_dates[idx_dia]
+    day_num = idx_dia + 1
 
-    for idx, d_key in enumerate(unique_dates):
-        with tabs[idx]:
-            day_num = idx + 1
-            df_day = df_full[df_full['FECHA'] == d_key].copy()
+    # Extraer slice del día para el editor
+    df_day = df_master[df_master['FECHA'] == d_key].copy()
+    
+    st.markdown(f"#### 🎭 Operación de la Jornada: {d_key.strftime('%d/%m/%Y')}")
+    
+    # Calcular Total Dinámicamente
+    df_day['TOTAL'] = df_day['CANT'] * df_day['UNIT']
+    
+    # ÚNICO EDITOR ACTIVO (Garantiza estabilidad total)
+    ed_day = st.data_editor(
+        df_day,
+        column_config=col_config,
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        key=f"stable_editor_day_{day_num}", # El key cambia solo si cambiamos de día
+        column_order=["SERVICIO", "PROVEEDOR", "MONEDA", "UNIT", "TOTAL", "VTA_VENDEDOR", "💵 Pago Op.", "📝 Info Pago"]
+    )
+    
+    # Sincronizar cambios de vuelta al Master de forma inmediata pero estable
+    if not ed_day.equals(df_day):
+        # Actualizar los registros en el dataframe maestro
+        # Buscamos por n_linea o fecha/servicio
+        for _, row in ed_day.iterrows():
+            mask = (df_master['FECHA'] == d_key) & (df_master['SERVICIO'] == row['SERVICIO'])
+            if row.get('n_linea'):
+                mask = (df_master['id_venta'] == row['id_venta']) & (df_master['n_linea'] == row['n_linea'])
             
-            # Encabezado Minimalista pero Elegante
-            st.markdown(f"#### 🎭 Operación de la Jornada: {d_key.strftime('%d/%m/%Y')}")
-            
-            df_day['TOTAL'] = df_day['CANT'] * df_day['UNIT']
-            
-            # Editor para el día (Ahora es estable porque está en su propio Tab)
-            ed_day = st.data_editor(
-                df_day,
-                column_config=col_config,
-                num_rows="dynamic",
-                use_container_width=True,
-                hide_index=True,
-                key=f"editor_tab_day_{d_key}_{day_num}",
-                column_order=["SERVICIO", "PROVEEDOR", "MONEDA", "UNIT", "TOTAL", "VTA_VENDEDOR", "💵 Pago Op.", "📝 Info Pago"]
-            )
-            
-            # Recalcular totales tras edición
-            ed_day['TOTAL'] = ed_day['CANT'] * ed_day['UNIT']
-            day_costo = ed_day['TOTAL'].sum()
-            day_venta_vendedor = ed_day['VTA_VENDEDOR'].sum()
-            day_utilidad = day_venta_vendedor - day_costo
-            
-            total_general += day_costo
-            total_pax_venta += day_venta_vendedor
-            updated_records.append(ed_day)
-            
-            # Resumen Day (Glassmorphism UI)
-            summary_html = f"<div style='background: linear-gradient(135deg, rgba(30,33,48,0.95), rgba(46,51,74,0.85)); backdrop-filter: blur(12px); padding: 18px; border-radius: 12px; margin-top: 10px; border: 1px solid rgba(255,255,255,0.1);'>"
-            summary_html += f"<div style='display: flex; gap: 20px; align-items: center;'>"
-            summary_html += f"<div><span style='color: #aaa; font-size: 0.8em;'>COSTO:</span> <b style='color: white;'>$ {day_costo:,.2f}</b></div>"
-            summary_html += f"<div><span style='color: #FFC107; font-size: 0.8em;'>VENTA:</span> <b style='color: white;'>$ {day_venta_vendedor:,.2f}</b></div>"
-            uti_color = "#81C784" if day_utilidad >= 0 else "#E57373"
-            summary_html += f"<div><span style='color: {uti_color}; font-size: 0.8em;'>UTILIDAD:</span> <b style='color: {uti_color};'>$ {day_utilidad:,.2f}</b></div>"
-            summary_html += f"</div></div>"
-            st.markdown(summary_html, unsafe_allow_html=True)
+            df_master.loc[mask, 'UNIT'] = row['UNIT']
+            df_master.loc[mask, 'CANT'] = row['CANT']
+            df_master.loc[mask, 'MONEDA'] = row['MONEDA']
+            df_master.loc[mask, 'PROVEEDOR'] = row['PROVEEDOR']
+            df_master.loc[mask, '💵 Pago Op.'] = row['💵 Pago Op.']
+            df_master.loc[mask, '📝 Info Pago'] = row['📝 Info Pago']
+            df_master.loc[mask, 'TOTAL'] = row['UNIT'] * row['CANT']
+        
+        st.session_state['df_master'] = df_master
+        st.rerun()
 
-    # Sincronizar cambios de forma consolidada al final para evitar reruns infinitos
-    all_edited = pd.concat(updated_records)
-    if not all_edited.equals(df_full):
-         st.session_state['simulador_data'] = all_edited.to_dict('records')
-         # No hacemos st.rerun() aquí para dejar que el usuario siga editando fluidamente
+    # Totales del día seleccionado
+    day_costo = ed_day['TOTAL'].sum()
+    day_venta_vendedor = ed_day['VTA_VENDEDOR'].sum()
+    day_utilidad = day_venta_vendedor - day_costo
+    
+    # Totales Globales (Cálculo directo del master)
+    total_general = (df_master['UNIT'] * df_master['CANT']).sum()
+    total_pax_venta = df_master['VTA_VENDEDOR'].sum()
+    all_edited = df_master # Alias para el resto de la función salvar_datos_actuales
+
+    # Resumen Day (Glassmorphism UI)
+    summary_html = f"<div style='background: linear-gradient(135deg, rgba(30,33,48,0.95), rgba(46,51,74,0.85)); backdrop-filter: blur(12px); padding: 18px; border-radius: 12px; margin-top: 10px; border: 1px solid rgba(255,255,255,0.1);'>"
+    summary_html += f"<div style='display: flex; gap: 20px; align-items: center;'>"
+    summary_html += f"<div><span style='color: #aaa; font-size: 0.8em;'>COSTO DÍA:</span> <b style='color: white;'>$ {day_costo:,.2f}</b></div>"
+    summary_html += f"<div><span style='color: #FFC107; font-size: 0.8em;'>VENTA DÍA:</span> <b style='color: white;'>$ {day_venta_vendedor:,.2f}</b></div>"
+    uti_color = "#81C784" if day_utilidad >= 0 else "#E57373"
+    summary_html += f"<div><span style='color: {uti_color}; font-size: 0.8em;'>UTILIDAD DÍA:</span> <b style='color: {uti_color};'>$ {day_utilidad:,.2f}</b></div>"
+    summary_html += f"</div></div>"
+    st.markdown(summary_html, unsafe_allow_html=True)
 
     st.divider()
     sc1, sc2, sc3 = st.columns(3)
