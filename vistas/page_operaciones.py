@@ -705,7 +705,7 @@ def dashboard_simulador_costos(controller):
                             "VENTA": float(d.get('precio_applied') or 0.0),
                             "VTA_VENDEDOR": float(d.get('precio_vendedor') or d.get('precio_applied') or 0.0), # Jalamos el precio original del vendedor
                             "💵 Pago Op.": d.get('estado_pago_operativo', 'NO_REQUERIDO'),
-                            "📝 Info Pago": d.get('datos_pago_operativo', ''),
+                            "📝 Info Pago": d.get('datos_pago_operativo') or '',
                             "📎 Voucher": d.get('url_voucher_operativo', ''),
                             "id_venta": d['id_venta'],
                             "n_linea": d['n_linea']
@@ -798,7 +798,7 @@ def dashboard_simulador_costos(controller):
         use_container_width=True,
         hide_index=True,
         key=f"stable_editor_day_{day_num}", # El key cambia solo si cambiamos de día
-        column_order=["SERVICIO", "PROVEEDOR", "MONEDA", "UNIT", "TOTAL", "VTA_VENDEDOR", "💵 Pago Op.", "📝 Info Pago"]
+        column_order=["SERVICIO", "PROVEEDOR", "MONEDA", "UNIT", "TOTAL", "VTA_VENDEDOR"]
     )
     
     # Sincronizar cambios de vuelta al Master de forma inmediata pero estable
