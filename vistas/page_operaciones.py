@@ -900,10 +900,10 @@ def dashboard_simulador_costos(controller):
                 st.rerun()
 
     # --- 📤 ACCIONES DE ENDOSO (UNIFICADO) ---
-    if not df_final.empty:
+    if not all_edited.empty:
         st.markdown("---")
         st.subheader("📄 Acciones de Endoso")
-        servicios_con_proveedor = df_final[df_final['PROVEEDOR'] != "--- Sin Asignar ---"]
+        servicios_con_proveedor = all_edited[all_edited['PROVEEDOR'] != "--- Sin Asignar ---"]
         
         if not servicios_con_proveedor.empty:
             opciones_e = [f"{r['SERVICIO']} | {r['PROVEEDOR']} ({r['FECHA']})" for _, r in servicios_con_proveedor.iterrows()]
