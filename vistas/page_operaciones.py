@@ -823,7 +823,6 @@ def dashboard_simulador_costos(controller):
             df_master.loc[mask, 'VTA_VENDEDOR'] = float(row.get('VTA_VENDEDOR', 0.0))
         
         st.session_state['df_master'] = df_master
-        st.rerun()
 
     # Totales del día seleccionado
     day_costo = ed_day['TOTAL'].sum()
