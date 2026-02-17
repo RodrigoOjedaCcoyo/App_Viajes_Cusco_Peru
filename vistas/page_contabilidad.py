@@ -326,58 +326,25 @@ def estructurador_liquidacion_pro(controller):
         lista_prov += [f"{p['nombre']} ({p['tipo_servicio']})" for p in res_prov_data]
     except: pass
 
-    config = {
-        "FECHA": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY", required=True),
-        "SERVICIO": st.column_config.TextColumn("Servicio", width="large"),
-        "PROVEEDOR": st.column_config.SelectboxColumn("Proveedor", options=lista_prov),
-        "MONEDA": st.column_config.SelectboxColumn("💵", options=["USD", "PEN"], default="USD", width="small"),
-        "TOTAL": st.column_config.NumberColumn("Costo", format="%.2f")
-    }
+    # VISTA DE SOLO LECTURA
+    st.dataframe(
+        df, 
+        column_config={
+            "FECHA": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY"),
+            "SERVICIO": st.column_config.TextColumn("Servicio", width="large"),
+            "MONEDA": "💵",
+            "TOTAL": st.column_config.NumberColumn("Costo", format="%.2f")
+        },
+        use_container_width=True, 
+        hide_index=True
+    )
 
-    edited_df = st.data_editor(df, column_config=config, num_rows="dynamic", use_container_width=True, hide_index=True, key="ed_cont_adv")
-    st.session_state['simulador_contable_adv_data'] = edited_df.to_dict('records')
-
-    # Totales y Guardado
-    t_costos = edited_df['TOTAL'].sum()
+    # Totales
+    t_costos = df['TOTAL'].sum() if not df.empty else 0.0
     st.divider()
-    c1, c2 = st.columns(2)
-    c1.metric("COSTO TOTAL", f"$ {t_costos:,.2f}")
+    st.metric("COSTO TOTAL REGISTRADO", f"$ {t_costos:,.2f}")
     
-    if st.button("✅ Sincronizar con Base de Datos", use_container_width=True, type="primary"):
-        c_up = 0
-        c_err = 0
-        valid_rows = [row for _, row in edited_df.iterrows() if pd.notna(row.get('id_venta')) and pd.notna(row.get('n_linea'))]
-        
-        if not valid_rows:
-            st.warning("⚠️ No hay datos seleccionados de una venta real. Por favor, cargue una venta antes de sincronizar.")
-        else:
-            with st.status("Sincronizando con la base de datos...", expanded=False) as status:
-                for row in valid_rows:
-                    prov_txt = row.get('PROVEEDOR')
-                    id_p = None
-                    if prov_txt and prov_txt != "--- Sin Asignar ---":
-                        n_p = prov_txt.split(" (")[0]
-                        p_m = next((p for p in res_prov_data if p['nombre'] == n_p), None)
-                        if p_m: id_p = p_m.get('id_proveedor') or p_m.get('id_provider')
-
-                    try:
-                        controller.client.table('venta_tour').update({
-                            'costo_applied': row['TOTAL'],
-                            'moneda_costo': row.get('MONEDA', 'USD'),
-                            'id_proveedor': id_p,
-                            'observaciones': row.get('SERVICIO')
-                        }).match({'id_venta': row['id_venta'], 'n_linea': row['n_linea']}).execute()
-                        c_up += 1
-                    except Exception as e:
-                        c_err += 1
-                        st.error(f"Error en fila {row.get('SERVICIO')}: {e}")
-                
-                status.update(label="Sincronización finalizada", state="complete", expanded=False)
-
-            if c_up > 0:
-                st.success(f"✅ ¡{c_up} servicios actualizados correctamente en la nube!")
-            if c_err > 0:
-                st.error(f"❌ {c_err} servicios no pudieron actualizarse.")
+    st.info("💡 Esta vista es de solo consulta (Auditoría). Para modificar costos o asignar proveedores, utiliza el Google Sheet Maestro.")
 
 from controllers.venta_controller import VentaController
 
@@ -456,70 +423,5 @@ def dashboard_cuentas_por_cobrar_b2b(supabase_client):
 
     # Visualización 3: Detalle Expandible
     with st.expander("🔎 Ver Detalle de Todas las Ventas B2B"):
-        df_det = pd.DataFrame(lista_detalle)
+        df_det = pd.DataFrame(lista_detalle, index=None)
         st.dataframe(df_det, use_container_width=True, hide_index=True)
-
-def estructurador_contable():
-    """
-    Herramienta tipo Excel para Contabilidad.
-    Registro de gastos con distinción de moneda (PEN/USD).
-    """
-    st.subheader("📊 Estructurador de Gastos (Multimoneda)", divider='violet')
-
-    from datetime import date # Importación local o asegurar que esté arriba
-
-    if 'simulador_contable_data' not in st.session_state:
-        st.session_state['simulador_contable_data'] = [
-            {"FECHA": date.today(), "SERVICIO": "Servicio Ejemplo", "MONEDA": "PEN", "TOTAL": 0.0},
-        ]
-
-    # Barra de herramientas
-    c1, c2 = st.columns([3, 1])
-    with c1:
-        st.info("💡 Ingresa los gastos. El sistema separará automáticamente Soles y Dólares.")
-    with c2:
-        if st.button("🗑️ Limpiar Tabla", use_container_width=True, key="btn_clear_cont"):
-            st.session_state['simulador_contable_data'] = [{"FECHA": date.today(), "SERVICIO": "", "MONEDA": "PEN", "TOTAL": 0.0}]
-            st.rerun()
-
-    # Data Editor
-    df = pd.DataFrame(st.session_state['simulador_contable_data'])
-    
-    column_config = {
-        "FECHA": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY", required=True),
-        "SERVICIO": st.column_config.TextColumn("Descripción del Servicio", required=True, width="large"),
-        "MONEDA": st.column_config.SelectboxColumn("Moneda", options=["PEN", "USD"], required=True, width="small"),
-        "TOTAL": st.column_config.NumberColumn("Total", format="%.2f", min_value=0.0)
-    }
-
-    edited_df = st.data_editor(
-        df,
-        column_config=column_config,
-        num_rows="dynamic",
-        use_container_width=True,
-        hide_index=True,
-        key="editor_contable"
-    )
-
-    # Cálculos por Moneda
-    total_pen = edited_df[edited_df['MONEDA'] == 'PEN']['TOTAL'].sum()
-    total_usd = edited_df[edited_df['MONEDA'] == 'USD']['TOTAL'].sum()
-
-    st.session_state['simulador_contable_data'] = edited_df.to_dict('records')
-
-    st.divider()
-    
-    # Mostrar Totales
-    col_pen, col_usd = st.columns(2)
-    col_pen.metric("Total Soles (PEN)", f"S/. {float(total_pen or 0):,.2f}")
-    col_usd.metric("Total Dólares (USD)", f"$ {float(total_usd or 0):,.2f}")
-
-    # Exportar
-    if st.button("📥 Exportar Reporte CSV", key="btn_exp_cont"):
-        csv = edited_df.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="Descargar CSV",
-            data=csv,
-            file_name=f"gastos_contables_{date.today()}.csv",
-            mime='text/csv',
-        )

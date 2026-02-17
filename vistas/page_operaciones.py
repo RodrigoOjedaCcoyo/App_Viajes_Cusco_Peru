@@ -156,49 +156,17 @@ def dashboard_tablero_diario(controller):
         except: pass
         st.success(f"Pax totales: {pax_val}")
         df = pd.DataFrame(servicios)
-        ed_df = st.data_editor(
+        st.dataframe(
             df,
             column_order=('Log.', 'Hora', 'Día Itin.', 'Servicio', 'Pax', 'Endoso?', 'Agencia Endoso', 'Estado Pago', 'Cliente', 'URL Cloud'),
             column_config={
-                "Log.": st.column_config.TextColumn("Log.", help="Semáforo de Logística (🟢 Todo OK, 🔴 Falta asignar)", disabled=True, width="small"),
-                "Día Itin.": st.column_config.NumberColumn("Día", format="%d", disabled=True, width="small"),
-                "Endoso?": st.column_config.CheckboxColumn("¿Endoso?", help="Marcar si el servicio se pasa a otra agencia"),
-                "Agencia Endoso": st.column_config.TextColumn("Agencia/Proveedor 🏢", help="Nombre de la agencia que recibe el endoso"),
-                "URL Cloud": st.column_config.LinkColumn("PDF 📄", help="Abrir Itinerario Premium"),
-                "Pax": st.column_config.NumberColumn(disabled=True),
-                "Servicio": st.column_config.TextColumn(disabled=True),
-                "Cliente": st.column_config.TextColumn(disabled=True),
-                "Estado Pago": st.column_config.TextColumn(disabled=True),
+                "Log.": st.column_config.TextColumn("Log.", width="small"),
+                "Día Itin.": st.column_config.NumberColumn("Día", format="%d", width="small"),
+                "URL Cloud": st.column_config.LinkColumn("PDF 📄"),
             },
-            hide_index=True, use_container_width=True, key=f"ed_{f_p}"
+            hide_index=True, use_container_width=True
         )
-
-        if st.button("💾 Guardar Cambios de Logística"):
-            changes_count = 0
-            for i, r in ed_df.iterrows():
-                old_r = df.iloc[i]
-                vid, n_lin = r['ID Venta'], r['N Linea']
-                
-                # 1. Cambios en Flag Endoso
-                if r['Endoso?'] != old_r['Endoso?']:
-                    controller.toggle_endoso_servicio(vid, n_lin, r['Endoso?'])
-                    changes_count += 1
-                
-                # 2. Cambios en Guía (Solo si no es endoso)
-                if not r['Endoso?'] and r['Guía'] != old_r['Guía']:
-                    success, msg = controller.actualizar_guia_servicio(vid, n_lin, r['Guía'])
-                    if success: changes_count += 1
-                    else: st.error(msg)
-                
-                # 3. Cambios en Agencia Endoso
-                if r['Endoso?'] and r['Agencia Endoso'] != old_r['Agencia Endoso']:
-                    success, msg = controller.actualizar_endoso_servicio(vid, n_lin, r['Agencia Endoso'])
-                    if success: changes_count += 1
-                    else: st.error(msg)
-
-            if changes_count > 0:
-                st.success(f"¡{changes_count} cambios de logística aplicados!")
-                st.rerun()
+        st.info("� La logística se consulta aquí. Para editarla, usa el Google Sheet Maestro.")
 
         # --- 🔍 DETALLE VISUAL DEL ITINERARIO (ESTILO IMAGEN) ---
         st.markdown("---")
@@ -832,67 +800,23 @@ def dashboard_simulador_costos(controller):
     df_day['CANT'] = pax_count # Forzamos cantidad = pax
     df_day['TOTAL'] = df_day['CANT'] * df_day['UNIT']
     
-    # ÚNICO EDITOR ACTIVO (Garantiza estabilidad total)
-    ed_day = st.data_editor(
+    # VISTA DE SOLO LECTURA (Garantiza estabilidad total)
+    st.dataframe(
         df_day,
         column_config=col_config,
-        num_rows="dynamic",
         use_container_width=True,
         hide_index=True,
-        key=f"stable_editor_day_{day_num}", 
-        column_order=["SERVICIO", "PROVEEDOR", "MONEDA", "UNIT", "TOTAL"] 
+        column_order=["SERVICIO", "PROVEEDOR", "MONEDA", "UNIT", "TOTAL", "💵 Pago Op."] 
     )
     
-    # Sincronizar cambios de vuelta al Master de forma inmediata pero estable
-    # Solo comparar columnas editables para evitar bucles por columnas técnicas
-    cols_eval = ["SERVICIO", "PROVEEDOR", "MONEDA", "UNIT"]
-    
-    # Asegurar tipos consistentes para la comparación
-    ed_clean = ed_day.copy()
-    ed_clean['UNIT'] = pd.to_numeric(ed_clean['UNIT'], errors='coerce').fillna(0.0)
-    df_day_comp = df_day.copy()
-    df_day_comp['UNIT'] = pd.to_numeric(df_day_comp['UNIT'], errors='coerce').fillna(0.0)
-
-    if not ed_clean[cols_eval].equals(df_day_comp[cols_eval]):
-        # 1. Limpiar filas fantasma (vacías) y asegurar cálculos
-        ed_clean = ed_clean[ed_clean['SERVICIO'].notna() & (ed_clean['SERVICIO'] != "")]
-        ed_clean['UNIT'] = pd.to_numeric(ed_clean['UNIT'], errors='coerce').fillna(0.0)
-        ed_clean['CANT'] = pax_count 
-        ed_clean['TOTAL'] = ed_clean['UNIT'] * pax_count
-        ed_clean['VTA_VENDEDOR'] = pd.to_numeric(ed_clean.get('VTA_VENDEDOR', 0.0), errors='coerce').fillna(0.0)
-
-        # 2. Filtrar el Master y reemplazar
-        df_others = df_master[df_master['FECHA'] != d_key]
-        
-        # Asegurar datos de identidad
-        ed_clean['FECHA'] = d_key
-        
-        # PROTEGER NOMBRE ORIGINAL
-        if 'ORIGINAL_SERVICE' in ed_clean.columns:
-            mask_orig = ed_clean['n_linea'].notna()
-            ed_clean.loc[mask_orig, 'SERVICIO'] = ed_clean.loc[mask_orig, 'ORIGINAL_SERVICE']
-        
-        # Consolidar y Ordenar
-        df_master = pd.concat([df_others, ed_clean], ignore_index=True)
-        df_master = df_master.sort_values(by=['FECHA']).reset_index(drop=True)
-        st.session_state['df_master'] = df_master
-        st.rerun() 
-
-    # Recalcular totales para el resumen (asegura que el total cambie en vivo)
-    ed_day['TOTAL'] = ed_day['UNIT'] * pax_count
-    
     # Totales del día seleccionado
-    day_costo = ed_day['TOTAL'].sum()
-    day_venta_vendedor = ed_day['VTA_VENDEDOR'].sum()
+    day_costo = df_day['TOTAL'].sum()
+    day_venta_vendedor = df_day['VTA_VENDEDOR'].sum()
     day_utilidad = day_venta_vendedor - day_costo
     
-    # Totales Globales reforzados contra Nones
-    df_master['UNIT'] = pd.to_numeric(df_master['UNIT'], errors='coerce').fillna(0.0)
-    df_master['CANT'] = pd.to_numeric(df_master['CANT'], errors='coerce').fillna(1.0)
-    df_master['VTA_VENDEDOR'] = pd.to_numeric(df_master['VTA_VENDEDOR'], errors='coerce').fillna(0.0)
-    
-    total_general = (df_master['UNIT'] * df_master['CANT']).sum()
-    total_pax_venta = df_master['VTA_VENDEDOR'].sum()
+    # Totales Globales
+    total_general = (df_master['UNIT'].astype(float) * df_master['CANT'].astype(float)).sum()
+    total_pax_venta = df_master['VTA_VENDEDOR'].astype(float).sum()
     all_edited = df_master 
 
     # Resumen Day (Glassmorphism UI)
@@ -912,80 +836,7 @@ def dashboard_simulador_costos(controller):
     sc2.metric("UTILIDAD GLOBAL", f"$ {uti_global:,.2f}", delta=f"{uti_global:,.2f}")
     sc3.metric("Total Días", len(unique_dates))
 
-    # Botones de Acción
-    c_save, c_finalize = st.columns(2)
-    
-    # Función de guardado compartida
-    def salvar_datos_actuales():
-        updated_count = 0
-        # Usar all_edited que viene del procesamiento de las pestañas
-        for index, row in all_edited.iterrows():
-            id_prov = None
-            p_txt = row.get('PROVEEDOR')
-            if p_txt and p_txt != "--- Sin Asignar ---":
-                n_p = p_txt.split(" (")[0]
-                match = next((p for p in prov_items if p['nombre_comercial'] == n_p), None)
-                if match: id_prov = match['id_proveedor']
-
-            def safe_float(val):
-                try:
-                    res = float(val)
-                    return res if not pd.isna(res) else 0.0
-                except:
-                    return 0.0
-
-            data_save = {
-                'costo_applied': safe_float(row['CANT'] * row['UNIT']),
-                'costo_unitario': safe_float(row['UNIT']),
-                'cantidad_items': int(safe_float(row['CANT'])),
-                'precio_applied': safe_float(row.get('VENTA', 0.0)),
-                'moneda_costo': row.get('MONEDA', 'USD') if pd.notna(row.get('MONEDA')) else 'USD',
-                'id_proveedor': id_prov,
-                'observaciones': str(row.get('SERVICIO', '')),
-                'estado_pago_operativo': row.get('💵 Pago Op.', 'NO_REQUERIDO'),
-                'datos_pago_operativo': str(row.get('📝 Info Pago', '')),
-                'es_endoso': True if id_prov else False
-            }
-
-            if pd.notna(row.get('id_venta')) and pd.notna(row.get('n_linea')):
-                v_id = int(safe_float(row['id_venta']))
-                l_id = int(safe_float(row['n_linea']))
-                if v_id > 0:
-                    controller.client.table('venta_tour').update(data_save).match({
-                        'id_venta': v_id, 
-                        'n_linea': l_id
-                    }).execute()
-                    updated_count += 1
-            else:
-                if ventas_age and pax_sel != "--- Seleccione ---":
-                    v_act = mapa_ventas_pax.get(pax_sel)
-                    last_line = controller.client.table('venta_tour').select('n_linea').eq('id_venta', v_act['id_venta']).order('n_linea', desc=True).limit(1).execute()
-                    next_n = (last_line.data[0]['n_linea'] + 1) if last_line.data else 1
-                    data_save.update({
-                        'id_venta': int(v_act['id_venta']),
-                        'n_linea': int(next_n + index),
-                        'fecha_servicio': row['FECHA'].isoformat() if isinstance(row['FECHA'], date) else row['FECHA'],
-                        'cantidad_pasajeros': int(v_act.get('num_pasajeros', 1))
-                    })
-                    controller.client.table('venta_tour').insert(data_save).execute()
-                    updated_count += 1
-        return updated_count
-
-    with c_save:
-        if st.button("💾 Guardar Borrador", use_container_width=True, type="secondary"):
-            count = salvar_datos_actuales()
-            st.success(f"💾 {count} cambios guardados.")
-            st.rerun()
-
-    with c_finalize:
-        if st.button("✅ Finalizar y Cerrar Liquidación", use_container_width=True, type="primary"):
-            salvar_datos_actuales()
-            v_act = mapa_ventas_pax.get(pax_sel) if pax_sel != "--- Seleccione ---" else None
-            if v_act:
-                controller.client.table('venta').update({'estado_liquidacion': 'FINALIZADO'}).eq('id_venta', v_act['id_venta']).execute()
-                st.success("✅ ¡Liquidación FINALIZADA!")
-                st.balloons()
-                st.rerun()
+    st.info("💡 Esta tabla es de solo consulta. Los cambios de costos y proveedores se realizan ahora a través del Google Sheet Maestro y se sincronizan automáticamente.")
 
     # --- 📤 ACCIONES DE ENDOSO (UNIFICADO) ---
     if not all_edited.empty:
