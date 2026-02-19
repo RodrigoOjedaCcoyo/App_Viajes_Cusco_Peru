@@ -227,7 +227,7 @@ def render_tablero_diario_visual(controller):
     st.write(f"### 📋 Servicios: {f_p}")
     servicios = controller.get_servicios_por_fecha(f_p)
     if servicios:
-        st.dataframe(pd.DataFrame(servicios)[['Hora', 'Servicio', 'Pax', 'Cliente', 'Guía']], hide_index=True, use_container_width=True)
+        st.dataframe(pd.DataFrame(servicios)[['Hora', 'Servicio', 'Pax', 'Cliente', 'Proveedor']], hide_index=True, use_container_width=True)
     else:
         st.info("Sin operaciones para esta fecha.")
 

@@ -176,7 +176,7 @@ def dashboard_tablero_diario(controller):
         df = pd.DataFrame(servicios)
         st.dataframe(
             df,
-            column_order=('Log.', 'Hora', 'Día Itin.', 'Servicio', 'Pax', 'Endoso?', 'Agencia Endoso', 'Estado Pago', 'Cliente', 'URL Cloud'),
+            column_order=('Log.', 'Hora', 'Día Itin.', 'Servicio', 'Pax', 'Endoso?', 'Proveedor', 'Estado Pago', 'Cliente', 'URL Cloud'),
             column_config={
                 "Log.": st.column_config.TextColumn("Log.", width="small"),
                 "Día Itin.": st.column_config.NumberColumn("Día", format="%d", width="small"),
