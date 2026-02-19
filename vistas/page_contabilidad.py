@@ -12,23 +12,41 @@ def render_itinerary_simple_download(render):
     from controllers.pdf_controller import PDFController
     pdf_ctrl = PDFController()
     
+    from controllers.excel_controller import ExcelController
+    xl_ctrl = ExcelController()
+    
     with st.container(border=True):
         st.markdown(f"#### 📄 Resumen Financiero: {render.get('titulo', 'Sin Título')}")
         st.info("Este documento es una versión simplificada (Ink Saver) para auditoría interna.")
         
-        # Generar el PDF en memoria
-        pdf_buffer = pdf_ctrl.generar_itinerario_simple_pdf(render)
+        c1, c2 = st.columns(2)
         
-        if pdf_buffer:
-            st.download_button(
-                label="📥 Descargar Resumen para Auditoría (PDF Simple)",
-                data=pdf_buffer,
-                file_name=f"auditoria_{render.get('titulo', 'itinerario')}.pdf",
-                mime="application/pdf",
-                use_container_width=True
-            )
-        else:
-            st.error("No se pudo generar el PDF en este momento.")
+        with c1:
+            # Generar el PDF en memoria
+            pdf_buffer = pdf_ctrl.generar_itinerario_simple_pdf(render)
+            if pdf_buffer:
+                st.download_button(
+                    label="📥 Bajar Resumen (PDF Simple)",
+                    data=pdf_buffer,
+                    file_name=f"auditoria_{render.get('titulo', 'itinerario')}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+        
+        with c2:
+            # Generar el Excel en memoria
+            xlsx_buffer = xl_ctrl.generar_resumen_itinerario_xlsx(render)
+            if xlsx_buffer:
+                st.download_button(
+                    label="📊 Bajar Resumen (Excel XLSX)",
+                    data=xlsx_buffer,
+                    file_name=f"resumen_{render.get('titulo','itin')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+        
+        if not pdf_buffer and not xlsx_buffer:
+            st.error("No se pudo generar el documento en este momento.")
 
 # Inicializar controladores (Se hace dentro de mostrar_pagina ahora)
 

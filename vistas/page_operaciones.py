@@ -18,23 +18,41 @@ def render_itinerary_simple_download(render):
     from controllers.pdf_controller import PDFController
     pdf_ctrl = PDFController()
     
+    from controllers.excel_controller import ExcelController
+    xl_ctrl = ExcelController()
+    
     with st.container(border=True):
         st.markdown(f"#### 📄 Resumen de Viaje: {render.get('titulo', 'Sin Título')}")
         st.info("Este documento es una versión simplificada (Ink Saver) ideal para imprimir y para el personal operativo.")
         
-        # Generar el PDF en memoria
-        pdf_buffer = pdf_ctrl.generar_itinerario_simple_pdf(render)
+        c1, c2 = st.columns(2)
         
-        if pdf_buffer:
-            st.download_button(
-                label="📥 Descargar Resumen de Viaje (PDF Simple)",
-                data=pdf_buffer,
-                file_name=f"resumen_viaje_{render.get('titulo', 'itinerario')}.pdf",
-                mime="application/pdf",
-                use_container_width=True
-            )
-        else:
-            st.error("No se pudo generar el PDF en este momento.")
+        with c1:
+            # Generar el PDF en memoria
+            pdf_buffer = pdf_ctrl.generar_itinerario_simple_pdf(render)
+            if pdf_buffer:
+                st.download_button(
+                    label="📥 Bajar Resumen (PDF Simple)",
+                    data=pdf_buffer,
+                    file_name=f"resumen_viaje_{render.get('titulo', 'itinerario')}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+        
+        with c2:
+            # Generar el Excel en memoria
+            xlsx_buffer = xl_ctrl.generar_resumen_itinerario_xlsx(render)
+            if xlsx_buffer:
+                st.download_button(
+                    label="📊 Bajar Resumen (Excel XLSX)",
+                    data=xlsx_buffer,
+                    file_name=f"resumen_viaje_{render.get('titulo','itin')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+        
+        if not pdf_buffer and not xlsx_buffer:
+            st.error("No se pudo generar el documento en este momento.")
 
 # Dashboard 2: Tablero con vistas Duplicadas (Mensual/Semanal).
 def dashboard_tablero_diario(controller):

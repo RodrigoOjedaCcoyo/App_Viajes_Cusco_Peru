@@ -65,6 +65,38 @@ def render_itinerary_details_visual(render):
                     if txt: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;❌ <small>{str(txt).upper()}</small>", unsafe_allow_html=True)
             st.write("")
 
+        # --- BOTONES DE DESCARGA ---
+        st.divider()
+        c_pdf, c_xlsx = st.columns(2)
+        
+        from controllers.pdf_controller import PDFController
+        pdf_ctrl = PDFController()
+        
+        from controllers.excel_controller import ExcelController
+        xl_ctrl = ExcelController()
+
+        with c_pdf:
+            pdf_b = pdf_ctrl.generar_itinerario_simple_pdf(render)
+            if pdf_b:
+                st.download_button(
+                    label="📥 Bajar Resumen (PDF)",
+                    data=pdf_b,
+                    file_name=f"resumen_{render.get('titulo','itin')}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+        
+        with c_xlsx:
+            xlsx_b = xl_ctrl.generar_resumen_itinerario_xlsx(render)
+            if xlsx_b:
+                st.download_button(
+                    label="📊 Bajar Resumen (Excel XLSX)",
+                    data=xlsx_b,
+                    file_name=f"resumen_{render.get('titulo','itin')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+
 def render_sales_dashboard_visual(supabase_client):
     """Vista puramente visual para el Dashboard Comercial."""
     st.title("📊 Dashboard Comercial")
