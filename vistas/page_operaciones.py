@@ -184,7 +184,48 @@ def dashboard_tablero_diario(controller):
             },
             hide_index=True, use_container_width=True
         )
-        st.info("� La logística se consulta aquí. Para editarla, usa el Google Sheet Maestro.")
+        st.info("💡 La logística se consulta aquí. Para editarla, usa el Google Sheet Maestro.")
+
+        # --- 🔍 DESGLOSE DETALLADO DE RESPONSABLES ---
+        with st.expander("🕵️ Ver Responsables Detallados (Minuto a Minuto)", expanded=False):
+            st.markdown("---")
+            for idx, s in df.iterrows():
+                # Título del servicio
+                c1, c2 = st.columns([3, 1])
+                with c1:
+                    st.markdown(f"**{s['Hora']} - {s['Servicio']}**")
+                    st.caption(f"Cliente: {s['Cliente']} ({s['Pax']} Pax)")
+                with c2:
+                    st.caption(f"ID: {s.get('ID Servicio', '---')}")
+                
+                # Lista de proveedores asignados
+                detalles = s.get('Detalle Proveedores', [])
+                if not detalles:
+                    st.warning("⚠️ No hay proveedores detallados asignados en el Master Sheet.")
+                else:
+                    # Crear una pequeña tabla visual con HTML para que sea bien compacta
+                    rows_html = ""
+                    for d in detalles:
+                        tipo_icon = "👮" if "GUIA" in d['tipo'] else "🚍" if "TRANS" in d['tipo'] else "🍴" if "ALMUERZO" in d['tipo'] else "🎟️"
+                        color_estado = "#81C784" if d['estado'] == 'PAGADO' else "#FFB74D"
+                        rows_html += f"<tr>" \
+                                     f"<td style='padding:5px; font-size:12px;'>{tipo_icon} <b>{d['tipo']}</b></td>" \
+                                     f"<td style='padding:5px; font-size:12px;'>{d['nombre']}</td>" \
+                                     f"<td style='padding:5px; font-size:10px;'><span style='background:{color_estado}; padding:2px 5px; border-radius:3px; color:black;'>{d['estado']}</span></td>" \
+                                     f"</tr>"
+                    
+                    st.markdown(f"""
+                    <table style='width:100%; border-collapse: collapse; margin-bottom:10px;'>
+                        <tr style='background: rgba(255,255,255,0.05);'>
+                            <th style='text-align:left; padding:5px; font-size:11px;'>ÁREA</th>
+                            <th style='text-align:left; padding:5px; font-size:11px;'>PROVEEDOR / RESPONSABLE</th>
+                            <th style='text-align:left; padding:5px; font-size:11px;'>ESTADO</th>
+                        </tr>
+                        {rows_html}
+                    </table>
+                    """, unsafe_allow_html=True)
+                
+                st.divider()
 
         # --- 🔍 DETALLE VISUAL DEL ITINERARIO (ESTILO IMAGEN) ---
         st.markdown("---")

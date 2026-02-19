@@ -93,22 +93,36 @@ class OperacionesController:
                     vid = p['id_venta']
                     pagos_map[vid] = pagos_map.get(vid, 0) + (p['monto_pagado'] or 0)
 
-            # Guías y Endosos (Tabla 'venta_servicio_proveedor' + 'proveedor')
+            # Guías, Endosos y Proveedores Detallados (Tabla 'venta_servicio_proveedor' + 'proveedor')
             guias_map = {}
             proveedor_endoso_map = {}
+            detalles_proveedores_map = {} # { "id_venta-n_linea": [ {tipo, nombre, estado}, ... ] }
+            
             if ids_ventas:
                 res_g = (
                     self.client.table('venta_servicio_proveedor')
-                    .select('id_venta, n_linea, tipo_servicio, proveedor(nombre_comercial)')
+                    .select('id_venta, n_linea, tipo_servicio, estado_pago, proveedor(nombre_comercial)')
                     .in_('id_venta', ids_ventas)
                     .execute()
                 )
                 for g in res_g.data:
                     key = f"{g['id_venta']}-{g['n_linea']}"
+                    prov_nom = g['proveedor']['nombre_comercial'] if g.get('proveedor') else "Desconocido"
+                    
+                    # 1. Mapa de responsabilidades principales (retrocompatibilidad)
                     if g.get('tipo_servicio') == 'GUIA':
-                        guias_map[key] = g['proveedor']['nombre_comercial'] if g.get('proveedor') else "Desconocido"
-                    elif g.get('tipo_servicio') == 'PROVEEDOR_ENDOSO' or g.get('tipo_servicio') == 'AGENCIA_ENDOSO':
-                        proveedor_endoso_map[key] = g['proveedor']['nombre_comercial'] if g.get('proveedor') else "Desconocido"
+                        guias_map[key] = prov_nom
+                    elif g.get('tipo_servicio') in ['PROVEEDOR_ENDOSO', 'AGENCIA_ENDOSO']:
+                        proveedor_endoso_map[key] = prov_nom
+                    
+                    # 2. Mapa de todos los proveedores para el desglose
+                    if key not in detalles_proveedores_map:
+                        detalles_proveedores_map[key] = []
+                    detalles_proveedores_map[key].append({
+                        "tipo": g.get('tipo_servicio'),
+                        "nombre": prov_nom,
+                        "estado": g.get('estado_pago', 'PENDIENTE')
+                    })
             
             resultado = []
             for s in servicios_data:
@@ -147,6 +161,7 @@ class OperacionesController:
                     'Guía': nombre_guia,
                     'Agencia Endoso': nombre_endoso,
                     'Proveedor': nombre_endoso if es_endoso else nombre_guia,
+                    'Detalle Proveedores': detalles_proveedores_map.get(key_g, []),
                     'Estado Pago': estado_pago,
                     'Tipo': '👤 B2C',
                     'Día Itin.': s.get('id_itinerario_dia_index', 1),
@@ -205,22 +220,34 @@ class OperacionesController:
                     vid = p['id_venta']
                     pagos_map[vid] = pagos_map.get(vid, 0) + (p['monto_pagado'] or 0)
 
-            # Guías y Endosos (Tabla 'venta_servicio_proveedor' + 'proveedor')
+            # Guías, Endosos y Proveedores Detallados (Tabla 'venta_servicio_proveedor' + 'proveedor')
             guias_map = {}
             proveedor_endoso_map = {}
+            detalles_proveedores_map = {}
+            
             if ids_ventas:
                 res_g = (
                     self.client.table('venta_servicio_proveedor')
-                    .select('id_venta, n_linea, tipo_servicio, proveedor(nombre_comercial)')
+                    .select('id_venta, n_linea, tipo_servicio, estado_pago, proveedor(nombre_comercial)')
                     .in_('id_venta', ids_ventas)
                     .execute()
                 )
                 for g in res_g.data:
                     key = f"{g['id_venta']}-{g['n_linea']}"
+                    prov_nom = g['proveedor']['nombre_comercial'] if g.get('proveedor') else "Desconocido"
+                    
                     if g.get('tipo_servicio') == 'GUIA':
-                        guias_map[key] = g['proveedor']['nombre_comercial'] if g.get('proveedor') else "Desconocido"
-                    elif g.get('tipo_servicio') == 'PROVEEDOR_ENDOSO' or g.get('tipo_servicio') == 'AGENCIA_ENDOSO':
-                        proveedor_endoso_map[key] = g['proveedor']['nombre_comercial'] if g.get('proveedor') else "Desconocido"
+                        guias_map[key] = prov_nom
+                    elif g.get('tipo_servicio') in ['PROVEEDOR_ENDOSO', 'AGENCIA_ENDOSO']:
+                        proveedor_endoso_map[key] = prov_nom
+                        
+                    if key not in detalles_proveedores_map:
+                        detalles_proveedores_map[key] = []
+                    detalles_proveedores_map[key].append({
+                        "tipo": g.get('tipo_servicio'),
+                        "nombre": prov_nom,
+                        "estado": g.get('estado_pago', 'PENDIENTE')
+                    })
             
             resultado = []
             for s in servicios_data:
@@ -265,6 +292,7 @@ class OperacionesController:
                     'Guía': nombre_guia,
                     'Agencia Endoso': nombre_endoso,
                     'Proveedor': nombre_endoso if es_endoso else nombre_guia,
+                    'Detalle Proveedores': detalles_proveedores_map.get(key_g, []),
                     'Estado Pago': estado_pago,
                     'Tipo': '👤 B2C',
                     'ID Venta': s['id_venta'],
