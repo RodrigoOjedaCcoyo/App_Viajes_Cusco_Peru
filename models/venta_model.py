@@ -189,8 +189,8 @@ class VentaModel(BaseModel):
                     "precio_applied": venta_data.get("monto_total") if i == 0 else 0,
                     "precio_vendedor": venta_data.get("monto_total") if i == 0 else 0, # Guardar el original
                     "costo_applied": 0,
-                    "cantidad_pasajeros": num_pax_final,
-                    "observaciones": nombre_servicio_dia, # Usamos observaciones para guardar el nombre del tour diario
+                    "cantidad": num_pax_final,
+                    "observacion": nombre_servicio_dia, # Usamos observacion para guardar el nombre del tour diario
                     "id_itinerario_dia_index": i + 1
                 }
                 self.client.table('venta_tour').insert(detalle_tour).execute()

@@ -145,7 +145,7 @@ class VentaController:
                 "id_agencia_aliada": id_agencia_aliada,
                 "fecha_inicio": (fecha_inicio or date.today()).isoformat(),
                 "fecha_fin": (fecha_fin or date.today()).isoformat(),
-                "cantidad_pasajeros": cantidad_pax,
+                "cantidad": cantidad_pax,
                 "id_itinerario_digital": id_itinerario_digital,
                 "url_itinerario": url_it,
                 "url_comprobante_pago": url_pago,

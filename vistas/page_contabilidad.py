@@ -331,7 +331,7 @@ def estructurador_liquidacion_pro(controller):
                 if detalles:
                     st.session_state['simulador_contable_adv_data'] = [{
                         "FECHA": date.fromisoformat(d['fecha_servicio']),
-                        "SERVICIO": d.get('observaciones') or "Servicio",
+                        "SERVICIO": d.get('observacion') or "Servicio",
                         "MONEDA": d.get('moneda_costo', 'USD'),
                         "TOTAL": float(d.get('costo_applied') or 0.0),
                         "id_venta": d['id_venta'],
