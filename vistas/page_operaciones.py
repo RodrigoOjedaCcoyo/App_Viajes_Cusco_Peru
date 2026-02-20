@@ -806,9 +806,14 @@ def dashboard_simulador_costos(controller):
     df_master = pd.DataFrame(st.session_state['simulador_data'])
     all_edited = df_master
     
+    # Asegurar que las columnas existan antes de procesar
+    if 'UNIT' not in df_master.columns: df_master['UNIT'] = 0.0
+    if 'CANT' not in df_master.columns: df_master['CANT'] = 1.0
+    if 'VTA_VENDEDOR' not in df_master.columns: df_master['VTA_VENDEDOR'] = 0.0
+
     # Asegurar que UNIT y CANT sean numéricos para el cálculo de totales
-    df_master['UNIT'] = pd.to_numeric(df_master.get('UNIT', 0), errors='coerce').fillna(0.0)
-    df_master['CANT'] = pd.to_numeric(df_master.get('CANT', 1), errors='coerce').fillna(1.0)
+    df_master['UNIT'] = pd.to_numeric(df_master['UNIT'], errors='coerce').fillna(0.0)
+    df_master['CANT'] = pd.to_numeric(df_master['CANT'], errors='coerce').fillna(1.0)
     df_master['TOTAL'] = df_master['UNIT'] * df_master['CANT']
 
     st.dataframe(
