@@ -55,8 +55,8 @@ def populate_data():
         res_ins_t = supabase.table('tour').insert({"nombre": "City Tour Cusco Mock", "duracion_dias": 1}).select('id_tour').execute()
         ids_tours.append(res_ins_t.data[0]['id_tour'])
 
-    # 3. Create Sales & Services (Venta_Tour) for Jan 2026
-    start_date = date(2026, 1, 1)
+    # 3. Create Sales & Services (Venta_Tour) for February 2026
+    start_date = date(2026, 2, 1)
     
     # Create ~10 entries spread across first week
     for i in range(10):
@@ -87,8 +87,8 @@ def populate_data():
             "id_venta": new_venta_id,
             "id_tour": tour_id,
             "fecha_servicio": op_date.isoformat(),
-            "cantidad_pasajeros": pax, 
-            # guia_asignado is handled by our app as update, initially null
+            "cantidad": pax, 
+            "observacion": f"Mock Tour - {op_date}"
         }
         supabase.table('venta_tour').insert(vt_data).execute()
         

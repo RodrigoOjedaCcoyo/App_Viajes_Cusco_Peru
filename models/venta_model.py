@@ -157,8 +157,20 @@ class VentaModel(BaseModel):
 
         # 5. Registrar Detalles venta_tour (Expansión de Días para Operaciones)
         try:
-            f_inicio = datetime.strptime(venta_data.get("fecha_inicio"), "%Y-%m-%d").date()
-            f_fin = datetime.strptime(venta_data.get("fecha_fin"), "%Y-%m-%d").date()
+            val_inicio = venta_data.get("fecha_inicio")
+            val_fin = venta_data.get("fecha_fin")
+            
+            # Robustez: Convertir a objeto date si son strings o usar directamente si ya son date objects
+            if isinstance(val_inicio, str):
+                f_inicio = datetime.strptime(val_inicio, "%Y-%m-%d").date()
+            else:
+                f_inicio = val_inicio if val_inicio else date.today()
+                
+            if isinstance(val_fin, str):
+                f_fin = datetime.strptime(val_fin, "%Y-%m-%d").date()
+            else:
+                f_fin = val_fin if val_fin else f_inicio
+                
             num_dias = (f_fin - f_inicio).days + 1
             if num_dias < 1: num_dias = 1
             

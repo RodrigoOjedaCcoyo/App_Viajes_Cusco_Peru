@@ -36,7 +36,12 @@ class OperacionesController:
             if res.data:
                 for item in res.data:
                     try:
-                        fechas_activas.add(date.fromisoformat(item['fecha_servicio']))
+                        # Robustez: Manejar si ya es objeto date o string
+                        f_raw = item['fecha_servicio']
+                        if isinstance(f_raw, str):
+                            fechas_activas.add(date.fromisoformat(f_raw))
+                        elif isinstance(f_raw, date):
+                            fechas_activas.add(f_raw)
                     except: pass
             return list(fechas_activas)
         except Exception as e:
@@ -118,9 +123,8 @@ class OperacionesController:
             resultado = []
             for s in servicios_data:
                 v = ventas_map.get(s['id_venta'], {})
-                if v.get('id_agencia_aliada') is not None:
-                    continue
                 
+                # ELIMINADO EL FILTRO DE B2B: Queremos ver TODAS las operaciones
                 id_cliente = v.get('id_cliente')
                 nombre_cliente = clientes_map.get(id_cliente, "Desconocido")
                 
@@ -136,6 +140,8 @@ class OperacionesController:
                 nombre_endoso = proveedor_endoso_map.get(key_g, "---")
                 es_endoso = s.get('es_endoso', False)
                 
+                tipo_venta = '🏢 B2B' if v.get('id_agencia_aliada') else '👤 B2C'
+                
                 resultado.append({
                     'ID Venta': s['id_venta'],
                     'N Linea': s['n_linea'],
@@ -150,7 +156,7 @@ class OperacionesController:
                     'Proveedor': nombre_endoso if es_endoso else nombre_guia,
                     'Detalle Proveedores': detalles_proveedores_map.get(key_g, []),
                     'Estado Pago': estado_pago,
-                    'Tipo': '👤 B2C',
+                    'Tipo': tipo_venta,
                     'Día Itin.': s.get('id_itinerario_dia_index', 1),
                     'ID Itinerario': v.get('id_itinerario_digital'),
                     'URL Cloud': v.get('url_itinerario') or ""
@@ -235,9 +241,8 @@ class OperacionesController:
             resultado = []
             for s in servicios_data:
                 v = ventas_map.get(s['id_venta'], {})
-                if v.get('id_agencia_aliada') is not None:
-                    continue
                 
+                # ELIMINADO EL FILTRO DE B2B: Queremos ver TODAS las operaciones
                 id_cliente = v.get('id_cliente')
                 nombre_cliente = clientes_map.get(id_cliente, "Desconocido")
                 
@@ -258,6 +263,8 @@ class OperacionesController:
                 else:
                     if nombre_guia == "Por Asignar": status_log = "🔴"
 
+                tipo_venta = '🏢 B2B' if v.get('id_agencia_aliada') else '👤 B2C'
+
                 resultado.append({
                     'ID Servicio': f"{s['id_venta']}-{s['n_linea']}", 
                     'Hora': "08:00 AM",
@@ -271,7 +278,7 @@ class OperacionesController:
                     'Proveedor': nombre_endoso if es_endoso else nombre_guia,
                     'Detalle Proveedores': detalles_proveedores_map.get(key_g, []),
                     'Estado Pago': estado_pago,
-                    'Tipo': '👤 B2C',
+                    'Tipo': tipo_venta,
                     'ID Venta': s['id_venta'],
                     'N Linea': s['n_linea'],
                     'Día Itin.': s.get('id_itinerario_dia_index', 1),
