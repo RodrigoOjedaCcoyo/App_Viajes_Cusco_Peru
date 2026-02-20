@@ -1,1161 +1,1127 @@
--- 0. REINICIAR (Surgical cleanup compatible con Supabase)
--- Borrar vistas si existen
-DROP VIEW IF EXISTS vista_servicios_diarios CASCADE;
-DROP VIEW IF EXISTS vista_ventas_completa CASCADE;
+  -- 0. REINICIAR (Surgical cleanup compatible con Supabase)
+  -- Borrar vistas si existen
+  DROP VIEW IF EXISTS vista_servicios_diarios CASCADE;
+  DROP VIEW IF EXISTS vista_ventas_completa CASCADE;
 
--- Borrar tablas si existen (en orden de dependencia)
-DROP TABLE IF EXISTS evaluacion_proveedor CASCADE;
-DROP TABLE IF EXISTS venta_servicio_proveedor CASCADE;
-DROP TABLE IF EXISTS requerimiento CASCADE;
-DROP TABLE IF EXISTS documentacion CASCADE; -- Seguridad para versiones viejas
-DROP TABLE IF EXISTS pasajero CASCADE;      -- Seguridad para versiones viejas
-DROP TABLE IF EXISTS pago CASCADE;
-DROP TABLE IF EXISTS venta_tour CASCADE;
-DROP TABLE IF EXISTS venta CASCADE;
-DROP TABLE IF EXISTS itinerario_digital CASCADE;
-DROP TABLE IF EXISTS catalogo_tours_imagenes CASCADE;
-DROP TABLE IF EXISTS paquete_tour CASCADE;
-DROP TABLE IF EXISTS paquete CASCADE;
-DROP TABLE IF EXISTS tour_itinerario_item CASCADE;
-DROP TABLE IF EXISTS tour CASCADE;
-DROP TABLE IF EXISTS proveedor CASCADE; -- AGREGADO AQUÍ
-DROP TABLE IF EXISTS agencia_aliada CASCADE;
-DROP TABLE IF EXISTS cliente CASCADE;
-DROP TABLE IF EXISTS lead CASCADE;
-DROP TABLE IF EXISTS vendedor CASCADE;
-DROP TABLE IF EXISTS usuarios_app CASCADE;
+  -- Borrar tablas si existen (en orden de dependencia)
+  DROP TABLE IF EXISTS evaluacion_proveedor CASCADE;
+  DROP TABLE IF EXISTS venta_servicio_proveedor CASCADE;
+  DROP TABLE IF EXISTS requerimiento CASCADE;
+  DROP TABLE IF EXISTS documentacion CASCADE; -- Seguridad para versiones viejas
+  DROP TABLE IF EXISTS pasajero CASCADE;      -- Seguridad para versiones viejas
+  DROP TABLE IF EXISTS pago CASCADE;
+  DROP TABLE IF EXISTS venta_tour CASCADE;
+  DROP TABLE IF EXISTS venta CASCADE;
+  DROP TABLE IF EXISTS itinerario_digital CASCADE;
+  DROP TABLE IF EXISTS catalogo_tours_imagenes CASCADE;
+  DROP TABLE IF EXISTS paquete_tour CASCADE;
+  DROP TABLE IF EXISTS paquete CASCADE;
+  DROP TABLE IF EXISTS tour_itinerario_item CASCADE;
+  DROP TABLE IF EXISTS tour CASCADE;
+  DROP TABLE IF EXISTS proveedor CASCADE; -- AGREGADO AQUÍ
+  DROP TABLE IF EXISTS agencia_aliada CASCADE;
+  DROP TABLE IF EXISTS cliente CASCADE;
+  DROP TABLE IF EXISTS lead CASCADE;
+  DROP TABLE IF EXISTS vendedor CASCADE;
+  DROP TABLE IF EXISTS usuarios_app CASCADE;
 
--- Asegurar extensiones para UUIDs y Seguridad
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+  -- Asegurar extensiones para UUIDs y Seguridad
+  CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+  CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- Restaurar permisos básicos (opcional pero recomendado)
-GRANT USAGE ON SCHEMA public TO postgres;
-GRANT USAGE ON SCHEMA public TO anon;
-GRANT USAGE ON SCHEMA public TO authenticated;
-GRANT USAGE ON SCHEMA public TO service_role;
-
-
--- ==============================================================
--- SECCIÓN 1: TABLAS MAESTRAS (ESTRUCTURA)
--- ==============================================================
-
-CREATE TABLE usuarios_app (
-    id SERIAL PRIMARY KEY,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    rol VARCHAR(50) NOT NULL CHECK (rol IN ('VENTAS', 'OPERACIONES', 'CONTABILIDAD', 'GERENCIA')),
-    activo BOOLEAN DEFAULT TRUE,
-    fecha_creacion TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    ultimo_acceso TIMESTAMP WITH TIME ZONE
-);
-
-CREATE TABLE vendedor (
-    id_vendedor SERIAL PRIMARY KEY,
-    nombre VARCHAR(100) NOT NULL,
-    email VARCHAR(255) UNIQUE, -- CRÍTICO: Requerido por login y búsqueda
-    estado VARCHAR(20) DEFAULT 'ACTIVO' CHECK (estado IN ('ACTIVO', 'INACTIVO')),
-    fecha_ingreso DATE DEFAULT CURRENT_DATE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE lead (
-    id_lead SERIAL PRIMARY KEY,
-    nombre VARCHAR(255),
-    nombre_pasajero VARCHAR(255), -- Nuevo campo visual esperado por app
-    id_vendedor INTEGER REFERENCES vendedor(id_vendedor) ON DELETE SET NULL,
-    numero_celular VARCHAR(20) NOT NULL,
-    red_social VARCHAR(50),
-    estado_lead VARCHAR(50) DEFAULT 'NUEVO', -- Requerido por Funnel
-    estrategia_venta VARCHAR(50) DEFAULT 'General' CHECK (estrategia_venta IN ('Opciones', 'Matriz', 'General')),
-    comentario TEXT, -- Requerido por app --> Por que es necesario esto no entiendo
-    whatsapp BOOLEAN DEFAULT TRUE, -- Requerido por app --> Por que es necesario esto no entiendo
-    fecha_seguimiento DATE,
-    fecha_creacion TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    pais_origen VARCHAR(100) DEFAULT 'Nacional' CHECK (pais_origen IN ('Nacional', 'Extranjero', 'Mixto')),
-    ultimo_itinerario_id UUID
-);
-
-CREATE TABLE cliente (
-    id_cliente SERIAL PRIMARY KEY,
-    id_lead INTEGER REFERENCES lead(id_lead) ON DELETE SET NULL,
-    nombre VARCHAR(255), -- Requerido por app
-    tipo_cliente VARCHAR(50) DEFAULT 'B2C' CHECK (tipo_cliente IN ('B2C', 'B2B')),
-    pais VARCHAR(100), -- Requerido por app
-    genero VARCHAR(20), -- Requerido por app
-    documento_identidad VARCHAR(50),
-    fecha_registro TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE agencia_aliada (
-    id_agencia SERIAL PRIMARY KEY,
-    nombre VARCHAR(255) UNIQUE NOT NULL,
-    pais VARCHAR(100),
-    celular VARCHAR(50),
-    fecha_registro TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE tour (
-    id_tour SERIAL PRIMARY KEY,
-    nombre VARCHAR(255) NOT NULL,
-    descripcion TEXT,
-    duracion_horas INTEGER,
-    duracion_dias INTEGER,
-    precio_adulto_extranjero DECIMAL(10,2),
-    precio_adulto_nacional DECIMAL(10,2),
-    precio_adulto_can DECIMAL(10,2),
-    precio_nino_extranjero DECIMAL(10,2),
-    precio_nino_nacional DECIMAL(10,2),
-    precio_nino_can DECIMAL(10,2),
-    precio_estudiante_extranjero DECIMAL(10,2),
-    precio_estudiante_nacional DECIMAL(10,2),
-    precio_estudiante_can DECIMAL(10,2),
-    precio_pcd_extranjero DECIMAL(10,2),
-    precio_pcd_nacional DECIMAL(10,2),
-    precio_pcd_can DECIMAL(10,2),
-    categoria VARCHAR(50),
-    dificultad VARCHAR(20) CHECK (dificultad IN ('FACIL', 'MODERADO', 'DIFICIL', 'EXTREMO')),
-    highlights JSONB,
-    atractivos JSONB,
-    servicios_incluidos JSONB,
-    servicios_no_incluidos JSONB,
-    carpeta_img VARCHAR(255),
-    hora_inicio TIME, 
-    activo BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE tour_itinerario_item (
-    id_item SERIAL PRIMARY KEY,
-    id_tour INTEGER REFERENCES tour(id_tour) ON DELETE CASCADE,
-    orden INTEGER NOT NULL,
-    lugar_nombre VARCHAR(255) NOT NULL,
-    descripcion_corta TEXT,
-    duracion_estimada_minutos INTEGER,
-    es_parada_principal BOOLEAN DEFAULT TRUE,
-    url_foto_referencia TEXT
-);
-
-CREATE TABLE paquete (
-    id_paquete SERIAL PRIMARY KEY,
-    nombre VARCHAR(255) NOT NULL,
-    descripcion TEXT,
-    dias INTEGER NOT NULL,
-    noches INTEGER NOT NULL,
-    precio_sugerido DECIMAL(10,2),
-    temporada VARCHAR(50),
-    destino_principal VARCHAR(100),
-    activo BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE paquete_tour (
-    id_paquete INTEGER REFERENCES paquete(id_paquete) ON DELETE CASCADE,
-    id_tour INTEGER REFERENCES tour(id_tour) ON DELETE RESTRICT,
-    orden INTEGER NOT NULL,
-    dia_del_paquete INTEGER,
-    PRIMARY KEY (id_paquete, id_tour, orden)
-);
-
-CREATE TABLE catalogo_tours_imagenes (
-    id_tour INTEGER REFERENCES tour(id_tour) ON DELETE CASCADE PRIMARY KEY,
-    urls_imagenes JSONB DEFAULT '[]'::jsonb,
-    url_principal TEXT,
-    ultima_actualizacion TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE itinerario_digital (
-    id_itinerario_digital UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    id_lead INTEGER REFERENCES lead(id_lead) ON DELETE SET NULL,
-    id_vendedor INTEGER REFERENCES vendedor(id_vendedor) ON DELETE SET NULL,
-    id_paquete INTEGER REFERENCES paquete(id_paquete) ON DELETE SET NULL,
-    nombre_pasajero_itinerario VARCHAR(255),
-    datos_render JSONB NOT NULL,
-    fecha_generacion TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE venta (
-    id_venta SERIAL PRIMARY KEY,
-    id_cliente INTEGER REFERENCES cliente(id_cliente) ON DELETE RESTRICT,
-    id_vendedor INTEGER REFERENCES vendedor(id_vendedor) ON DELETE RESTRICT,
-    id_itinerario_digital UUID REFERENCES itinerario_digital(id_itinerario_digital) ON DELETE SET NULL,
-    id_paquete INTEGER REFERENCES paquete(id_paquete) ON DELETE SET NULL,
-    fecha_venta DATE DEFAULT CURRENT_DATE NOT NULL,
-    fecha_inicio DATE,
-    fecha_fin DATE,
-    precio_total_cierre DECIMAL(10,2) NOT NULL, 
-    costo_total DECIMAL(10,2) DEFAULT 0,
-    utilidad_bruta DECIMAL(10,2) DEFAULT 0,
-    moneda VARCHAR(10) DEFAULT 'USD' CHECK (moneda IN ('USD', 'PEN', 'EUR')),
-    tipo_cambio DECIMAL(8,4),
-    estado_pago VARCHAR(50) DEFAULT 'PENDIENTE' CHECK (estado_pago IN ('PENDIENTE', 'PARCIAL', 'COMPLETADO', 'REEMBOLSADO')),
-    estado_venta VARCHAR(50) DEFAULT 'CONFIRMADO' CHECK (estado_venta IN ('CONFIRMADO', 'EN_VIAJE', 'COMPLETADO', 'CANCELADO')),
-    canal_venta VARCHAR(50) DEFAULT 'DIRECTO',
-    estado_liquidacion VARCHAR(30) DEFAULT 'PENDIENTE' CHECK (estado_liquidacion IN ('PENDIENTE', 'PARCIAL', 'FINALIZADO')),
-    id_agencia_aliada INTEGER REFERENCES agencia_aliada(id_agencia),
-    tour_nombre VARCHAR(255),
-    num_pasajeros INTEGER DEFAULT 1, 
-    url_itinerario TEXT,
-    url_comprobante_pago TEXT,
-    url_documentos TEXT,
-    cancelada BOOLEAN DEFAULT FALSE,
-    fecha_cancelacion TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE venta_tour ( 
-    id_venta INTEGER REFERENCES venta(id_venta) ON DELETE CASCADE,
-    n_linea INTEGER NOT NULL,
-    id_tour INTEGER REFERENCES tour(id_tour) ON DELETE RESTRICT,
-    fecha_servicio DATE NOT NULL,
-    hora_inicio TIME, 
-    precio_applied DECIMAL(10,2),
-    costo_applied DECIMAL(10,2),
-    moneda_costo VARCHAR(10) DEFAULT 'USD',
-    id_proveedor INTEGER, -- Definido más adelante como FK
-    cantidad_pasajeros INTEGER DEFAULT 1,
-    punto_encuentro VARCHAR(255),
-    observaciones TEXT,
-    id_itinerario_dia_index INTEGER,
-    estado_servicio VARCHAR(30) DEFAULT 'PENDIENTE' CHECK (estado_servicio IN ('PENDIENTE', 'CONFIRMADO', 'EN_CURSO', 'COMPLETADO', 'CANCELADO')),
-    -- Flujo de Caja Maestro (Liquidación + Requerimientos + Endosos)
-    estado_pago_operativo VARCHAR(20) DEFAULT 'NO_REQUERIDO' CHECK (estado_pago_operativo IN ('NO_REQUERIDO', 'PENDIENTE', 'PAGADO')),
-    datos_pago_operativo TEXT, -- Cuentas, Yape, Plin del proveedor o guía
-    url_voucher_operativo TEXT, -- Comprobante subido por contabilidad
-    es_endoso BOOLEAN DEFAULT FALSE, -- Flag para identificar si fue tercerizado
-    costo_unitario DECIMAL(10,2) DEFAULT 0,
-    cantidad_items INTEGER DEFAULT 1,
-    precio_vendedor DECIMAL(10,2) DEFAULT 0, -- Precio proyectado por el vendedor (referencia)
-    PRIMARY KEY (id_venta, n_linea)
-);
-
-CREATE TABLE pago (
-    id_pago SERIAL PRIMARY KEY,
-    id_venta INTEGER REFERENCES venta(id_venta) ON DELETE CASCADE,
-    fecha_pago DATE DEFAULT CURRENT_DATE NOT NULL,
-    monto_pagado DECIMAL(10,2) NOT NULL CHECK (monto_pagado > 0),
-    moneda VARCHAR(10) DEFAULT 'USD' CHECK (moneda IN ('USD', 'PEN', 'EUR')),
-    tipo_cambio DECIMAL(8,4),
-    metodo_pago VARCHAR(50) CHECK (metodo_pago IN ('EFECTIVO', 'TRANSFERENCIA', 'TARJETA', 'PAYPAL', 'YAPE', 'PLIN', 'OTRO')),
-    tipo_pago VARCHAR(50) CHECK (tipo_pago IN ('ADELANTO', 'SALDO', 'TOTAL', 'PARCIAL')),
-    numero_operacion VARCHAR(100),
-    observacion TEXT,
-    url_comprobante TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS paquete_personalizado (
-    id_paquete_personalizado UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    nombre TEXT NOT NULL,
-    itinerario JSONB NOT NULL,
-    creado_por TEXT, -- Email del vendedor
-    es_publico BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMPTZ DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS plantilla_servicio (
-    id SERIAL PRIMARY KEY,
-    titulo TEXT NOT NULL,
-    descripcion TEXT,
-    costo_nac DECIMAL(10,2) DEFAULT 0,
-    costo_ext DECIMAL(10,2) DEFAULT 0,
-    categoria VARCHAR(50) DEFAULT 'OTROS',
-    icono VARCHAR(50) DEFAULT 'default_in'
-);
-
-INSERT INTO plantilla_servicio (titulo, descripcion, icono) VALUES 
-('Día Libre / Descanso', 'Día destinado al descanso o actividades personales. No incluye tours.', 'calendario'),
-('Traslado Aeropuerto ➡️ Hotel', 'Recepción en el aeropuerto y traslado en unidad privada hacia el hotel.', 'transporte'),
-('Traslado Hotel ➡️ Aeropuerto', 'Traslado desde el hotel hacia el aeropuerto para su vuelo de salida.', 'transporte');
-
-CREATE TABLE pasajero (
-    id_pasajero SERIAL PRIMARY KEY,
-    id_venta INTEGER REFERENCES venta(id_venta) ON DELETE CASCADE,
-    nombre_completo VARCHAR(255) NOT NULL,
-    nacionalidad VARCHAR(100),
-    numero_documento VARCHAR(50),
-    tipo_documento VARCHAR(20) CHECK (tipo_documento IN ('DNI', 'PASAPORTE', 'CARNET_EXTRANJERIA', 'OTRO')),
-    fecha_nacimiento DATE,
-    genero VARCHAR(20),
-    cuidados_especiales TEXT,
-    contacto_emergencia_nombre VARCHAR(255),
-    contacto_emergencia_telefono VARCHAR(20),
-    es_principal BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE documentacion (
-    id BIGSERIAL PRIMARY KEY,
-    id_pasajero INTEGER REFERENCES pasajero(id_pasajero) ON DELETE CASCADE,
-    tipo_documento VARCHAR(50) CHECK (tipo_documento IN ('PASAPORTE', 'VISA', 'SEGURO_VIAJE', 'CERTIFICADO_VACUNA', 'AUTORIZACION_MENOR', 'OTRO')),
-    url_archivo TEXT,
-    fecha_carga TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    fecha_vencimiento DATE,
-    estado_entrega VARCHAR(30) DEFAULT 'PENDIENTE' CHECK (estado_entrega IN ('PENDIENTE', 'RECIBIDO', 'VERIFICADO', 'RECHAZADO')),
-    es_critico BOOLEAN DEFAULT FALSE,
-    notas TEXT
-);
-
-CREATE TABLE requerimiento (
-    id SERIAL PRIMARY KEY,
-    id_venta INTEGER REFERENCES venta(id_venta) ON DELETE SET NULL,
-    tipo_requerimiento VARCHAR(50) CHECK (tipo_requerimiento IN ('TRANSPORTE', 'ALOJAMIENTO', 'ALIMENTACION', 'GUIA', 'TICKETS', 'OTRO')),
-    descripcion TEXT NOT NULL,
-    monto_estimado DECIMAL(10,2),
-    monto_real DECIMAL(10,2),
-    moneda VARCHAR(10) DEFAULT 'USD',
-    estado VARCHAR(30) DEFAULT 'PENDIENTE' CHECK (estado IN ('PENDIENTE', 'COTIZADO', 'APROBADO', 'PAGADO', 'COMPLETADO', 'CANCELADO')),
-    fecha_necesidad DATE,
-    fecha_solicitud TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    solicitado_por INTEGER REFERENCES vendedor(id_vendedor),
-    aprobado_por INTEGER REFERENCES vendedor(id_vendedor),
-    fecha_aprobacion TIMESTAMP WITH TIME ZONE,
-    url_comprobante TEXT,
-    notas TEXT
-);
-
-CREATE TABLE proveedor (
-    id_proveedor SERIAL PRIMARY KEY,
-    nombre_comercial VARCHAR(255) NOT NULL,
-    razon_social VARCHAR(255),
-    ruc VARCHAR(20),
-    servicios_ofrecidos TEXT[], 
-    contacto_nombre VARCHAR(100),
-    contacto_telefono VARCHAR(20),
-    contacto_email VARCHAR(100),
-    direccion TEXT,
-    ciudad VARCHAR(100),
-    pais VARCHAR(100) DEFAULT 'Perú',
-    banco_soles VARCHAR(100),
-    cuenta_soles VARCHAR(50),
-    cci_soles VARCHAR(50),
-    banco_dolares VARCHAR(100),
-    cuenta_dolares VARCHAR(50),
-    cci_dolares VARCHAR(50),
-    metodo_pago_preferido VARCHAR(50) CHECK (metodo_pago_preferido IN (
-        'TRANSFERENCIA', 'EFECTIVO', 'CHEQUE', 'DEPOSITO', 'YAPE', 'PLIN'
-    )),
-    plazo_pago_dias INTEGER DEFAULT 0,
-    calificacion_promedio DECIMAL(3,2),
-    activo BOOLEAN DEFAULT TRUE,
-    notas TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- Vincular FK faltantes
-ALTER TABLE venta_tour ADD CONSTRAINT fk_proveedor_tour FOREIGN KEY (id_proveedor) REFERENCES proveedor(id_proveedor) ON DELETE SET NULL;
-ALTER TABLE requerimiento ADD COLUMN id_proveedor INTEGER REFERENCES proveedor(id_proveedor);
-
-CREATE TABLE venta_servicio_proveedor (
-    id SERIAL PRIMARY KEY,
-    id_venta INTEGER,
-    n_linea INTEGER,
-    id_proveedor INTEGER REFERENCES proveedor(id_proveedor) ON DELETE RESTRICT,
-    tipo_servicio VARCHAR(50) CHECK (tipo_servicio IN (
-        'TRANSPORTE', 'ALOJAMIENTO', 'ALIMENTACION', 
-        'GUIA', 'TICKETS', 'OTRO'
-    )),
-    costo_acordado DECIMAL(10,2) NOT NULL,
-    moneda VARCHAR(10) DEFAULT 'USD',
-    tipo_cambio DECIMAL(8,4),
-    estado_pago VARCHAR(30) DEFAULT 'PENDIENTE' CHECK (estado_pago IN (
-        'PENDIENTE', 'PAGADO', 'PAGADO_PARCIAL', 'VENCIDO', 'CANCELADO'
-    )),
-    monto_total_pagado DECIMAL(10,2) DEFAULT 0,
-    fecha_vencimiento_pago DATE,
-    codigo_reserva VARCHAR(100),
-    confirmado BOOLEAN DEFAULT FALSE,
-    fecha_confirmacion DATE,
-    observaciones TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (id_venta, n_linea) REFERENCES venta_tour(id_venta, n_linea) ON DELETE CASCADE,
-    UNIQUE(id_venta, n_linea, tipo_servicio) -- CRÍTICO: Evitar duplicar guías/tours por servicio
-);
-
-CREATE TABLE evaluacion_proveedor (
-    id SERIAL PRIMARY KEY,
-    id_proveedor INTEGER REFERENCES proveedor(id_proveedor) ON DELETE CASCADE,
-    id_venta INTEGER REFERENCES venta(id_venta) ON DELETE SET NULL,
-    calificacion_general INTEGER CHECK (calificacion_general BETWEEN 1 AND 5),
-    puntualidad INTEGER CHECK (puntualidad BETWEEN 1 AND 5),
-    calidad_servicio INTEGER CHECK (calidad_servicio BETWEEN 1 AND 5),
-    relacion_precio_calidad INTEGER CHECK (relacion_precio_calidad BETWEEN 1 AND 5),
-    comunicacion INTEGER CHECK (comunicacion BETWEEN 1 AND 5),
-    resolveria_contratar BOOLEAN,
-    comentarios TEXT,
-    evaluado_por INTEGER REFERENCES vendedor(id_vendedor),
-    fecha_evaluacion DATE DEFAULT CURRENT_DATE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- ==============================================================
--- SECCIÓN 2: CARGA DE DATOS (SEMILLAS)
--- ==============================================================
-
--- 2.1. USUARIOS Y VENDEDORES
--- Los emails deben coincidir para que el sistema vincule el login con el vendedor asignado.
-INSERT INTO usuarios_app (email, rol) VALUES 
-('angel@agencia.com', 'VENTAS'),
-('abel@agencia.com', 'VENTAS'),
-('maria@agencia.com', 'OPERACIONES'),
-('elizabeth@agencia.com', 'CONTABILIDAD'),
-('vanessa@agencia.com', 'GERENCIA'),
-('henrry@agencia.com', 'GERENCIA');
-
-INSERT INTO vendedor (nombre, email) VALUES 
-('Angel', 'angel@agencia.com'),
-('Abel', 'abel@agencia.com'),
-('Maria', 'maria@agencia.com'),
-('Vanessa', 'vanessa@agencia.com'),
-('Henrry', 'henrry@agencia.com');
-
--- 2.2. AGENCIAS ALIADAS (B2B)
-INSERT INTO agencia_aliada (nombre, pais, celular) VALUES 
-('Ulises Viaje', 'Argentina', '+54 9 3534 28-1109'),
-('Like Travel', 'Argentina', '+54 9 3517 64-3797'),
-('Kuna Travel', 'Mexico', '+52 1 614 277 7793'),
-('Guru Destinos', 'Argentina', '+54 9 11 6458-9079'),
-('Hector', 'Mexico', '+52 1 33 2492 7483'),
-('Rogelio', 'Brazil', '+55 48 8424-1401'),
-('Willian', 'Bolivia', '+591 75137410'),
-('Cave', 'Peru', '+51 982 167 776');
-
--- 2.3. CATÁLOGO DE TOURS
-INSERT INTO tour (
-  nombre, descripcion, duracion_horas, duracion_dias, precio_adulto_extranjero, precio_adulto_nacional,
-  categoria, dificultad, highlights, atractivos, servicios_incluidos, servicios_no_incluidos,
-  carpeta_img, hora_inicio, activo
-) VALUES 
-(
-  'CITY TOUR CUSCO PULL',
-  'Recorrido guiado por los principales atractivos históricos y culturales de la ciudad del Cusco.',
-  4, 1, 41.00, 98.00,
-  'CITY TOUR', 'FACIL',
-  '{"itinerario": "[Cusco, el Despertar de un Imperio] La Experiencia: \"Descubra el corazón palpitante de los Andes en un viaje a través del tiempo, donde la mampostería inca se funde con la elegancia colonial.\""}'::jsonb,
-  '{"Lo que visitarás": ["Catedral del Cusco", "Qoricancha", "Sacsayhuamán", "Qenqo", "Puka Pukara", "Tambomachay"]}'::jsonb,
-  '{"incluye": ["Guía profesional", "Transporte turístico", "Asistencia permanente"]}'::jsonb,
-  '{"no_incluye": ["Entradas a atractivos", "Alimentación", "Gastos personales"]}'::jsonb,
-  'city_tour_cusco', '08:00:00', TRUE
-),
-(
-  'CITY TOUR CUSCO + CATEDRAL PULL',
-  'Recorrido cultural por el Cusco incluyendo visita guiada al interior de la Catedral.',
-  4, 1, 61.00, 163.00,
-  'CITY TOUR', 'FACIL',
-  '{"itinerario": "[Cusco Profundo y Sagrado] La Experiencia: \"Adéntrese en un museo vivo donde convergen siglos de historia.\""}'::jsonb,
-  '{"Lo que visitarás": ["Catedral del Cusco", "Qoricancha", "Sacsayhuamán", "Qenqo", "Puka Pukara", "Tambomachay"]}'::jsonb,
-  '{"incluye": ["Guía profesional", "Transporte turístico", "Asistencia permanente"]}'::jsonb,
-  '{"no_incluye": ["Entradas adicionales", "Alimentación", "Gastos personales"]}'::jsonb,
-  'city_tour_cusco_catedral', '08:00:00', TRUE
-),
-(
-  'VALLE SAGRADO VIP PULL',
-  'Excursión de día completo por los principales atractivos culturales y paisajísticos del Valle Sagrado.',
-  8, 1, 57.00, 150.00,
-  'FULL DAY', 'MODERADO',
-  '{"itinerario": "[El Valle de los Emperadores] La Experiencia: \"Sumérjase en el fértil valle que alimentó a un imperio, un paisaje impresionante de maizales y montañas infinitas.\""}'::jsonb,
-  '{"Lo que visitarás": ["Pisac", "Mercado de Pisac", "Ollantaytambo", "Chinchero"]}'::jsonb,
-  '{"incluye": ["Guía profesional", "Transporte turístico", "Asistencia permanente"]}'::jsonb,
-  '{"no_incluye": ["Entradas a atractivos", "Alimentación", "Gastos personales"]}'::jsonb,
-  'valle_sagrado_vip', '08:00:00', TRUE
-),
-(
-  'VALLE SAGRADO VIP (ROSARIO) PULL',
-  'Recorrido extendido por el Valle Sagrado con paradas culturales y paisajísticas adicionales.',
-  8, 1, 66.00, 182.00,
-  'FULL DAY', 'MODERADO',
-  '{"itinerario": "[Valle Sagrado: Esencia Andina] La Experiencia: \"Deambule por el Valle Sagrado de los Incas, un lugar de belleza mística y cultura vibrante.\""}'::jsonb,
-  '{"Lo que visitarás": ["Mirador Taray", "Pisac", "Ollantaytambo", "Chinchero"]}'::jsonb,
-  '{"incluye": ["Guía profesional", "Transporte turístico", "Asistencia permanente"]}'::jsonb,
-  '{"no_incluye": ["Entradas a atractivos", "Alimentación", "Gastos personales"]}'::jsonb,
-  'valle_sagrado_vip_rosario', '08:00:00', TRUE
-),
-(
-  'MACHU PICCHU FULL DAY PULL',
-  'Excursión de día completo al santuario histórico de Machu Picchu desde la ciudad del Cusco.',
-  8, 1, 270.00, 730.00,
-  'FULL DAY', 'MODERADO',
-  '{"itinerario": "[Machu Picchu, La Ciudad Perdida] La Experiencia: \"Embárquese en una peregrinación a la Joya de la Corona de los Andes, una ciudad oculta entre las nubes.\""}'::jsonb,
-  '{"Lo que visitarás": ["Aguas Calientes", "Machu Picchu", "Templo del Sol", "Intihuatana"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'machu_picchu_full_day', '08:00:00', TRUE
-),
-(
-  'LAGUNA HUMANTAY PULL',
-  'Excursión de día completo a una de las lagunas más impresionantes de la cordillera andina.',
-  12, 1, 30.00, 98.00,
-  'NATURALEZA', 'MODERADO',
-  '{"itinerario": "[Humantay: El Espejo Turquesa] La Experiencia: \"Ascienda a una joya escondida acunada por picos nevados, donde el agua brilla como un espejo turquesa.\""}'::jsonb,
-  '{"Lo que visitarás": ["Mollepata", "Soraypampa", "Laguna Humantay", "Nevado Salkantay"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'laguna_humantay', '08:00:00', TRUE
-),
-(
-  'MONTAÑA DE COLORES PULL',
-  'Excursión de alta montaña hacia uno de los paisajes más icónicos del Perú.',
-  14, 1, 32.00, 104.00,
-  'AVENTURA', 'DIFICIL',
-  '{"itinerario": "[Vinicunca, El Arcoíris de Piedra] La Experiencia: \"Desafíe su espíritu en una caminata hacia el techo del mundo, donde la tierra se niega a ser de un solo color.\""}'::jsonb,
-  '{"Lo que visitarás": ["Cusipata", "Vinicunca", "Valle Rojo", "Nevado Ausangate"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'montana_de_colores', '08:00:00', TRUE
-),
-(
-  'PALCCOYO PULL',
-  'Excursión alternativa a la Montaña de Colores con caminatas suaves en zonas poco concurridas.',
-  10, 1, 37.00, 124.00,
-  'AVENTURA', 'MODERADO',
-  '{"itinerario": "[Palccoyo: La Cordillera Pintada] La Experiencia: \"Descubra la hermana serena de la Montaña de Colores, un lugar de majestuosidad tranquila.\""}'::jsonb,
-  '{"Lo que visitarás": ["Checacupe", "Palccoyo", "Bosque de Piedras", "Río Rojo"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'palccoyo', '08:00:00', TRUE
-),
-(
-  'PUENTE QESWACHAKA + 4 LAGUNAS PULL',
-  'Excursión que combina historia viva inca con paisajes altoandinos.',
-  14, 1, 44.00, 146.00,
-  'CULTURA', 'MODERADO',
-  '{"itinerario": "[Qeswachaka y el Legado Vivo] La Experiencia: \"Sea testigo del increíble legado del último puente inca, una obra maestra tejida a mano.\""}'::jsonb,
-  '{"Lo que visitarás": ["Laguna Pomacanchi", "Laguna Asnaqocha", "Puente Qeswachaka", "Río Apurímac"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'puente_qeswachaka_4_lagunas', '08:00:00', TRUE
-),
-(
-  'WAQRAPUKARA PULL',
-  'Excursión de aventura hacia un complejo arqueológico rodeado de cañones profundos.',
-  13, 1, 39.00, 130.00,
-  'AVENTURA', 'MODERADO',
-  '{"itinerario": "[Waqrapukara: La Fortaleza de los Cuernos] La Experiencia: \"Aventúrese fuera de los caminos trillados hacia la fortaleza en forma de cuernos de Waqrapukara.\""}'::jsonb,
-  '{"Lo que visitarás": ["Comunidad Acomayo", "Waqrapukara", "Cañón del Apurímac", "Pinturas Rupestres"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'waqrapukara', '08:00:00', TRUE
-),
-(
-  'SIETE LAGUNAS AUSANGATE PULL',
-  'Ruta de caminata escénica que permite visitar lagunas de colores intensos a los pies del Ausangate.',
-  14, 1, 35.00, 117.00,
-  'NATURALEZA', 'MODERADO',
-  '{"itinerario": "[Ausangate y el Circuito de Cristal] La Experiencia: \"Entre en un paisaje onírico de gran altitud dominado por el poderoso Ausangate.\""}'::jsonb,
-  '{"Lo que visitarás": ["Pacchanta", "Laguna Azulcocha", "Laguna Pucacocha", "Nevado Ausangate"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'siete_lagunas_ausangate', '08:00:00', TRUE
-),
-(
-  'VALLE SUR PULL',
-  'Recorrido cultural que combina sitios arqueológicos, arquitectura colonial y tradiciones vivas.',
-  6, 1, 42.00, 98.00,
-  'CULTURA', 'FACIL',
-  '{"itinerario": "[Valle Sur: Ingeniería y Fe] La Experiencia: \"Viaje por el camino menos transitado para descubrir la sofisticada ingeniería Wari e Inca.\""}'::jsonb,
-  '{"Lo que visitarás": ["Tipón", "Pikillacta", "Andahuaylillas", "Laguna de Huacarpay"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'valle_sur', '08:00:00', TRUE
-),
-(
-  'CHURIN PULL',
-  'Excursión a los baños termales de Churín, conocidos por sus propiedades medicinales.',
-  12, 1, 30.0, 98.0,
-  'TURISMO', 'FACIL',
-  '{"itinerario": "[Churín: Santuario Termal] La Experiencia: \"Entréguese al abrazo curativo de la tierra en los baños termales de Churín.\""}'::jsonb,
-  '{"Lo que visitarás": ["Complejo Mamahuarmi", "Baños de Tingo", "Velo de la Novia", "Plaza de Churín"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'churin', '08:00:00', TRUE
-),
-(
-  'CIRCUITO MAGICO + LA CANDELARIA PULL',
-  'Espectáculo de luces en el Circuito Mágico del Agua seguido de un show folclórico.',
-  4, 1, 137.0, 458.0,
-  'TURISMO', 'FACIL',
-  '{"itinerario": "[Lima de Noche: Luces y Tradición] La Experiencia: \"Encienda sus sentidos en un deslumbrante espectáculo de luz, agua y música.\""}'::jsonb,
-  '{"Lo que visitarás": ["Parque de la Reserva", "Circuito Mágico", "Show Multimedia", "Cena Show"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'circuito_magico_la_candelaria', '18:00:00', TRUE
-),
-(
-  'MORADA DE LOS DIOSES PULL',
-  'Esculturas gigantes modernas talladas en piedra honrando deidades andinas.',
-  4, 1, 16.0, 46.0,
-  'TURISMO', 'FACIL',
-  '{"itinerario": "[Apukunaq Tianan: Morada Divina] La Experiencia: \"Visite un santuario moderno tallado en la roca viva, donde el arte contemporáneo honra a las deidades antiguas.\""}'::jsonb,
-  '{"Lo que visitarás": ["Sencca", "El Puma", "La Pachamama", "Mirador del Cusco"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'morada_de_los_dioses', '09:00:00', TRUE
-),
-(
-  'RUTA DEL SOL CUSCO - PUNO PULL',
-  'Traslado turístico de lujo con paradas en los sitios arqueológicos más importantes entre Cusco y Puno.',
-  10, 1, 70.0, 231.0,
-  'TURISMO', 'FACIL',
-  '{"itinerario": "[La Ruta del Sol: Altiplano Ancestral] La Experiencia: \"Transforme un simple traslado en una odisea a través del Altiplano.\""}'::jsonb,
-  '{"Lo que visitarás": ["Andahuaylillas", "Raqchi", "La Raya", "Pucará"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'ruta_del_sol_cusco_puno', '07:00:00', TRUE
-),
-(
-  'BARRANCO + HUACA PUCLLANA PULL',
-  'Visita al barrio bohemio de Barranco y a la pirámide pre-inca de Huaca Pucllana.',
-  4, 1, 57.0, 189.0,
-  'TURISMO', 'FACIL',
-  '{"itinerario": "[Lima: Contrastes de Tiempo] La Experiencia: \"Experimente el cautivador contraste de Lima, donde una pirámide de adobe pre-inca se alza en medio de la ciudad moderna.\""}'::jsonb,
-  '{"Lo que visitarás": ["Huaca Pucllana", "Puente de los Suspiros", "✅ Bajada de Baños", "✅ Malecón"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'barranco_huaca_pucllana', '09:00:00', TRUE
-),
-(
-  'PACHACAMAC + CABALLOS DE PASO PULL',
-  'Exploración del santuario de Pachacamac y exhibición del Caballo Peruano de Paso.',
-  6, 1, 150.0, 501.0,
-  'TURISMO', 'FACIL',
-  '{"itinerario": "[Pachacamac: Oráculo y Tradición] La Experiencia: \"Párese ante el oráculo del Pacífico y sea testigo de la gracia del Caballo Peruano de Paso.\""}'::jsonb,
-  '{"Lo que visitarás": ["Templo del Sol", "Museo de Sitio", "Hacienda Mamacona", "Show Ecuestre"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'pachacamac_caballos_de_paso', '09:00:00', TRUE
-),
-(
-  'SOBREVUELO LINEAS DE NAZCA - NAZCA PULL',
-  'Vuelo inolvidable sobre las misteriosas líneas y geoglifos de Nazca.',
-  1, 1, 141.0, 471.0,
-  'TURISMO', 'FACIL',
-  '{"itinerario": "[Nazca: Mensajes del Cielo] La Experiencia: \"Vuele sobre el enigma del desierto donde líneas antiguas dibujan mensajes a los dioses.\""}'::jsonb,
-  '{"Lo que visitarás": ["Aeropuerto Nazca", "El Colibrí", "El Mono", "La Araña"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'sobrevuelo_lineas_de_nazca_nazca', '08:00:00', TRUE
-),
-(
-  'LUNAHUANA PULL',
-  'Día de aventura con canotaje y cata de vinos en el valle de Cañete.',
-  12, 1, 25.0, 82.0,
-  'TURISMO', 'FACIL',
-  '{"itinerario": "[Lunahuaná: Aventura y Vino] La Experiencia: \"Disfrute del canotaje en el río Cañete y visite viñedos locales.\""}'::jsonb,
-  '{"Lo que visitarás": ["Río Cañete", "Catapalla", "Viñedos", "Apicultura"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'lunahuana', '06:00:00', TRUE
-);
-
-INSERT INTO tour (
-  nombre, descripcion, duracion_horas, duracion_dias, precio_adulto_extranjero, precio_adulto_nacional,
-  categoria, dificultad, highlights, atractivos, servicios_incluidos, servicios_no_incluidos,
-  carpeta_img, hora_inicio, activo
-) VALUES 
-(
-  'PARACAS Y HUACACHINA PULL',
-  'Full day a la costa y el desierto: Islas Ballestas y Oasis de Huacachina.',
-  15, 1, 56.0, 188.0,
-  'TURISMO', 'FACIL',
-  '{"itinerario": "[Paracas y Huacachina: Mar y Dunas] La Experiencia: \"Navegue hacia las Islas Ballestas y monte en tubulares en el Oasis de Huacachina.\""}'::jsonb,
-  '{"Lo que visitarás": ["Islas Ballestas", "El Candelabro", "Oasis Huacachina", "Dunas"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'paracas_y_huacachina', '04:00:00', TRUE
-),
-(
-  'PLAYA LA MINA PULL',
-  'Día de relax en una de las playas más hermosas de la Reserva Nacional de Paracas.',
-  12, 1, 34.0, 112.0,
-  'TURISMO', 'FACIL',
-  '{"itinerario": "[La Mina: Paraíso Costero] La Experiencia: \"Relájese en una de las playas más hermosas de la Reserva de Paracas.\""}'::jsonb,
-  '{"Lo que visitarás": ["Reserva de Paracas", "Playa La Mina", "Playa Lagunillas", "Miradores"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'playa_la_mina', '04:00:00', TRUE
-),
-(
-  'MARAS, MORAY Y SALINERAS PULL',
-  'Descubra el laboratorio agrícola inca de Moray y las milenarias minas de sal de Maras.',
-  6, 1, 45.0, 111.0,
-  'TURISMO', 'FACIL',
-  '{"itinerario": "[Maras y Moray: Ingenio Inca] La Experiencia: \"Visite los laboratorios agrícolas enigmáticos de Moray y las espectaculares minas de sal de Maras.\""}'::jsonb,
-  '{"Lo que visitarás": ["Moray", "Salineras de Maras", "Pueblo de Maras", "Cordillera Vilcanota"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'maras_moray_y_salineras', '08:00:00', TRUE
-),
-(
-  'CORDILLERA PULL',
-  'Exploración de paisajes altoandinos y lagunas glaciares en la Cordillera Central.',
-  12, 1, 28.0, 94.0,
-  'TURISMO', 'FACIL',
-  '{"itinerario": "[Cordillera: Reino del Hielo] La Experiencia: \"Experimente la belleza cruda de los Andes en la Cordillera.\""}'::jsonb,
-  '{"Lo que visitarás": ["Lagunas Glaciares", "Nevados", "Valles", "Flora Altoandina"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'cordillera', '05:00:00', TRUE
-),
-(
-  'PLAYA TUQUILLO PULL',
-  'Visita a la "Piscina del Pacífico", una de las playas más limpias y tranquilas del Perú.',
-  12, 1, 35.0, 116.0,
-  'TURISMO', 'FACIL',
-  '{"itinerario": "[Tuquillo: La Piscina del Pacífico] La Experiencia: \"Descubra la Pool of the Pacific en la playa de Tuquillo.\""}'::jsonb,
-  '{"Lo que visitarás": ["Playa Tuquillo", "Playa Pocitas", "Huarmey", "Balneario"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'playa_tuquillo', '04:00:00', TRUE
-),
-(
-  'MUSEO LARCO PULL',
-  'Inmersión en el arte precolombino en una de las mejores galerías del mundo, en Lima.',
-  4, 1, 72.0, 240.0,
-  'TURISMO', 'FACIL',
-  '{"itinerario": "[Museo Larco: Tesoros del Pasado] La Experiencia: \"Viaje en el tiempo en el Museo Larco, hogar de una incomparable colección de arte precolombino.\""}'::jsonb,
-  '{"Lo que visitarás": ["Galería de Oro", "Sala Erótica", "Depósitos", "Jardines"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'museo_larco', '09:00:00', TRUE
-),
-(
-  'CUATRIMOTO HUAYPO Y SALINERAS PULL',
-  'Aventura en cuatrimoto visitando la laguna de Huaypo y las salineras de Maras.',
-  5, 1, 43.0, 143.0,
-  'TURISMO', 'FACIL',
-  '{"itinerario": "[Cuatrimotos: Aventura sobre Ruedas] La Experiencia: \"Acelere su adrenalina con una aventura en cuatrimotos por Chinchero.\""}'::jsonb,
-  '{"Lo que visitarás": ["Laguna Huaypo", "Pampa de Chinchero", "Salineras", "Comunidades"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'cuatrimoto_huaypo_y_salineras', '08:00:00', TRUE
-),
-(
-  'PARACAS Y HUACACHINA SUNSET PULL',
-  'Experiencia completa en Paracas e Ica terminando con un atardecer mágico en las dunas.',
-  15, 1, 66.0, 221.0,
-  'TURISMO', 'FACIL',
-  '{"itinerario": "[Paracas y Atardecer en el Desierto] La Experiencia: \"Experimente la magia del atardecer en el desierto.\""}'::jsonb,
-  '{"Lo que visitarás": ["El Candelabro", "Islas Ballestas", "Oasis Huacachina", "Sunset"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'paracas_y_huacachina_sunset', '04:00:00', TRUE
-),
-(
-  'CUATRIMOTO MORAY, MARAS Y SALINERAS PULL',
-  'Ruta extrema en cuatrimoto por Cruzpata visitando Moray y Salineras.',
-  6, 1, 34.0, 117.0,
-  'TURISMO', 'FACIL',
-  '{"itinerario": "[Cuatrimotos: Moray y Salineras] La Experiencia: \"Conduzca cuatrimotos a través de las llanuras de Cruzpata.\""}'::jsonb,
-  '{"Lo que visitarás": ["Cruzpata", "Moray", "Salineras", "Vistas del Valle"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'cuatrimoto_moray_maras_y_salineras', '08:00:00', TRUE
-),
-(
-  'CUATRIMOTO MONTAÑA DE COLORES + VALLE ROJO PULL',
-  'La forma más rápida y emocionante de llegar a la Montaña de Colores: en cuatrimoto.',
-  14, 1, 68.0, 228.0,
-  'TURISMO', 'FACIL',
-  '{"itinerario": "[Cuatrimotos a la Montaña de Colores] La Experiencia: \"Combine la emoción de los ATVs con la belleza de la Montaña de Colores.\""}'::jsonb,
-  '{"Lo que visitarás": ["Valle del Sur", "Cuatrimotos", "Vinicunca", "Valle Rojo"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'cuatrimoto_montana_de_colores_valle_rojo', '04:00:00', TRUE
-);
-
-INSERT INTO tour (
-  nombre, descripcion, duracion_horas, duracion_dias, precio_adulto_extranjero, precio_adulto_nacional,
-  categoria, dificultad, highlights, atractivos, servicios_incluidos, servicios_no_incluidos,
-  carpeta_img, hora_inicio, activo
-) VALUES 
-(
-  'SOBREVUELO LINEAS DE NAZCA - PISCO PULL',
-  'Vuelo directo sobre las Líneas de Nazca partiendo desde el aeropuerto de Pisco.',
-  4, 1, 362.0, 1211.0,
-  'TURISMO', 'FACIL',
-  '{"itinerario": "[Nazca desde Pisco: Vuelo Directo] La Experiencia: \"Desbloquee el misterio de las Líneas de Nazca con la comodidad de una salida costera.\""}'::jsonb,
-  '{"Lo que visitarás": ["Aeropuerto Pisco", "Geoglifos", "Desierto de Ica", "Costa Peruana"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'sobrevuelo_lineas_de_nazca_pisco', '08:00:00', TRUE
-),
-(
-  'PALLAY PUNCHU PULL',
-  'Caminata a la impresionante montaña con picos afilados y colores vibrantes en Canas.',
-  14, 1, 45.0, 150.0,
-  'TURISMO', 'FACIL',
-  '{"itinerario": "[Pallay Punchu: La Montaña Filuda] La Experiencia: \"Descubra las crestas afiladas, similares a un poncho, de Pallay Punchu.\""}'::jsonb,
-  '{"Lo que visitarás": ["Laguna Langui", "Pallay Punchu", "Canas", "Vistas"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'pallay_punchu', '04:00:00', TRUE
-),
-(
-  'LOMAS DE LACHAY PULL',
-  'Visita a la reserva nacional, un ecosistema único de nieblas en el desierto peruano.',
-  10, 1, 37.0, 124.0,
-  'TURISMO', 'FACIL',
-  '{"itinerario": "[Lomas de Lachay: Oasis de Niebla] La Experiencia: \"Visite el oasis de niebla estacional de Lomas de Lachay.\""}'::jsonb,
-  '{"Lo que visitarás": ["Reserva Nacional", "Senderos", "Flora", "Fauna"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'lomas_de_lachay', '07:00:00', TRUE
-),
-(
-  'CHANCAY PULL',
-  'Día de playa y visita al pintoresco Castillo de Chancay, una joya arquitectónica frente al mar.',
-  10, 1, 31.0, 103.0,
-  'TURISMO', 'FACIL',
-  '{"itinerario": "[Castillo de Chancay: Historia y Mar] La Experiencia: \"Adéntrese en un curioso mezcla de historia y fantasía en el Castillo de Chancay.\""}'::jsonb,
-  '{"Lo que visitarás": ["Castillo", "Museo", "Mirador", "Plaza de Armas"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'chancay', '08:00:00', TRUE
-),
-(
-  'CIUDADELA SAGRADA DE CARAL PULL',
-  'Viaje al pasado visitando la ciudad más antigua de América y centro de la civilización Caral.',
-  14, 1, 219.0, 733.0,
-  'TURISMO', 'FACIL',
-  '{"itinerario": "[Caral: La Civilización Más Antigua] La Experiencia: \"Camine por las calles de la ciudad más antigua de América.\""}'::jsonb,
-  '{"Lo que visitarás": ["Ciudadela", "Pirámides", "Plazas Circulares", "Valle de Supe"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'ciudadela_sagrada_de_caral', '07:00:00', TRUE
-),
-(
-  'ISLAS PALOMINO PULL',
-  'Nado con lobos marinos en su hábitat natural frente a las costas del Callao.',
-  6, 1, 82.0, 273.0,
-  'TURISMO', 'FACIL',
-  '{"itinerario": "[Islas Palomino: Nado con Lobos] La Experiencia: \"Sumérjase en el Pacífico para nadar con los juguetones guardianes de la costa.\""}'::jsonb,
-  '{"Lo que visitarás": ["Callao", "Islas Palomino", "El Frontón", "Fauna"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'islas_palomino', '09:00:00', TRUE
-),
-(
-  'ANTIOQUIA PULL',
-  'Visita al "pueblo de los cuentos", famoso por sus fachadas pintadas con flores y ángeles.',
-  12, 1, 24.0, 78.0,
-  'TURISMO', 'FACIL',
-  '{"itinerario": "[Antioquía: El Pueblo de Colores] La Experiencia: \"Entre en un libro de cuentos donde cada pared es un lienzo de flores y ángeles.\""}'::jsonb,
-  '{"Lo que visitarás": ["Pueblo Pintado", "Iglesia", "Huertos", "Mirador"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'antioquia', '06:00:00', TRUE
-),
-(
-  'PACHACAMAC + BARRANCO PULL',
-  'Combinación de historia ancestral en Pachacamac y cultura moderna en el bohemio Barranco.',
-  6, 1, 46.0, 153.0,
-  'TURISMO', 'FACIL',
-  '{"itinerario": "[Lima: Pasado y Bohemio] La Experiencia: \"Atraviese el tiempo desde los rituales de barro de Pachacamac hasta el arte callejero de Barranco.\""}'::jsonb,
-  '{"Lo que visitarás": ["Pachacamac", "Barranco", "Puente de los Suspiros", "Arte Urbano"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'pachacamac_barranco', '09:00:00', TRUE
-),
-(
-  'CIRCUITO MAGICO DEL AGUA PULL',
-  'Recorrido por las fuentes ornamentales más impresionantes de Lima con show de láser.',
-  3, 1, 23.0, 75.0,
-  'TURISMO', 'FACIL',
-  '{"itinerario": "[Circuito Mágico: Fantasía Acuática] La Experiencia: \"Deje que la noche brille en una fantasía de agua y luz.\""}'::jsonb,
-  '{"Lo que visitarás": ["Fuente Mágica", "Fuente de la Fantasía", "Túnel de las Sorpresas", "Parque de la Reserva"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'circuito_magico_del_agua', '18:00:00', TRUE
-),
-(
-  'CITY TOUR LIMA COLONIAL Y MODERNA',
-  'Recorrido histórico por el centro de Lima y los distritos costeros modernos.',
-  4, 1, 30.0, 101.0,
-  'CULTURA', 'FACIL',
-  '{"itinerario": "[Lima: La Ciudad de los Reyes] La Experiencia: \"Viaje a través de los siglos en la Ciudad de los Reyes.\""}'::jsonb,
-  '{"Lo que visitarás": ["Plaza Mayor", "Catedral de Lima", "Catacumbas San Francisco", "Miraflores", "Parque del Amor"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'city_tour_lima_colonial_y_moderna', '09:00:00', TRUE
-);
-
-INSERT INTO tour (
-  nombre, descripcion, duracion_horas, duracion_dias, precio_adulto_extranjero, precio_adulto_nacional,
-  categoria, dificultad, highlights, atractivos, servicios_incluidos, servicios_no_incluidos,
-  carpeta_img, hora_inicio, activo
-) VALUES 
-(
-  'TOUR GASTRONOMICO PERUANO',
-  'Experiencia culinaria visitando mercados locales y participando en clases de cocina peruana.',
-  4, 1, 104.0, 349.0,
-  'GASTRONOMÍA', 'FACIL',
-  '{"itinerario": "[Sabores del Perú: Aventura Culinaria] La Experiencia: \"Sumerja sus sentidos en la capital gastronómica de América y aprenda los secretos de su sabor.\""}'::jsonb,
-  '{"Lo que visitarás": ["Mercado Local", "Clase de Cocina", "Degustación de Pisco", "Almuerzo"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'tour_gastronomico_peruano', '11:00:00', TRUE
-),
-(
-  'CITY TOUR NOCTURNO',
-  'Paseo panorámico por Lima iluminada, recorriendo los monumentos y barrios más emblemáticos.',
-  3, 1, 78.0, 262.0,
-  'CULTURA', 'FACIL',
-  '{"itinerario": "[Luces de la Noche: Encanto Urbano] La Experiencia: \"Descubra una cara diferente de la ciudad cuando el sol se pone y las luces se encienden.\""}'::jsonb,
-  '{"Lo que visitarás": ["Centro Histórico Iluminado", "Plaza San Martín", "Barranco", "Puente de los Suspiros"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'city_tour_nocturno', '18:00:00', TRUE
-),
-(
-  'TOUR MISTICO',
-  'Encuentro espiritual con las tradiciones andinas, lectura de coca y ceremonia de agradecimiento.',
-  3, 1, 25.0, 82.0,
-  'MÍSTICO', 'FACIL',
-  '{"itinerario": "[Conexión Sagrada: Ritual Andino] La Experiencia: \"Conecte con la sabiduría ancestral de los Andes en una ceremonia privada de sanación.\""}'::jsonb,
-  '{"Lo que visitarás": ["Altar Sagrado", "Chamán Andino", "Lectura de Coca", "Ofrenda a la Pachamama"]}'::jsonb,
-  '{"incluye": ["Transporte", "Guia", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Gastos extras"]}'::jsonb,
-  'tour_mistico', '09:00:00', TRUE
-),
-(
-  'DIA LIBRE',
-  'Día dedicado al descanso o actividades personales sin itinerario fijo.',
-  0, 1, 0.00, 0.00,
-  'LIBRE', 'FACIL',
-  '{"itinerario": "[Día Libre: Su Propio Ritmo] La Experiencia: \"Disfrute de la libertad de explorar a su propio ritmo sin la presión de un horario.\""}'::jsonb,
-  '{"Lo que visitarás": ["Exploración personal", "Gastronomía local", "Descanso", "Compras"]}'::jsonb,
-  '{"incluye": ["Asistencia informativa"]}'::jsonb,
-  '{"no_incluye": ["Guiado", "Transporte", "Entradas", "Alimentacion"]}'::jsonb,
-  'dia_libre', '00:00:00', TRUE
-),
-(
-  'RECEPCION EN EL AEROPUERTO',
-  'Servicio de bienvenida y traslado privado desde el aeropuerto al hotel.',
-  0, 1, 0.00, 0.00,
-  'LOGISTICA', 'FACIL',
-  '{"itinerario": "[Bienvenida al Perú: Comience su Aventura] La Experiencia: \"A su llegada, nuestro equipo lo estará esperando con una sonrisa.\""}'::jsonb,
-  '{"Lo que visitarás": ["Recepción personalizada", "Traslado privado", "Asistencia de equipaje", "Briefing del viaje"]}'::jsonb,
-  '{"incluye": ["Transporte privado", "Asistencia personalizada"]}'::jsonb,
-  '{"no_incluye": ["Alimentación", "Propinas"]}'::jsonb,
-  'recepcion_aeropuerto', '00:00:00', TRUE
-),
-(
-  'DIA LIBRE Y SALIDA AL AEROPUERTO',
-  'Mañana libre para las últimas compras y traslado programado al aeropuerto.',
-  0, 1, 0.00, 0.00,
-  'LOGISTICA', 'FACIL',
-  '{"itinerario": "[Despedida: Memorias y Últimos Tesoros] La Experiencia: \"Aproveche sus últimas horas para comprar recuerdos y prepararse para su vuelo.\""}'::jsonb,
-  '{"Lo que visitarás": ["Tiempo libre", "Recojo de hotel", "Traslado al aeropuerto", "Asistencia en embarque"]}'::jsonb,
-  '{"incluye": ["Transporte privado", "Asistencia"]}'::jsonb,
-  '{"no_incluye": ["Alimentación", "Gastos personales"]}'::jsonb,
-  'dia_libre_salida', '00:00:00', TRUE
-);
+  -- Restaurar permisos básicos (opcional pero recomendado)
+  GRANT USAGE ON SCHEMA public TO postgres;
+  GRANT USAGE ON SCHEMA public TO anon;
+  GRANT USAGE ON SCHEMA public TO authenticated;
+  GRANT USAGE ON SCHEMA public TO service_role;
 
 
+  -- ==============================================================
+  -- SECCIÓN 1: TABLAS MAESTRAS (ESTRUCTURA)
+  -- ==============================================================
 
+  CREATE TABLE usuarios_app (
+      id SERIAL PRIMARY KEY,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      rol VARCHAR(50) NOT NULL CHECK (rol IN ('VENTAS', 'OPERACIONES', 'CONTABILIDAD', 'GERENCIA')),
+      activo BOOLEAN DEFAULT TRUE,
+      fecha_creacion TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      ultimo_acceso TIMESTAMP WITH TIME ZONE
+  );
 
--- 2.4. PROVEEDORES (DATOS BANCARIOS)
-INSERT INTO proveedor (nombre_comercial, servicios_ofrecidos, banco_dolares, cuenta_dolares, cci_dolares)
-VALUES ('LARRY GUIA', '{"GUIA"}', 'INTERBANK', '420-3363525879', '003-420013363525879-70');
+  CREATE TABLE vendedor (
+      id_vendedor SERIAL PRIMARY KEY,
+      nombre VARCHAR(100) NOT NULL,
+      email VARCHAR(255) UNIQUE, -- CRÍTICO: Requerido por login y búsqueda
+      estado VARCHAR(20) DEFAULT 'ACTIVO' CHECK (estado IN ('ACTIVO', 'INACTIVO')),
+      fecha_ingreso DATE DEFAULT CURRENT_DATE,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  );
 
-INSERT INTO proveedor (nombre_comercial, servicios_ofrecidos, banco_soles, cuenta_soles, cci_soles)
-VALUES ('JOSE CHAMPI MAPI', '{"GUIA"}', 'INTERBANK', '419-3380704197', '003-41901338070419000');
+  CREATE TABLE lead (
+      id_lead SERIAL PRIMARY KEY,
+      nombre VARCHAR(255),
+      nombre_pasajero VARCHAR(255), -- Nuevo campo visual esperado por app
+      id_vendedor INTEGER REFERENCES vendedor(id_vendedor) ON DELETE SET NULL,
+      numero_celular VARCHAR(20) NOT NULL,
+      red_social VARCHAR(50),
+      estado_lead VARCHAR(50) DEFAULT 'NUEVO', -- Requerido por Funnel
+      estrategia_venta VARCHAR(50) DEFAULT 'General' CHECK (estrategia_venta IN ('Opciones', 'Matriz', 'General')),
+      comentario TEXT, -- Requerido por app --> Por que es necesario esto no entiendo
+      whatsapp BOOLEAN DEFAULT TRUE, -- Requerido por app --> Por que es necesario esto no entiendo
+      fecha_seguimiento DATE,
+      fecha_creacion TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      pais_origen VARCHAR(100) DEFAULT 'Nacional' CHECK (pais_origen IN ('Nacional', 'Extranjero', 'Mixto')),
+      ultimo_itinerario_id UUID
+  );
 
-INSERT INTO proveedor (nombre_comercial, servicios_ofrecidos, banco_soles, cuenta_soles, cci_soles, banco_dolares, cuenta_dolares, cci_dolares)
-VALUES ('ROSA GUIA LIMA', '{"GUIA"}', 'BCP', '191-18513860067', '002-191118513860067-59', 'BCP', '191-11784136166', '002-19111784136166-51');
+  CREATE TABLE cliente (
+      id_cliente SERIAL PRIMARY KEY,
+      id_lead INTEGER REFERENCES lead(id_lead) ON DELETE SET NULL,
+      nombre VARCHAR(255), -- Requerido por app
+      tipo_cliente VARCHAR(50) DEFAULT 'B2C' CHECK (tipo_cliente IN ('B2C', 'B2B')),
+      pais VARCHAR(100), -- Requerido por app
+      genero VARCHAR(20), -- Requerido por app
+      documento_identidad VARCHAR(50),
+      fecha_registro TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  );
 
-INSERT INTO proveedor (nombre_comercial, servicios_ofrecidos, contacto_telefono, banco_soles, cuenta_soles, cci_soles)
-VALUES ('VICKI GUIA PUNO', '{"GUIA"}', '+51 984 754 275', 'BCP', '495-26687175019', '002-495126687175019-02');
+  CREATE TABLE agencia_aliada (
+      id_agencia SERIAL PRIMARY KEY,
+      nombre VARCHAR(255) UNIQUE NOT NULL,
+      pais VARCHAR(100),
+      celular VARCHAR(50),
+      fecha_registro TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  );
 
-INSERT INTO proveedor (nombre_comercial, servicios_ofrecidos, banco_soles, cuenta_soles)
-VALUES ('VLADIMIRO LARREA', '{"GUIA"}', 'BCP', '285-29611517089');
+  CREATE TABLE tour (
+      id_tour SERIAL PRIMARY KEY,
+      nombre VARCHAR(255) NOT NULL,
+      descripcion TEXT,
+      duracion_horas INTEGER,
+      duracion_dias INTEGER,
+      precio_adulto_extranjero DECIMAL(10,2),
+      precio_adulto_nacional DECIMAL(10,2),
+      precio_adulto_can DECIMAL(10,2),
+      precio_nino_extranjero DECIMAL(10,2),
+      precio_nino_nacional DECIMAL(10,2),
+      precio_nino_can DECIMAL(10,2),
+      precio_estudiante_extranjero DECIMAL(10,2),
+      precio_estudiante_nacional DECIMAL(10,2),
+      precio_estudiante_can DECIMAL(10,2),
+      precio_pcd_extranjero DECIMAL(10,2),
+      precio_pcd_nacional DECIMAL(10,2),
+      precio_pcd_can DECIMAL(10,2),
+      categoria VARCHAR(50),
+      dificultad VARCHAR(20) CHECK (dificultad IN ('FACIL', 'MODERADO', 'DIFICIL', 'EXTREMO')),
+      highlights JSONB,
+      atractivos JSONB,
+      servicios_incluidos JSONB,
+      servicios_no_incluidos JSONB,
+      carpeta_img VARCHAR(255),
+      hora_inicio TIME, 
+      activo BOOLEAN DEFAULT TRUE,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  );
 
-INSERT INTO proveedor (nombre_comercial, servicios_ofrecidos, banco_soles, cuenta_soles, cci_soles)
-VALUES ('FRANCISCO ALCANTARA', '{"TRANSPORTE"}', 'BCP', '191-95199282088', '002-191195199282088-59');
+  CREATE TABLE tour_itinerario_item (
+      id_item SERIAL PRIMARY KEY,
+      id_tour INTEGER REFERENCES tour(id_tour) ON DELETE CASCADE,
+      orden INTEGER NOT NULL,
+      lugar_nombre VARCHAR(255) NOT NULL,
+      descripcion_corta TEXT,
+      duracion_estimada_minutos INTEGER,
+      es_parada_principal BOOLEAN DEFAULT TRUE,
+      url_foto_referencia TEXT
+  );
 
-INSERT INTO proveedor (nombre_comercial, servicios_ofrecidos, banco_soles, cuenta_soles, cci_soles, notas)
-VALUES ('JAIME BUS', '{"TRANSPORTE"}', 'BCP', '285-09676107011', '002-285109676107011-56', 'BBVA Soles 0011-0200-0201531370');
+  CREATE TABLE paquete (
+      id_paquete SERIAL PRIMARY KEY,
+      nombre VARCHAR(255) NOT NULL,
+      descripcion TEXT,
+      dias INTEGER NOT NULL,
+      noches INTEGER NOT NULL,
+      precio_sugerido DECIMAL(10,2),
+      temporada VARCHAR(50),
+      destino_principal VARCHAR(100),
+      activo BOOLEAN DEFAULT TRUE,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  );
 
-INSERT INTO proveedor (nombre_comercial, servicios_ofrecidos, banco_soles, cuenta_soles, cci_soles, banco_dolares, cuenta_dolares, cci_dolares)
-VALUES ('CENTRAL DE RESERVAS', '{"TRANSPORTE"}', 'INTERBANK', '420-3005326345', '003-420-003005326345-72', 'INTERBANK', '898-3402989352', '003-898-01340298935243');
+  CREATE TABLE paquete_tour (
+      id_paquete INTEGER REFERENCES paquete(id_paquete) ON DELETE CASCADE,
+      id_tour INTEGER REFERENCES tour(id_tour) ON DELETE RESTRICT,
+      orden INTEGER NOT NULL,
+      dia_del_paquete INTEGER,
+      PRIMARY KEY (id_paquete, id_tour, orden)
+  );
 
-INSERT INTO proveedor (nombre_comercial, servicios_ofrecidos, banco_soles, cuenta_soles, cci_soles)
-VALUES ('QORIALVA', '{"TRANSPORTE"}', 'INTERBANK', '420-3230585322', '003-42001323058532279');
+  CREATE TABLE catalogo_tours_imagenes (
+      id_tour INTEGER REFERENCES tour(id_tour) ON DELETE CASCADE PRIMARY KEY,
+      urls_imagenes JSONB DEFAULT '[]'::jsonb,
+      url_principal TEXT,
+      ultima_actualizacion TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  );
 
-INSERT INTO proveedor (nombre_comercial, servicios_ofrecidos, banco_soles, cuenta_soles, cci_soles)
-VALUES ('MARIA RENAULT', '{"TRANSPORTE"}', 'INTERBANK', '420-3007297660', '003-420-003007297660-75');
+  CREATE TABLE itinerario_digital (
+      id_itinerario_digital UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      id_lead INTEGER REFERENCES lead(id_lead) ON DELETE SET NULL,
+      id_vendedor INTEGER REFERENCES vendedor(id_vendedor) ON DELETE SET NULL,
+      id_paquete INTEGER REFERENCES paquete(id_paquete) ON DELETE SET NULL,
+      nombre_pasajero_itinerario VARCHAR(255),
+      datos_render JSONB NOT NULL,
+      fecha_generacion TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  );
 
-INSERT INTO proveedor (nombre_comercial, servicios_ofrecidos, contacto_telefono)
-VALUES 
-('ANDEAN TREKING', '{"HOTEL"}', '+51 980 852 691'),
-('MIGUEL PACAY', '{"GUIA"}', '+51 974 446 170'),
-('ROSA MORADA', '{"GUIA"}', '+51 964 668 030'),
-('PICAFLOR', '{"GUIA"}', '+51 987 420 868'),
-('FUTURISMO', '{"GUIA"}', '+51 984 736 982'),
-('CEVICHE', '{"GUIA"}', '+51 956 849 794');
+  CREATE TABLE venta (
+      id_venta SERIAL PRIMARY KEY,
+      id_cliente INTEGER REFERENCES cliente(id_cliente) ON DELETE RESTRICT,
+      id_vendedor INTEGER REFERENCES vendedor(id_vendedor) ON DELETE RESTRICT,
+      id_itinerario_digital UUID REFERENCES itinerario_digital(id_itinerario_digital) ON DELETE SET NULL,
+      id_paquete INTEGER REFERENCES paquete(id_paquete) ON DELETE SET NULL,
+      fecha_venta DATE DEFAULT CURRENT_DATE NOT NULL,
+      fecha_inicio DATE,
+      fecha_fin DATE,
+      precio_total_cierre DECIMAL(10,2) NOT NULL, 
+      costo_total DECIMAL(10,2) DEFAULT 0,
+      utilidad_bruta DECIMAL(10,2) DEFAULT 0,
+      moneda VARCHAR(10) DEFAULT 'USD' CHECK (moneda IN ('USD', 'PEN', 'EUR')),
+      tipo_cambio DECIMAL(8,4),
+      estado_pago VARCHAR(50) DEFAULT 'PENDIENTE' CHECK (estado_pago IN ('PENDIENTE', 'PARCIAL', 'COMPLETADO', 'REEMBOLSADO')),
+      estado_venta VARCHAR(50) DEFAULT 'CONFIRMADO' CHECK (estado_venta IN ('CONFIRMADO', 'EN_VIAJE', 'COMPLETADO', 'CANCELADO')),
+      canal_venta VARCHAR(50) DEFAULT 'DIRECTO',
+      estado_liquidacion VARCHAR(30) DEFAULT 'PENDIENTE' CHECK (estado_liquidacion IN ('PENDIENTE', 'PARCIAL', 'FINALIZADO')),
+      id_agencia_aliada INTEGER REFERENCES agencia_aliada(id_agencia),
+      tour_nombre VARCHAR(255),
+      num_pasajeros INTEGER DEFAULT 1, 
+      url_itinerario TEXT,
+      url_comprobante_pago TEXT,
+      url_documentos TEXT,
+      cancelada BOOLEAN DEFAULT FALSE,
+      fecha_cancelacion TIMESTAMP WITH TIME ZONE,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  );
 
--- 2.5. PAQUETES PREDEFINIDOS
-DO $$
-DECLARE
-    p_id INTEGER;
-    t_id INTEGER;
-BEGIN
-    INSERT INTO paquete (nombre, descripcion, dias, noches, precio_sugerido, temporada, destino_principal)
-    VALUES ('PERÚ PARA EL MUNDO 8D/7N', 'Recorrido completo desde la costa hasta Cusco.', 8, 7, 0.00, 'TODO EL AÑO', 'PERÚ')
-    RETURNING id_paquete INTO p_id;
+  CREATE TABLE venta_tour (
+      id_venta INTEGER REFERENCES venta(id_venta) ON DELETE CASCADE,
+      n_linea INTEGER NOT NULL,
+      id_tour INTEGER REFERENCES tour(id_tour) ON DELETE RESTRICT,
+      fecha_servicio DATE NOT NULL,
+      hora_inicio TIME,
+      precio_applied DECIMAL(10,2),
+      costo_applied DECIMAL(10,2),
+      moneda_costo VARCHAR(10) DEFAULT 'USD',
+      id_proveedor INTEGER, -- Definido más adelante como FK
+      cantidad_pasajeros INTEGER DEFAULT 1,
+      punto_encuentro VARCHAR(255),
+      observaciones TEXT,
+      id_itinerario_dia_index INTEGER,
+      estado_servicio VARCHAR(30) DEFAULT 'PENDIENTE' CHECK (estado_servicio IN ('PENDIENTE', 'CONFIRMADO', 'EN_CURSO', 'COMPLETADO', 'CANCELADO')),
+      -- Flujo de Caja Maestro (Liquidación + Requerimientos + Endosos)
+      estado_pago_operativo VARCHAR(20) DEFAULT 'NO_REQUERIDO' CHECK (estado_pago_operativo IN ('NO_REQUERIDO', 'PENDIENTE', 'PAGADO')),
+      datos_pago_operativo TEXT, -- Cuentas, Yape, Plin del proveedor o guía
+      url_voucher_operativo TEXT, -- Comprobante subido por contabilidad
+      es_endoso BOOLEAN DEFAULT FALSE, -- Flag para identificar si fue tercerizado
+      costo_unitario DECIMAL(10,2) DEFAULT 0,
+      cantidad_items INTEGER DEFAULT 1,
+      precio_vendedor DECIMAL(10,2) DEFAULT 0, -- Precio proyectado por el vendedor (referencia)
+      PRIMARY KEY (id_venta, n_linea)
+  );
+
+  CREATE TABLE pago (
+      id_pago SERIAL PRIMARY KEY,
+      id_venta INTEGER REFERENCES venta(id_venta) ON DELETE CASCADE,
+      fecha_pago DATE DEFAULT CURRENT_DATE NOT NULL,
+      monto_pagado DECIMAL(10,2) NOT NULL CHECK (monto_pagado > 0),
+      moneda VARCHAR(10) DEFAULT 'USD' CHECK (moneda IN ('USD', 'PEN', 'EUR')),
+      tipo_cambio DECIMAL(8,4),
+      metodo_pago VARCHAR(50) CHECK (metodo_pago IN ('EFECTIVO', 'TRANSFERENCIA', 'TARJETA', 'PAYPAL', 'YAPE', 'PLIN', 'OTRO')),
+      tipo_pago VARCHAR(50) CHECK (tipo_pago IN ('ADELANTO', 'SALDO', 'TOTAL', 'PARCIAL')),
+      numero_operacion VARCHAR(100),
+      observacion TEXT,
+      url_comprobante TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS paquete_personalizado (
+      id_paquete_personalizado UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      nombre TEXT NOT NULL,
+      itinerario JSONB NOT NULL,
+      creado_por TEXT, -- Email del vendedor
+      es_publico BOOLEAN DEFAULT TRUE,
+      created_at TIMESTAMPTZ DEFAULT now()
+  );
+
+  CREATE TABLE IF NOT EXISTS plantilla_servicio (
+      id SERIAL PRIMARY KEY,
+      titulo TEXT NOT NULL,
+      descripcion TEXT,
+      costo_nac DECIMAL(10,2) DEFAULT 0,
+      costo_ext DECIMAL(10,2) DEFAULT 0,
+      categoria VARCHAR(50) DEFAULT 'OTROS',
+      icono VARCHAR(50) DEFAULT 'default_in'
+  );
+
+  INSERT INTO plantilla_servicio (titulo, descripcion, icono) VALUES 
+  ('Día Libre / Descanso', 'Día destinado al descanso o actividades personales. No incluye tours.', 'calendario'),
+  ('Traslado Aeropuerto ➡️ Hotel', 'Recepción en el aeropuerto y traslado en unidad privada hacia el hotel.', 'transporte'),
+  ('Traslado Hotel ➡️ Aeropuerto', 'Traslado desde el hotel hacia el aeropuerto para su vuelo de salida.', 'transporte');
+
+  CREATE TABLE pasajero (
+      id_pasajero SERIAL PRIMARY KEY,
+      id_venta INTEGER REFERENCES venta(id_venta) ON DELETE CASCADE,
+      nombre_completo VARCHAR(255) NOT NULL,
+      nacionalidad VARCHAR(100),
+      numero_documento VARCHAR(50),
+      tipo_documento VARCHAR(20) CHECK (tipo_documento IN ('DNI', 'PASAPORTE', 'CARNET_EXTRANJERIA', 'OTRO')),
+      fecha_nacimiento DATE,
+      genero VARCHAR(20),
+      cuidados_especiales TEXT,
+      contacto_emergencia_nombre VARCHAR(255),
+      contacto_emergencia_telefono VARCHAR(20),
+      es_principal BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE documentacion (
+      id BIGSERIAL PRIMARY KEY,
+      id_pasajero INTEGER REFERENCES pasajero(id_pasajero) ON DELETE CASCADE,
+      tipo_documento VARCHAR(50) CHECK (tipo_documento IN ('PASAPORTE', 'VISA', 'SEGURO_VIAJE', 'CERTIFICADO_VACUNA', 'AUTORIZACION_MENOR', 'OTRO')),
+      url_archivo TEXT,
+      fecha_carga TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      fecha_vencimiento DATE,
+      estado_entrega VARCHAR(30) DEFAULT 'PENDIENTE' CHECK (estado_entrega IN ('PENDIENTE', 'RECIBIDO', 'VERIFICADO', 'RECHAZADO')),
+      es_critico BOOLEAN DEFAULT FALSE,
+      notas TEXT
+  );
+
+  CREATE TABLE requerimiento (
+      id SERIAL PRIMARY KEY,
+      id_venta INTEGER REFERENCES venta(id_venta) ON DELETE SET NULL,
+      tipo_requerimiento VARCHAR(50) CHECK (tipo_requerimiento IN ('TRANSPORTE', 'ALOJAMIENTO', 'ALIMENTACION', 'GUIA', 'TICKETS', 'OTRO')),
+      descripcion TEXT NOT NULL,
+      monto_estimado DECIMAL(10,2),
+      monto_real DECIMAL(10,2),
+      moneda VARCHAR(10) DEFAULT 'USD',
+      estado VARCHAR(30) DEFAULT 'PENDIENTE' CHECK (estado IN ('PENDIENTE', 'COTIZADO', 'APROBADO', 'PAGADO', 'COMPLETADO', 'CANCELADO')),
+      fecha_necesidad DATE,
+      fecha_solicitud TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      solicitado_por INTEGER REFERENCES vendedor(id_vendedor),
+      aprobado_por INTEGER REFERENCES vendedor(id_vendedor),
+      fecha_aprobacion TIMESTAMP WITH TIME ZONE,
+      url_comprobante TEXT,
+      notas TEXT
+  );
+
+  CREATE TABLE proveedor (
+      id_proveedor SERIAL PRIMARY KEY,
+      nombre_comercial VARCHAR(255) NOT NULL,
+      razon_social VARCHAR(255),
+      ruc VARCHAR(20),
+      servicios_ofrecidos TEXT[], 
+      contacto_nombre VARCHAR(100),
+      contacto_telefono VARCHAR(20),
+      contacto_email VARCHAR(100),
+      direccion TEXT,
+      ciudad VARCHAR(100),
+      pais VARCHAR(100) DEFAULT 'Perú',
+      banco_soles VARCHAR(100),
+      cuenta_soles VARCHAR(50),
+      cci_soles VARCHAR(50),
+      banco_dolares VARCHAR(100),
+      cuenta_dolares VARCHAR(50),
+      cci_dolares VARCHAR(50),
+      metodo_pago_preferido VARCHAR(50) CHECK (metodo_pago_preferido IN (
+          'TRANSFERENCIA', 'EFECTIVO', 'CHEQUE', 'DEPOSITO', 'YAPE', 'PLIN'
+      )),
+      plazo_pago_dias INTEGER DEFAULT 0,
+      calificacion_promedio DECIMAL(3,2),
+      activo BOOLEAN DEFAULT TRUE,
+      notas TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- Vincular FK faltantes
+  ALTER TABLE venta_tour ADD CONSTRAINT fk_proveedor_tour FOREIGN KEY (id_proveedor) REFERENCES proveedor(id_proveedor) ON DELETE SET NULL;
+  ALTER TABLE requerimiento ADD COLUMN id_proveedor INTEGER REFERENCES proveedor(id_proveedor);
+
+  CREATE TABLE venta_servicio_proveedor (
+      id SERIAL PRIMARY KEY,
+      id_venta INTEGER,
+      n_linea INTEGER,
+      id_proveedor INTEGER REFERENCES proveedor(id_proveedor) ON DELETE RESTRICT,
+      tipo_servicio VARCHAR(50) CHECK (tipo_servicio IN (
+          'TRANSPORTE', 'ALOJAMIENTO', 'ALIMENTACION', 
+          'GUIA', 'TICKETS', 'OTRO'
+      )),
+      costo_acordado DECIMAL(10,2) NOT NULL,
+      moneda VARCHAR(10) DEFAULT 'USD',
+      tipo_cambio DECIMAL(8,4),
+      estado_pago VARCHAR(30) DEFAULT 'PENDIENTE' CHECK (estado_pago IN (
+          'PENDIENTE', 'PAGADO', 'PAGADO_PARCIAL', 'VENCIDO', 'CANCELADO'
+      )),
+      monto_total_pagado DECIMAL(10,2) DEFAULT 0,
+      fecha_vencimiento_pago DATE,
+      codigo_reserva VARCHAR(100),
+      confirmado BOOLEAN DEFAULT FALSE,
+      fecha_confirmacion DATE,
+      observaciones TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (id_venta, n_linea) REFERENCES venta_tour(id_venta, n_linea) ON DELETE CASCADE,
+      UNIQUE(id_venta, n_linea, tipo_servicio) -- CRÍTICO: Evitar duplicar guías/tours por servicio
+  );
+
+  CREATE TABLE evaluacion_proveedor (
+      id SERIAL PRIMARY KEY,
+      id_proveedor INTEGER REFERENCES proveedor(id_proveedor) ON DELETE CASCADE,
+      id_venta INTEGER REFERENCES venta(id_venta) ON DELETE SET NULL,
+      calificacion_general INTEGER CHECK (calificacion_general BETWEEN 1 AND 5),
+      puntualidad INTEGER CHECK (puntualidad BETWEEN 1 AND 5),
+      calidad_servicio INTEGER CHECK (calidad_servicio BETWEEN 1 AND 5),
+      relacion_precio_calidad INTEGER CHECK (relacion_precio_calidad BETWEEN 1 AND 5),
+      comunicacion INTEGER CHECK (comunicacion BETWEEN 1 AND 5),
+      resolveria_contratar BOOLEAN,
+      comentarios TEXT,
+      evaluado_por INTEGER REFERENCES vendedor(id_vendedor),
+      fecha_evaluacion DATE DEFAULT CURRENT_DATE,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- ==============================================================
+  -- SECCIÓN 2: CARGA DE DATOS (SEMILLAS)
+  -- ==============================================================
+
+  -- 2.1. USUARIOS Y VENDEDORES
+  -- Los emails deben coincidir para que el sistema vincule el login con el vendedor asignado.
+  INSERT INTO usuarios_app (email, rol) VALUES 
+  ('angel@latitudvcp.com', 'VENTAS'),
+  ('abel@latitudvcp.com', 'VENTAS'),
+  ('maria@latitudvcp.com', 'OPERACIONES'),
+  ('elizabeth@latitudvcp.com', 'CONTABILIDAD'),
+  ('vanessa@latitudvcp.com', 'GERENCIA'),
+  ('henrry@latitudvcp.com', 'GERENCIA');
+
+  INSERT INTO vendedor (nombre, email) VALUES
+  ('Angel', 'angel@latitudvcp.com'),
+  ('Abel', 'abel@latitudvcp.com'),
+  ('Maria', 'maria@latitudvcp.com'),
+  ('Vanessa', 'vanessa@latitudvcp.com'),
+  ('Henrry', 'henrry@latitudvcp.com');
+
+  -- 2.2. AGENCIAS ALIADAS (B2B)
+  INSERT INTO agencia_aliada (nombre, pais, celular) VALUES 
+  ('Ulises Viaje', 'Argentina', '+54 9 3534 28-1109'),
+  ('Like Travel', 'Argentina', '+54 9 3517 64-3797'),
+  ('Kuna Travel', 'Mexico', '+52 1 614 277 7793'),
+  ('Guru Destinos', 'Argentina', '+54 9 11 6458-9079'),
+  ('Hector', 'Mexico', '+52 1 33 2492 7483'),
+  ('Rogelio', 'Brazil', '+55 48 8424-1401'),
+  ('Willian', 'Bolivia', '+591 75137410'),
+  ('Cave', 'Peru', '+51 982 167 776');
+
+  -- 2.3. CATÁLOGO DE TOURS
+  INSERT INTO tour (
+    nombre, descripcion, duracion_horas, duracion_dias, precio_adulto_extranjero, precio_adulto_nacional,
+    categoria, dificultad, highlights, atractivos, servicios_incluidos, servicios_no_incluidos,
+    carpeta_img, hora_inicio, activo
+  ) VALUES 
+  (
+    'RECEPCION - CUSCO, CITY TOUR',
+    'A la llegada a Cusco, nuestro personal realiza el traslado al ***hotel seleccionado***, donde se ofrece un reconfortante ***mate de coca o muña*** para ayudar a la aclimatación a la altura. Luego tendrán tiempo para ***descansar y relajarse*** antes de iniciar las actividades programadas en la ciudad.
     
-    -- Vincular tours
-    SELECT id_tour INTO t_id FROM tour WHERE nombre = 'CITY TOUR LIMA COLONIAL Y MODERNA' LIMIT 1;
-    INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 1, 1);
-    SELECT id_tour INTO t_id FROM tour WHERE nombre = 'PARACAS Y HUACACHINA PULL' LIMIT 1;
-    INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 2, 2);
-    SELECT id_tour INTO t_id FROM tour WHERE nombre = 'CITY TOUR CUSCO PULL' LIMIT 1;
-    INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 3, 3);
-    SELECT id_tour INTO t_id FROM tour WHERE nombre = 'VALLE SAGRADO VIP PULL' LIMIT 1;
-    INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 4, 4);
-    SELECT id_tour INTO t_id FROM tour WHERE nombre = 'MACHU PICCHU FULL DAY PULL' LIMIT 1;
-    INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 5, 5);
-    SELECT id_tour INTO t_id FROM tour WHERE nombre = 'LAGUNA HUMANTAY PULL' LIMIT 1;
-    INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 6, 6);
-    SELECT id_tour INTO t_id FROM tour WHERE nombre = 'MONTAÑA DE COLORES PULL' LIMIT 1;
-    INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 7, 7);
-    SELECT id_tour INTO t_id FROM tour WHERE nombre = 'DIA LIBRE Y SALIDA AL AEROPUERTO' LIMIT 1;
-    INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 8, 8);
-END $$;
+    Posteriormente realizamos la ***Excursión City Tour*** visitando el ***Qoricancha***, antiguo ***Templo Mayor inca***, y los impresionantes complejos arqueológicos de ***Sacsayhuamán***, ***Qenqo***, ***Tambomachay*** y ***Puka Pukara***, destacados por su valor ceremonial, hidráulico y militar. Finalizamos el recorrido cerca de la ***Plaza Mayor de Cusco***, facilitando el retorno al ***hotel***',
+    4, 1, 42.00, 105.00,
+    'RECEPCION - CUSCO, CITY TOUR', 'FACIL',
+    '{"itinerario": "A la llegada a Cusco, nuestro personal realiza el traslado al ***hotel seleccionado***, donde se ofrece un reconfortante ***mate de coca o muña*** para ayudar a la aclimatación a la altura. Luego tendrán tiempo para ***descansar y relajarse*** antes de iniciar las actividades programadas en la ciudad.\n\nPosteriormente realizamos la ***Excursión City Tour*** visitando el ***Qoricancha***, antiguo ***Templo Mayor inca***, y los impresionantes complejos arqueológicos de ***Sacsayhuamán***, ***Qenqo***, ***Tambomachay*** y ***Puka Pukara***, destacados por su valor ceremonial, hidráulico y militar. Finalizamos el recorrido cerca de la ***Plaza Mayor de Cusco***, facilitando el retorno al ***hotel***"}'::jsonb,
+    '{"Lo que visitarás": ["Catedral del Cusco", "Qoricancha", "Sacsayhuamán", "Qenqo", "Puka Pukara", "Tambomachay"]}'::jsonb,
+    '{"incluye": ["Recojo de Hotel", "Boleto Turístico", "Ticket a Qoricancha", "Guía Profesional", "Transporte Turístico"]}'::jsonb,
+    '{"no_incluye": ["Hospedaje", "Gastos Extras", "Alimentacion"]}'::jsonb,
+    'city_tour_cusco', '09:00:00', TRUE
+  ),
+  (
+    'VALLE VIP CONEXIÓN MACHU PICCHU',
+    'Después del desayuno, iniciamos la ruta por el ***Valle Sagrado de los Incas*** visitando ***Chinchero***, donde conoceremos un antiguo ***palacio inca***, su ***iglesia colonial*** y un tradicional ***centro textil***. Continuamos hacia ***Moray***, famoso por sus ***terrazas circulares agrícolas***, y luego descendemos a las impresionantes ***Salineras de Maras***, con miles de pozos de sal aún en funcionamiento.\n\nEl recorrido prosigue hacia el valle de ***Urubamba*** para disfrutar de un ***almuerzo buffet***. Posteriormente visitamos ***Ollantaytambo***, conocida como la ***última ciudad inca viviente***, y nos dirigimos a la estación para abordar el ***tren turístico*** rumbo a ***Aguas Calientes***. A la llegada nos trasladamos al ***hotel*** para pasar la noche.',
+    8, 1, 44.00, 115.00,
+    'FULL DAY', 'MODERADO',
+    '{"itinerario": "Después del desayuno, iniciamos la ruta por el ***Valle Sagrado de los Incas*** visitando ***Chinchero***, donde conoceremos un antiguo ***palacio inca***, su ***iglesia colonial*** y un tradicional ***centro textil***. Continuamos hacia ***Moray***, famoso por sus ***terrazas circulares agrícolas***, y luego descendemos a las impresionantes ***Salineras de Maras***, con miles de pozos de sal aún en funcionamiento.\n\nEl recorrido prosigue hacia el valle de ***Urubamba*** para disfrutar de un ***almuerzo buffet***. Posteriormente visitamos ***Ollantaytambo***, conocida como la ***última ciudad inca viviente***, y nos dirigimos a la estación para abordar el ***tren turístico*** rumbo a ***Aguas Calientes*** y nos trasladamos al ***hotel*** para pasar la noche."}'::jsonb,
+    '{"Lo que visitarás": ["Pisac", "Mercado de Pisac", "Ollantaytambo", "Chinchero"]}'::jsonb,
+    '{"incluye": ["Almuerzo Buffett", "Transporte Turístico" ,"Guía Profesional", "Boleto Turístico", "Ingreso a Salineras", "Ticket de Tren Turistico"]}'::jsonb,
+    '{"no_incluye": ["Gastos Extras", "Hospedaje", "Aliemntación"]}'::jsonb,
+    'valle_sagrado_vip', '06:30:00', TRUE
+  ),
+  (
+    'VISITA A MACHU PICCHU',
+    'Después del desayuno, abordamos el bus hacia la impresionante ***Ciudadela de Machu Picchu***, donde realizamos una completa ***visita guiada*** por sus principales sectores arqueológicos, plazas y templos, descubriendo la historia y el legado de esta ***maravilla del mundo***.\n\nAl finalizar el recorrido, descendemos a ***Aguas Calientes*** para tiempo libre y almuerzo en restaurantes locales. Por la tarde, abordamos el ***tren turístico*** de retorno, pasando por ***Ollantaytambo*** y continuando el traslado terrestre hasta ***Cusco***, donde finaliza esta inolvidable experiencia cultural.',
+    8, 1, 208.00, 562.00,
+    'FULL DAY', 'MODERADO',
+    '{"itinerario": "Después del desayuno, abordamos el bus hacia la impresionante ***Ciudadela de Machu Picchu***, donde realizamos una completa ***visita guiada*** por sus principales sectores arqueológicos, plazas y templos, descubriendo la historia y el legado de esta ***maravilla del mundo***.\n\nAl finalizar el recorrido, descendemos a ***Aguas Calientes*** para tiempo libre y almuerzo en restaurantes locales. Por la tarde, abordamos el ***tren turístico*** de retorno, pasando por ***Ollantaytambo*** y continuando el traslado terrestre hasta ***Cusco***, donde finaliza esta inolvidable experiencia cultural."}'::jsonb,
+    '{"Lo que visitarás": ["Aguas Calientes", "Machu Picchu", "Templo del Sol", "Intihuatana"]}'::jsonb,
+    '{"incluye": ["Bus de subida y bajada", "Ingreso a Machu Picchu", "Ticket de Tren Turístico", "Transporte Ollanta -Cusco", "Guía Profesional"]}'::jsonb,
+    '{"no_incluye": ["Hospedaje","Alimentación", "Gastos Extras"]}'::jsonb,
+    'machu_picchu_full_day', '05:00:00', TRUE
+  ),
+  (
+    'CITY TOUR CUSCO',
+    'Iniciamos el ***City Tour por Cusco*** con la visita al ***Qoricancha***, antiguo ***Templo del Sol*** y uno de los centros religiosos más importantes del mundo inca. Luego nos dirigimos a ***Sacsayhuamán***, majestuoso complejo ceremonial que impresiona por sus ***colosales muros de piedra*** y la extraordinaria ***ingeniería ancestral***.
+    
+    El recorrido continúa hacia ***Qenqo***, centro de ***rituales ceremoniales***, ***Tambomachay***, santuario dedicado al ***agua sagrada***, y ***Puka Pukara***, fortaleza de ***control estratégico***. Finalizamos cerca de la ***Plaza Mayor***, facilitando el retorno al ***hotel***.',
+    4, 1, 32.00, 83.00,
+    'CITY TOUR', 'FACIL',
+    '{"itinerario": "Iniciamos el ***City Tour por Cusco*** con la visita al ***Qoricancha***, antiguo ***Templo del Sol*** y uno de los centros religiosos más importantes del mundo inca. Luego nos dirigimos a ***Sacsayhuamán***, majestuoso complejo ceremonial que impresiona por sus ***colosales muros de piedra*** y la extraordinaria ***ingeniería ancestral***.\n\nEl recorrido continúa hacia ***Qenqo***, centro de ***rituales ceremoniales***, ***Tambomachay***, santuario dedicado al ***agua sagrada***, y ***Puka Pukara***, fortaleza de ***control estratégico***. Finalizamos cerca de la ***Plaza Mayor***, facilitando el retorno al ***hotel***."}'::jsonb,
+    '{"Lo que visitarás": ["Catedral del Cusco", "Qoricancha", "Sacsayhuamán", "Qenqo", "Puka Pukara", "Tambomachay"]}'::jsonb,
+    '{"incluye": ["Recojo de Hotel", "Boleto Turístico", "Ticket a Qoricancha", "Guía Profesional", "Transporte Turístico"]}'::jsonb,
+    '{"no_incluye": ["Hospedaje", "Gastos Extras"]}'::jsonb,
+    'city_tour_cusco', '09:00:00', TRUE
+  ),
+  (
+    'VALLE SAGRADO VIP',
+    'Después del desayuno, iniciamos una experiencia por el ***Valle Sagrado de los Incas*** visitando ***Chinchero***, donde conoceremos un antiguo ***palacio inca***, su ***iglesia colonial*** y un tradicional ***centro textil***. Continuamos hacia ***Moray***, famoso por sus ***terrazas circulares*** utilizadas como laboratorio agrícola en época inca, y luego descendemos a las impresionantes ***Salineras de Maras***, con miles de pozos de sal aún en uso.
+    
+    Seguimos el recorrido hacia el valle de ***Urubamba*** para disfrutar de un ***almuerzo buffet***. Posteriormente visitamos ***Ollantaytambo***, conocida como la ***última ciudad inca viviente***, y finalizamos en ***Pisac***, donde exploramos sus ***andenes arqueológicos*** y el colorido ***mercado artesanal***. Retorno a Cusco al finalizar la jornada.',
+    8, 1, 44.00, 115.00,
+    'FULL DAY', 'MODERADO',
+    '{"itinerario": "Después del desayuno, iniciamos una experiencia por el ***Valle Sagrado de los Incas*** visitando ***Chinchero***, donde conoceremos un antiguo ***palacio inca***, su ***iglesia colonial*** y un tradicional ***centro textil***. Continuamos hacia ***Moray***, famoso por sus ***terrazas circulares*** utilizadas como laboratorio agrícola en época inca, y luego descendemos a las impresionantes ***Salineras de Maras***, con miles de pozos de sal aún en uso.\n\nSeguimos el recorrido hacia el valle de ***Urubamba*** para disfrutar de un ***almuerzo buffet***. Posteriormente visitamos ***Ollantaytambo***, conocida como la ***última ciudad inca viviente***, y finalizamos en ***Pisac***, donde exploramos sus ***andenes arqueológicos*** y el colorido ***mercado artesanal***. Retorno a Cusco al finalizar la jornada."}'::jsonb,
+    '{"Lo que visitarás": ["Pisac", "Mercado de Pisac", "Ollantaytambo", "Chinchero"]}'::jsonb,
+    '{"incluye": ["Recojo del Hotel", "Almuerzo Buffett", "Transporte Turístico", "Guía Profesional", "Boleto Turístico", "Ingreso a Salineras"]}'::jsonb,
+    '{"no_incluye": ["Gastos Extras", "Hospedaje", "Alimentación"]}'::jsonb,
+    'valle_sagrado_vip', '06:30:00', TRUE
+  ),
+  (
+    'MACHU PICCHU FULL DAY',
+    'Iniciamos la experiencia con el traslado desde Cusco hacia la estación de tren en ***Ollantaytambo***, donde abordamos el ***tren turístico*** con destino al pueblo de ***Aguas Calientes***. A la llegada, nuestro ***guía especializado*** los recibirá para dirigirnos a la estación de buses y ascender hacia el impresionante ***Santuario de Machu Picchu***, una de las ***maravillas del mundo***.
+    
+    En la ciudadela, realizamos una ***visita guiada completa*** recorriendo los principales sectores arqueológicos y espacios ceremoniales. Al finalizar, descendemos a ***Aguas Calientes*** para tiempo libre y alimentación. Posteriormente retornamos en tren a ***Ollantaytambo*** y continuamos el traslado hasta su ***hotel en Cusco***.',
+    8, 1, 208.00, 562.00,
+    'FULL DAY', 'MODERADO',
+    '{"itinerario": "Iniciamos la experiencia con el traslado desde Cusco hacia la estación de tren en ***Ollantaytambo***, donde abordamos el ***tren turístico*** con destino al pueblo de ***Aguas Calientes***. A la llegada, nuestro ***guía especializado*** los recibirá para dirigirnos a la estación de buses y ascender hacia el impresionante ***Santuario de Machu Picchu***, una de las ***maravillas del mundo***.\n\nEn la ciudadela, realizamos una ***visita guiada completa*** recorriendo los principales sectores arqueológicos y espacios ceremoniales. Al finalizar, descendemos a ***Aguas Calientes*** para tiempo libre y alimentación. Posteriormente retornamos en tren a ***Ollantaytambo*** y continuamos el traslado hasta su ***hotel en Cusco***."}'::jsonb,
+    '{"Lo que visitarás": ["Aguas Calientes", "Machu Picchu", "Templo del Sol", "Intihuatana"]}'::jsonb,
+    '{"incluye": ["Recojo del hotel", "Ingreso a Machu Picchu", "Ticket de Tren Turístico", "Transporte Ollanta -Cusco", "Guía Profesional"]}'::jsonb,
+    '{"no_incluye": ["Alimentación", "Gastos Extras", "Hospedaje"]}'::jsonb,
+    'machu_picchu_full_day', '08:00:00', TRUE
+  ),
+  (
+    'LAGUNA HUMANTAY',
+    'Iniciamos la aventura con el traslado desde Cusco hacia el pueblo de ***Mollepata***, donde disfrutamos de un ***desayuno tradicional*** antes de continuar hasta ***Soraypampa***, punto de inicio de la caminata. Desde allí emprendemos el ascenso hacia la impresionante ***Laguna Humantay***, rodeada de paisajes andinos y dominada por la majestuosa ***montaña Humantay***.
+    
+    Durante la visita, nuestro ***guía especializado*** nos explicará la importancia natural y cultural del lugar, así como las vistas del ***nevado Salkantay***, considerado una ***montaña sagrada***. Tras la exploración, retornamos a Soraypampa para disfrutar de un ***almuerzo reconfortante*** y luego regresamos a ***Cusco***, concluyendo esta inolvidable experiencia de alta montaña.',
+    12, 1, 23.00, 75.00,
+    'NATURALEZA', 'MODERADO',
+    '{"itinerario": "Iniciamos la aventura con el traslado desde Cusco hacia el pueblo de ***Mollepata***, donde disfrutamos de un ***desayuno tradicional*** antes de continuar hasta ***Soraypampa***, punto de inicio de la caminata. Desde allí emprendemos el ascenso hacia la impresionante ***Laguna Humantay***, rodeada de paisajes andinos y dominada por la majestuosa ***montaña Humantay***.\n\nDurante la visita, nuestro ***guía especializado*** nos explicará la importancia natural y cultural del lugar, así como las vistas del ***nevado Salkantay***, considerado una ***montaña sagrada***. Tras la exploración, retornamos a Soraypampa para disfrutar de un ***almuerzo reconfortante*** y luego regresamos a ***Cusco***, concluyendo esta inolvidable experiencia de alta montaña."}'::jsonb,
+    '{"Lo que visitarás": ["Mollepata", "Soraypampa", "Laguna Humantay", "Nevado Salkantay"]}'::jsonb,
+    '{"incluye": ["Recojo del hotel", "Ticket de ingreso a laguna", "Alimentación", "Botiquín de primeros Auxilios", "Guía Profesional", "Transporte Turístico"]}'::jsonb,
+    '{"no_incluye": ["Gastos Extras", "Caballos", "Hospedaje"]}'::jsonb,
+    'laguna_humantay', '04:00:00', TRUE
+  ),
+  (
+    'MONTAÑA DE COLORES',
+    'Iniciamos la excursión con el traslado desde Cusco hacia las faldas del ***nevado Ausangate***, disfrutando de los espectaculares ***paisajes altoandinos***. Al llegar al punto de inicio, se brinda un ***desayuno ligero*** y una charla introductoria antes de comenzar la caminata rumbo al ***Cerro Colorado – Vinicunca***, atravesando ***caseríos tradicionales*** y zonas de pastoreo de ***alpacas y llamas***.
+    
+    Al alcanzar la ***Montaña de Colores***, admiramos sus impresionantes ***tonalidades naturales*** y las vistas del majestuoso ***Apu Ausangate***. Luego descendemos para disfrutar de un ***almuerzo reconfortante*** y retornamos a ***Cusco***, concluyendo esta inolvidable experiencia andina.',
+    14, 1, 24.00, 80.00,
+    'AVENTURA', 'DIFICIL',
+    '{"itinerario": "Iniciamos la excursión con el traslado desde Cusco hacia las faldas del ***nevado Ausangate***, disfrutando de los espectaculares ***paisajes altoandinos***. Al llegar al punto de inicio, se brinda un ***desayuno ligero*** y una charla introductoria antes de comenzar la caminata rumbo al ***Cerro Colorado – Vinicunca***, atravesando ***caseríos tradicionales*** y zonas de pastoreo de ***alpacas y llamas***.\n\nAl alcanzar la ***Montaña de Colores***, admiramos sus impresionantes ***tonalidades naturales*** y las vistas del majestuoso ***Apu Ausangate***. Luego descendemos para disfrutar de un ***almuerzo reconfortante*** y retornamos a ***Cusco***, concluyendo esta inolvidable experiencia andina."}'::jsonb,
+    '{"Lo que visitarás": ["Cusipata", "Vinicunca", "Valle Rojo", "Nevado Ausangate"]}'::jsonb,
+    '{"incluye": ["Recojo del Hotel", "Desayuno | Almuerzo", "Botiquín de Primeros Auxilios", "Guía Profesional", "Transporte Turistico", "Tickets de Ingreso a la montaña", "Bastones de Trekking"]}'::jsonb,
+    '{"no_incluye": ["Gastos Extras", "Caballos", "Cuatrimotos", "Hospedaje"]}'::jsonb,
+    'montana_de_colores', '04:00:00', TRUE
+  ),
+  (
+    'PALCCOYO',
+    'Iniciamos la experiencia con el traslado desde Cusco hacia el poblado de ***Cusipata***, donde disfrutamos de un ***desayuno tradicional***. En el trayecto apreciamos el ***puente colonial de Checacupe*** y un criadero de ***camélidos sudamericanos***, antes de continuar hacia el punto de inicio de la caminata en un entorno netamente andino.
+    
+    La caminata es ***sencilla y panorámica***, recorriendo el impresionante ***bosque de piedras*** y disfrutando de vistas de majestuosos ***nevados*** como el ***Ausangate***. Visitamos las fascinantes ***Montañas de Colores de Palcoyo***, tres formaciones multicolores únicas. Finalizamos con un ***almuerzo buffet novo-andino*** y retornamos a ***Cusco***.',
+    10, 1, 29.00, 95.00,
+    'AVENTURA', 'MODERADO',
+    '{"itinerario": "Iniciamos la experiencia con el traslado desde Cusco hacia el poblado de ***Cusipata***, donde disfrutamos de un ***desayuno tradicional***. En el trayecto apreciamos el ***puente colonial de Checacupe*** y un criadero de ***camélidos sudamericanos***, antes de continuar hacia el punto de inicio de la caminata en un entorno netamente andino.\n\nLa caminata es ***sencilla y panorámica***, recorriendo el impresionante ***bosque de piedras*** y disfrutando de vistas de majestuosos ***nevados*** como el ***Ausangate***. Visitamos las fascinantes ***Montañas de Colores de Palcoyo***, tres formaciones multicolores únicas. Finalizamos con un ***almuerzo buffet novo-andino*** y retornamos a ***Cusco***."}'::jsonb,
+    '{"Lo que visitarás": ["Checacupe", "Palccoyo", "Bosque de Piedras", "Río Rojo"]}'::jsonb,
+    '{"incluye": ["Transporte Turístico", "Desayuno | Almuerzo", "Botiquín de Primeros Auxilios"]}'::jsonb,
+    '{"no_incluye": ["Gastos extras", "Caballos", "Hotel"]}'::jsonb,
+    'palccoyo', '04:00:00', TRUE
+  ),
+  (
+    'WAQRAPUKARA',
+    'Iniciamos la excursión con el traslado desde Cusco hacia el poblado de ***Cusipata***, donde disfrutamos de un ***desayuno tradicional*** antes de continuar el viaje hacia ***Santa Lucía***. Desde este punto comenzamos una caminata rodeada de ***valles andinos***, apreciando la ***flora y fauna local*** y espectaculares paisajes naturales durante el recorrido.\n\nEn el trayecto realizamos una pausa en el punto más alto para disfrutar del entorno y tomar fotografías, antes de llegar a ***Waqrapukara***, antiguo ***santuario inca*** de gran valor ***político y religioso***. Tras la visita guiada, retornamos para disfrutar de un ***almuerzo reconfortante*** y regresamos a ***Cusco***, concluyendo la experiencia.',
+    13, 1, 30.00, 100.00,
+    'AVENTURA', 'MODERADO',
+    '{"itinerario": "Iniciamos la excursión con el traslado desde Cusco hacia el poblado de ***Cusipata***, donde disfrutamos de un ***desayuno tradicional*** antes de continuar el viaje hacia ***Santa Lucía***. Desde este punto comenzamos una caminata rodeada de ***valles andinos***, apreciando la ***flora y fauna local*** y espectaculares paisajes naturales durante el recorrido.\n\nEn el trayecto realizamos una pausa en el punto más alto para disfrutar del entorno y tomar fotografías, antes de llegar a ***Waqrapukara***, antiguo ***santuario inca*** de gran valor ***político y religioso***. Tras la visita guiada, retornamos para disfrutar de un ***almuerzo reconfortante*** y regresamos a ***Cusco***, concluyendo la experiencia."}'::jsonb,
+    '{"Lo que visitarás": ["Recojo del hotel", "Recojo del hotel", "Desayuno | Almuerzo", "Botiquín de Primeros Auxilios", "Guía Profesional", "Transporte Turístico", "Bastones de Trekking", "Balón de Oxigeno"]}'::jsonb,
+    '{"incluye": ["Transporte Turistico", "Guia", "Asistencia","Desayuno|Almuerzo", "Recojo de Hotel", "Ticket de Ingreso", "Botiquin de Primeros auxilios", "Bastones de Trekking", "Balon de Oxigeno"]}'::jsonb,
+    '{"no_incluye": ["Gastos Extras", "Caballos", "Hospedaje", "Cena"]}'::jsonb,
+    'waqrapukara', '03:00:00', TRUE
+  ),
+  (
+    'SIETE LAGUNAS AUSANGATE',
+    'Iniciamos la aventura con el traslado desde Cusco hacia el pintoresco poblado de ***Pacchanta***, donde disfrutamos de un ***desayuno andino*** antes de comenzar la caminata. Desde allí emprendemos un ascenso gradual visitando las impresionantes ***lagunas altoandinas***, cada una con tonalidades ***azules, turquesas y verdes*** que destacan por su belleza natural y pureza.
+    
+    Durante el recorrido observamos ***fauna andina*** como alpacas, llamas y aves silvestres, con vistas permanentes del majestuoso ***nevado Ausangate***. Al finalizar la caminata, retornamos a ***Pacchanta*** para disfrutar de un ***almuerzo típico*** y relajarnos en sus ***aguas termales***, antes de emprender el regreso a ***Cusco***.',
+    14, 1, 27.00, 90.00,
+    'NATURALEZA', 'MODERADO',
+    '{"itinerario": "Iniciamos la aventura con el traslado desde Cusco hacia el pintoresco poblado de ***Pacchanta***, donde disfrutamos de un ***desayuno andino*** antes de comenzar la caminata. Desde allí emprendemos un ascenso gradual visitando las impresionantes ***lagunas altoandinas***, cada una con tonalidades ***azules, turquesas y verdes*** que destacan por su belleza natural y pureza.\n\nDurante el recorrido observamos ***fauna andina*** como alpacas, llamas y aves silvestres, con vistas permanentes del majestuoso ***nevado Ausangate***. Al finalizar la caminata, retornamos a ***Pacchanta*** para disfrutar de un ***almuerzo típico*** y relajarnos en sus ***aguas termales***, antes de emprender el regreso a ***Cusco***."}'::jsonb,
+    '{"Lo que visitarás": ["Pacchanta", "Laguna Azulcocha", "Laguna Pucacocha", "Nevado Ausangate"]}'::jsonb,
+    '{"incluye": ["Transporte Turística", "Desayuno | Almuerzo", "Botiquín de Primeros Auxilios", "Guía Profesional", "Ticket de Ingreso"]}'::jsonb,
+    '{"no_incluye": ["Gastos extras", "Caballos", "Hospedaje"]}'::jsonb,
+    'siete_lagunas_ausangate', '04:00:00', TRUE
+  ),
+  (
+    'VALLE SUR',
+    'Iniciamos el recorrido por la ***zona sur del Cusco*** visitando ***Tipón***, reconocido como el ***Templo del Agua*** por su avanzado sistema hidráulico inca, y continuamos hacia ***Pikillacta***, importante complejo ***arqueológico preinca*** que destaca por su planificación urbana. Luego visitamos la iglesia de ***Andahuaylillas***, conocida como la ***Capilla Sixtina de América*** por su impresionante arte colonial.
+    
+    La experiencia se complementa con la ***gastronomía tradicional*** de la región, degustando el famoso ***chicharrón de Saylla***, el delicioso ***cuy al horno*** y el tradicional ***pan chuta de Oropesa***. Finalizamos el tour tras una jornada cultural y culinaria inolvidable.',
+    6, 1, 33.00, 75.00,
+    'CULTURA', 'FACIL',
+    '{"itinerario": "Iniciamos el recorrido por la ***zona sur del Cusco*** visitando ***Tipón***, reconocido como el ***Templo del Agua*** por su avanzado sistema hidráulico inca, y continuamos hacia ***Pikillacta***, importante complejo ***arqueológico preinca*** que destaca por su planificación urbana. Luego visitamos la iglesia de ***Andahuaylillas***, conocida como la ***Capilla Sixtina de América*** por su impresionante arte colonial.\n\nLa experiencia se complementa con la ***gastronomía tradicional*** de la región, degustando el famoso ***chicharrón de Saylla***, el delicioso ***cuy al horno*** y el tradicional ***pan chuta de Oropesa***. Finalizamos el tour tras una jornada cultural y culinaria inolvidable."}'::jsonb,
+    '{"Lo que visitarás": ["Tipón", "Pikillacta", "Andahuaylillas", "Laguna de Huacarpay"]}'::jsonb,
+    '{"incluye": ["Recojo del hotel", "Transporte Turístico", "Guía Profesional", "Tickets"]}'::jsonb,
+    '{"no_incluye": ["Gastos Extras", "Alimentación"]}'::jsonb,
+    'valle_sur', '09:00:00', TRUE
+  ),
+  (
+    'MORADA DE LOS DIOSES',
+    'Iniciamos la experiencia con el traslado desde Cusco hacia el poblado de ***Sencca***, ubicado al norte de la ciudad, desde donde disfrutamos de una ***vista panorámica inicial*** del complejo escultórico. Tras una breve caminata, llegamos a las imponentes ***esculturas contemporáneas*** inspiradas en la ***cosmovisión andina*** y sus principales deidades ancestrales.
+    
+    Durante la visita interactuamos con representaciones como la ***Pachamama***, el ***Dios Wiracocha***, el ***Portal Inti*** y el ***Puma***, conociendo sus ***mitos y leyendas***. Finalizamos en el ***mirador de la Pachamama***, que ofrece una espectacular ***vista panorámica del Cusco***, antes del retorno a la ciudad.',
+    4, 1, 12.0, 35.00,
+    'TURISMO', 'FACIL',
+    '{"itinerario": "Iniciamos la experiencia con el traslado desde Cusco hacia el poblado de ***Sencca***, ubicado al norte de la ciudad, desde donde disfrutamos de una ***vista panorámica inicial*** del complejo escultórico. Tras una breve caminata, llegamos a las imponentes ***esculturas contemporáneas*** inspiradas en la ***cosmovisión andina*** y sus principales deidades ancestrales.\n\nDurante la visita interactuamos con representaciones como la ***Pachamama***, el ***Dios Wiracocha***, el ***Portal Inti*** y el ***Puma***, conociendo sus ***mitos y leyendas***. Finalizamos en el ***mirador de la Pachamama***, que ofrece una espectacular ***vista panorámica del Cusco***, antes del retorno a la ciudad."}'::jsonb,
+    '{"Lo que visitarás": ["Sencca", "El Puma", "La Pachamama", "Mirador del Cusco"]}'::jsonb,
+    '{"incluye": ["Recojo del Hotel", "Ticket de Ingreso", "Guia Profesional", "Transporte Turistico"]}'::jsonb,
+    '{"no_incluye": ["Gastos Extras", "Alimentación", "Hospedaje"]}'::jsonb,
+    'morada_de_los_dioses', '09:00:00', TRUE
+  ),
+  (
+    'RUTA DEL SOL (Cusco - Puno)',
+    'Tras el desayuno, iniciamos el viaje desde Cusco recorriendo el ***corredor sur del altiplano*** en una jornada cultural con varias paradas guiadas. Visitamos la iglesia de ***Andahuaylillas***, conocida como la ***Capilla Sixtina de América***, y el impresionante templo inca de ***Raqchi***, uno de los complejos arqueológicos más importantes de la región.
+    
+    Continuamos hacia ***Sicuani*** para disfrutar de un ***almuerzo buffet*** y luego ascendemos al ***Paso de La Raya***, el punto más alto del recorrido. Finalizamos con la visita al ***Museo Inca Aymara de Pukara*** antes de arribar a ***Puno***, donde realizamos el traslado al ***hotel*** para pasar la noche.',
+    10, 1, 54.00, 178.00,
+    'TURISMO', 'FACIL',
+    '{"itinerario": "Tras el desayuno, iniciamos el viaje desde Cusco recorriendo el ***corredor sur del altiplano*** en una jornada cultural con varias paradas guiadas. Visitamos la iglesia de ***Andahuaylillas***, conocida como la ***Capilla Sixtina de América***, y el impresionante templo inca de ***Raqchi***, uno de los complejos arqueológicos más importantes de la región.\n\nContinuamos hacia ***Sicuani*** para disfrutar de un ***almuerzo buffet*** y luego ascendemos al ***Paso de La Raya***, el punto más alto del recorrido. Finalizamos con la visita al ***Museo Inca Aymara de Pukara*** antes de arribar a ***Puno***, donde realizamos el traslado al ***hotel*** para pasar la noche."}'::jsonb,
+    '{"Lo que visitarás": ["Andahuaylillas", "Raqchi", "La Raya", "Pucará"]}'::jsonb,
+    '{"incluye": ["Transporte Turistico", "Boleto Turistico", "Guia Profesional", "Almuerzo"]}'::jsonb,
+    '{"no_incluye": ["Gastos Extras", "Alimentación", "Hospedaje"]}'::jsonb,
+    'ruta_del_sol_cusco_puno', '06:00:00', TRUE
+  ),
+  (
+    'RUTA DEL SOL (Puno - Cusco)',
+    'Disfrutarán del ***desayuno en el hotel*** antes de iniciar el recorrido turístico en bus desde ***Puno hacia Cusco*** por el corredor sur andino. Durante el trayecto se realizarán paradas culturales, iniciando con la visita al ***Museo de Pukara***, donde se apreciarán ***esculturas líticas y cerámicas preincas***. Luego se visitará el ***Abra de la Raya***, el punto más alto del recorrido, y la ciudad de ***Sicuani***, donde se disfrutará de un ***almuerzo buffet con productos locales***.
+    
+    Continuando el viaje, se conocerá el impresionante complejo arqueológico de ***Raqchi***, un ***templo inca dedicado al dios Wiracocha***, destacado por su arquitectura en adobe y recintos circulares. Posteriormente se visitará la iglesia colonial de ***Andahuaylillas***, conocida como la ***Capilla Sixtina de América*** por su extraordinaria decoración artística. Finalmente, se arribará a la ciudad del ***Cusco***, donde nuestro personal realizará la ***recepción y traslado al hotel seleccionado***.',
+    10, 1, 54.00, 178.00,
+    'TURISMO', 'FACIL',
+    '{"itinerario": "Disfrutarán del ***desayuno en el hotel*** antes de iniciar el recorrido turístico en bus desde ***Puno hacia Cusco*** por el corredor sur andino. Durante el trayecto se realizarán paradas culturales, iniciando con la visita al ***Museo de Pukara***, donde se apreciarán ***esculturas líticas y cerámicas preincas***. Luego se visitará el ***Abra de la Raya***, el punto más alto del recorrido, y la ciudad de ***Sicuani***, donde se disfrutará de un ***almuerzo buffet con productos locales***.\n\nContinuando el viaje, se conocerá el impresionante complejo arqueológico de ***Raqchi***, un ***templo inca dedicado al dios Wiracocha***, destacado por su arquitectura en adobe y recintos circulares. Posteriormente se visitará la iglesia colonial de ***Andahuaylillas***, conocida como la ***Capilla Sixtina de América*** por su extraordinaria decoración artística. Finalmente, se arribará a la ciudad del ***Cusco***, donde nuestro personal realizará la ***recepción y traslado al hotel seleccionado***."}'::jsonb,
+    '{"Lo que visitarás": ["Andahuaylillas", "Raqchi", "La Raya", "Pucará"]}'::jsonb,
+    '{"incluye": ["Transporte Turistico", "Boleto Turistico", "Guia Profesional"]}'::jsonb,
+    '{"no_incluye": ["Gastos Extras", "Alimentación"]}'::jsonb,
+    'ruta_del_sol_cusco_puno', '06:00:00', TRUE
+  ),
+  (
+    'SOBREVUELO LINEAS DE NAZCA',
+    'Después del desayuno, realizamos el traslado al aeródromo local para disfrutar de un espectacular ***sobrevuelo a las Líneas de Nazca***. Desde el aire observamos los enigmáticos ***geoglifos preincas*** que representan figuras de animales y plantas, como el ***colibrí***, el ***mono*** y la ***araña***, además de líneas geométricas que forman un misterioso paisaje grabado en la pampa
+    
+    Finalizada la experiencia aérea, nos dirigimos al terminal terrestre para continuar el viaje hacia ***Arequipa***. A la llegada, nuestro personal los recibe y realiza el traslado al ***hotel seleccionado***, culminando una jornada llena de ***historia, misterio y cultura ancestral***.',
+    1, 1, 108.0, 362.0,
+    'TURISMO', 'FACIL',
+    '{"itinerario": "Después del desayuno, realizamos el traslado al aeródromo local para disfrutar de un espectacular ***sobrevuelo a las Líneas de Nazca***. Desde el aire observamos los enigmáticos ***geoglifos preincas*** que representan figuras de animales y plantas, como el ***colibrí***, el ***mono*** y la ***araña***, además de líneas geométricas que forman un misterioso paisaje grabado en la pampa.\n\nFinalizada la experiencia aérea, nos dirigimos al terminal terrestre para continuar el viaje hacia ***Arequipa***. A la llegada, nuestro personal los recibe y realiza el traslado al ***hotel seleccionado***, culminando una jornada llena de ***historia, misterio y cultura ancestral***."}'::jsonb,
+    '{"Lo que visitarás": ["Aeropuerto Nazca", "El Colibrí", "El Mono", "La Araña"]}'::jsonb,
+    '{"incluye": ["Recojo de Hotel", "Transporte Regular", "Tickets", "Guia Profesional"]}'::jsonb,
+    '{"no_incluye": ["Gastos Extras", "Alimentacion", "Tasa Aeropuertaria"]}'::jsonb,
+    'sobrevuelo_lineas_de_nazca_nazca', '07:00:00', TRUE
+  ),
+  (
+    'SOBREVUELO LINEAS DE NAZCA - AREQUIPA',
+    'Después del ***desayuno en el hotel***, se realizará el traslado al aeródromo local para abordar la avioneta y disfrutar del ***sobrevuelo a las Líneas de Nazca***, una de las manifestaciones arqueológicas más enigmáticas del mundo. Durante la experiencia aérea se podrán apreciar los ***antiguos geoglifos***, figuras de animales, plantas y formas geométricas trazadas sobre el desierto y conservadas por siglos.
+    
+    Finalizada esta experiencia única, se efectuará el traslado al terminal terrestre para iniciar el ***viaje hacia la ciudad de Arequipa***. A la llegada, nuestro personal estará esperando para brindarles la ***bienvenida y el traslado*** hacia su hotel, donde podrán descansar y continuar con su itinerario.',
+    1, 1, 141.0, 471.0,
+    'TURISMO', 'FACIL',
+    '{"itinerario": "Después del ***desayuno en el hotel***, se realizará el traslado al aeródromo local para abordar la avioneta y disfrutar del ***sobrevuelo a las Líneas de Nazca***, una de las manifestaciones arqueológicas más enigmáticas del mundo. Durante la experiencia aérea se podrán apreciar los ***antiguos geoglifos***, figuras de animales, plantas y formas geométricas trazadas sobre el desierto y conservadas por siglos.\n\nFinalizada esta experiencia única, se efectuará el traslado al terminal terrestre para iniciar el ***viaje hacia la ciudad de Arequipa***. A la llegada, nuestro personal estará esperando para brindarles la ***bienvenida y el traslado*** hacia su hotel, donde podrán descansar y continuar con su itinerario."}'::jsonb,
+    '{"Lo que visitarás": ["Aeropuerto Nazca", "El Colibrí", "El Mono", "La Araña"]}'::jsonb,
+    '{"incluye": ["Recojo de Hotel", "Transporte Regular", "Tickets", "Guia Profesional"]}'::jsonb,
+    '{"no_incluye": ["Gastos Extras", "Alimentacion", "Tasa Aeropuertaria"]}'::jsonb,
+    'sobrevuelo_lineas_de_nazca_nazca', '07:00:00', TRUE
+  );
+  INSERT INTO tour (
+    nombre, descripcion, duracion_horas, duracion_dias, precio_adulto_extranjero, precio_adulto_nacional,
+    categoria, dificultad, highlights, atractivos, servicios_incluidos, servicios_no_incluidos,
+    carpeta_img, hora_inicio, activo
+  ) VALUES 
+  (
+    'LIMA - ISLAS BALLESTAS - HUACACHINA',
+    'Después del desayuno, nos trasladamos al puerto de ***Paracas*** para iniciar la excursión a las ***Islas Ballestas***, pasando por el enigmático ***Candelabro***, una gigantesca figura trazada en la ladera del desierto. Durante el recorrido marítimo observamos ***lobos marinos***, ***pingüinos*** y diversas ***aves marinas*** en su hábitat natural.
+    
+    Por la tarde visitamos el ***Oasis de Huacachina***, un hermoso lago rodeado de impresionantes ***dunas de arena***. Aquí disfrutamos del entorno natural y de actividades como el ***sandboarding***. Finalizamos la jornada con el retorno hacia ***Lima***.',
+    15, 1, 45.0, 150.0,
+    'TURISMO', 'FACIL',
+    '{"itinerario": "Después del desayuno, nos trasladamos al puerto de ***Paracas*** para iniciar la excursión a las ***Islas Ballestas***, pasando por el enigmático ***Candelabro***, una gigantesca figura trazada en la ladera del desierto. Durante el recorrido marítimo observamos ***lobos marinos***, ***pingüinos*** y diversas ***aves marinas*** en su hábitat natural.\n\nPor la tarde visitamos el ***Oasis de Huacachina***, un hermoso lago rodeado de impresionantes ***dunas de arena***. Aquí disfrutamos del entorno natural y de actividades como el ***sandboarding***. Finalizamos la jornada con el retorno hacia ***Lima***."}'::jsonb,
+    '{"Lo que visitarás": ["Islas Ballestas", "El Candelabro", "Oasis Huacachina", "Dunas"]}'::jsonb,
+    '{"incluye": ["Recojo del Hotel en Lima", "Transporte Turistico", "Boleto de Ingreso a todos los atractivos", "Guia Profesional", "Lancha", "Tubular y Sandboarding"]}'::jsonb,
+    '{"no_incluye": ["Hospedaje en Lima Miraflores", "Alimentación", "Gastos Extras"]}'::jsonb,
+    'paracas_y_huacachina', '03:00:00', TRUE
+  ),
+  (
+    'MARAS, MORAY Y SALINERAS',
+    'Iniciamos el recorrido en ***Chinchero***, conocida como la ***Cuna del Arcoíris***, un pintoresco pueblo colonial donde visitamos un ***taller textil tradicional*** para conocer las técnicas ancestrales de tejido y el uso de ***tintes naturales*** obtenidos de plantas y minerales. Luego continuamos hacia ***Moray***, un sorprendente ***laboratorio agrícola inca*** conformado por terrazas circulares que demuestran la avanzada ***ingeniería ancestral***.
+    
+    El tour prosigue hacia el pueblo colonial de ***Maras*** y las impresionantes ***Salineras de Maras***, un conjunto de miles de pozas de ***sal rosada*** que forman uno de los paisajes más emblemáticos del ***Valle Sagrado***. Finalizamos con el retorno a ***Cusco***, donde dispondrán de ***tiempo libre*** para actividades personales y compras.',
+    6, 1, 35.0, 85.00,
+    'TURISMO', 'FACIL',
+    '{"itinerario": "Iniciamos el recorrido en ***Chinchero***, conocida como la ***Cuna del Arcoíris***, un pintoresco pueblo colonial donde visitamos un ***taller textil tradicional*** para conocer las técnicas ancestrales de tejido y el uso de ***tintes naturales*** obtenidos de plantas y minerales. Luego continuamos hacia ***Moray***, un sorprendente ***laboratorio agrícola inca*** conformado por terrazas circulares que demuestran la avanzada ***ingeniería ancestral***.\n\nEl tour prosigue hacia el pueblo colonial de ***Maras*** y las impresionantes ***Salineras de Maras***, un conjunto de miles de pozas de ***sal rosada*** que forman uno de los paisajes más emblemáticos del ***Valle Sagrado***. Finalizamos con el retorno a ***Cusco***, donde dispondrán de ***tiempo libre*** para actividades personales y compras."}'::jsonb,
+    '{"Lo que visitarás": ["Moray", "Salineras de Maras", "Pueblo de Maras", "Cordillera Vilcanota"]}'::jsonb,
+    '{"incluye": ["Recojo del Hotel", "Ticket de Ingreso", "Ticket Salineras", "Guia Profesional", "Transporte Turistico"]}'::jsonb,
+    '{"no_incluye": ["Gastos Extras"]}'::jsonb,
+    'maras_moray_y_salineras', '06:30:00', TRUE
+  ),
+  (
+    'CUATRIMOTO HUAYPO Y SALINERAS',
+    'Iniciamos la experiencia con el traslado desde Cusco hacia el poblado de ***Cruz Pata***, donde recibimos una breve ***inducción de manejo*** antes de comenzar la aventura en ***cuatrimotos***. El recorrido nos conduce hacia la tranquila ***Laguna de Huaypo***, donde disfrutamos de tiempo libre para apreciar el paisaje natural y el entorno andino.
+    
+    Continuamos la ruta pasando por el pintoresco pueblo colonial de ***Maras*** y visitamos las emblemáticas ***Salineras de Maras***, reconocidas por sus terrazas de ***sal natural***. Al finalizar, retornamos a la base para el traslado hacia ***Ollantaytambo***, donde abordamos el ***tren turístico*** con destino a ***Aguas Calientes***, lugar donde pasaremos la noche.',
+    5, 1, 33.0, 110.0,
+    'TURISMO', 'FACIL',
+    '{"itinerario": "Iniciamos la experiencia con el traslado desde Cusco hacia el poblado de ***Cruz Pata***, donde recibimos una breve ***inducción de manejo*** antes de comenzar la aventura en ***cuatrimotos***. El recorrido nos conduce hacia la tranquila ***Laguna de Huaypo***, donde disfrutamos de tiempo libre para apreciar el paisaje natural y el entorno andino.\n\nContinuamos la ruta pasando por el pintoresco pueblo colonial de ***Maras*** y visitamos las emblemáticas ***Salineras de Maras***, reconocidas por sus terrazas de ***sal natural***. Al finalizar, retornamos a la base para el traslado hacia ***Ollantaytambo***, donde abordamos el ***tren turístico*** con destino a ***Aguas Calientes***, lugar donde pasaremos la noche."}'::jsonb,
+    '{"Lo que visitarás": ["Laguna Huaypo", "Pampa de Chinchero", "Salineras", "Comunidades"]}'::jsonb,
+    '{"incluye": ["Recojo del Hotel", "Botiquin de Primeros Auxilios", "Guia Profesional", "Transporte Turistico", "Cuatrimotos", "Transporte Maras - Ollantaytambo", "Ingreso a Salineras", "Hospedaje en Aguas Calientes"]}'::jsonb,
+    '{"no_incluye": ["Gastos Extras"]}'::jsonb,
+    'cuatrimoto_huaypo_y_salineras', '13:00:00', TRUE
+  ),
+  (
+    'CUATRIMOTO MONTAÑA DE COLORES',
+    'Iniciamos la experiencia con el traslado desde Cusco hacia las faldas del ***nevado Ausangate***, donde disfrutamos de un ***desayuno andino*** rodeados de espectaculares ***paisajes de alta montaña***. Luego llegamos a ***Japura***, punto de inicio de la aventura, donde recibimos las indicaciones para conducir las ***cuatrimotos*** antes de comenzar el recorrido.
+    
+    La ruta en cuatrimotos nos lleva hasta la impresionante ***Montaña de Colores – Vinicunca***, atravesando paisajes andinos con ***llamas y alpacas***. En el ***Cerro Colorado*** apreciamos sus ***tonalidades naturales*** y la vista del majestuoso ***Apu Ausangate***. Tras el recorrido, retornamos a la base y regresamos a ***Cusco***.',
+    14, 1, 53.0, 175.0,
+    'TURISMO', 'FACIL',
+    '{"itinerario": "Iniciamos la experiencia con el traslado desde Cusco hacia las faldas del ***nevado Ausangate***, donde disfrutamos de un ***desayuno andino*** rodeados de espectaculares ***paisajes de alta montaña***. Luego llegamos a ***Japura***, punto de inicio de la aventura, donde recibimos las indicaciones para conducir las ***cuatrimotos*** antes de comenzar el recorrido.\n\nLa ruta en cuatrimotos nos lleva hasta la impresionante ***Montaña de Colores – Vinicunca***, atravesando paisajes andinos con ***llamas y alpacas***. En el ***Cerro Colorado*** apreciamos sus ***tonalidades naturales*** y la vista del majestuoso ***Apu Ausangate***. Tras el recorrido, retornamos a la base y regresamos a ***Cusco***."}'::jsonb,
+    '{"Lo que visitarás": ["Valle del Sur", "Cuatrimotos", "Vinicunca", "Valle Rojo"]}'::jsonb,
+    '{"incluye": ["Recojo del Hotel", "Ticket de Ingreso a la Montaña", "Desayuno | Almuerzo", "Botiquin de Primeros Auxilios", "Guia Profesional", "Transporte Turistico", "Cuatrimoto"]}'::jsonb,
+    '{"no_incluye": ["Gastos Extras", "Caballos"]}'::jsonb,
+    'cuatrimoto_montana_de_colores_valle_rojo', '04:00:00', TRUE
+  );
 
-DO $$
-DECLARE
-    p_id INTEGER;
-    t_id INTEGER;
-BEGIN
-    INSERT INTO paquete (nombre, descripcion, dias, noches, precio_sugerido, temporada, destino_principal)
-    VALUES ('CUSCO TRADICIONAL 5D/4N', 'Lo esencial: Arqueología, Valles y Machu Picchu.', 5, 4, 0.00, 'TODO EL AÑO', 'CUSCO')
-    RETURNING id_paquete INTO p_id;
+  INSERT INTO tour (
+    nombre, descripcion, duracion_horas, duracion_dias, precio_adulto_extranjero, precio_adulto_nacional,
+    categoria, dificultad, highlights, atractivos, servicios_incluidos, servicios_no_incluidos,
+    carpeta_img, hora_inicio, activo
+  ) VALUES 
+  (
+    'PALLAY PUNCHU',
+    'Iniciamos la experiencia con el traslado desde Cusco hacia el poblado de ***Cusipata***, donde disfrutamos de un ***desayuno tradicional***. En el camino apreciamos el ***puente colonial de Checacupe*** y un criadero de ***camélidos sudamericanos***, antes de continuar hacia el punto de inicio de la caminata en un entorno natural de gran belleza.
+    
+    La caminata es ***sencilla y panorámica***, recorriendo el impresionante ***bosque de piedras*** y disfrutando de vistas de majestuosos ***nevados*** como el ***Ausangate***. Visitamos la espectacular ***Montaña Pallay Punchu***, famosa por sus ***formaciones filudas multicolores***. Finalizamos con un ***almuerzo buffet novo-andino*** y retornamos a ***Cusco***.',
+    14, 1, 36.0, 120.0,
+    'TURISMO', 'FACIL',
+    '{"itinerario": "Iniciamos la experiencia con el traslado desde Cusco hacia el poblado de ***Cusipata***, donde disfrutamos de un ***desayuno tradicional***. En el camino apreciamos el ***puente colonial de Checacupe*** y un criadero de ***camélidos sudamericanos***, antes de continuar hacia el punto de inicio de la caminata en un entorno natural de gran belleza.\n\nLa caminata es ***sencilla y panorámica***, recorriendo el impresionante ***bosque de piedras*** y disfrutando de vistas de majestuosos ***nevados*** como el ***Ausangate***. Visitamos la espectacular ***Montaña Pallay Punchu***, famosa por sus ***formaciones filudas multicolores***. Finalizamos con un ***almuerzo buffet novo-andino*** y retornamos a ***Cusco***."}'::jsonb,
+    '{"Lo que visitarás": ["Laguna Langui", "Pallay Punchu", "Canas", "Vistas"]}'::jsonb,
+    '{"incluye": ["Recojo del Hotel", "Ticket de Ingreso", "Asistencia"]}'::jsonb,
+    '{"no_incluye": ["Gastos extras"]}'::jsonb,
+    'pallay_punchu', '08:00:00', TRUE
+  ),
+  (
+    'CITY TOUR LIMA',
+    'Iniciamos el recorrido con una vista panorámica de la ***Huaca Pucllana***, importante ***centro ceremonial prehispánico*** que refleja la herencia ancestral de Lima. Continuamos hacia el ***Centro Histórico*** para apreciar emblemáticos monumentos coloniales como la ***Plaza Mayor***, el ***Palacio de Gobierno***, la ***Catedral*** y otros edificios que marcaron el periodo del ***Virreinato del Perú***.
+    
+    La experiencia prosigue con la visita al ***Conjunto Monumental de San Francisco***, destacado por su extraordinario ***arte religioso colonial*** y las famosas ***Catacumbas***. Finalizamos explorando la ***Lima contemporánea*** en zonas residenciales como ***San Isidro***, ***Miraflores*** y el moderno ***Larcomar***, con vistas al océano Pacífico.',
+    4, 1, 23.0, 78.0,
+    'CULTURA', 'FACIL',
+    '{"itinerario": "Iniciamos el recorrido con una vista panorámica de la ***Huaca Pucllana***, importante ***centro ceremonial prehispánico*** que refleja la herencia ancestral de Lima. Continuamos hacia el ***Centro Histórico*** para apreciar emblemáticos monumentos coloniales como la ***Plaza Mayor***, el ***Palacio de Gobierno***, la ***Catedral*** y otros edificios que marcaron el periodo del ***Virreinato del Perú***.\n\nLa experiencia prosigue con la visita al ***Conjunto Monumental de San Francisco***, destacado por su extraordinario ***arte religioso colonial*** y las famosas ***Catacumbas***. Finalizamos explorando la ***Lima contemporánea*** en zonas residenciales como ***San Isidro***, ***Miraflores*** y el moderno ***Larcomar***, con vistas al océano Pacífico."}'::jsonb,
+    '{"Lo que visitarás": ["Plaza Mayor", "Catedral de Lima", "Catacumbas San Francisco", "Miraflores", "Parque del Amor"]}'::jsonb,
+    '{"incluye": ["Recojo del Hotel ", "Boleto de Ingreso", "Guia Profesional", "Transporte Turistico"]}'::jsonb,
+    '{"no_incluye": ["Gastos Extras", "Alimentación"]}'::jsonb,
+    'city_tour_lima_colonial_y_moderna', '08:30:00', TRUE
+  ),
+  (
+    'RECEPCION EN LIMA - CITY TOUR',
+    'A la llegada a Lima, nuestro personal recibe a los pasajeros y realiza el traslado al ***hotel seleccionado***. Posteriormente iniciamos el ***City Tour por Lima*** con una vista panorámica de la ***Huaca Pucllana***, importante ***centro ceremonial prehispánico*** que refleja el legado ancestral de la ciudad.
+    
+    Continuamos el recorrido por el ***Centro Histórico de Lima***, Patrimonio de la Humanidad, visitando la ***Plaza Mayor***, la ***Catedral***, el ***Palacio de Gobierno*** y otros monumentos coloniales. La experiencia incluye el ***Museo del Banco Central de Reserva***, el ***Convento de San Francisco*** con sus famosas ***Catacumbas*** y el histórico ***Monasterio de Santo Domingo***, concluyendo una jornada cultural imperdible.',
+    4, 1, 30.0, 101.0,
+    'CULTURA', 'FACIL',
+    '{"itinerario": "A la llegada a Lima, nuestro personal recibe a los pasajeros y realiza el traslado al ***hotel seleccionado***. Posteriormente iniciamos el ***City Tour por Lima*** con una vista panorámica de la ***Huaca Pucllana***, importante ***centro ceremonial prehispánico*** que refleja el legado ancestral de la ciudad.\n\nContinuamos el recorrido por el ***Centro Histórico de Lima***, Patrimonio de la Humanidad, visitando la ***Plaza Mayor***, la ***Catedral***, el ***Palacio de Gobierno*** y otros monumentos coloniales. La experiencia incluye el ***Museo del Banco Central de Reserva***, el ***Convento de San Francisco*** con sus famosas ***Catacumbas*** y el histórico ***Monasterio de Santo Domingo***, concluyendo una jornada cultural imperdible."}'::jsonb,
+    '{"Lo que visitarás": ["Plaza Mayor", "Catedral de Lima", "Catacumbas San Francisco", "Miraflores", "Parque del Amor"]}'::jsonb,
+    '{"incluye": ["Recojo del Aeropuerto de Lima ", "Boleto de Ingreso a todos los atractivos", "Guia Profesional", "Transporte Turistico", "Noche de Hotel en Lima Miraflores"]}'::jsonb,
+    '{"no_incluye": ["Vuelo Internacional", "Alimentación"]}'::jsonb,
+    'city_tour_lima_colonial_y_moderna', '08:30:00', TRUE
+  );
+  INSERT INTO tour (
+    nombre, descripcion, duracion_horas, duracion_dias, precio_adulto_extranjero, precio_adulto_nacional,
+    categoria, dificultad, highlights, atractivos, servicios_incluidos, servicios_no_incluidos,
+    carpeta_img, hora_inicio, activo
+  ) VALUES 
+  (
+    'TOUR GASTRONOMICO PERUANO',
+    'Iniciamos la experiencia con la visita a un ***mercado tradicional de Cusco***, donde exploramos la ***cultura local*** y los productos que dan identidad a la reconocida ***gastronomía peruana***. Durante el recorrido descubrimos una gran variedad de ***ingredientes nativos***, aromas y sabores que forman parte de la historia culinaria de la región, considerada uno de los mejores destinos gastronómicos del mundo.
+    
+    La actividad continúa con una clase práctica dirigida por un ***chef local***, quien comparte ***técnicas ancestrales***, secretos y tradiciones mientras participamos en la preparación de auténticos ***platos peruanos***. Todo se desarrolla en un ambiente diseñado para conectar con las ***raíces culturales*** y disfrutar una experiencia gastronómica única.',
+    4, 1, 80.0, 268.0,
+    'GASTRONOMÍA', 'FACIL',
+    '{"itinerario": "Iniciamos la experiencia con la visita a un ***mercado tradicional de Cusco***, donde exploramos la ***cultura local*** y los productos que dan identidad a la reconocida ***gastronomía peruana***. Durante el recorrido descubrimos una gran variedad de ***ingredientes nativos***, aromas y sabores que forman parte de la historia culinaria de la región, considerada uno de los mejores destinos gastronómicos del mundo.\n\nLa actividad continúa con una clase práctica dirigida por un ***chef local***, quien comparte ***técnicas ancestrales***, secretos y tradiciones mientras participamos en la preparación de auténticos ***platos peruanos***. Todo se desarrolla en un ambiente diseñado para conectar con las ***raíces culturales*** y disfrutar una experiencia gastronómica única."}'::jsonb,
+    '{"Lo que visitarás": ["Mercado Local", "Clase de Cocina", "Degustación de Pisco", "Almuerzo"]}'::jsonb,
+    '{"incluye":   ["Recojo del Hotel", "Chef de Cocina", "Manejo de Cocina y Comedor", "Almuerzo o Cena", "Visita el Mercado Local", "Clases de Cocaina"]}'::jsonb,
+    '{"no_incluye": ["Gastos Extras"]}'::jsonb,
+    'tour_gastronomico_peruano', '08:00:00', TRUE
+  ),
+  (
+    'TOUR MISTICO',
+    'Iniciamos el recorrido desde el corazón de Cusco rumbo a la ***Morada de los Dioses***, un impresionante conjunto de ***esculturas líticas contemporáneas*** inspiradas en la ***cosmovisión andina*** y la veneración a la ***Pachamama***. Continuamos hacia el ***Valle de los Duendes***, un espacio mágico donde destacan esculturas de piedra integradas a ***formaciones naturales*** y senderos llenos de misticismo.
+    
+    La experiencia prosigue en el ***Humedal de Huasao***, un importante ***pulmón verde*** con abundante flora y fauna, y finaliza en el encantador ***Bosque de los Ents***, inspirado en el universo de ***Tolkien***. Retornamos a ***Cusco*** tras una jornada llena de ***arte, naturaleza y energía espiritual***.',
+    3, 1, 19.0, 63.0,
+    'MÍSTICO', 'FACIL',
+    '{"itinerario": "Iniciamos el recorrido desde el corazón de Cusco rumbo a la ***Morada de los Dioses***, un impresionante conjunto de ***esculturas líticas contemporáneas*** inspiradas en la ***cosmovisión andina*** y la veneración a la ***Pachamama***. Continuamos hacia el ***Valle de los Duendes***, un espacio mágico donde destacan esculturas de piedra integradas a ***formaciones naturales*** y senderos llenos de misticismo.\n\nLa experiencia prosigue en el ***Humedal de Huasao***, un importante ***pulmón verde*** con abundante flora y fauna, y finaliza en el encantador ***Bosque de los Ents***, inspirado en el universo de ***Tolkien***. Retornamos a ***Cusco*** tras una jornada llena de ***arte, naturaleza y energía espiritual***."}'::jsonb,
+    '{"Lo que visitarás": ["Altar Sagrado", "Chamán Andino", "Lectura de Coca", "Ofrenda a la Pachamama"]}'::jsonb,
+    '{"incluye": ["Ticket de Ingreso", "Guia Profesional", "Transporte Turistico"]}'::jsonb,
+    '{"no_incluye": ["Alimentación", "Gastos Extras"]}'::jsonb,
+    'tour_mistico', '08:30:00', TRUE
+  ),
+  (
+    'DIA LIBRE',
+    'Disfrutarán de un ***día libre en la ciudad de Cusco***, ideal para recorrer a su propio ritmo sus calles llenas de ***historia y cultura***. Podrán visitar la ***Plaza de Armas***, museos, templos coloniales, barrios tradicionales y mercados artesanales, donde encontrarán textiles, souvenirs y productos locales que reflejan la ***identidad andina***.
+    
+    Este día es perfecto para ***explorar, descansar o realizar actividades opcionales***, degustar la ***gastronomía local*** en restaurantes típicos y cafés, y seguir adaptándose a la altura, disfrutando del ***ambiente único de la capital del Imperio Inca*** antes de continuar con el itinerario.',
+    0, 1, 0.00, 0.00,
+    'LIBRE', 'FACIL',
+    '{"itinerario": "Disfrutarán de un ***día libre en la ciudad de Cusco***, ideal para recorrer a su propio ritmo sus calles llenas de ***historia y cultura***. Podrán visitar la ***Plaza de Armas***, museos, templos coloniales, barrios tradicionales y mercados artesanales, donde encontrarán textiles, souvenirs y productos locales que reflejan la ***identidad andina***.\n\nEste día es perfecto para ***explorar, descansar o realizar actividades opcionales***, degustar la ***gastronomía local*** en restaurantes típicos y cafés, y seguir adaptándose a la altura, disfrutando del ***ambiente único de la capital del Imperio Inca*** antes de continuar con el itinerario."}'::jsonb,
+    '{"Lo que visitarás": ["Exploración personal", "Gastronomía local", "Descanso", "Compras"]}'::jsonb,
+    '{"incluye": ["Asistencia informativa"]}'::jsonb,
+    '{"no_incluye": ["Guiado", "Transporte", "Entradas", "Alimentacion"]}'::jsonb,
+    'dia_libre', '00:00:00', TRUE
+  ),
+  (
+    'DIA LIBRE - AGUAS CALIENTES',
+    'Disfrutarán de un ***día libre en Aguas Calientes*** para realizar actividades a su elección, como visitar la ***Plaza de Armas***, el ***Mariposario***, los ***Baños Termales***, el ***Museo de Sitio Manuel Chávez Ballón*** o recorrer el ***mercado artesanal***, ideal para adquirir recuerdos y artesanías locales del pueblo.
+    
+    Posteriormente se realizará el ***retorno a Cusco*** en tren con destino a ***Ollantaytambo***. A la llegada, nuestro transporte estará esperando para el traslado hacia la ciudad del Cusco, dejándolos cerca de la ***Plaza Mayor***, desde donde podrán dirigirse cómodamente a su hotel.',
+    0, 1, 0.00, 0.00,
+    'LIBRE', 'FACIL',
+    '{"itinerario": "Disfrutarán de un ***día libre en Aguas Calientes*** para realizar actividades a su elección, como visitar la ***Plaza de Armas***, el ***Mariposario***, los ***Baños Termales***, el ***Museo de Sitio Manuel Chávez Ballón*** o recorrer el ***mercado artesanal***, ideal para adquirir recuerdos y artesanías locales del pueblo.\n\nPosteriormente se realizará el ***retorno a Cusco*** en tren con destino a ***Ollantaytambo***. A la llegada, nuestro transporte estará esperando para el traslado hacia la ciudad del Cusco, dejándolos cerca de la ***Plaza Mayor***, desde donde podrán dirigirse cómodamente a su hotel."}'::jsonb,
+    '{"Lo que visitarás": ["Exploración personal", "Gastronomía local", "Descanso", "Compras"]}'::jsonb,
+    '{"incluye": ["Traslado Hotel - Apto", "Ticket de Tren Local", "Transporte Ollanta - Cusco"]}'::jsonb,
+    '{"no_incluye": ["BAños Termales", "Gastos Extras", "Alimentacion"]}'::jsonb,
+    'dia_libre', '00:00:00', TRUE
+  ),
+  (
+    'RECEPCION EN EL AEROPUERTO DE CUSCO',
+    'A su llegada al ***aeropuerto de Cusco***, nuestro ***personal de la agencia*** los estará esperando para brindarles una ***cálida bienvenida*** y asistirlos con el ***traslado privado hacia su hotel seleccionado***. Durante el recorrido podrán apreciar los primeros paisajes de la ***ciudad imperial***, mientras reciben recomendaciones básicas para una adecuada ***adaptación a la altura***.
+    
+    Al llegar al hotel, contarán con tiempo libre para ***descansar y aclimatarse***, disfrutar de las instalaciones y prepararse para iniciar las ***experiencias culturales, históricas y naturales*** que ofrece Cusco, permitiendo comenzar el viaje de manera ***cómoda, segura y organizada***.',
+    0, 1, 0.00, 0.00,
+    'LOGISTICA', 'FACIL',
+    '{"itinerario": "A su llegada al ***aeropuerto de Cusco***, nuestro ***personal de la agencia*** los estará esperando para brindarles una ***cálida bienvenida*** y asistirlos con el ***traslado privado hacia su hotel seleccionado***. Durante el recorrido podrán apreciar los primeros paisajes de la ***ciudad imperial***, mientras reciben recomendaciones básicas para una adecuada ***adaptación a la altura***.\n\nAl llegar al hotel, contarán con tiempo libre para ***descansar y aclimatarse***, disfrutar de las instalaciones y prepararse para iniciar las ***experiencias culturales, históricas y naturales*** que ofrece Cusco, permitiendo comenzar el viaje de manera ***cómoda, segura y organizada***."}'::jsonb,
+    '{"Lo que visitarás": ["Recepción personalizada", "Traslado privado", "Asistencia de equipaje", "Briefing del viaje"]}'::jsonb,
+    '{"incluye": ["Traslados APTO", "Transporte Turistico", "Hotel en el Cusco"]}'::jsonb,
+    '{"no_incluye": ["Alimentación", "Gastos Extras"]}'::jsonb,
+    'recepcion_aeropuerto', '00:00:00', TRUE
+  ),
+  (
+    'RECEPCION EN EL AEROPUERTO DE LIMA',
+    'A su llegada a la ciudad de ***Lima***, nuestro personal estará esperándolos en el aeropuerto para brindarles una ***cálida bienvenida*** y realizar el traslado hacia su hotel seleccionado. Durante el recorrido podrán tener un primer contacto con la ***capital del Perú***, una ciudad que combina modernidad, historia y tradición.
+    
+    Una vez en el hotel, contarán con tiempo para ***descansar y aclimatarse*** después del viaje, preparándose para iniciar las actividades programadas. Este momento es ideal para relajarse, organizar sus pertenencias y comenzar a disfrutar del ***ambiente urbano y cultural*** que ofrece Lima antes de continuar con su itinerario.',
+    0, 1, 0.00, 0.00,
+    'LOGISTICA', 'FACIL',
+    '{"itinerario": "A su llegada a la ciudad de ***Lima***, nuestro personal estará esperándolos en el aeropuerto para brindarles una ***cálida bienvenida*** y realizar el traslado hacia su hotel seleccionado. Durante el recorrido podrán tener un primer contacto con la ***capital del Perú***, una ciudad que combina modernidad, historia y tradición.\n\nUna vez en el hotel, contarán con tiempo para ***descansar y aclimatarse*** después del viaje, preparándose para iniciar las actividades programadas. Este momento es ideal para relajarse, organizar sus pertenencias y comenzar a disfrutar del ***ambiente urbano y cultural*** que ofrece Lima antes de continuar con su itinerario."}'::jsonb,
+    '{"Lo que visitarás": ["Recepción personalizada", "Traslado privado", "Asistencia de equipaje", "Briefing del viaje"]}'::jsonb,
+    '{"incluye": ["Traslados APTO", "Transporte Turistico", "Hotel en el Cusco"]}'::jsonb,
+    '{"no_incluye": ["Alimentación", "Gastos Extras"]}'::jsonb,
+    'recepcion_aeropuerto', '00:00:00', TRUE
+  ),
+  (
+    'RUTA AYMARA',
+    'Disfrutarán de un ***día libre en Cusco*** para explorar.',
+    10, 1, 40.00, 135.00,
+    'LOGISTICA', 'FACIL',
+    '{"itinerario": "Iniciaremos la experiencia con el recojo desde los ***hoteles en Puno*** para dirigirnos hacia el sur del altiplano. La primera visita será ***Chucuito***, conocida como la ***Ciudad de las Cajas Reales***, donde recorreremos su plaza principal, el ***reloj solar***, la iglesia colonial y el enigmático ***Templo de la Fertilidad Inka Uyu***. Continuaremos hacia las ***Chullpas de Molloco***, antiguas torres funerarias ***preincaicas*** de gran valor histórico.\n\nEl recorrido prosigue con la visita a los ***Waru Warus Andinos***, un impresionante ***sistema agrícola ancestral*** utilizado para el mejoramiento de cultivos. Luego conoceremos ***Aramu Muro o Wilca Uta***, la mística ***Puerta de los Dioses***, un lugar sagrado rodeado de leyendas y energía especial. Finalmente llegaremos a ***Juli***, conocida como la ***Roma de América***, con una vista privilegiada del ***Lago Titicaca***, antes de continuar hacia ***Copacabana*** para el descanso."}'::jsonb,
+    '{"Lo que visitarás": ["Tiempo libre", "Recojo de hotel", "Traslado al aeropuerto", "Asistencia en embarque"]}'::jsonb,
+    '{"incluye": ["Recojo del terminal", "Transporte Turistico", "Guia Profesional", "Ingresos"]}'::jsonb,
+    '{"no_incluye": ["Alimentación", "Gastos Extras"]}'::jsonb,
+    'ruta_aymara', '00:00:00', TRUE
+  ),
+  (
+    'RUTA DEL SILLAR',
+    'Disfrutarán de un ***día libre en Cusco*** para explorar.',
+    10, 1, 50.00, 168.00,
+    'LOGISTICA', 'FACIL',
+    '{"itinerario": "Disfrutaremos de una ***excursión de medio día*** por la tradicional ***Ruta del Sillar***, iniciando con una parada en el ***Mirador de Chilina***, desde donde se aprecian espectaculares vistas de la ciudad de Arequipa y los imponentes volcanes ***Misti, Chachani y Pichu Pichu***. Continuaremos hacia las ***Canteras de Añashuayco***, donde conoceremos el proceso artesanal de extracción y tallado del sillar, piedra emblemática de la arquitectura local.\n\nEl recorrido prosigue con una caminata por la ***Quebrada de Culebrillas***, un estrecho cañón de sillar rosado con formaciones naturales únicas y antiguos ***petroglifos Wari***. Tras finalizar la visita, retornaremos al centro de la ciudad y posteriormente se realizará el ***traslado al aeropuerto de Arequipa*** para el retorno a Lima."}'::jsonb,
+    '{"Lo que visitarás": ["Tiempo libre", "Recojo de hotel", "Traslado al aeropuerto", "Asistencia en embarque"]}'::jsonb,
+    '{"incluye": ["Recojo del Hotel", "Tickets de Ingreso", "Almuerzo", "Guia Profesional", "Bote Turistico", "Botiquin de Primeros Auxilios", "Noche en casa familiar"]}'::jsonb,
+    '{"no_incluye": [ "Hospedaje", "Gastos Extras"]}'::jsonb,
+    'ruta_aymara', '00:00:00', TRUE
+  ),
+  (
+    'CITY TOUR AREQUIPA(Campiña)',
+    'Disfrutarán de un ***día libre en Cusco*** para explorar.',
+    4, 1, 40.00, 135.00,
+    'LOGISTICA', 'FACIL',
+    '{"itinerario": "A su llegada al ***terminal terrestre de Arequipa***, nuestro personal estará esperándolo para el traslado al ***hotel seleccionado***. Posteriormente iniciaremos el recorrido por la tradicional ***Campiña Arequipeña***, una experiencia que combina naturaleza, historia y arquitectura alrededor de la ***Ciudad Blanca***. El tour comienza con el recojo desde los hoteles y un desplazamiento hacia los paisajes rurales que rodean la ciudad.\n\nDurante el recorrido visitaremos el ***Mirador de Sachaca***, desde donde se aprecia una vista privilegiada de ***Arequipa y sus volcanes***. Continuaremos hacia la ***Misión del Fundador***, una emblemática construcción colonial vinculada al origen de la ciudad. Finalmente llegaremos al ***Molino de Sabandía***, edificado en ***sillar volcánico***, donde se conserva un antiguo molino de piedra rodeado de un encantador ***entorno andino***."}'::jsonb,
+    '{"Lo que visitarás": ["Tiempo libre", "Recojo de hotel", "Traslado al aeropuerto", "Asistencia en embarque"]}'::jsonb,
+    '{"incluye": ["Recojo del terminal", "Transporte Turistico", "Guia Profesional", "Ingresos"]}'::jsonb,
+    '{"no_incluye": ["Alimentación", "Gastos Extras"]}'::jsonb,
+    'city_tour_arequipa', '00:00:00', TRUE
+  ),
+  (
+    'CAÑON DEL COLCA Y RESERVAS DE VICUÑAS',
+    'Disfrutarán de un ***día libre en Cusco*** para explorar.',
+    4, 1, 95.00, 320.00,
+    'LOGISTICA', 'FACIL',
+    '{"itinerario": "Luego del desayuno, iniciaremos el recorrido hacia el impresionante ***Mirador de la Cruz del Cóndor***, uno de los puntos más emblemáticos del ***Cañón del Colca***. Desde este lugar privilegiado se podrá apreciar la majestuosidad de uno de los cañones más profundos del mundo y observar el sobrevuelo del ***cóndor andino***, ave sagrada de los Incas, ideal para capturar fotografías inolvidables en un entorno natural único.\n\nDurante el trayecto atravesaremos pintorescos pueblos andinos como ***Pinchollo, Madrigal, Lari, Maca, Achoma y Yanque***, donde se conservan tradiciones ancestrales y paisajes rurales encantadores. Finalizada la visita, continuaremos el viaje de retorno hacia ***Puno*** en transporte turístico, llegando a la ciudad para descansar y prepararnos para las siguientes experiencias del itinerario."}'::jsonb,
+    '{"Lo que visitarás": ["Transporte Turistico", "Recojo de hotel", "Ticket de acceso al Cañon", "Guia Profesional"]}'::jsonb,
+    '{"incluye": ["Recojo del terminal", "Transporte Turistico", "Guia Profesional", "Ingresos"]}'::jsonb,
+    '{"no_incluye": ["Alimentación", "Gastos Extras"]}'::jsonb,
+    'cañon_reservas_vicuña', '00:00:00', TRUE
+  ),
+  (
+    'CAÑON DEL COLCA CHIVAY',
+    'Disfrutarán de un ***día libre en Cusco*** para explorar.',
+    4, 1, 95.00, 320.00,
+    'LOGISTICA', 'FACIL',
+    '{"itinerario": "Luego del desayuno, iniciaremos el recorrido hacia el impresionante ***Mirador de la Cruz del Cóndor***, uno de los puntos más emblemáticos del ***Cañón del Colca***. Desde este lugar privilegiado se podrá apreciar la majestuosidad de uno de los cañones más profundos del mundo y observar el sobrevuelo del ***cóndor andino***, ave sagrada de los Incas, ideal para capturar fotografías inolvidables en un entorno natural único.\n\nDurante el trayecto atravesaremos pintorescos pueblos andinos como ***Pinchollo, Madrigal, Lari, Maca, Achoma y Yanque***, donde se conservan tradiciones ancestrales y paisajes rurales encantadores. Finalizada la visita, continuaremos el viaje de retorno hacia ***Puno*** en transporte turístico, llegando a la ciudad para descansar y prepararnos para las siguientes experiencias del itinerario."}'::jsonb,
+    '{"Lo que visitarás": ["Transporte Turistico", "Recojo de hotel", "Ticket de acceso al Cañon", "Guia Profesional"]}'::jsonb,
+    '{"incluye": ["Recojo del terminal", "Transporte Turistico", "Guia Profesional", "Ingresos"]}'::jsonb,
+    '{"no_incluye": ["Alimentación", "Gastos Extras"]}'::jsonb,
+    'cañon_chivay', '00:00:00', TRUE
+  ),
+  (
+    'LAGO TITICACA(Islas Urus e Taquile)',
+    'Disfrutarán de un ***día libre en Cusco*** para explorar.',
+    4, 1, 30.00, 135.00,
+    'LOGISTICA', 'FACIL',
+    '{"itinerario": "Después del desayuno en el hotel, nos trasladaremos al ***puerto de Puno*** para embarcarnos en una navegación por el majestuoso ***Lago Titicaca***. Nuestra primera visita será a las ***Islas Flotantes de los Uros***, donde conoceremos de cerca su forma de vida ancestral, sus viviendas construidas con totora y su destacada ***artesanía tradicional***, en una experiencia cultural única sobre el lago navegable más alto del mundo.\n\nContinuaremos el recorrido en embarcación hacia la encantadora ***Isla de Taquile***, reconocida por su extraordinaria belleza natural y su valioso legado ***cultural, étnico y arqueológico***. Durante la visita apreciaremos sus paisajes andinos, tradiciones vivas y organización comunitaria. Finalizada la experiencia, retornaremos en barco a la ciudad de ***Puno***, concluyendo esta inolvidable jornada lacustre."}'::jsonb,
+    '{"Lo que visitarás": ["Transporte Turistico", "Recojo de hotel", "Ticket de acceso al Cañon", "Guia Profesional"]}'::jsonb,
+    '{"incluye": ["Recojo del Hotel", "Transporte Turistico", "Guia Profesional", "Boleto Turistico", "Almuerzo" ]}'::jsonb,
+    '{"no_incluye": ["Gastos Extras"]}'::jsonb,
+    'cañon_chivay', '00:00:00', TRUE
+  ),
+  (
+    'LAGO TITICACA(Islas Urus, Amantani) Full Day',
+    'Disfrutarán de un ***día libre en Cusco*** para explorar.',
+    9, 1, 40.00, 135.00,
+    'LOGISTICA', 'FACIL',
+    '{"itinerario": "Después del desayuno, nos trasladaremos al ***puerto de Puno*** para iniciar una experiencia inolvidable por el ***Lago Titicaca***. La primera visita será a las ***Islas Flotantes de los Uros***, donde conoceremos cómo estas comunidades construyen y mantienen sus islas de totora, además de aprender sobre su estilo de vida ancestral en el lago navegable más alto del mundo. Tras esta visita, continuaremos la navegación rumbo a la ***Isla de Amantaní***.\n\nA la llegada, disfrutaremos de un ***almuerzo típico local*** y recibiremos una cálida bienvenida por parte de la comunidad. Las familias anfitrionas se encargarán del ***alojamiento y la convivencia cultural***. Por la tarde participaremos en una ***ceremonia andina*** de agradecimiento al universo en la montaña sagrada ***Pacha Tata***. Por la noche, compartiremos una ***cena tradicional y fiesta folclórica*** antes de pernoctar en la isla."}'::jsonb,
+    '{"Lo que visitarás": ["Transporte Turistico", "Recojo de hotel", "Ticket de acceso al Cañon", "Guia Profesional"]}'::jsonb,
+    '{"incluye": ["Recojo del Hotel", "Transporte Turistico", "Guia Profesional", "Boleto Turistico", "Almuerzo" ]}'::jsonb,
+    '{"no_incluye": ["Gastos Extras"]}'::jsonb,
+    'islas_urus_amantani', '00:00:00', TRUE
+  ),
+  (
+    'DIA LIBRE Y SALIDA AL AEROPUERTO',
+    'Disfrutarán de un ***día libre en Cusco*** para explorar la ciudad a su propio ritmo, visitando la ***Plaza de Armas***, museos, mercados artesanales o recorriendo sus calles históricas. Este tiempo permite realizar compras, adquirir ***souvenirs*** y vivir el ambiente cultural que caracteriza a la antigua capital del imperio inca.
 
-    SELECT id_tour INTO t_id FROM tour WHERE nombre = 'CITY TOUR CUSCO PULL' LIMIT 1;
-    INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 1, 1);
-    SELECT id_tour INTO t_id FROM tour WHERE nombre = 'VALLE SAGRADO VIP PULL' LIMIT 1;
-    INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 2, 2);
-    SELECT id_tour INTO t_id FROM tour WHERE nombre = 'MACHU PICCHU FULL DAY PULL' LIMIT 1;
-    INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 3, 3);
-    SELECT id_tour INTO t_id FROM tour WHERE nombre = 'LAGUNA HUMANTAY PULL' LIMIT 1;
-    INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 4, 4);
-    SELECT id_tour INTO t_id FROM tour WHERE nombre = 'MONTAÑA DE COLORES PULL' LIMIT 1;
-    INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 5, 5);
-END $$;
+    A la hora indicada, realizamos el traslado al ***aeropuerto*** para abordar el vuelo de retorno hacia ***Lima***, concluyendo así una experiencia inolvidable llena de ***historia, cultura y tradición andina***.',
+    0, 1, 0.00, 0.00,
+    'LOGISTICA', 'FACIL',
+    '{"itinerario": "Disfrutarán de un ***día libre en Cusco*** para explorar la ciudad a su propio ritmo, visitando la ***Plaza de Armas***, museos, mercados artesanales o recorriendo sus calles históricas. Este tiempo permite realizar compras, adquirir ***souvenirs*** y vivir el ambiente cultural que caracteriza a la antigua capital del imperio inca.\n\nA la hora indicada, realizamos el traslado al ***aeropuerto*** para abordar el vuelo de retorno hacia ***Lima***, concluyendo así una experiencia inolvidable llena de ***historia, cultura y tradición andina***."}'::jsonb,
+    '{"Lo que visitarás": ["Tiempo libre", "Recojo de hotel", "Traslado al aeropuerto", "Asistencia en embarque"]}'::jsonb,
+    '{"incluye": ["Traslado al hotel -APTO", "Transporte Turistico"]}'::jsonb,
+    '{"no_incluye": ["Alimentación", "Gastos Extras"]}'::jsonb,
+    'dia_libre_salida', '00:00:00', TRUE
+  );
+  -- 2.4. PROVEEDORES (DATOS BANCARIOS)
+  INSERT INTO proveedor (nombre_comercial, servicios_ofrecidos, banco_dolares, cuenta_dolares, cci_dolares)
+  VALUES ('LARRY GUIA', '{"GUIA"}', 'INTERBANK', '420-3363525879', '003-420013363525879-70');
 
--- ==============================================================
--- SECCIÓN 3: FUNCIONES Y TRIGGERS (AUTOMATIZACIÓN)
--- ==============================================================
+  INSERT INTO proveedor (nombre_comercial, servicios_ofrecidos, banco_soles, cuenta_soles, cci_soles)
+  VALUES ('JOSE CHAMPI MAPI', '{"GUIA"}', 'INTERBANK', '419-3380704197', '003-41901338070419000');
 
--- 3.1. Actualizar updated_at
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
+  INSERT INTO proveedor (nombre_comercial, servicios_ofrecidos, banco_soles, cuenta_soles, cci_soles, banco_dolares, cuenta_dolares, cci_dolares)
+  VALUES ('ROSA GUIA LIMA', '{"GUIA"}', 'BCP', '191-18513860067', '002-191118513860067-59', 'BCP', '191-11784136166', '002-19111784136166-51');
 
-CREATE TRIGGER update_venta_updated_at BEFORE UPDATE ON venta
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+  INSERT INTO proveedor (nombre_comercial, servicios_ofrecidos, contacto_telefono, banco_soles, cuenta_soles, cci_soles)
+  VALUES ('VICKI GUIA PUNO', '{"GUIA"}', '+51 984 754 275', 'BCP', '495-26687175019', '002-495126687175019-02');
 
--- 3.2. Sincronizar costo_total
-CREATE OR REPLACE FUNCTION sync_costo_venta_total()
-RETURNS TRIGGER AS $$
-BEGIN
-    UPDATE venta SET costo_total = (SELECT COALESCE(SUM(costo_acordado), 0) FROM venta_servicio_proveedor WHERE id_venta = COALESCE(NEW.id_venta, OLD.id_venta))
-    WHERE id_venta = COALESCE(NEW.id_venta, OLD.id_venta);
-    RETURN NULL;
-END;
-$$ language 'plpgsql';
+  INSERT INTO proveedor (nombre_comercial, servicios_ofrecidos, banco_soles, cuenta_soles)
+  VALUES ('VLADIMIRO LARREA', '{"GUIA"}', 'BCP', '285-29611517089');
 
-CREATE TRIGGER trigger_sync_costo AFTER INSERT OR UPDATE OR DELETE ON venta_servicio_proveedor
-    FOR EACH ROW EXECUTE FUNCTION sync_costo_venta_total();
+  INSERT INTO proveedor (nombre_comercial, servicios_ofrecidos, banco_soles, cuenta_soles, cci_soles)
+  VALUES ('FRANCISCO ALCANTARA', '{"TRANSPORTE"}', 'BCP', '191-95199282088', '002-191195199282088-59');
 
--- 3.3. Calcular utilidad
-CREATE OR REPLACE FUNCTION calcular_utilidad_venta()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.utilidad_bruta = COALESCE(NEW.precio_total_cierre, 0) - COALESCE(NEW.costo_total, 0);
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
+  INSERT INTO proveedor (nombre_comercial, servicios_ofrecidos, banco_soles, cuenta_soles, cci_soles, notas)
+  VALUES ('JAIME BUS', '{"TRANSPORTE"}', 'BCP', '285-09676107011', '002-285109676107011-56', 'BBVA Soles 0011-0200-0201531370');
 
-CREATE TRIGGER trigger_calc_utilidad BEFORE INSERT OR UPDATE OF precio_total_cierre, costo_total ON venta
-    FOR EACH ROW EXECUTE FUNCTION calcular_utilidad_venta();
+  INSERT INTO proveedor (nombre_comercial, servicios_ofrecidos, banco_soles, cuenta_soles, cci_soles, banco_dolares, cuenta_dolares, cci_dolares)
+  VALUES ('CENTRAL DE RESERVAS', '{"TRANSPORTE"}', 'INTERBANK', '420-3005326345', '003-420-003005326345-72', 'INTERBANK', '898-3402989352', '003-898-01340298935243');
 
--- ==============================================================
--- SECCIÓN 4: VISTAS (REPORTES)
--- ==============================================================
+  INSERT INTO proveedor (nombre_comercial, servicios_ofrecidos, banco_soles, cuenta_soles, cci_soles)
+  VALUES ('QORIALVA', '{"TRANSPORTE"}', 'INTERBANK', '420-3230585322', '003-42001323058532279');
 
--- 4.1. Ventas Completa
-CREATE OR REPLACE VIEW vista_ventas_completa AS
-SELECT 
-    v.id_venta, v.fecha_venta, v.fecha_inicio, v.fecha_fin,
-    l.nombre as cliente_nombre, aa.nombre as agencia_nombre,
-    vend.nombre as vendedor_nombre, v.tour_nombre, v.precio_total_cierre,
-    v.moneda, v.estado_venta, COALESCE(SUM(p.monto_pagado), 0) as total_pagado,
-    v.precio_total_cierre - COALESCE(SUM(p.monto_pagado), 0) as saldo_pendiente,
-    CASE WHEN v.precio_total_cierre - COALESCE(SUM(p.monto_pagado), 0) <= 0.01 THEN 'SALDADO' ELSE 'PENDIENTE' END as estado_pago
-FROM venta v
-LEFT JOIN cliente c ON v.id_cliente = c.id_cliente
-LEFT JOIN lead l ON c.id_lead = l.id_lead
-LEFT JOIN agencia_aliada aa ON v.id_agencia_aliada = aa.id_agencia
-LEFT JOIN vendedor vend ON v.id_vendedor = vend.id_vendedor
-LEFT JOIN pago p ON v.id_venta = p.id_venta
-WHERE v.cancelada = FALSE
-GROUP BY v.id_venta, l.nombre, aa.nombre, vend.nombre;
+  INSERT INTO proveedor (nombre_comercial, servicios_ofrecidos, banco_soles, cuenta_soles, cci_soles)
+  VALUES ('MARIA RENAULT', '{"TRANSPORTE"}', 'INTERBANK', '420-3007297660', '003-420-003007297660-75');
 
--- 4.2. Servicios Diarios
-CREATE OR REPLACE VIEW vista_servicios_diarios AS
-SELECT 
-    vt.fecha_servicio, vt.id_venta, vt.n_linea, l.nombre as cliente, vend.nombre as vendedor,
-    COALESCE(t.nombre, vt.observaciones, v.tour_nombre) as servicio,
-    vt.cantidad_pasajeros as pax, vt.estado_servicio,
-    (SELECT p.nombre_comercial FROM venta_servicio_proveedor vsp JOIN proveedor p ON vsp.id_proveedor = p.id_proveedor 
-     WHERE vsp.id_venta = vt.id_venta AND vsp.n_linea = vt.n_linea AND vsp.tipo_servicio = 'GUIA' LIMIT 1) as guia_asignado
-FROM venta_tour vt
-INNER JOIN venta v ON vt.id_venta = v.id_venta
-LEFT JOIN cliente c ON v.id_cliente = c.id_cliente
-LEFT JOIN lead l ON c.id_lead = l.id_lead
-LEFT JOIN vendedor vend ON v.id_vendedor = vend.id_vendedor
-LEFT JOIN tour t ON vt.id_tour = t.id_tour
-WHERE v.cancelada = FALSE;
+  INSERT INTO proveedor (nombre_comercial, servicios_ofrecidos, contacto_telefono)
+  VALUES 
+  ('ANDEAN TREKING', '{"AGENCIA"}', '+51 980 852 691'),
+  ('MIGUEL PACAY', '{"AGENCIA"}', '+51 974 446 170'),
+  ('ROSA MORADA', '{"AGENCIA"}', '+51 964 668 030'),
+  ('PICAFLOR', '{"AGENCIA"}', '+51 987 420 868'),
+  ('FUTURISMO', '{"AGENCIA"}', '+51 984 736 982'),
+  ('AERODIANA', '{"AGENCIA"}', '+51 989 046 289'),
+  ('XTREME', '{"AGENCIA"}', '+51 917 916 982'),
+  ('IRVIN', '{"AGENCIA"}', '+51 984 672 163'),
+  ('VITU', '{"AGENCIA"}', '+51 991 956 104'),
+  ('CEVICHE', '{"AGENCIA"}', '+51 956 849 794');
 
--- ==============================================================
--- SECCIÓN 5: SEGURIDAD (RLS Y POLÍTICAS)
--- ==============================================================
+  -- 2.5. PAQUETES PREDEFINIDOS
+  DO $$
+  DECLARE
+      p_id INTEGER;
+      t_id INTEGER;
+  BEGIN
+      INSERT INTO paquete (nombre, descripcion, dias, noches, precio_sugerido, temporada, destino_principal)
+      VALUES ('PERÚ PARA EL MUNDO 8D/7N', 'Recorrido completo desde la costa hasta Cusco.', 8, 7, 0.00, 'TODO EL AÑO', 'PERÚ')
+      RETURNING id_paquete INTO p_id;
+      
+      -- Vincular tours
+      SELECT id_tour INTO t_id FROM tour WHERE nombre = 'RECEPCION EN LIMA - CITY TOUR' LIMIT 1;
+      INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 1, 1);
+      SELECT id_tour INTO t_id FROM tour WHERE nombre = 'LIMA - ISLAS BALLESTAS - HUACACHINA' LIMIT 1;
+      INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 2, 2);
+      SELECT id_tour INTO t_id FROM tour WHERE nombre = 'RECEPCION - CUSCO, CITY TOUR' LIMIT 1;
+      INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 3, 3);
+      SELECT id_tour INTO t_id FROM tour WHERE nombre = 'VALLE VIP CONEXIÓN MACHU PICCHU' LIMIT 1;
+      INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 4, 4);
+      SELECT id_tour INTO t_id FROM tour WHERE nombre = 'VISITA A MACHU PICCHU' LIMIT 1;
+      INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 5, 5);
+      SELECT id_tour INTO t_id FROM tour WHERE nombre = 'LAGUNA HUMANTAY' LIMIT 1;
+      INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 6, 6);
+      SELECT id_tour INTO t_id FROM tour WHERE nombre = 'MONTAÑA DE COLORES' LIMIT 1;
+      INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 7, 7);
+      SELECT id_tour INTO t_id FROM tour WHERE nombre = 'DIA LIBRE Y SALIDA AL AEROPUERTO' LIMIT 1;
+      INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 8, 8);
+  END $$;
 
--- Habilitar RLS
-ALTER TABLE usuarios_app ENABLE ROW LEVEL SECURITY;
-ALTER TABLE vendedor ENABLE ROW LEVEL SECURITY;
-ALTER TABLE venta ENABLE ROW LEVEL SECURITY;
--- (Opcional: aplicar a todas las demás tablas)
+  DO $$
+  DECLARE
+      p_id INTEGER;
+      t_id INTEGER;
+  BEGIN
+      INSERT INTO paquete (nombre, descripcion, dias, noches, precio_sugerido, temporada, destino_principal)
+      VALUES ('CUSCO TRADICIONAL 5D/4N', 'Lo esencial: Arqueología, Valles y Machu Picchu.', 5, 4, 0.00, 'TODO EL AÑO', 'CUSCO')
+      RETURNING id_paquete INTO p_id;
 
--- Políticas permisivas (MODO DESARROLLO)
-DO $$ 
-DECLARE tabla_nombre text;
-BEGIN
-    FOR tabla_nombre IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP
-        EXECUTE format('DROP POLICY IF EXISTS "Acceso total" ON %I;', tabla_nombre);
-        EXECUTE format('CREATE POLICY "Acceso total" ON %I FOR ALL USING (true) WITH CHECK (true);', tabla_nombre);
-    END LOOP;
-END $$;
+      SELECT id_tour INTO t_id FROM tour WHERE nombre = 'RECEPCION - CUSCO, CITY TOUR' LIMIT 1;
+      INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 1, 1);
+      SELECT id_tour INTO t_id FROM tour WHERE nombre = 'VALLE VIP CONEXIÓN MACHU PICCHU' LIMIT 1;
+      INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 2, 2);
+      SELECT id_tour INTO t_id FROM tour WHERE nombre = 'VISITA A MACHU PICCHU' LIMIT 1;
+      INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 3, 3);
+      SELECT id_tour INTO t_id FROM tour WHERE nombre = 'MONTAÑA DE COLORES' LIMIT 1;
+      INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 4, 4);
+      SELECT id_tour INTO t_id FROM tour WHERE nombre = 'DIA LIBRE Y SALIDA AL AEROPUERTO' LIMIT 1;
+      INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 5, 5);
+  END $$;
 
--- Permisos storage (Ejecutar en panel SQL)
--- Requiere buckets 'itinerarios' y 'vouchers' creados como Públicos
-DROP POLICY IF EXISTS "Acceso Público Itinerarios" ON storage.objects;
-DROP POLICY IF EXISTS "Subida Libre Itinerarios" ON storage.objects;
-DROP POLICY IF EXISTS "Acceso Público Vouchers" ON storage.objects;
-DROP POLICY IF EXISTS "Subida Libre Vouchers" ON storage.objects;
+  -- ==============================================================
+  -- SECCIÓN 3: FUNCIONES Y TRIGGERS (AUTOMATIZACIÓN)
+  -- ==============================================================
 
-CREATE POLICY "Acceso Público Itinerarios" ON storage.objects FOR SELECT USING (bucket_id = 'itinerarios');
-CREATE POLICY "Subida Libre Itinerarios" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'itinerarios');
-CREATE POLICY "Acceso Público Vouchers" ON storage.objects FOR SELECT USING (bucket_id = 'vouchers');
-CREATE POLICY "Subida Libre Vouchers" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'vouchers');
+  -- 3.1. Actualizar updated_at
+  CREATE OR REPLACE FUNCTION update_updated_at_column()
+  RETURNS TRIGGER AS $$
+  BEGIN
+      NEW.updated_at = CURRENT_TIMESTAMP;
+      RETURN NEW;
+  END;
+  $$ language 'plpgsql';
 
--- ==============================================================
--- ✅ FIN DEL SCRIPT: INSTALACIÓN EXITOSA
--- ==============================================================
+  CREATE TRIGGER update_venta_updated_at BEFORE UPDATE ON venta
+      FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+  -- 3.2. Sincronizar costo_total
+  CREATE OR REPLACE FUNCTION sync_costo_venta_total()
+  RETURNS TRIGGER AS $$
+  BEGIN
+      UPDATE venta SET costo_total = (SELECT COALESCE(SUM(costo_acordado), 0) FROM venta_servicio_proveedor WHERE id_venta = COALESCE(NEW.id_venta, OLD.id_venta))
+      WHERE id_venta = COALESCE(NEW.id_venta, OLD.id_venta);
+      RETURN NULL;
+  END;
+  $$ language 'plpgsql';
+
+  CREATE TRIGGER trigger_sync_costo AFTER INSERT OR UPDATE OR DELETE ON venta_servicio_proveedor
+      FOR EACH ROW EXECUTE FUNCTION sync_costo_venta_total();
+
+  -- 3.3. Calcular utilidad
+  CREATE OR REPLACE FUNCTION calcular_utilidad_venta()
+  RETURNS TRIGGER AS $$
+  BEGIN
+      NEW.utilidad_bruta = COALESCE(NEW.precio_total_cierre, 0) - COALESCE(NEW.costo_total, 0);
+      RETURN NEW;
+  END;
+  $$ language 'plpgsql';
+
+  CREATE TRIGGER trigger_calc_utilidad BEFORE INSERT OR UPDATE OF precio_total_cierre, costo_total ON venta
+      FOR EACH ROW EXECUTE FUNCTION calcular_utilidad_venta();
+
+  -- ==============================================================
+  -- SECCIÓN 4: VISTAS (REPORTES)
+  -- ==============================================================
+
+  -- 4.1. Ventas Completa
+  CREATE OR REPLACE VIEW vista_ventas_completa AS
+  SELECT 
+      v.id_venta, v.fecha_venta, v.fecha_inicio, v.fecha_fin,
+      l.nombre as cliente_nombre, aa.nombre as agencia_nombre,
+      vend.nombre as vendedor_nombre, v.tour_nombre, v.precio_total_cierre,
+      v.moneda, v.estado_venta, COALESCE(SUM(p.monto_pagado), 0) as total_pagado,
+      v.precio_total_cierre - COALESCE(SUM(p.monto_pagado), 0) as saldo_pendiente,
+      CASE WHEN v.precio_total_cierre - COALESCE(SUM(p.monto_pagado), 0) <= 0.01 THEN 'SALDADO' ELSE 'PENDIENTE' END as estado_pago
+  FROM venta v
+  LEFT JOIN cliente c ON v.id_cliente = c.id_cliente
+  LEFT JOIN lead l ON c.id_lead = l.id_lead
+  LEFT JOIN agencia_aliada aa ON v.id_agencia_aliada = aa.id_agencia
+  LEFT JOIN vendedor vend ON v.id_vendedor = vend.id_vendedor
+  LEFT JOIN pago p ON v.id_venta = p.id_venta
+  WHERE v.cancelada = FALSE
+  GROUP BY v.id_venta, l.nombre, aa.nombre, vend.nombre;
+
+  -- 4.2. Servicios Diarios
+  CREATE OR REPLACE VIEW vista_servicios_diarios AS
+  SELECT 
+      vt.fecha_servicio, vt.id_venta, vt.n_linea, l.nombre as cliente, vend.nombre as vendedor,
+      COALESCE(t.nombre, vt.observaciones, v.tour_nombre) as servicio,
+      vt.cantidad_pasajeros as pax, vt.estado_servicio,
+      (SELECT p.nombre_comercial FROM venta_servicio_proveedor vsp JOIN proveedor p ON vsp.id_proveedor = p.id_proveedor 
+      WHERE vsp.id_venta = vt.id_venta AND vsp.n_linea = vt.n_linea AND vsp.tipo_servicio = 'GUIA' LIMIT 1) as guia_asignado
+  FROM venta_tour vt
+  INNER JOIN venta v ON vt.id_venta = v.id_venta
+  LEFT JOIN cliente c ON v.id_cliente = c.id_cliente
+  LEFT JOIN lead l ON c.id_lead = l.id_lead
+  LEFT JOIN vendedor vend ON v.id_vendedor = vend.id_vendedor
+  LEFT JOIN tour t ON vt.id_tour = t.id_tour
+  WHERE v.cancelada = FALSE;
+
+  -- ==============================================================
+  -- SECCIÓN 5: SEGURIDAD (RLS Y POLÍTICAS)
+  -- ==============================================================
+
+  -- Habilitar RLS
+  ALTER TABLE usuarios_app ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE vendedor ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE venta ENABLE ROW LEVEL SECURITY;
+  -- (Opcional: aplicar a todas las demás tablas)
+
+  -- Políticas permisivas (MODO DESARROLLO)
+  DO $$ 
+  DECLARE tabla_nombre text;
+  BEGIN
+      FOR tabla_nombre IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP
+          EXECUTE format('DROP POLICY IF EXISTS "Acceso total" ON %I;', tabla_nombre);
+          EXECUTE format('CREATE POLICY "Acceso total" ON %I FOR ALL USING (true) WITH CHECK (true);', tabla_nombre);
+      END LOOP;
+  END $$;
+
+  -- Permisos storage (Ejecutar en panel SQL)
+  -- Requiere buckets 'itinerarios' y 'vouchers' creados como Públicos
+  DROP POLICY IF EXISTS "Acceso Público Itinerarios" ON storage.objects;
+  DROP POLICY IF EXISTS "Subida Libre Itinerarios" ON storage.objects;
+  DROP POLICY IF EXISTS "Acceso Público Vouchers" ON storage.objects;
+  DROP POLICY IF EXISTS "Subida Libre Vouchers" ON storage.objects;
+
+  CREATE POLICY "Acceso Público Itinerarios" ON storage.objects FOR SELECT USING (bucket_id = 'itinerarios');
+  CREATE POLICY "Subida Libre Itinerarios" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'itinerarios');
+  CREATE POLICY "Acceso Público Vouchers" ON storage.objects FOR SELECT USING (bucket_id = 'vouchers');
+  CREATE POLICY "Subida Libre Vouchers" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'vouchers');
+
+  -- ==============================================================
+  -- ✅ FIN DEL SCRIPT: INSTALACIÓN EXITOSA
+  -- ==============================================================

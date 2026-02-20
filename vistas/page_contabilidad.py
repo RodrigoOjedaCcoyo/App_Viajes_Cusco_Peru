@@ -260,17 +260,24 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, su
     st.markdown("---")
     
     if funcionalidad_seleccionada == "Gestión de Registros":
-        tab1, tab2, tab3 = st.tabs(["📋 Requerimientos de Operaciones", "📊 Estructurador Financiero", "💎 Cuentas por Cobrar (B2B)"])
+        tab1, tab2, tab3, tab4 = st.tabs([
+            "📋 Requerimientos", 
+            "📊 Estructurador Financiero", 
+            "💎 Cuentas por Cobrar (B2B)",
+            "🧹 Bandeja de Limpieza (ENTREGA EXCEL)"
+        ])
         
         with tab1:
             mostrar_requerimientos()
             
         with tab2:
-            # Ahora usamos la versión avanzada (Pro) en Contabilidad
             estructurador_liquidacion_pro(st.session_state['reporte_controller'])
             
         with tab3:
             dashboard_cuentas_por_cobrar_b2b(supabase_client)
+
+        with tab4:
+            bandeja_limpieza_reportes(st.session_state['reporte_controller'])
     else:
         st.info("Utilice el Dashboard Contable para ver reportes.")
 
@@ -443,3 +450,77 @@ def dashboard_cuentas_por_cobrar_b2b(supabase_client):
     with st.expander("🔎 Ver Detalle de Todas las Ventas B2B"):
         df_det = pd.DataFrame(lista_detalle, index=None)
         st.dataframe(df_det, use_container_width=True, hide_index=True)
+
+def bandeja_limpieza_reportes(controller):
+    """
+    Bandeja de Limpieza: Donde Operaciones y Contabilidad entregan sus reportes Excel.
+    Usa segmentadores para evitar errores de ID.
+    """
+    st.subheader("🧹 Bandeja de Entrega y Limpieza de Reportes", divider='orange')
+    st.info("🎯 Selecciona la venta específica para entregar el reporte de cierre correspondiente.")
+
+    # --- FILTROS SEGMENTADORES (CÓDIGO REUTILIZADO) ---
+    from controllers.venta_controller import VentaController
+    vc = VentaController(controller.client)
+    
+    c_tipo, c_ag, c_pax = st.columns([1, 1.5, 2])
+    
+    with c_tipo:
+        tipo_v = st.selectbox("📥 Entregar Para:", ["--- Seleccione ---", "🏢 B2B (Agencias)", "👤 B2C (Directas)"], key="limp_sel_tipo")
+    
+    ventas_data = []
+    if tipo_v == "🏢 B2B (Agencias)":
+        agencias = vc.obtener_agencias_aliadas()
+        nombres_ag = [a['nombre'] for a in agencias]
+        mapa_ag = {a['nombre']: a['id_agencia'] for a in agencias}
+        with c_ag:
+            ag_sel = st.selectbox("🏢 Seleccione Agencia:", ["--- Seleccione ---"] + nombres_ag, key="limp_sel_ag")
+        if ag_sel != "--- Seleccione ---":
+            ventas_data = vc.obtener_ventas_agencia(mapa_ag[ag_sel])
+    elif tipo_v == "👤 B2C (Directas)":
+        ventas_data = vc.obtener_ventas_directas()
+        with c_ag:
+            st.info("Ventas Directas Seleccionadas")
+
+    v_sel_data = None
+    if ventas_data:
+        opciones_p = [f"{v['nombre_cliente']} | {v.get('tour_nombre', 'Sin Tour')} ({v['id_venta']})" for v in ventas_data]
+        mapa_v = {opciones_p[i]: v for i, v in enumerate(ventas_data)}
+        
+        with c_pax:
+            p_sel = st.selectbox("🔍 Seleccione Venta:", ["--- Seleccione ---"] + opciones_p, key="limp_sel_pax")
+        
+        if p_sel != "--- Seleccione ---":
+            v_sel_data = mapa_v.get(p_sel)
+
+    st.divider()
+
+    if v_sel_data:
+        st.markdown(f"### 📤 Entrega de Reporte para: **{v_sel_data['nombre_cliente']}**")
+        st.write(f"ID Venta: `{v_sel_data['id_venta']}` | Servicio: **{v_sel_data.get('tour_nombre', 'N/A')}**")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("#### 🚜 Operaciones")
+            excel_op = st.file_uploader("Subir Cierre de Operaciones (Excel)", type=['xlsx', 'xls'], key="upload_op")
+            if excel_op:
+                st.success("✅ Excel de Operaciones cargado. Listo para limpieza.")
+                # Aquí iría la lógica de procesamiento y muestra de tabla de limpieza
+                df_op = pd.read_excel(excel_op)
+                st.dataframe(df_op.head(10), use_container_width=True)
+                st.warning("🚧 El motor de limpieza comparará estos datos con la base de datos oficial próximamente.")
+
+        with col2:
+            st.markdown("#### 💰 Contabilidad")
+            excel_cont = st.file_uploader("Subir Cierre de Contabilidad (Excel)", type=['xlsx', 'xls'], key="upload_cont")
+            if excel_cont:
+                st.success("✅ Excel de Contabilidad cargado. Listo para limpieza.")
+                df_cont = pd.read_excel(excel_cont)
+                st.dataframe(df_cont.head(10), use_container_width=True)
+                st.warning("🚧 El motor de limpieza verificará saldos y pagos contra Supabase.")
+
+        if excel_op or excel_cont:
+            st.button("✨ Procesar y Limpiar Datos", type="primary", use_container_width=True)
+    else:
+        st.warning("Por favor, selecciona una venta para habilitar la entrega de documentos.")
