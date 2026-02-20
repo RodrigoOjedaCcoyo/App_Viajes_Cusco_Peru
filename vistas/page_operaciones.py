@@ -730,21 +730,21 @@ def dashboard_simulador_costos(controller):
         df_master['CANT'] = pd.to_numeric(df_master['CANT'], errors='coerce').fillna(1.0)
         df_master['TOTAL'] = df_master['UNIT'] * df_master['CANT']
     
-    # --- ENTREGA DE DOCUMENTOS (Doble Carga) ---
+    # --- ENTREGA DE DOCUMENTOS (Doble Carga Excel) ---
     if st.session_state.get('last_loaded_id_venta'):
         st.divider()
-        st.subheader("📄 Entrega de Documentos de Cierre")
+        st.subheader("📊 Entrega de Cierres (Excel)")
         
         c1, c2 = st.columns(2)
         with c1:
-            f_upload1 = st.file_uploader("Documento de Operaciones (Excel):", type=['xlsx', 'xls'], key="upload_doc_1")
+            f_upload1 = st.file_uploader("Cierre de Operaciones:", type=['xlsx', 'xls'], key="upload_op_xlsx")
         with c2:
-            f_upload2 = st.file_uploader("Documento Adicional / Vouchers:", type=['xlsx', 'xls', 'pdf', 'jpg', 'png'], key="upload_doc_2")
+            f_upload2 = st.file_uploader("Cierre Adicional / Detalle:", type=['xlsx', 'xls'], key="upload_ext_xlsx")
         
         if f_upload1 or f_upload2:
-            st.success("✅ Archivo(s) listo(s).")
-            if st.button("🚀 Enviar Todo a Contabilidad", type="primary", use_container_width=True):
+            st.success("✅ Archivo(s) Excel listos.")
+            if st.button("🚀 Enviar a Contabilidad", type="primary", use_container_width=True):
                 st.balloons()
-                st.toast("Documentos enviados satisfactoriamente.")
+                st.toast("Reportes enviados satisfactoriamente.")
 
     # UI de Endoso eliminada por petición del usuario
