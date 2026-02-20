@@ -816,40 +816,4 @@ def dashboard_simulador_costos(controller):
     
     # UI eliminada por petición del usuario (Reducción de ruido visual)
 
-    # --- 📤 ACCIONES DE ENDOSO (UNIFICADO) ---
-    if not all_edited.empty:
-        st.markdown("---")
-        st.subheader("📄 Acciones de Endoso")
-        servicios_con_proveedor = all_edited[all_edited['PROVEEDOR'] != "--- Sin Asignar ---"]
-        
-        if not servicios_con_proveedor.empty:
-            opciones_e = [f"{r['SERVICIO']} | {r['PROVEEDOR']} ({r['FECHA']})" for _, r in servicios_con_proveedor.iterrows()]
-            sel_e_idx = st.selectbox("🎯 Seleccionar servicio para trámites:", opciones_e)
-            
-            if sel_e_idx:
-                idx_orig = opciones_e.index(sel_e_idx)
-                row_e = servicios_con_proveedor.iloc[idx_orig]
-                ce1, ce2 = st.columns(2)
-                pax_n = pax_sel.split('|')[0].strip() if pax_sel != "--- Seleccione ---" else "Cliente"
-                
-                data_e = {
-                    "nombre_proveedor": row_e['PROVEEDOR'].split(" (")[0],
-                    "fecha_servicio": row_e['FECHA'].strftime("%d/%m/%Y") if isinstance(row_e['FECHA'], date) else row_e['FECHA'],
-                    "nombre_servicio": row_e['SERVICIO'],
-                    "hora_encuentro": "Por confirmar",
-                    "nombre_pasajero": pax_n,
-                    "cantidad_pax": row_e['CANT'],
-                    "id_venta": row_e.get('id_venta', 'N/A'),
-                    "observaciones": row_e.get('📝 Info Pago', '')
-                }
-                
-                from controllers.pdf_controller import PDFController
-                pdf_ctrl = PDFController()
-                with ce1:
-                    pdf = pdf_ctrl.generar_voucher_endose_pdf(data_e)
-                    if pdf: st.download_button("📄 Bajar Vale PDF", data=pdf, file_name=f"vale_{pax_n}.pdf", use_container_width=True)
-                with ce2:
-                    msg = f"✅ *ORDEN DE ENDOSE*\n\n👤 *Pax:* {pax_n}\n📅 *Fecha:* {data_e['fecha_servicio']}\n📍 *Servicio:* {data_e['nombre_servicio']}\n👥 *Cant:* {data_e['cantidad_pax']}"
-                    st.link_button("📲 Enviar WhatsApp", f"https://wa.me/?text={urllib.parse.quote(msg)}", use_container_width=True)
-        else:
-            st.info("No hay servicios asignados a proveedores en esta lista.")
+    # UI de Endoso eliminada por petición del usuario
