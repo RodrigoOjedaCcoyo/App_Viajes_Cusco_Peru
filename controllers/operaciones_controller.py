@@ -51,14 +51,16 @@ class OperacionesController:
     def get_servicios_rango_fechas(self, start_date: date, end_date: date):
         """Obtiene servicios para un rango de fechas con nombres de clientes y ventas."""
         try:
+            print(f"DEBUG Dashboard: Querying range {start_date} to {end_date}")
             res_servicios = (
                 self.client.table('venta_tour')
                 .select('*')
                 .gte('fecha_servicio', start_date.isoformat())
-                .lte('fecha_servicio', end_date.isoformat())
+                .lt('fecha_servicio', (end_date + timedelta(days=1)).isoformat())
                 .order('fecha_servicio')
                 .execute()
             )
+            print(f"DEBUG Dashboard: Found {len(res_servicios.data or [])} raw rows in range")
             
             if not res_servicios.data:
                 return []
@@ -168,26 +170,17 @@ class OperacionesController:
 
     def get_servicios_por_fecha(self, fecha_filtro: date):
         try:
-            # Query más robusto para DATE column: usar igualdad directa
-            f_iso = fecha_filtro.isoformat()
+            f_iso_start = fecha_filtro.isoformat()
+            f_iso_end = (fecha_filtro + timedelta(days=1)).isoformat()
             
             res_servicios = (
                 self.client.table('venta_tour')
                 .select('*')
-                .eq('fecha_servicio', f_iso)
+                .gte('fecha_servicio', f_iso_start)
+                .lt('fecha_servicio', f_iso_end)
                 .execute()
             )
-            
-            if not res_servicios.data or len(res_servicios.data) == 0:
-                print(f"DEBUG: No rows found for date {f_iso} (eq query)")
-                # Fallback por si acaso es un problema de formato interno
-                res_servicios = (
-                    self.client.table('venta_tour')
-                    .select('*')
-                    .gte('fecha_servicio', f_iso)
-                    .lt('fecha_servicio', (fecha_filtro + timedelta(days=1)).isoformat())
-                    .execute()
-                )
+            print(f"DEBUG Today: Found {len(res_servicios.data or [])} rows for {f_iso_start}")
             
             if not res_servicios.data:
                 return []
@@ -250,12 +243,10 @@ class OperacionesController:
 
     def get_data_for_analytics(self):
         try:
-            # Traer los servicios de los últimos 3 meses y próximos 3 meses para el dashboard
+            # Traer los servicios de los últimos meses para el dashboard
             res = self.client.table('venta_tour').select('*').execute()
             data = res.data or []
-            print(f"DEBUG Dashboard: Found {len(data)} rows for analytics")
-            df = pd.DataFrame(data)
-            return df
+            return data
         except Exception as e:
             print(f"Error dashboard operaciones: {e}")
-            return pd.DataFrame()
+            return []

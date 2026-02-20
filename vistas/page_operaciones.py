@@ -477,6 +477,8 @@ def reporte_operativo(controller):
     # 1. Dashboard de Analítica (Top)
     from vistas.dashboard_analytics import render_operations_dashboard
     df_ops = controller.get_data_for_analytics()
+    if not df_ops.empty:
+        st.toast(f"📊 Reporte: {len(df_ops)} registros operativos cargados")
     render_operations_dashboard(df_ops)
     
     st.divider()

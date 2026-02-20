@@ -102,10 +102,10 @@ def render_ops_dashboard_visual(supabase_client):
         st.metric("Servicios para Hoy", len_hoy)
         
         from vistas.dashboard_analytics import render_operations_dashboard
-        start_month = date.today().replace(day=1)
-        end_month = (start_month + timedelta(days=32)).replace(day=1) - timedelta(days=1)
-        services_data = controller.get_servicios_rango_fechas(start_month, end_month)
-        df_servicios = pd.DataFrame(services_data) if services_data else pd.DataFrame()
+        data_ops = controller.get_data_for_analytics()
+        df_servicios = pd.DataFrame(data_ops) if data_ops else pd.DataFrame()
+        if not df_servicios.empty:
+            st.toast(f"📊 Dashboard: {len(df_servicios)} servicios listos")
         render_operations_dashboard(df_servicios)
         
         # --- 🔍 VERIFICADOR DE INCLUSIONES (ESTILO IMAGEN) ---
