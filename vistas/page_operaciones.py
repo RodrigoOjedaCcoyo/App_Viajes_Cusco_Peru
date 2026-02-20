@@ -435,12 +435,6 @@ def registro_ventas_proveedores(supabase_client):
         col2.metric("Monto Neto a Cobrar", f"$ {monto_neto_total:,.2f}")
         monto_dep = col2.number_input("Adelanto Recibido ($)", min_value=0.0, value=0.0, format="%.2f")
 
-        st.markdown("---")
-        st.write("📂 **Documentación**")
-        cf1, cf2 = st.columns(2)
-        file_it = cf1.file_uploader("Itinerario (PDF)", type=['pdf'])
-        file_pago = cf2.file_uploader("Voucher de Pago (Img/PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
-        
         submitted = st.form_submit_button("✅ REGISTRAR VENTA B2B", use_container_width=True)
         
         if submitted:
@@ -466,8 +460,8 @@ def registro_ventas_proveedores(supabase_client):
                     fecha_fin=f_fin,
                     cantidad_pax=cant_pax,
                     id_itinerario_digital=id_itinerario_dig,
-                    file_itinerario=file_it,
-                    file_pago=file_pago
+                    file_itinerario=None,
+                    file_pago=None
                 )
                 
                 if exito: 
