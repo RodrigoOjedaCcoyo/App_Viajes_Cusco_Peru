@@ -799,14 +799,16 @@ def dashboard_simulador_costos(controller):
         "📎 Voucher": st.column_config.LinkColumn("VOUCHER", width="small")
     }
 
-    all_edited = df_master
-    
     # --- VISTA SIMPLIFICADA (SIN NAVEGADOR POR DÍAS) ---
     st.write("### 📋 Resumen de Costos y Servicios (Master)")
+
+    # Inicializar df_master desde la data del simulador
+    df_master = pd.DataFrame(st.session_state['simulador_data'])
+    all_edited = df_master
     
     # Asegurar que UNIT y CANT sean numéricos para el cálculo de totales
-    df_master['UNIT'] = pd.to_numeric(df_master['UNIT'], errors='coerce').fillna(0.0)
-    df_master['CANT'] = pd.to_numeric(df_master['CANT'], errors='coerce').fillna(1.0)
+    df_master['UNIT'] = pd.to_numeric(df_master.get('UNIT', 0), errors='coerce').fillna(0.0)
+    df_master['CANT'] = pd.to_numeric(df_master.get('CANT', 1), errors='coerce').fillna(1.0)
     df_master['TOTAL'] = df_master['UNIT'] * df_master['CANT']
 
     st.dataframe(
