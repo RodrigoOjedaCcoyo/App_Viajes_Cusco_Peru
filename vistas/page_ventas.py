@@ -80,8 +80,9 @@ def formulario_registro_leads():
     st.info(f"Registrando a cargo de: **{vendedor_actual}**")
         
     with st.form("form_nuevo_lead"):
+        nombre_pax = st.text_input("Nombre del Pasajero", placeholder="Ej: Juan Pérez")
         telefono = st.text_input("Número de Celular")
-        origen = st.selectbox("Seleccione Red Social", ["---Seleccione---","Instagram", "Facebook", "TikTok", "Web", "Otro"])
+        origen = st.selectbox("Origen / Red Social", ["---Seleccione---","Instagram", "Facebook", "TikTok", "Web", "WhatsApp", "Otro"])
         vendedores_map = lead_controller.obtener_mapeo_vendedores()
         nombres_vendedores = list(vendedores_map.values())
         vendedor_sel = st.selectbox("Asignar a", ["---Seleccione---"] + nombres_vendedores)
@@ -95,7 +96,7 @@ def formulario_registro_leads():
                     id_vendedor = vid
                     break
             
-            exito, mensaje = lead_controller.registrar_nuevo_lead(telefono, origen, id_vendedor)
+            exito, mensaje = lead_controller.registrar_nuevo_lead(telefono, origen, id_vendedor, nombre_pax)
             if exito: st.success(mensaje)
             else: st.error(mensaje)
 
@@ -103,15 +104,18 @@ def seguimiento_leads():
     lead_controller = st.session_state.get('lead_controller')
     if not lead_controller: st.error("Error de inicialización de LeadController."); return
 
-    st.subheader("🔎 Seguimiento de Clientes")
+    st.subheader("🔎 Listado de Leads (MMM Analysis)")
     leads = lead_controller.obtener_todos_leads()
     
     if leads:
         df = pd.DataFrame(leads)
-        # Mapeo de vendedores y filtros sugeridos en la versión anterior...
-        st.data_editor(df, use_container_width=True, hide_index=True)
+        # Mostrar solo columnas relevantes para gerencia y el reporte resumido
+        display_cols = ['id_lead', 'nombre_pasajero', 'numero_celular', 'red_social', 'fecha_creacion']
+        # Asegurar que las columnas existen
+        existing_cols = [c for c in display_cols if c in df.columns]
+        st.dataframe(df[existing_cols], use_container_width=True, hide_index=True)
     else:
-        st.info("No hay leads para mostrar.")
+        st.info("No hay leads registrados.")
 
 def registro_ventas_directa():
     venta_controller = st.session_state.get('venta_controller')
@@ -248,6 +252,9 @@ def registro_ventas_directa():
     monto_total = c_m1.number_input(f"Monto Total ({moneda_sel})", min_value=0.0, format="%.2f", key="m_total")
     monto_pagado = c_m2.number_input(f"Monto Pagado ({moneda_sel})", min_value=0.0, format="%.2f", key="m_pago")
     
+    # Campo para número de operación (Nuevo requerimiento contabilidad)
+    num_op = st.text_input("Número de Operación / Referencia (Opcional)", placeholder="Ej: TRANSF-12345, YAPE-XYZ")
+    
     saldo = monto_total - monto_pagado
     
     # Visualización Dinámica del Saldo
@@ -353,7 +360,8 @@ def registro_ventas_directa():
                     moneda=moneda_sel,
                     id_itinerario_digital=id_itinerario_dig if id_itinerario_dig else None,
                     file_itinerario=None,
-                    file_pago=None
+                    file_pago=None,
+                    numero_operacion=num_op
                 )
                 
                 if exito:
@@ -585,21 +593,15 @@ def constructor_itinerarios():
                     st.error(msg)
 
 def gestion_registros_multicanal():
-    st.subheader("📝 Gestión de Ingreso de Clientes")
-    tipo_cliente = st.selectbox(
-        "¿Qué tipo de registro desea realizar?",
-        [
-            "💰 Venta Confirmada (Directa)", 
-            "⏰ Largo Plazo (Recordatorios / Futuro)"
-        ]
-    )
+    st.subheader("📝 Registro de Nuevos Clientes")
+    tab1, tab2 = st.tabs(["💰 Venta Directa", "👤 Nuevo Lead"])
     
-    st.markdown("---")
-    
-    if "Venta Confirmada" in tipo_cliente:
+    with tab1:
         registro_ventas_directa()
-    elif "Largo Plazo" in tipo_cliente:
-        formulario_recordatorio()
+    with tab2:
+        formulario_registro_leads()
+        st.divider()
+        seguimiento_leads()
 
 from controllers.itinerario_digital_controller import ItinerarioDigitalController
 
@@ -615,7 +617,4 @@ def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual=
 
     if funcionalidad_seleccionada == "Gestión de Registros":
         gestion_registros_multicanal()
-        st.divider()
-        if st.checkbox("Ver historial de alertas y recordatorios"):
-             render_reminders_dashboard()
 

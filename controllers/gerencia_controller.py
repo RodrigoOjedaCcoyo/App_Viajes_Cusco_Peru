@@ -36,19 +36,20 @@ class GerenciaController:
     def get_metricas_comerciales(self):
         """Calcula Leads, Clientes y Tasa de Conversión."""
         try:
-            # 1. Leads Totales (Sincronizado: estado_lead, red_social)
-            res_leads = self.client.table('lead').select('id_lead, estado_lead, red_social').execute()
+            # 1. Leads Totales
+            res_leads = self.client.table('lead').select('id_lead, red_social').execute()
             leads_data = res_leads.data or []
             total_leads = len(leads_data)
 
-            # 2. Leads Convertidos
-            leads_convertivos = [l for l in leads_data if 'CONVERTIDO' in (l.get('estado_lead') or '').upper()]
-            total_convertidos = len(leads_convertivos)
+            # 2. Leads Convertidos (Leads que ya son clientes)
+            res_cli = self.client.table('cliente').select('id_lead').not_.is_('id_lead', 'null').execute()
+            converted_lead_ids = {c['id_lead'] for c in res_cli.data}
+            total_convertidos = len(converted_lead_ids)
 
             # 3. Tasa de Conversión
             tasa_conversion = (total_convertidos / total_leads * 100) if total_leads > 0 else 0
 
-            # 4. Distribución por Medio
+            # 4. Distribución por Medio (MMM Focus)
             df_leads = pd.DataFrame(leads_data)
             distribucion_medios = {}
             if not df_leads.empty and 'red_social' in df_leads.columns:
@@ -67,31 +68,20 @@ class GerenciaController:
     def get_pax_totales(self):
         """Calcula el total de pasajeros programados en tours."""
         try:
-            res = self.client.table('venta_tour').select('cantidad_pasajeros').execute()
+            res = self.client.table('venta_tour').select('cantidad').execute()
             pax_data = res.data or []
-            return sum([p.get('cantidad_pasajeros') or 0 for p in pax_data])
+            return sum([p.get('cantidad') or 0 for p in pax_data])
         except Exception as e:
             print(f"Error Gerencia Pax: {e}")
             return 0
 
     def get_alertas_gestion(self):
-        """Busca ventas con documentación crítica pendiente (basado en Operaciones)."""
+        """Busca ventas con criticidades detectadas (Ej: Saldos altos sin pago)."""
         try:
-            # Reutilizamos lógica de riesgo: Documentos críticos no validados
-            res_docs = (
-                self.client.table('documentacion')
-                .select('id_pasajero, tipo_documento')
-                .eq('es_critico', True)
-                .neq('estado_entrega', 'VALIDADO')
-                .execute()
-            )
-            
-            # Formateamos para el dashboard
-            alertas = []
-            if res_docs.data:
-                alertas = res_docs.data[:5] # Solo las primeras 5 para no saturar
-
-            return alertas
+            # Lógica simplificada: Ventas con saldo > 50% y fecha inicio próxima
+            res = self.client.table('venta').select('id_venta, precio_total_cierre, fecha_inicio').gt('precio_total_cierre', 0).execute()
+            # Retornar vacío por ahora hasta definir nueva lógica de alertas post-summarization
+            return []
         except Exception as e:
             print(f"Error Gerencia Alertas: {e}")
             return []
@@ -118,7 +108,7 @@ class GerenciaController:
         """Calcula Leads vs Ventas por cada vendedor."""
         try:
             # 1. Obtener Leads con vendedor
-            res_leads = self.client.table('lead').select('id_vendedor, estado_lead').execute()
+            res_leads = self.client.table('lead').select('id_vendedor').execute()
             df_leads = pd.DataFrame(res_leads.data or [])
             
             # 2. Obtener Ventas con vendedor
@@ -151,18 +141,18 @@ class GerenciaController:
             print(f"Error Desempeño Vendedores: {e}")
             return pd.DataFrame()
 
-    def get_distribucion_estados_leads(self):
-        """Obtiene la cantidad de leads en cada estado para un Funnel."""
+    def get_distribucion_origen_leads(self):
+        """Obtiene la cantidad de leads por origen (MMM)."""
         try:
-            res = self.client.table('lead').select('estado_lead').execute()
+            res = self.client.table('lead').select('red_social').execute()
             df = pd.DataFrame(res.data or [])
             if df.empty: return pd.DataFrame()
             
-            resumen = df.groupby('estado_lead').size().reset_index()
-            resumen.columns = ['Estado', 'Cantidad']
+            resumen = df.groupby('red_social').size().reset_index()
+            resumen.columns = ['Origen', 'Cantidad']
             return resumen.sort_values('Cantidad', ascending=False)
         except Exception as e:
-            print(f"Error Distribución Leads: {e}")
+            print(f"Error Distribución Lead Origen: {e}")
             return pd.DataFrame()
     def get_ventas_por_canal(self):
         """Obtiene el monto total de ventas por cada canal (WEB, DIRECTO, etc.)."""

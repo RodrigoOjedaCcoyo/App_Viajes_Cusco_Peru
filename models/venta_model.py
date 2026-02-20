@@ -127,7 +127,9 @@ class VentaModel(BaseModel):
             "tour_nombre": tour_raw,
             "num_pasajeros": num_pax_final,
             "id_agencia_aliada": venta_data.get("id_agencia_aliada"),
-            "id_itinerario_digital": id_itin
+            "id_itinerario_digital": id_itin,
+            "url_itinerario": venta_data.get("url_itinerario"),
+            "url_comprobante_pago": venta_data.get("url_comprobante_pago")
         }
 
         # 3. Insertar Venta (esto lanzará excepción si falla)
@@ -146,7 +148,7 @@ class VentaModel(BaseModel):
                     "moneda": venta_data.get("moneda", "USD"),
                     "metodo_pago": "OTRO",
                     "tipo_pago": "ADELANTO",
-                    "observacion": f"Pago inicial registrado. Saldo: {venta_data.get('saldo')}"
+                    "numero_operacion": venta_data.get("numero_operacion")
                 }
                 self.client.table('pago').insert(pago_data).execute()
             except Exception as e:

@@ -1,5 +1,6 @@
 # controllers/operaciones_controller.py
-from models.operaciones_model import VentaModel, PasajeroModel, DocumentacionModel, TareaModel, RequerimientoModel
+from models.operaciones_model import PasajeroModel
+from models.venta_model import VentaModel
 from datetime import date, timedelta
 from supabase import Client
 import pandas as pd
@@ -8,11 +9,8 @@ class OperacionesController:
     # Inyección de dependencia del Cliente Supabase
     def __init__(self, supabase_client: Client):
         self.client = supabase_client
-        self.venta_model = VentaModel(supabase_client)
-        self.doc_model = DocumentacionModel(supabase_client)
+        self.venta_model = VentaModel('venta', supabase_client)
         self.pasajero_model = PasajeroModel(supabase_client)
-        self.tarea_model = TareaModel(supabase_client)
-        self.req_model = RequerimientoModel(supabase_client)
 
     # ------------------------------------------------------------------
     # LÓGICA DE TABLERO DE EJECUCIÓN DIARIA (Dashboard #2)
@@ -141,7 +139,7 @@ class OperacionesController:
                 estado_pago = "✅ SALDADO" if float(saldo or 0) <= 0.1 else "🔴 PENDIENTE"
                 
                 # Prioridad: 1. Observaciones del día, 2. Catálogo de tours, 3. Nombre general de la venta
-                nombre_tour = s.get('observaciones') or tours_map.get(s['id_tour']) or v.get('tour_nombre') or "Tour Desconocido"
+                nombre_tour = s.get('observacion') or tours_map.get(s['id_tour']) or v.get('tour_nombre') or "Tour Desconocido"
                 
                 # Guía y Endoso desde el mapa relacional
                 key_g = f"{s['id_venta']}-{s['n_linea']}"
@@ -266,7 +264,7 @@ class OperacionesController:
                 estado_pago = "✅ SALDADO" if float(saldo or 0) <= 0.1 else f"🔴 PENDIENTE (${float(saldo or 0):.2f})"
                 
                 # Prioridad: 1. Observaciones del día, 2. Catálogo de tours, 3. Nombre general de la venta
-                nombre_tour = s.get('observaciones') or tours_map.get(s['id_tour']) or v.get('tour_nombre') or "Tour Desconocido"
+                nombre_tour = s.get('observacion') or tours_map.get(s['id_tour']) or v.get('tour_nombre') or "Tour Desconocido"
                 
                 # Guía y Endoso desde el mapa relacional
                 key_g = f"{s['id_venta']}-{s['n_linea']}"
@@ -438,7 +436,7 @@ class OperacionesController:
             # Mapeo defensivo de columnas (por si acaso el esquema varía)
             columnas_esperadas = {
                 'fecha_servicio': ['fecha_servicio', 'Fecha', 'fecha'],
-                'cantidad_pasajeros': ['cantidad_pasajeros', 'Pax', 'pax', 'pax_total']
+                'cantidad': ['cantidad', 'Pax', 'pax', 'pax_total', 'cantidad_pasajeros']
             }
             
             for col_obj, fallbacks in columnas_esperadas.items():

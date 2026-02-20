@@ -87,9 +87,8 @@ def auditoria_maestra(controller):
         df_v_canal = controller.get_ventas_por_canal()
         df_v_estado = controller.get_ventas_por_estado()
         df_ventas_limpio = controller.get_detalle_ventas_limpio()
-        # Reutilizamos los de la auditoría anterior para no perder el funnel
         df_desempeno = controller.get_desempeno_vendedores()
-        df_leads_estados = controller.get_distribucion_estados_leads()
+        df_leads_origen = controller.get_distribucion_origen_leads()
 
     # --- 1. RESUMEN EJECUTIVO DE AUDITORÍA (Métricas Rápidas) ---
     m1, m2, m3 = st.columns(3)
@@ -152,8 +151,8 @@ def auditoria_maestra(controller):
             if not df_desempeno.empty:
                 st.plotly_chart(px.bar(df_desempeno, x='Vendedor', y='Ventas', title="Cierre por Vendedor"), use_container_width=True)
         with c2:
-            if not df_leads_estados.empty:
-                st.plotly_chart(px.funnel(df_leads_estados, x='Cantidad', y='Estado', title="Embudo Comercial"), use_container_width=True)
+            if not df_leads_origen.empty:
+                st.plotly_chart(px.bar(df_leads_origen, x='Origen', y='Cantidad', title="Leads por Origen (Canal Social)"), use_container_width=True)
 
 def mostrar_pagina(funcionalidad_seleccionada, rol_actual, user_id, supabase_client):
     controller = GerenciaController(supabase_client)

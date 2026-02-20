@@ -85,19 +85,8 @@ def render_sales_dashboard_visual(supabase_client):
             st.info("No hay datos de ventas disponibles.")
 
     with col_b:
-        st.write("🔔 **Agenda Próxima**")
-        lead_ctrl = LeadController(supabase_client)
-        leads = lead_ctrl.obtener_todos_leads()
-        if leads:
-            df = pd.DataFrame(leads)
-            if 'red_social' in df.columns and 'fecha_seguimiento' in df.columns:
-                df_rec = df[df['red_social'].str.contains("REC:", na=False)].copy()
-                df_rec['fecha_seguimiento'] = pd.to_datetime(df_rec['fecha_seguimiento']).dt.date
-                df_rec = df_rec.sort_values(by='fecha_seguimiento', ascending=True)
-                st.dataframe(df_rec[['fecha_seguimiento', 'numero_celular']].head(5), 
-                             use_container_width=True, hide_index=True)
-            else:
-                st.info("No hay recordatorios.")
+        st.write("🔔 **Estado General**")
+        st.info("La agenda de seguimiento ya no está disponible en este dashboard.")
 
 def render_ops_dashboard_visual(supabase_client):
     """Vista visual para Operaciones con Tablero Diario."""

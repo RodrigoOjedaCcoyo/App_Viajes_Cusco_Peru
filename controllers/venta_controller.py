@@ -51,7 +51,8 @@ class VentaController:
                                 moneda: str = "USD",
                                 id_itinerario_digital: Optional[str] = None, # Vínculo opcional
                                 file_itinerario: Optional[Any] = None,
-                                file_pago: Optional[Any] = None
+                                file_pago: Optional[Any] = None,
+                                numero_operacion: Optional[str] = None
                                 ) -> tuple[bool, str]:
         """Registra una venta con todos los detalles extendidos."""
         
@@ -85,7 +86,8 @@ class VentaController:
             "moneda": moneda,
             "url_itinerario": url_itinerario,
             "url_comprobante_pago": url_pago,
-            "id_itinerario_digital": id_itinerario_digital
+            "id_itinerario_digital": id_itinerario_digital,
+            "numero_operacion": numero_operacion
         }
         
         # Corregir typo detectado
@@ -95,15 +97,6 @@ class VentaController:
         try:
             nuevo_id = self.model.create_venta(venta_data)
             if nuevo_id:
-                # 5. Si viene de un Lead, marcar como CONVERTIDO
-                if id_itinerario_digital:
-                    try:
-                        # Buscar el id_lead desde el itinerario
-                        res_it = self.client.table('itinerario_digital').select('id_lead').eq('id_itinerario_digital', id_itinerario_digital).single().execute()
-                        if res_it.data and res_it.data.get('id_lead'):
-                            self.client.table('lead').update({'estado_lead': 'CONVERTIDO'}).eq('id_lead', res_it.data['id_lead']).execute()
-                    except: pass
-                
                 return True, f"Venta registrada. ID: {nuevo_id}. Saldo pendiente: {moneda} {float(saldo or 0):.2f}"
             else:
                 return False, "Error: no se pudo crear la venta."
@@ -125,7 +118,8 @@ class VentaController:
                                   cantidad_pax: int = 1,
                                   id_itinerario_digital: Optional[str] = None,
                                   file_itinerario: Optional[Any] = None,
-                                  file_pago: Optional[Any] = None
+                                  file_pago: Optional[Any] = None,
+                                  numero_operacion: Optional[str] = None
                                   ) -> tuple[bool, str]:
         """Registra una venta proveniente de una agencia externa (B2B)."""
         try:
@@ -154,7 +148,8 @@ class VentaController:
                 "cantidad_pasajeros": cantidad_pax,
                 "id_itinerario_digital": id_itinerario_digital,
                 "url_itinerario": url_it,
-                "url_comprobante_pago": url_pago
+                "url_comprobante_pago": url_pago,
+                "numero_operacion": numero_operacion
             }
             
             res_id = self.model.create_venta(venta_data)

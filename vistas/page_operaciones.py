@@ -639,10 +639,10 @@ def dashboard_simulador_costos(controller):
                     for d in detalles:
                         nuevos_items.append({
                             "FECHA": date.fromisoformat(d['fecha_servicio']),
-                            "SERVICIO": d.get('observaciones') or "Servicio sin nombre",
+                            "SERVICIO": d.get('observacion') or "Servicio sin nombre",
                             "PROVEEDOR": next((f"{p['nombre_comercial']} ({p.get('servicios_ofrecidos', ['N/A'])[0]})" for p in prov_items if p['id_proveedor'] == d.get('id_proveedor')), "--- Sin Asignar ---"),
                             "MONEDA": d.get('moneda_costo', 'USD'),
-                            "CANT": d.get('cantidad_items') or v.get('num_pasajeros', 1),
+                            "CANT": d.get('cantidad') or v.get('num_pasajeros', 1),
                             "UNIT": float(d.get('costo_unitario') or 0.0),
                             "TOTAL": float(d.get('costo_applied') or 0.0),
                             "VENTA": float(d.get('precio_applied') or 0.0),
@@ -652,7 +652,7 @@ def dashboard_simulador_costos(controller):
                             "📎 Voucher": d.get('url_voucher_operativo', ''),
                             "id_venta": d['id_venta'],
                             "n_linea": d['n_linea'],
-                            "ORIGINAL_SERVICE": d.get('observaciones') or "Servicio sin nombre"
+                            "ORIGINAL_SERVICE": d.get('observacion') or "Servicio sin nombre"
                         })
                     st.session_state['simulador_data'] = nuevos_items
                     st.session_state['last_loaded_id_venta'] = v['id_venta']

@@ -1,7 +1,7 @@
 # controllers/reporte_controller.py
 from models.venta_model import VentaModel
 from models.lead_model import LeadModel
-from models.operaciones_model import RequerimientoModel
+import pandas as pd
 
 class ReporteController:
     """
@@ -13,10 +13,9 @@ class ReporteController:
         self.client = supabase_client
         self.venta_model = VentaModel('venta', supabase_client)
         self.lead_model = LeadModel('lead', supabase_client)
-        self.req_model = RequerimientoModel(supabase_client)
         
     def obtener_requerimientos(self):
-        """Obtiene la lista de requerimientos (Versión Master Sheet)."""
+        """Obtiene la lista de requerimientos (Pagos operativos pendientes en itinerarios)."""
         try:
             # Traer servicios que piden pago operativo
             res = self.client.table('venta_tour').select('*, venta(cliente(nombre))').eq('estado_pago_operativo', 'PENDIENTE').execute()
@@ -29,11 +28,11 @@ class ReporteController:
                     "n_linea": d['n_linea'],
                     "fecha": d['fecha_servicio'],
                     "cliente": d.get('venta', {}).get('cliente', {}).get('nombre', 'Desconocido'),
-                    "concepto": d['observaciones'],
-                    "monto": d['costo_applied'],
+                    "concepto": d.get('observacion', 'Servicio'),
+                    "monto": d.get('costo_applied', 0),
                     "moneda": d.get('moneda_costo', 'USD'),
                     "datos_pago": d.get('datos_pago_operativo', 'Sin datos'),
-                    "estado": d['estado_pago_operativo']
+                    "estado": d.get('estado_pago_operativo', 'PENDIENTE')
                 })
             return final
         except Exception as e:
@@ -42,74 +41,63 @@ class ReporteController:
         
     def obtener_resumen_ventas(self):
         """Devuelve todas las ventas con información clave para reportes."""
-        
-        # 1. Obtener los datos sin procesar
-        todas_las_ventas = self.venta_model.get_all()
-        
-        # 2. Calcular métricas clave (Sincronizado: precio_total_cierre)
-        total_ventas = len(todas_las_ventas)
-        monto_total_usd = sum(v.get('precio_total_cierre', 0) or 0 for v in todas_las_ventas)
-        
-        # 3. Formatear la salida
-        resumen = {
-            "total_ventas_registradas": total_ventas,
-            "monto_total_acumulado": monto_total_usd,
-            "detalle_ventas": todas_las_ventas
-        }
-        return resumen
+        try:
+            todas_las_ventas = self.venta_model.get_all()
+            total_ventas = len(todas_las_ventas)
+            monto_total_usd = sum(v.get('precio_total_cierre', 0) or 0 for v in todas_las_ventas)
+            
+            return {
+                "total_ventas_registradas": total_ventas,
+                "monto_total_acumulado": monto_total_usd,
+                "detalle_ventas": todas_las_ventas
+            }
+        except Exception as e:
+            print(f"Error obtener_resumen_ventas: {e}")
+            return {"total_ventas_registradas": 0, "monto_total_acumulado": 0, "detalle_ventas": []}
 
     def obtener_detalle_auditoria(self):
-        """
-        Devuelve una lista combinada de Leads y Ventas para auditoría.
-        """
-        ventas = self.venta_model.get_all()
-        if not ventas: return []
-        
-        # Mapear Cliente (Nombre) para que el selector sea legible
+        """Devuelve las ventas con nombre de cliente para auditoría."""
         try:
-            res_c = self.venta_model.client.table('cliente').select('id_cliente, nombre').execute()
+            ventas = self.venta_model.get_all()
+            if not ventas: return []
+            
+            res_c = self.client.table('cliente').select('id_cliente, nombre').execute()
             cli_map = {c['id_cliente']: c['nombre'] for c in res_c.data}
             for v in ventas:
                 v['cliente_nombre'] = cli_map.get(v.get('id_cliente'), "Desconocido")
-        except:
-            for v in ventas:
-                v['cliente_nombre'] = "Desconocido"
-                
-        return ventas
+            return ventas
+        except Exception as e:
+            print(f"Error auditoría: {e}")
+            return []
 
     def get_data_for_dashboard(self):
-        """Devuelve dataframes listos para pandas con nombres mapeados."""
-        import pandas as pd
-        
+        """Devuelve dataframes para dashboards financieros."""
         # 1. Ventas
-        ventas = self.venta_model.get_all()
-        df_ventas = pd.DataFrame(ventas) if ventas else pd.DataFrame()
-        
-        if not df_ventas.empty:
-            # Sincronizar columna de monto
-            df_ventas['monto_total'] = df_ventas['precio_total_cierre']
-            
-            # Mapear Vendedor (Nombre)
-            try:
-                # Tabla 'vendedor' en minúsculas según esquema
-                res_v = self.venta_model.client.table('vendedor').select('id_vendedor, nombre').execute()
+        try:
+            ventas = self.venta_model.get_all()
+            df_ventas = pd.DataFrame(ventas) if ventas else pd.DataFrame()
+            if not df_ventas.empty:
+                df_ventas['monto_total'] = df_ventas.get('precio_total_cierre', 0)
+                # Mapeos básicos
+                res_v = self.client.table('vendedor').select('id_vendedor, nombre').execute()
                 vend_map = {v['id_vendedor']: v['nombre'] for v in res_v.data}
                 df_ventas['vendedor'] = df_ventas['id_vendedor'].map(vend_map)
-            except:
-                df_ventas['vendedor'] = "Desconocido"
-                
-            # Mapear Cliente (Nombre)
-            try:
-                res_c = self.venta_model.client.table('cliente').select('id_cliente, nombre').execute()
+                    
+                res_c = self.client.table('cliente').select('id_cliente, nombre').execute()
                 cli_map = {c['id_cliente']: c['nombre'] for c in res_c.data}
                 df_ventas['cliente_nombre'] = df_ventas['id_cliente'].map(cli_map)
-            except:
-                df_ventas['cliente_nombre'] = "Desconocido"
-            
-        # 2. Gastos (Requerimientos)
-        reqs = self.req_model.get_all()
-        df_reqs = pd.DataFrame(reqs) if reqs else pd.DataFrame()
-        if not df_reqs.empty and 'total' not in df_reqs.columns:
-            df_reqs['total'] = 0.0
+        except Exception as e:
+            print(f"Error dashboard ventas: {e}")
+            df_ventas = pd.DataFrame()
+
+        # 2. Gastos (Requerimientos de Pago del Itinerario)
+        try:
+            reqs = self.obtener_requerimientos()
+            df_reqs = pd.DataFrame(reqs) if reqs else pd.DataFrame()
+            if not df_reqs.empty:
+                df_reqs['total'] = df_reqs['monto']
+        except Exception as e:
+            print(f"Error dashboard reqs: {e}")
+            df_reqs = pd.DataFrame()
             
         return df_ventas, df_reqs

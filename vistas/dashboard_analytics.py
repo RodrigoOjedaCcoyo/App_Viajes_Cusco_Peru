@@ -60,7 +60,7 @@ def render_operations_dashboard(df_servicios):
 
     # KPIs Logísticos
     k1, k2, k3 = st.columns(3)
-    pax_total = df_servicios['cantidad_pasajeros'].sum() if 'cantidad_pasajeros' in df_servicios.columns else len(df_servicios)
+    pax_total = df_servicios['cantidad'].sum() if 'cantidad' in df_servicios.columns else len(df_servicios)
     servicios_total = len(df_servicios)
     
     # Simulación de guías asignados (para la métrica)
@@ -89,7 +89,7 @@ def render_operations_dashboard(df_servicios):
     with c2:
         st.markdown("**📊 Mix de Servicios (Tours)**")
         # Priorizar observaciones o catálogo
-        col_servicio = 'observaciones' if 'observaciones' in df_servicios.columns else 'id_tour'
+        col_servicio = 'observacion' if 'observacion' in df_servicios.columns else 'id_tour'
         if col_servicio in df_servicios.columns:
             tour_counts = df_servicios[col_servicio].value_counts().reset_index()
             tour_counts.columns = ['Tour', 'Frecuencia']
