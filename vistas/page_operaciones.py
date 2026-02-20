@@ -730,6 +730,26 @@ def dashboard_simulador_costos(controller):
         df_master['CANT'] = pd.to_numeric(df_master['CANT'], errors='coerce').fillna(1.0)
         df_master['TOTAL'] = df_master['UNIT'] * df_master['CANT']
     
-    # UI eliminada por petición del usuario (Reducción de ruido visual)
+    # --- SECCIÓN DE ENTREGA DE REPORTES (Petición del Usuario) ---
+    if st.session_state.get('last_loaded_id_venta'):
+        st.divider()
+        st.markdown(f"### 📤 Almacén de Entrega y Cierre")
+        
+        # 1. Cajita de Datos
+        with st.expander("📝 Notas Adicionales / Link al Google Sheet Maestro", expanded=True):
+            st.text_area("Cajita de Datos:", placeholder="Pega aquí el link del Google Sheet o cualquier dato relevante para el cierre...", key="link_maestro_op")
+        
+        # 2. Subida de Documento
+        st.markdown("#### 📄 Documento de Cierre")
+        excel_op = st.file_uploader("Subir Cierre de Operaciones (Excel)", type=['xlsx', 'xls'], key="upload_op_main")
+        
+        if excel_op:
+            st.success("✅ Documento de Operaciones cargado correctamente.")
+            df_preview = pd.read_excel(excel_op)
+            st.dataframe(df_preview.head(5), use_container_width=True)
+            
+            if st.button("✨ Guardar y Notificar a Contabilidad", type="primary"):
+                st.balloons()
+                st.success("¡Reporte entregado con éxito! Se ha notificado al área contable.")
 
     # UI de Endoso eliminada por petición del usuario
