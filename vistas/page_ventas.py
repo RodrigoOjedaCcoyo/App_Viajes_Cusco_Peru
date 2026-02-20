@@ -327,15 +327,8 @@ def registro_ventas_directa():
                 fecha_inicio_sel = col_f1.date_input("Fecha Inicio", value=date.today())
                 fecha_fin_sel = col_f2.date_input("Fecha Fin", value=date.today())
         
-        st.markdown("---")
-        st.write("📂 **Adjuntar Documentos**")
-        c_file1, c_file2 = st.columns(2)
-        file_itinerario = c_file1.file_uploader("Cargar Itinerario (PDF)", type=['pdf', 'docx'])
-        file_boleta = c_file2.file_uploader("Cargar Voucher de Pago (Img/PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
-
         submitted = st.form_submit_button("🚀 REGISTRAR VENTA Y NOTIFICAR", use_container_width=True)
 
-        
         if submitted:
             # Validación previa
             if not nombre or not tel:
@@ -359,8 +352,8 @@ def registro_ventas_directa():
                     tipo_comprobante=tipo_comp,
                     moneda=moneda_sel,
                     id_itinerario_digital=id_itinerario_dig if id_itinerario_dig else None,
-                    file_itinerario=file_itinerario,
-                    file_pago=file_boleta
+                    file_itinerario=None,
+                    file_pago=None
                 )
                 
                 if exito:
