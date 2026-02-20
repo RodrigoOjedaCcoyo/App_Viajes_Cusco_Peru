@@ -185,24 +185,35 @@ class VentaModel(BaseModel):
 
             for i in range(num_dias):
                 f_servicio = f_inicio + timedelta(days=i)
-                
-                # Determinar nombre del servicio para este día
                 nombre_servicio_dia = venta_data.get("tour") # Default
+                
+                # Inteligencia extraída del JSON de Itinerario Digital
                 if i < len(itin_detalles):
                     dia_info = itin_detalles[i]
-                    # Soportar todas las estructuras: 'nombre', 'titulo' (el tuyo) o 'title'
+                    # 1. Extraer Título (Servicio)
                     nombre_servicio_dia = dia_info.get('titulo') or dia_info.get('nombre') or dia_info.get('title') or nombre_servicio_dia
-
+                    
+                    # 2. Extraer Fecha (si el JSON la trae y es válida, priorizarla)
+                    f_raw = dia_info.get('fecha')
+                    if f_raw and isinstance(f_raw, str):
+                        try:
+                            # Limpiar espacios: "20 / 02 / 2026" -> "20/02/2026"
+                            f_clean = f_raw.replace(" ", "")
+                            f_parsed = datetime.strptime(f_clean, "%d/%m/%Y").date()
+                            f_servicio = f_parsed
+                        except:
+                            pass # Fallback al cálculo secuencial
+                
                 detalle_tour = {
                     "id_venta": nuevo_id_venta,
                     "n_linea": i + 1,
-                    "id_tour": id_tour_catalogo if i == 0 else None, # Solo vinculamos al catálogo el primer día por ahora
+                    "id_tour": id_tour_catalogo if i == 0 else None,
                     "fecha_servicio": f_servicio.isoformat(),
                     "precio_applied": venta_data.get("monto_total") if i == 0 else 0,
-                    "precio_vendedor": venta_data.get("monto_total") if i == 0 else 0, # Guardar el original
+                    "precio_vendedor": venta_data.get("monto_total") if i == 0 else 0,
                     "costo_applied": 0,
                     "cantidad": num_pax_final,
-                    "observacion": nombre_servicio_dia, # Usamos observacion para guardar el nombre del tour diario
+                    "observacion": nombre_servicio_dia,
                     "id_itinerario_dia_index": i + 1
                 }
                 self.client.table('venta_tour').insert(detalle_tour).execute()
