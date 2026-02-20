@@ -1,7 +1,7 @@
 # models/venta_model.py
 
 from .base_model import BaseModel
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from supabase import Client
 from typing import Dict, Any, Optional
 

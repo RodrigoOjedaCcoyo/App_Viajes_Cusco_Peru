@@ -9,7 +9,7 @@ class OperacionesController:
     # Inyección de dependencia del Cliente Supabase
     def __init__(self, supabase_client: Client):
         self.client = supabase_client
-        self.venta_model = VentaModel('venta', supabase_client)
+        self.venta_model = VentaModel(supabase_client)
         self.pasajero_model = PasajeroModel(supabase_client)
 
     # ------------------------------------------------------------------
@@ -34,15 +34,17 @@ class OperacionesController:
             
             fechas_activas = set()
             if res.data:
+                print(f"DEBUG: Found {len(res.data)} services for {month}/{year}")
                 for item in res.data:
                     try:
-                        # Robustez: Manejar si ya es objeto date o string
                         f_raw = item['fecha_servicio']
-                        if isinstance(f_raw, str):
-                            fechas_activas.add(date.fromisoformat(f_raw))
-                        elif isinstance(f_raw, date):
-                            fechas_activas.add(f_raw)
-                    except: pass
+                        # Robustez total con pandas
+                        f_date = pd.to_datetime(f_raw).date()
+                        fechas_activas.add(f_date)
+                    except Exception as e:
+                        print(f"DEBUG: Error parsing date {item.get('fecha_servicio')}: {e}")
+            else:
+                print(f"DEBUG: No services found for {month}/{year}")
             return list(fechas_activas)
         except Exception as e:
             print(f"Error en Calendario: {e}")

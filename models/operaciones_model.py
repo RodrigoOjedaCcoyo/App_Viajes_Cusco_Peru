@@ -8,9 +8,6 @@ from .base_model import BaseModel
 # CLASES MODELO CONECTADAS A SUPABASE (REAL)
 # ----------------------------------------------------------------------
 
-class VentaModel(BaseModel):
-    def __init__(self, supabase_client: Client):
-        super().__init__('venta', supabase_client, primary_key='id_venta')
 
 class PasajeroModel(BaseModel):
     def __init__(self, supabase_client: Client):
