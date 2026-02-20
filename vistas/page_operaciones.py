@@ -715,13 +715,13 @@ def dashboard_simulador_costos(controller):
             pax_sel = st.selectbox("3️⃣ Cargar Venta:", ["--- Seleccione ---"] + opciones_pax, key="sel_pax_sim")
         
         if pax_sel != "--- Seleccione ---":
-            if st.button(f"📥 Cargar Itinerario de {pax_sel.split('|')[0].strip()}", use_container_width=True):
-                v = mapa_ventas_pax.get(pax_sel)
+            v = mapa_ventas_pax.get(pax_sel)
+            
+            # Solo cargar si ha cambiado la venta para evitar bucles de rerun
+            if st.session_state.get('last_loaded_id_venta') != v['id_venta']:
                 st.session_state['master_pax_count'] = v.get('num_pasajeros', 1)
                 
-                # 1. Ajustar Datos Globales (ya no necesarios pero mantenemos compatibilidad)
-                
-                # 2. Cargar Desglose de Servicios (Venta Tour)
+                # Cargar Desglose de Servicios (Venta Tour)
                 detalles = vc.obtener_detalles_itinerario_venta(v['id_venta'])
                 
                 if detalles:
@@ -736,7 +736,7 @@ def dashboard_simulador_costos(controller):
                             "UNIT": float(d.get('costo_unitario') or 0.0),
                             "TOTAL": float(d.get('costo_applied') or 0.0),
                             "VENTA": float(d.get('precio_applied') or 0.0),
-                            "VTA_VENDEDOR": float(d.get('precio_vendedor') or d.get('precio_applied') or 0.0), # Jalamos el precio original del vendedor
+                            "VTA_VENDEDOR": float(d.get('precio_vendedor') or d.get('precio_applied') or 0.0),
                             "💵 Pago Op.": d.get('estado_pago_operativo', 'NO_REQUERIDO'),
                             "📝 Info Pago": d.get('datos_pago_operativo') or '',
                             "📎 Voucher": d.get('url_voucher_operativo', ''),
@@ -745,14 +745,14 @@ def dashboard_simulador_costos(controller):
                             "ORIGINAL_SERVICE": d.get('observaciones') or "Servicio sin nombre"
                         })
                     st.session_state['simulador_data'] = nuevos_items
-                    st.success(f"Itinerario de {len(detalles)} días cargado con éxito.")
+                    st.session_state['last_loaded_id_venta'] = v['id_venta']
                     st.rerun()
                 else:
                     st.session_state['simulador_data'] = [
                         {"FECHA": date.fromisoformat(v['fecha_venta']) if v.get('fecha_venta') else date.today(), 
                          "SERVICIO": f"INGRESO B2B: {v['nombre_cliente']}", "MONEDA": "USD", "TOTAL": 0.0}
                     ]
-                    st.warning("Venta cargada, pero no tiene itinerario expandido.")
+                    st.session_state['last_loaded_id_venta'] = v['id_venta']
                     st.rerun()
 
     # Data Editor (El "Excel" por Días)

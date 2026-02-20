@@ -323,8 +323,10 @@ def estructurador_liquidacion_pro(controller):
             p_sel = st.selectbox("2️⃣ Cargar Venta:", ["--- Seleccione ---"] + opciones_p, key="acc_sel_pax")
         
         if p_sel != "--- Seleccione ---":
-            if st.button(f"📥 Cargar Datos de {p_sel.split('|')[0].strip()}", use_container_width=True):
-                v_act = mapa_v.get(p_sel)
+            v_act = mapa_v.get(p_sel)
+            
+            # Solo cargar si ha cambiado la venta
+            if st.session_state.get('last_loaded_id_venta_acc') != v_act['id_venta']:
                 detalles = vc.obtener_detalles_itinerario_venta(v_act['id_venta'])
                 if detalles:
                     st.session_state['simulador_contable_adv_data'] = [{
@@ -335,7 +337,7 @@ def estructurador_liquidacion_pro(controller):
                         "id_venta": d['id_venta'],
                         "n_linea": d['n_linea']
                     } for d in detalles]
-                    st.success("Datos cargados correctamente.")
+                    st.session_state['last_loaded_id_venta_acc'] = v_act['id_venta']
                     st.rerun()
 
     # Editor estilo Excel
