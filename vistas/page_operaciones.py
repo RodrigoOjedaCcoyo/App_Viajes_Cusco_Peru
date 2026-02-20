@@ -799,103 +799,37 @@ def dashboard_simulador_costos(controller):
         "📎 Voucher": st.column_config.LinkColumn("VOUCHER", width="small")
     }
 
-    st.write("### 📅 Navegador de Itinerario por Días")
+    all_edited = df_master
+    
+    # --- VISTA SIMPLIFICADA (SIN NAVEGADOR POR DÍAS) ---
+    st.write("### 📋 Resumen de Costos y Servicios (Master)")
+    
+    # Asegurar que UNIT y CANT sean numéricos para el cálculo de totales
+    df_master['UNIT'] = pd.to_numeric(df_master['UNIT'], errors='coerce').fillna(0.0)
+    df_master['CANT'] = pd.to_numeric(df_master['CANT'], errors='coerce').fillna(1.0)
+    df_master['TOTAL'] = df_master['UNIT'] * df_master['CANT']
 
-    # --- INICIALIZACIÓN ESTABLE (DATAFRAME) ---
-    if 'df_master' not in st.session_state or st.session_state.get('last_id_venta') != (pax_sel if 'pax_sel' in locals() else None):
-        st.session_state['df_master'] = pd.DataFrame(st.session_state['simulador_data'])
-        st.session_state['last_id_venta'] = pax_sel if 'pax_sel' in locals() else None
-
-    df_master = st.session_state['df_master']
-    
-    # --- ASEGURAR COLUMNAS CRÍTICAS EN EL MASTER (Blindaje Total) ---
-    all_needed = [
-        "n_linea", "id_venta", "ORIGINAL_SERVICE", "UNIT", "CANT", "TOTAL", "VTA_VENDEDOR",
-        "PROVEEDOR", "SERVICIO", "FECHA", "MONEDA", "💵 Pago Op.", "📝 Info Pago", "📎 Voucher"
-    ]
-    for col in all_needed:
-        if col not in df_master.columns:
-            if col == "ORIGINAL_SERVICE": df_master[col] = df_master['SERVICIO'] if 'SERVICIO' in df_master.columns else ""
-            elif col in ["UNIT", "TOTAL", "VTA_VENDEDOR"]: df_master[col] = 0.0
-            elif col == "CANT": df_master[col] = 1.0
-            elif col == "FECHA": df_master[col] = date.today()
-            elif col == "PROVEEDOR": df_master[col] = "--- Sin Asignar ---"
-            elif col == "MONEDA": df_master[col] = "USD"
-            elif col == "💵 Pago Op.": df_master[col] = "NO_REQUERIDO"
-            else: df_master[col] = ""
-
-    unique_dates = sorted(df_master['FECHA'].unique())
-    
-    # Selector de día (Mucho más estable que pestañas)
-    # Usar ORIGINAL_SERVICE para que el selector no cambie de nombre
-    opciones_dias = []
-    for i, d in enumerate(unique_dates):
-        df_t = df_master[df_master['FECHA'] == d]
-        # Buscar la primera fila que sea 'original' para el nombre del selector
-        # Usar .get() para evitar KeyError si la columna faltara por algún motivo
-        if 'n_linea' in df_t.columns:
-            original_row = df_t[df_t['n_linea'].notna()]
-        else:
-            original_row = pd.DataFrame()
-            
-        base_name = original_row.iloc[0]['ORIGINAL_SERVICE'] if not original_row.empty else df_t.iloc[0]['SERVICIO']
-        opciones_dias.append(f"DÍA {i+1}: {base_name[:25]}... ({d.strftime('%d/%m/%Y')})")
-    
-    dia_sel_txt = st.selectbox("Seleccionar día para configurar:", opciones_dias, key="master_sheet_day_selector")
-    
-    idx_dia = opciones_dias.index(dia_sel_txt)
-    d_key = unique_dates[idx_dia]
-    day_num = idx_dia + 1
-
-    # Extraer slice del día para el editor
-    df_day = df_master[df_master['FECHA'] == d_key].copy()
-    
-    # --- LÓGICA DE PAX FIJO ---
-    pax_count = float(st.session_state.get('master_pax_count', 1))
-    st.markdown(f"#### 🎭 Operación de la Jornada: {d_key.strftime('%d/%m/%Y')} ({int(pax_count)} PAX)")
-
-    # Asegurar que UNIT tenga valor y calcular TOTAL basado en PAX fijo
-    df_day['UNIT'] = pd.to_numeric(df_day['UNIT'], errors='coerce').fillna(0.0)
-    df_day['CANT'] = pax_count # Forzamos cantidad = pax
-    df_day['TOTAL'] = df_day['CANT'] * df_day['UNIT']
-    
-    # VISTA DE SOLO LECTURA (Garantiza estabilidad total)
     st.dataframe(
-        df_day,
+        df_master,
         column_config=col_config,
         use_container_width=True,
         hide_index=True,
-        column_order=["SERVICIO", "PROVEEDOR", "MONEDA", "UNIT", "TOTAL", "💵 Pago Op."] 
+        column_order=["FECHA", "SERVICIO", "PROVEEDOR", "MONEDA", "UNIT", "CANT", "TOTAL", "💵 Pago Op."] 
     )
     
-    # Totales del día seleccionado
-    day_costo = df_day['TOTAL'].sum()
-    day_venta_vendedor = df_day['VTA_VENDEDOR'].sum()
-    day_utilidad = day_venta_vendedor - day_costo
-    
     # Totales Globales
-    total_general = (df_master['UNIT'].astype(float) * df_master['CANT'].astype(float)).sum()
-    total_pax_venta = df_master['VTA_VENDEDOR'].astype(float).sum()
-    all_edited = df_master 
-
-    # Resumen Day (Glassmorphism UI)
-    summary_html = f"<div style='background: linear-gradient(135deg, rgba(30,33,48,0.95), rgba(46,51,74,0.85)); backdrop-filter: blur(12px); padding: 18px; border-radius: 12px; margin-top: 10px; border: 1px solid rgba(255,255,255,0.1);'>"
-    summary_html += f"<div style='display: flex; gap: 20px; align-items: center;'>"
-    summary_html += f"<div><span style='color: #aaa; font-size: 0.8em;'>COSTO DÍA:</span> <b style='color: white;'>$ {day_costo:,.2f}</b></div>"
-    summary_html += f"<div><span style='color: #FFC107; font-size: 0.8em;'>VENTA DÍA:</span> <b style='color: white;'>$ {day_venta_vendedor:,.2f}</b></div>"
-    uti_color = "#81C784" if day_utilidad >= 0 else "#E57373"
-    summary_html += f"<div><span style='color: {uti_color}; font-size: 0.8em;'>UTILIDAD DÍA:</span> <b style='color: {uti_color};'>$ {day_utilidad:,.2f}</b></div>"
-    summary_html += f"</div></div>"
-    st.markdown(summary_html, unsafe_allow_html=True)
+    total_general = df_master['TOTAL'].sum()
+    total_pax_venta = pd.to_numeric(df_master['VTA_VENDEDOR'], errors='coerce').fillna(0.0).sum()
+    uti_global = total_pax_venta - total_general
+    unique_dates = sorted(df_master['FECHA'].unique()) if 'FECHA' in df_master.columns else []
 
     st.divider()
     sc1, sc2, sc3 = st.columns(3)
     sc1.metric("COSTO TOTAL", f"$ {total_general:,.2f}", delta_color="inverse")
-    uti_global = total_pax_venta - total_general
     sc2.metric("UTILIDAD GLOBAL", f"$ {uti_global:,.2f}", delta=f"{uti_global:,.2f}")
     sc3.metric("Total Días", len(unique_dates))
 
-    st.info("💡 Esta tabla es de solo consulta. Los cambios de costos y proveedores se realizan ahora a través del Google Sheet Maestro y se sincronizan automáticamente.")
+    st.info("💡 Esta tabla es de solo consulta. Los cambios de costos y proveedores se realizan en el Google Sheet Maestro y se sincronizan aquí.")
 
     # --- 📤 ACCIONES DE ENDOSO (UNIFICADO) ---
     if not all_edited.empty:
