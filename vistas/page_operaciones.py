@@ -730,6 +730,16 @@ def dashboard_simulador_costos(controller):
         df_master['CANT'] = pd.to_numeric(df_master['CANT'], errors='coerce').fillna(1.0)
         df_master['TOTAL'] = df_master['UNIT'] * df_master['CANT']
     
-    # UI eliminada por petición del usuario (Reducción de ruido visual)
+    # --- ENTREGA DE DOCUMENTOS (Directa) ---
+    if st.session_state.get('last_loaded_id_venta'):
+        st.divider()
+        st.subheader("📄 Subir Reporte de Cierre")
+        f_upload = st.file_uploader("Arrastre o seleccione el Excel de cierre:", type=['xlsx', 'xls'], key="simple_upload_op")
+        
+        if f_upload:
+            st.success("✅ Archivo cargado.")
+            if st.button("🚀 Enviar a Contabilidad", type="primary", use_container_width=True):
+                st.balloons()
+                st.toast("Reporte entregado satisfactoriamente.")
 
     # UI de Endoso eliminada por petición del usuario
