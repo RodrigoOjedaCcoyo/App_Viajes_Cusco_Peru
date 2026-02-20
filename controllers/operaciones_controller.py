@@ -100,7 +100,7 @@ class OperacionesController:
             if ids_ventas:
                 res_g = (
                     self.client.table('venta_servicio_proveedor')
-                    .select('id_venta, n_linea, tipo_servicio, estado_pago, proveedor(nombre_comercial)')
+                    .select('id_venta, n_linea, tipo_servicio, proveedor(nombre_comercial)')
                     .in_('id_venta', ids_ventas)
                     .execute()
                 )
@@ -109,7 +109,7 @@ class OperacionesController:
                     prov_nom = g['proveedor']['nombre_comercial'] if g.get('proveedor') else "Desconocido"
                     if g.get('tipo_servicio') == 'GUIA':
                         guias_map[key] = prov_nom
-                    elif g.get('tipo_servicio') in ['PROVEEDOR_ENDOSO', 'AGENCIA_ENDOSO']:
+                    elif g.get('tipo_servicio') == 'ENDOSE':
                         proveedor_endoso_map[key] = prov_nom
                     
                     if key not in detalles_proveedores_map:
@@ -117,7 +117,7 @@ class OperacionesController:
                     detalles_proveedores_map[key].append({
                         "tipo": g.get('tipo_servicio'),
                         "nombre": prov_nom,
-                        "estado": g.get('estado_pago', 'PENDIENTE')
+                        "estado": 'PENDIENTE' # Por defecto ya que no está en DB aún
                     })
             
             resultado = []
@@ -143,10 +143,13 @@ class OperacionesController:
                     'ID Venta': s['id_venta'],
                     'N Linea': s['n_linea'],
                     'Fecha': s['fecha_servicio'],
-                    'Hora': "08:00 AM",
+                    'fecha_servicio': s['fecha_servicio'], # Para analítica
+                    'Hora': s.get('hora_inicio', '08:00 AM'), # Updated to use s.get
                     'Servicio': nombre_tour,
+                    'observacion': nombre_tour, # Para analítica
                     'Endoso?': es_endoso,
                     'Pax': s.get('cantidad', 1),
+                    'cantidad': s.get('cantidad', 1), # Para analítica
                     'Cliente': nombre_cliente,
                     'Guía': nombre_guia,
                     'Agencia Endoso': nombre_endoso,
@@ -245,10 +248,12 @@ class OperacionesController:
             print(f"Error en Tablero Diario: {e}")
             return []
 
-    def get_data_for_dashboard(self):
+    def get_data_for_analytics(self):
         try:
+            # Traer los servicios de los últimos 3 meses y próximos 3 meses para el dashboard
             res = self.client.table('venta_tour').select('*').execute()
             data = res.data or []
+            print(f"DEBUG Dashboard: Found {len(data)} rows for analytics")
             df = pd.DataFrame(data)
             return df
         except Exception as e:
