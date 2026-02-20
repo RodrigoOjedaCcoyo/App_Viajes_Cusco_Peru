@@ -799,44 +799,22 @@ def dashboard_simulador_costos(controller):
         "📎 Voucher": st.column_config.LinkColumn("VOUCHER", width="small")
     }
 
-    # --- VISTA SIMPLIFICADA (SIN NAVEGADOR POR DÍAS) ---
-    st.write("### 📋 Resumen de Costos y Servicios (Master)")
-
-    # Inicializar df_master desde la data del simulador
+    # --- PROCESAMIENTO DE DATOS (Background) ---
     df_master = pd.DataFrame(st.session_state['simulador_data'])
     all_edited = df_master
     
-    # Asegurar que las columnas existan antes de procesar
-    if 'UNIT' not in df_master.columns: df_master['UNIT'] = 0.0
-    if 'CANT' not in df_master.columns: df_master['CANT'] = 1.0
-    if 'VTA_VENDEDOR' not in df_master.columns: df_master['VTA_VENDEDOR'] = 0.0
+    if not df_master.empty:
+        # Asegurar que las columnas existan antes de procesar
+        if 'UNIT' not in df_master.columns: df_master['UNIT'] = 0.0
+        if 'CANT' not in df_master.columns: df_master['CANT'] = 1.0
+        if 'VTA_VENDEDOR' not in df_master.columns: df_master['VTA_VENDEDOR'] = 0.0
 
-    # Asegurar que UNIT y CANT sean numéricos para el cálculo de totales
-    df_master['UNIT'] = pd.to_numeric(df_master['UNIT'], errors='coerce').fillna(0.0)
-    df_master['CANT'] = pd.to_numeric(df_master['CANT'], errors='coerce').fillna(1.0)
-    df_master['TOTAL'] = df_master['UNIT'] * df_master['CANT']
-
-    st.dataframe(
-        df_master,
-        column_config=col_config,
-        use_container_width=True,
-        hide_index=True,
-        column_order=["FECHA", "SERVICIO", "PROVEEDOR", "MONEDA", "UNIT", "CANT", "TOTAL", "💵 Pago Op."] 
-    )
+        # Asegurar que UNIT y CANT sean numéricos para cálculos internos
+        df_master['UNIT'] = pd.to_numeric(df_master['UNIT'], errors='coerce').fillna(0.0)
+        df_master['CANT'] = pd.to_numeric(df_master['CANT'], errors='coerce').fillna(1.0)
+        df_master['TOTAL'] = df_master['UNIT'] * df_master['CANT']
     
-    # Totales Globales
-    total_general = df_master['TOTAL'].sum()
-    total_pax_venta = pd.to_numeric(df_master['VTA_VENDEDOR'], errors='coerce').fillna(0.0).sum()
-    uti_global = total_pax_venta - total_general
-    unique_dates = sorted(df_master['FECHA'].unique()) if 'FECHA' in df_master.columns else []
-
-    st.divider()
-    sc1, sc2, sc3 = st.columns(3)
-    sc1.metric("COSTO TOTAL", f"$ {total_general:,.2f}", delta_color="inverse")
-    sc2.metric("UTILIDAD GLOBAL", f"$ {uti_global:,.2f}", delta=f"{uti_global:,.2f}")
-    sc3.metric("Total Días", len(unique_dates))
-
-    st.info("💡 Esta tabla es de solo consulta. Los cambios de costos y proveedores se realizan en el Google Sheet Maestro y se sincronizan aquí.")
+    # UI eliminada por petición del usuario (Reducción de ruido visual)
 
     # --- 📤 ACCIONES DE ENDOSO (UNIFICADO) ---
     if not all_edited.empty:
