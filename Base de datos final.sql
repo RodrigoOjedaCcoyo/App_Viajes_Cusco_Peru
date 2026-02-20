@@ -8,6 +8,7 @@
   DROP TABLE IF EXISTS venta_servicio_proveedor CASCADE;
   DROP TABLE IF EXISTS documentacion CASCADE; -- Seguridad para versiones viejas
   DROP TABLE IF EXISTS pasajero CASCADE;      -- Seguridad para versiones viejas
+  DROP TABLE IF EXISTS requerimiento;
   DROP TABLE IF EXISTS pago CASCADE;
   DROP TABLE IF EXISTS venta_tour CASCADE;
   DROP TABLE IF EXISTS venta CASCADE;
@@ -114,17 +115,6 @@
       hora_inicio TIME, 
       activo BOOLEAN DEFAULT TRUE,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE tour_itinerario_item (
-      id_item SERIAL PRIMARY KEY,
-      id_tour INTEGER REFERENCES tour(id_tour) ON DELETE CASCADE,
-      orden INTEGER NOT NULL,
-      lugar_nombre VARCHAR(255) NOT NULL,
-      descripcion_corta TEXT,
-      duracion_estimada_minutos INTEGER,
-      es_parada_principal BOOLEAN DEFAULT TRUE,
-      url_foto_referencia TEXT
   );
 
   CREATE TABLE paquete (
@@ -364,7 +354,7 @@
     8, 1, 44.00, 115.00,
     'FULL DAY', 'MODERADO',
     '{"itinerario": "Después del desayuno, iniciamos la ruta por el ***Valle Sagrado de los Incas*** visitando ***Chinchero***, donde conoceremos un antiguo ***palacio inca***, su ***iglesia colonial*** y un tradicional ***centro textil***. Continuamos hacia ***Moray***, famoso por sus ***terrazas circulares agrícolas***, y luego descendemos a las impresionantes ***Salineras de Maras***, con miles de pozos de sal aún en funcionamiento.\n\nEl recorrido prosigue hacia el valle de ***Urubamba*** para disfrutar de un ***almuerzo buffet***. Posteriormente visitamos ***Ollantaytambo***, conocida como la ***última ciudad inca viviente***, y nos dirigimos a la estación para abordar el ***tren turístico*** rumbo a ***Aguas Calientes*** y nos trasladamos al ***hotel*** para pasar la noche."}'::jsonb,
-    '{"Lo que visitarás": ["Pisac", "Mercado de Pisac", "Ollantaytambo", "Chinchero"]}'::jsonb,
+    '{"incluye": ["Pisac", "Mercado de Pisac", "Ollantaytambo", "Chinchero"]}'::jsonb,
     '{"no_incluye": ["Gastos Extras", "Hospedaje", "Aliemntación"]}'::jsonb,
     'valle_sagrado_vip', '06:30:00', TRUE
   ),

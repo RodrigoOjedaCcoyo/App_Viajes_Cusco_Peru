@@ -41,7 +41,7 @@ class VentaModel(BaseModel):
             print(f"Error buscando tour {nombre}: {e}")
         return None
 
-    def get_or_create_cliente(self, nombre: str, celular: str, origen: str) -> Optional[int]:
+    def get_or_create_cliente(self, nombre: str, celular: str, origen: str, id_lead: Optional[int] = None) -> Optional[int]:
         """Busca un cliente por nombre (simplicidad), si no existe lo crea."""
         if not nombre: 
             raise Exception("El nombre del cliente es obligatorio")
@@ -55,6 +55,7 @@ class VentaModel(BaseModel):
         nuevo_cliente = {
             "nombre": nombre,
             "tipo_cliente": "B2C",
+            "id_lead": id_lead,
             "pais": "Desconocido", 
             "genero": "N/A"
         }
@@ -71,7 +72,12 @@ class VentaModel(BaseModel):
         """
         
         # 1. Obtener IDs Relacionales
-        id_cliente = self.get_or_create_cliente(venta_data.get('nombre_cliente'), venta_data.get('telefono_cliente'), venta_data.get('origen'))
+        id_cliente = self.get_or_create_cliente(
+            venta_data.get('nombre_cliente'), 
+            venta_data.get('telefono_cliente'), 
+            venta_data.get('origen'),
+            id_lead=venta_data.get('id_lead')
+        )
         
         if not id_cliente:
             raise Exception("No se pudo crear o encontrar el cliente. Verifique la tabla 'cliente'.")

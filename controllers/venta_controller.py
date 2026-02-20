@@ -50,6 +50,7 @@ class VentaController:
                                 tipo_comprobante: str,
                                 moneda: str = "USD",
                                 id_itinerario_digital: Optional[str] = None, # Vínculo opcional
+                                id_lead: Optional[int] = None, # Vínculo opcional
                                 file_itinerario: Optional[Any] = None,
                                 file_pago: Optional[Any] = None,
                                 numero_operacion: Optional[str] = None
@@ -87,6 +88,7 @@ class VentaController:
             "url_itinerario": url_itinerario,
             "url_comprobante_pago": url_pago,
             "id_itinerario_digital": id_itinerario_digital,
+            "id_lead": id_lead,
             "numero_operacion": numero_operacion
         }
         
@@ -117,6 +119,7 @@ class VentaController:
                                   fecha_fin: Optional[date] = None,
                                   cantidad_pax: int = 1,
                                   id_itinerario_digital: Optional[str] = None,
+                                  id_lead: Optional[int] = None,
                                   file_itinerario: Optional[Any] = None,
                                   file_pago: Optional[Any] = None,
                                   numero_operacion: Optional[str] = None

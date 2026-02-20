@@ -359,6 +359,7 @@ def registro_ventas_directa():
                     tipo_comprobante=tipo_comp,
                     moneda=moneda_sel,
                     id_itinerario_digital=id_itinerario_dig if id_itinerario_dig else None,
+                    id_lead=id_lead_seleccionado,
                     file_itinerario=None,
                     file_pago=None,
                     numero_operacion=num_op

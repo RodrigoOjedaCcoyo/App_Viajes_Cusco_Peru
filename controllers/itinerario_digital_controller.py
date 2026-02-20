@@ -93,7 +93,7 @@ class ItinerarioDigitalController:
     def obtener_todos_recientes(self, limit: int = 50) -> list:
         """Retorna los últimos N itinerarios generados con info de contacto del lead."""
         try:
-            res = self.client.table('itinerario_digital').select('id_itinerario_digital, nombre_pasajero_itinerario, fecha_generacion, datos_render, lead(numero_celular)').order('fecha_generacion', desc=True).limit(limit).execute()
+            res = self.client.table('itinerario_digital').select('id_itinerario_digital, id_lead, nombre_pasajero_itinerario, fecha_generacion, datos_render, lead(numero_celular)').order('fecha_generacion', desc=True).limit(limit).execute()
             return res.data or []
         except Exception as e:
             print(f"Error obteniendo itinerarios recientes: {e}")

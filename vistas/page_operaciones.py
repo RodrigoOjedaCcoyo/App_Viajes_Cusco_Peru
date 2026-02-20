@@ -460,6 +460,7 @@ def registro_ventas_proveedores(supabase_client):
                     fecha_fin=f_fin,
                     cantidad_pax=cant_pax,
                     id_itinerario_digital=id_itinerario_dig,
+                    id_lead=it_data.get('id_lead') if id_itinerario_dig else None,
                     file_itinerario=None,
                     file_pago=None
                 )
