@@ -104,8 +104,6 @@ def render_ops_dashboard_visual(supabase_client):
         from vistas.dashboard_analytics import render_operations_dashboard
         data_ops = controller.get_data_for_analytics()
         df_servicios = pd.DataFrame(data_ops) if data_ops else pd.DataFrame()
-        if not df_servicios.empty:
-            st.toast(f"📊 Dashboard: {len(df_servicios)} servicios listos")
         render_operations_dashboard(df_servicios)
         
         # --- 🔍 VERIFICADOR DE INCLUSIONES (ESTILO IMAGEN) ---

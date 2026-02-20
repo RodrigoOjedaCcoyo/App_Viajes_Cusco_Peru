@@ -71,32 +71,17 @@ def render_operations_dashboard(df_servicios):
     k3.metric("Complejidad de Operación", f"{max(1, servicios_total//2)} Niv.", delta="Estimado")
     
     # Gráficos de Operación
-    c1, c2 = st.columns(2)
-    
-    with c1:
-        st.markdown("**📉 Volumen de Pasajeros por Fecha**")
-        if 'fecha_servicio' in df_servicios.columns:
-            ops_by_date = df_servicios.groupby('fecha_servicio').size().reset_index(name='servicios')
-            fig_timeline = px.area(ops_by_date, x='fecha_servicio', y='servicios', 
-                                   markers=True, title="Carga de Trabajo Diaria",
-                                   color_discrete_sequence=['#4CAF50'])
-            st.plotly_chart(fig_timeline, use_container_width=True)
-        else:
-            st.warning("⚠️ No se puede mostrar la línea de tiempo: falta columna 'fecha_servicio'")
-            if not df_servicios.empty:
-                st.write("Columnas disponibles:", df_servicios.columns.tolist())
-        
-    with c2:
-        st.markdown("**📊 Mix de Servicios (Tours)**")
-        # Priorizar observaciones o catálogo
-        col_servicio = 'observacion' if 'observacion' in df_servicios.columns else 'id_tour'
-        if col_servicio in df_servicios.columns:
-            tour_counts = df_servicios[col_servicio].value_counts().reset_index()
-            tour_counts.columns = ['Tour', 'Frecuencia']
-            fig_pie = px.pie(tour_counts.head(5), values='Frecuencia', names='Tour', 
-                             title="Top 5 Tours Programados",
-                             hole=.4)
-            st.plotly_chart(fig_pie, use_container_width=True)
+    st.markdown("**📉 Volumen de Pasajeros por Fecha**")
+    if 'fecha_servicio' in df_servicios.columns:
+        ops_by_date = df_servicios.groupby('fecha_servicio').size().reset_index(name='servicios')
+        fig_timeline = px.area(ops_by_date, x='fecha_servicio', y='servicios', 
+                                markers=True, title="Carga de Trabajo Diaria",
+                                color_discrete_sequence=['#4CAF50'])
+        st.plotly_chart(fig_timeline, use_container_width=True)
+    else:
+        st.warning("⚠️ No se puede mostrar la línea de tiempo: falta columna 'fecha_servicio'")
+        if not df_servicios.empty:
+            st.write("Columnas disponibles:", df_servicios.columns.tolist())
 
 def render_financial_dashboard(df_ventas, df_gastos_op=None):
     """Genera el Dashboard Financiero (Liquidación)."""
