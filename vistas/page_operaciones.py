@@ -530,7 +530,15 @@ def reporte_operativo(controller):
 
 def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
     """Punto de entrada de Streamlit para el área de Operaciones."""
-    controller = OperacionesController(supabase_client)
+    import controllers.operaciones_controller
+    import controllers.venta_controller
+    import importlib
+    
+    # Forzar recarga de módulos para captar cambios en clases
+    importlib.reload(controllers.operaciones_controller)
+    importlib.reload(controllers.venta_controller)
+    
+    controller = controllers.operaciones_controller.OperacionesController(supabase_client)
     
     st.title("⚙️ Gestión de Operaciones")
     st.markdown("---")

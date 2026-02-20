@@ -607,12 +607,20 @@ def gestion_registros_multicanal():
 from controllers.itinerario_digital_controller import ItinerarioDigitalController
 
 def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual='Desconocido', user_id=None): 
-    if 'lead_controller' not in st.session_state:
-        st.session_state.lead_controller = LeadController(supabase_client)
-    if 'venta_controller' not in st.session_state:
-        st.session_state.venta_controller = VentaController(supabase_client)
-    if 'itinerario_digital_controller' not in st.session_state:
-        st.session_state.itinerario_digital_controller = ItinerarioDigitalController(supabase_client)
+    import controllers.lead_controller
+    import controllers.venta_controller
+    import controllers.itinerario_digital_controller
+    import importlib
+    
+    # Forzar recarga de los módulos de controlador para captar cambios en la definición de clases
+    importlib.reload(controllers.lead_controller)
+    importlib.reload(controllers.venta_controller)
+    importlib.reload(controllers.itinerario_digital_controller)
+    
+    # Re-instanciar para asegurar que tengan los nuevos métodos
+    st.session_state.lead_controller = controllers.lead_controller.LeadController(supabase_client)
+    st.session_state.venta_controller = controllers.venta_controller.VentaController(supabase_client)
+    st.session_state.itinerario_digital_controller = controllers.itinerario_digital_controller.ItinerarioDigitalController(supabase_client)
     
     st.session_state.user_id = user_id
 
