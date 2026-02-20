@@ -11,8 +11,8 @@ class ReporteController:
     
     def __init__(self, supabase_client):
         self.client = supabase_client
-        self.venta_model = VentaModel('venta', supabase_client)
-        self.lead_model = LeadModel('lead', supabase_client)
+        self.venta_model = VentaModel(supabase_client)
+        self.lead_model = LeadModel(supabase_client)
         
     def obtener_requerimientos(self):
         """Obtiene la lista de requerimientos (Pagos operativos pendientes en itinerarios)."""

@@ -13,7 +13,7 @@ class ItinerarioDigitalController:
     def __init__(self, supabase_client: Client):
         self.client = supabase_client
         self.itinerario_model = ItinerarioDigitalModel(supabase_client)
-        self.lead_model = LeadModel('lead', supabase_client)
+        self.lead_model = LeadModel(supabase_client)
         self.catalogo_model = CatalogoImagenesModel(supabase_client)
         self.pdf_engine = PDFController()
 

@@ -8,7 +8,7 @@ from supabase import Client
 class LeadModel(BaseModel):
     """Modelo para la gestión de Leads (Clientes Potenciales)."""
 
-    def __init__(self, table_name: str, supabase_client: Client):
+    def __init__(self, supabase_client: Client):
         # El constructor de BaseModel guarda table_name y supabase_client (como self.client)
         # Sincronizado con esquema SQL: tabla 'lead', PK 'id_lead'
         super().__init__('lead', supabase_client, primary_key='id_lead') 

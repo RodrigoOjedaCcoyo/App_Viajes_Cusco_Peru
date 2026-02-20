@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional
 class VentaModel(BaseModel):
     """Modelo para la gestión de Ventas (Conversiones de Leads)."""
 
-    def __init__(self, table_name: str, supabase_client: Client): 
+    def __init__(self, supabase_client: Client): 
         # Sincronizado con esquema SQL: tabla 'venta', PK 'id_venta'
         super().__init__('venta', supabase_client, primary_key='id_venta') 
 

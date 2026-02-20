@@ -7,7 +7,7 @@ from typing import List, Dict, Any
 class LeadController:
     """Controlador para manejar la lógica de negocio de los Leads."""
     def __init__(self, supabase_client:Client):
-        self.model = LeadModel(table_name='lead', supabase_client=supabase_client)
+        self.model = LeadModel(supabase_client)
     def registrar_nuevo_lead(self, telefono: str, origen: str, vendedor: str, nombre_pasajero: str = "") -> tuple[bool, str]:
         """Valida los datos y llama al modelo para guardar el lead."""
         

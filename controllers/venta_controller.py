@@ -9,7 +9,7 @@ class VentaController:
     """Controlador para manejar la lógica de Ventas."""
     def __init__(self, supabase_client:Client):
         self.client = supabase_client
-        self.model = VentaModel(table_name='venta', supabase_client=supabase_client)
+        self.model = VentaModel(supabase_client)
 
     def _subir_archivo(self, bucket: str, file: Any, nombre_base: str) -> Optional[str]:
         """Sube un archivo al Storage de Supabase y retorna su URL pública."""
