@@ -501,6 +501,10 @@ def bandeja_limpieza_reportes(controller):
         st.markdown(f"### 📤 Entrega de Reporte para: **{v_sel_data['nombre_cliente']}**")
         st.write(f"ID Venta: `{v_sel_data['id_venta']}` | Servicio: **{v_sel_data.get('tour_nombre', 'N/A')}**")
         
+        # --- NUEVA CAJITA DE DATOS ---
+        with st.expander("📝 Notas Adicionales / Link al Google Sheet Maestro", expanded=True):
+            st.text_area("Cajita de Datos:", placeholder="Pega aquí el link del Google Sheet o cualquier dato relevante para el cierre...", key="link_maestro_input")
+        
         col1, col2 = st.columns(2)
         
         with col1:
