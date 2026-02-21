@@ -157,9 +157,17 @@ def registro_ventas_directa():
     
     if itinerarios_recuperados:
         for it in itinerarios_recuperados:
-            uuid = it.get('id_itinerario_digital', '')
+            id_lead_from_itinerario = it.get('id_lead')
             render_data = it.get('datos_render', {})
-            
+            if isinstance(render_data, str):
+                try: import json; render_data = json.loads(render_data)
+                except: render_data = {}
+
+            # --- FILTRO B2C: En Ventas Directas solo mostramos diseños B2C ---
+            tipo_v = render_data.get('metadata', {}).get('tipo_venta', 'B2C')
+            if tipo_v == 'B2B':
+                continue
+
             # Soportar ambas estructuras
             titulo = render_data.get('titulo', '')
             if not titulo:
