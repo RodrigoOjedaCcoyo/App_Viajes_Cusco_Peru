@@ -11,31 +11,6 @@ class VentaController:
         self.client = supabase_client
         self.model = VentaModel(supabase_client)
 
-    def _subir_archivo(self, bucket: str, file: Any, nombre_base: str) -> Optional[str]:
-        """Sube un archivo al Storage de Supabase y retorna su URL pública."""
-        try:
-            if not file: return None
-            
-            # 1. Preparar nombre de archivo único
-            ext = file.name.split('.')[-1]
-            timestamp = date.today().strftime("%Y%m%d")
-            file_path = f"{timestamp}_{nombre_base}.{ext}"
-            
-            # 2. Subir (leemos el contenido binario del UploadedFile de Streamlit)
-            file_content = file.getvalue()
-            res = self.client.storage.from_(bucket).upload(
-                path=file_path,
-                file=file_content,
-                file_options={"content-type": file.type}
-            )
-            
-            # 3. Obtener URL Pública
-            return self.client.storage.from_(bucket).get_public_url(file_path)
-            
-        except Exception as e:
-            print(f"Error subiendo archivo a {bucket}: {e}")
-            return None
-
     def registrar_venta_directa(self, 
                                 nombre_cliente: str,
                                 telefono: str, 
@@ -50,9 +25,7 @@ class VentaController:
                                 tipo_comprobante: str,
                                 moneda: str = "USD",
                                 id_itinerario_digital: Optional[str] = None, # Vínculo opcional
-                                id_lead: Optional[int] = None, # Vínculo opcional
-                                file_itinerario: Optional[Any] = None,
-                                file_pago: Optional[Any] = None
+                                id_lead: Optional[int] = None # Vínculo opcional
                                 ) -> tuple[bool, str]:
         """Registra una venta con todos los detalles extendidos."""
         
@@ -60,12 +33,7 @@ class VentaController:
         if not nombre_cliente or not telefono or not tour or monto_total <= 0:
              return False, "Campos obligatorios faltantes (Nombre, Teléfono, Tour o Monto)."
 
-        # 2. Manejo de Archivos Reales (Supabase Storage)
-        clean_name = nombre_cliente.replace(" ", "_").lower()
-        url_itinerario = self._subir_archivo("itinerarios", file_itinerario, f"itin_{clean_name}")
-        url_pago = self._subir_archivo("pagos", file_pago, f"pago_{clean_name}")
-        
-        # 3. Preparar datos
+        # 2. Preparar datos
         saldo = monto_total - monto_depositado
         estado_pago = "COMPLETADO" if saldo <= 0 else "PENDIENTE"
         
@@ -81,11 +49,8 @@ class VentaController:
             "monto_total": monto_total,
             "monto_depositado": monto_depositado,
             "saldo": saldo,
-            "estado_pago": estado_pago,
             "tipo_comprobante": tipo_comprobante,
             "moneda": moneda,
-            "url_itinerario": url_itinerario,
-            "url_pago": url_pago,
             "id_itinerario_digital": id_itinerario_digital,
             "id_lead": id_lead
         }
@@ -118,18 +83,11 @@ class VentaController:
                                   cantidad_pax: int = 1,
                                   id_itinerario_digital: Optional[str] = None,
                                   id_lead: Optional[int] = None,
-                                  file_itinerario: Optional[Any] = None,
-                                  file_pago: Optional[Any] = None,
                                   tipo_comprobante: str = "RECIBO"
                                   ) -> tuple[bool, str]:
         """Registra una venta proveniente de una agencia externa (B2B)."""
         try:
-            # 1. Manejo de Archivos
-            clean_name = nombre_cliente.replace(" ", "_").lower()
-            url_it = self._subir_archivo("itinerarios", file_itinerario, f"itin_b2b_{clean_name}")
-            url_pg = self._subir_archivo("pagos", file_pago, f"pago_b2b_{clean_name}")
-
-            # 2. Lógica de Pago
+            # 1. Lógica de Pago
             saldo = monto_total - monto_depositado
             estado_pago = "PAGADO" if saldo <= 0 else "DEBITO"
             
@@ -148,8 +106,6 @@ class VentaController:
                 "fecha_fin": (fecha_fin or date.today()).isoformat(),
                 "cantidad": cantidad_pax,
                 "id_itinerario_digital": id_itinerario_digital,
-                "url_itinerario": url_it,
-                "url_pago": url_pg,
                 "tipo_comprobante": tipo_comprobante
             }
             

@@ -139,7 +139,7 @@ class VentaModel(BaseModel):
             "id_paquete": id_paquete,
             "tour_nombre": tour_raw,
             "num_pasajeros": num_pax_final,
-            "id_agencia_aliada": venta_data.get("id_agencia_aliada"),
+            "id_agencia_aliada": id_age,
             "id_itinerario_digital": id_itin
         }
 
@@ -166,17 +166,16 @@ class VentaModel(BaseModel):
                     pago_data = {
                         "id_venta": nuevo_id_venta,
                         "fecha_pago": datetime.now().strftime("%Y-%m-%d"),
-                        "monto_pagado": monto_dep,
+                        "monto_pagado": float(monto_dep), # Asegurar float
                         "moneda": venta_data.get("moneda", "USD"),
                         "metodo_pago": "OTRO",
                         "tipo_pago": "ADELANTO" if monto_dep < venta_data.get("monto_total", 0) else "TOTAL",
-                        "tipo_comprobante": tipo_c_db,
-                        "url_voucher": venta_data.get("url_pago")
+                        "tipo_comprobante": tipo_c_db
                     }
                     self.client.table('pago').insert(pago_data).execute()
             except Exception as e:
-                # No fallar toda la venta si el pago no se registra
-                print(f"Advertencia: Error registrando pago inicial: {e}")
+                # Ahora lanzamos el error para que el controlador lo capture y lo muestre al usuario
+                raise Exception(f"Error registrando el pago inicial (Adelanto): {e}")
 
         # 5. Registrar Detalles venta_tour (Expansión de Días para Operaciones)
         try:
