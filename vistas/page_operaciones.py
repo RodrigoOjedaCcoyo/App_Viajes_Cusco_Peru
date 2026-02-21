@@ -532,9 +532,11 @@ def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
     """Punto de entrada de Streamlit para el área de Operaciones."""
     import controllers.operaciones_controller
     import controllers.venta_controller
+    import models.venta_model
     import importlib
     
     # Forzar recarga de módulos para captar cambios en clases
+    importlib.reload(models.venta_model)
     importlib.reload(controllers.operaciones_controller)
     importlib.reload(controllers.venta_controller)
     

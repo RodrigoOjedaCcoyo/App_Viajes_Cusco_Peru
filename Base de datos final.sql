@@ -75,9 +75,6 @@
       id_lead INTEGER REFERENCES lead(id_lead) ON DELETE SET NULL,
       nombre VARCHAR(255), -- Requerido por app
       tipo_cliente VARCHAR(50) DEFAULT 'B2C' CHECK (tipo_cliente IN ('B2C', 'B2B')),
-      pais VARCHAR(100), -- Requerido por app
-      genero VARCHAR(20), -- Requerido por app
-      documento_identidad VARCHAR(50),
       fecha_registro TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
   );
 

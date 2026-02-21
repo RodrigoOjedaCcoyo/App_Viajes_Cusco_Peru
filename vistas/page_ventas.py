@@ -610,9 +610,11 @@ def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual=
     import controllers.lead_controller
     import controllers.venta_controller
     import controllers.itinerario_digital_controller
+    import models.venta_model
     import importlib
     
-    # Forzar recarga de los módulos de controlador para captar cambios en la definición de clases
+    # Forzar recarga de módulos para captar cambios en clases (Modelos y Controladores)
+    importlib.reload(models.venta_model)
     importlib.reload(controllers.lead_controller)
     importlib.reload(controllers.venta_controller)
     importlib.reload(controllers.itinerario_digital_controller)

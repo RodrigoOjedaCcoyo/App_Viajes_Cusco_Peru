@@ -35,7 +35,7 @@ def populate_data():
         if res.data:
             ids_clientes.append(res.data[0]['id_cliente'])
         else:
-            data = {"nombre": name, "tipo_cliente": "B2C", "pais": "Peru"}
+            data = {"nombre": name, "tipo_cliente": "B2C"}
             res_ins = supabase.table('cliente').insert(data).select('id_cliente').execute()
             if res_ins.data:
                 ids_clientes.append(res_ins.data[0]['id_cliente'])

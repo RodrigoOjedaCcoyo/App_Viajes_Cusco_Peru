@@ -55,9 +55,7 @@ class VentaModel(BaseModel):
         nuevo_cliente = {
             "nombre": nombre,
             "tipo_cliente": "B2C",
-            "id_lead": id_lead,
-            "pais": "Desconocido", 
-            "genero": "N/A"
+            "id_lead": id_lead
         }
         res_insert = self.client.table('cliente').insert(nuevo_cliente).execute()
         if res_insert.data and len(res_insert.data) > 0:
