@@ -18,6 +18,7 @@
   DROP TABLE IF EXISTS paquete CASCADE;
   DROP TABLE IF EXISTS tour_itinerario_item CASCADE;
   DROP TABLE IF EXISTS tour CASCADE;
+  DROP TABLE IF EXISTS plantilla_servicio CASCADE;
   DROP TABLE IF EXISTS proveedor CASCADE; -- AGREGADO AQUÍ
   DROP TABLE IF EXISTS agencia_aliada CASCADE;
   DROP TABLE IF EXISTS cliente CASCADE;
@@ -165,9 +166,6 @@
       id_agencia_aliada INTEGER REFERENCES agencia_aliada(id_agencia),
       tour_nombre VARCHAR(255),
       num_pasajeros INTEGER DEFAULT 1, 
-      url_itinerario TEXT,
-      url_comprobante_pago TEXT,
-      url_documentos TEXT,
       cancelada BOOLEAN DEFAULT FALSE,
       fecha_cancelacion TIMESTAMP WITH TIME ZONE,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -207,8 +205,8 @@
       monto_pagado DECIMAL(10,2) NOT NULL CHECK (monto_pagado > 0),
       moneda VARCHAR(10) DEFAULT 'USD' CHECK (moneda IN ('USD', 'PEN', 'EUR')),
       metodo_pago VARCHAR(50) CHECK (metodo_pago IN ('EFECTIVO', 'TRANSFERENCIA', 'TARJETA', 'PAYPAL', 'YAPE', 'PLIN', 'OTRO')),
-      tipo_pago VARCHAR(50) CHECK (tipo_pago IN ('ADELANTO', 'SALDO', 'TOTAL', 'PARCIAL')),
-      numero_operacion VARCHAR(100), -- Nuevo campo para conciliación bancaria
+      tipo_pago VARCHAR(50) CHECK (tipo_pago IN ('ADELANTO', 'SALDO', 'TOTAL', 'PARCIAL', 'REEMBOLSO')),
+      tipo_comprobante VARCHAR(50) DEFAULT 'RECIBO' CHECK (tipo_comprobante IN ('BOLETA', 'FACTURA', 'RECIBO', 'RECIBO SIMPLE', 'SIN_COMPROBANTE')),
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -273,10 +271,8 @@
           'TRANSPORTE', 'ALOJAMIENTO', 'ALIMENTACION', 
           'GUIA', 'TICKETS', 'ENDOSE' 
       )),
-      costo_acordado DECIMAL(10,2) NOT NULL,
+      costo_unitario DECIMAL(10,2) NOT NULL,
       moneda VARCHAR(10) DEFAULT 'USD',
-      cantidad INTEGER DEFAULT 1, -- Nuevo campo Pax/Cant
-      observacion TEXT, -- Nuevo campo detalles cortos
 
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (id_venta, n_linea) REFERENCES venta_tour(id_venta, n_linea) ON DELETE CASCADE,
@@ -788,7 +784,7 @@
   CREATE OR REPLACE FUNCTION sync_costo_venta_total()
   RETURNS TRIGGER AS $$
   BEGIN
-      UPDATE venta SET costo_total = (SELECT COALESCE(SUM(costo_acordado), 0) FROM venta_servicio_proveedor WHERE id_venta = COALESCE(NEW.id_venta, OLD.id_venta))
+      UPDATE venta SET costo_total = (SELECT COALESCE(SUM(costo_unitario), 0) FROM venta_servicio_proveedor WHERE id_venta = COALESCE(NEW.id_venta, OLD.id_venta))
       WHERE id_venta = COALESCE(NEW.id_venta, OLD.id_venta);
       RETURN NULL;
   END;
@@ -808,6 +804,42 @@
 
   CREATE TRIGGER trigger_calc_utilidad BEFORE INSERT OR UPDATE OF precio_total_cierre, costo_total ON venta
       FOR EACH ROW EXECUTE FUNCTION calcular_utilidad_venta();
+
+  -- 3.4. Sincronizar estado_pago de la venta (Basado en tabla Pagos)
+  CREATE OR REPLACE FUNCTION sync_estado_pago_venta()
+  RETURNS TRIGGER AS $$
+  DECLARE
+      total_deuda DECIMAL(10,2);
+      total_pagado DECIMAL(10,2);
+      nuevo_estado VARCHAR(50);
+  BEGIN
+      -- Obtener el precio total de la venta
+      SELECT precio_total_cierre INTO total_deuda FROM venta WHERE id_venta = COALESCE(NEW.id_venta, OLD.id_venta);
+      
+      -- Sumar todos los pagos (reembolsos restan)
+      SELECT COALESCE(SUM(CASE WHEN tipo_pago = 'REEMBOLSO' THEN -monto_pagado ELSE monto_pagado END), 0) 
+      INTO total_pagado 
+      FROM pago 
+      WHERE id_venta = COALESCE(NEW.id_venta, OLD.id_venta);
+
+      -- Determinar estado
+      IF total_pagado <= 0 THEN
+          nuevo_estado := 'PENDIENTE';
+      ELSIF total_pagado < total_deuda THEN
+          nuevo_estado := 'PARCIAL';
+      ELSE
+          nuevo_estado := 'COMPLETADO';
+      END IF;
+
+      -- Actualizar venta
+      UPDATE venta SET estado_pago = nuevo_estado WHERE id_venta = COALESCE(NEW.id_venta, OLD.id_venta);
+      
+      RETURN NULL;
+  END;
+  $$ language 'plpgsql';
+
+  CREATE TRIGGER trigger_sync_estado_pago AFTER INSERT OR UPDATE OR DELETE ON pago
+      FOR EACH ROW EXECUTE FUNCTION sync_estado_pago_venta();
 
 
   -- ==============================================================

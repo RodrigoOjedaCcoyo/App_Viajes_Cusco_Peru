@@ -51,9 +51,7 @@ class VentaController:
                                 moneda: str = "USD",
                                 id_itinerario_digital: Optional[str] = None, # Vínculo opcional
                                 id_lead: Optional[int] = None, # Vínculo opcional
-                                file_itinerario: Optional[Any] = None,
-                                file_pago: Optional[Any] = None,
-                                numero_operacion: Optional[str] = None
+                                file_itinerario: Optional[Any] = None
                                 ) -> tuple[bool, str]:
         """Registra una venta con todos los detalles extendidos."""
         
@@ -64,7 +62,6 @@ class VentaController:
         # 2. Manejo de Archivos Reales (Supabase Storage)
         clean_name = nombre_cliente.replace(" ", "_").lower()
         url_itinerario = self._subir_archivo("itinerarios", file_itinerario, f"itin_{clean_name}")
-        url_pago = self._subir_archivo("vouchers", file_pago, f"pago_{clean_name}")
         
         # 3. Preparar datos
         saldo = monto_total - monto_depositado
@@ -86,10 +83,8 @@ class VentaController:
             "tipo_comprobante": tipo_comprobante,
             "moneda": moneda,
             "url_itinerario": url_itinerario,
-            "url_comprobante_pago": url_pago,
             "id_itinerario_digital": id_itinerario_digital,
-            "id_lead": id_lead,
-            "numero_operacion": numero_operacion
+            "id_lead": id_lead
         }
         
         # Corregir typo detectado
@@ -120,16 +115,13 @@ class VentaController:
                                   cantidad_pax: int = 1,
                                   id_itinerario_digital: Optional[str] = None,
                                   id_lead: Optional[int] = None,
-                                  file_itinerario: Optional[Any] = None,
-                                  file_pago: Optional[Any] = None,
-                                  numero_operacion: Optional[str] = None
+                                  file_itinerario: Optional[Any] = None
                                   ) -> tuple[bool, str]:
         """Registra una venta proveniente de una agencia externa (B2B)."""
         try:
             # 1. Manejo de Archivos
             clean_name = nombre_cliente.replace(" ", "_").lower()
             url_it = self._subir_archivo("itinerarios", file_itinerario, f"itin_b2b_{clean_name}")
-            url_pago = self._subir_archivo("vouchers", file_pago, f"pago_b2b_{clean_name}")
 
             # 2. Lógica de Pago
             saldo = monto_total - monto_depositado
@@ -150,9 +142,7 @@ class VentaController:
                 "fecha_fin": (fecha_fin or date.today()).isoformat(),
                 "cantidad": cantidad_pax,
                 "id_itinerario_digital": id_itinerario_digital,
-                "url_itinerario": url_it,
-                "url_comprobante_pago": url_pago,
-                "numero_operacion": numero_operacion
+                "url_itinerario": url_it
             }
             
             res_id = self.model.create_venta(venta_data)

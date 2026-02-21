@@ -122,18 +122,18 @@ class VentaModel(BaseModel):
             "id_cliente": id_cliente,
             "id_vendedor": id_vendedor,
             "fecha_venta": venta_data.get("fecha_registro", datetime.now().strftime("%Y-%m-%d")),
+            "fecha_inicio": venta_data.get("fecha_inicio"),
+            "fecha_fin": venta_data.get("fecha_fin"),
             "canal_venta": venta_data.get("origen", "DIRECTO"),
             "precio_total_cierre": venta_data.get("monto_total"),
             "moneda": venta_data.get("moneda", "USD"),
-            "estado_pago": "COMPLETADO" if (venta_data.get("monto_total", 0) - venta_data.get("monto_depositado", 0)) <= 0 else "PENDIENTE",
+            "estado_pago": "PENDIENTE", # Será actualizado por el trigger de pagos
             "estado_venta": "CONFIRMADO",
             "id_paquete": id_paquete,
             "tour_nombre": tour_raw,
             "num_pasajeros": num_pax_final,
             "id_agencia_aliada": venta_data.get("id_agencia_aliada"),
-            "id_itinerario_digital": id_itin,
-            "url_itinerario": venta_data.get("url_itinerario"),
-            "url_comprobante_pago": venta_data.get("url_comprobante_pago")
+            "id_itinerario_digital": id_itin
         }
 
         # 3. Insertar Venta (esto lanzará excepción si falla)
@@ -143,18 +143,29 @@ class VentaModel(BaseModel):
             raise Exception("El método save() devolvió None. Error desconocido al insertar en la tabla 'venta'.")
         
         # 4. Registrar Pago Inicial (Tabla 'pago')
-        if venta_data.get("monto_depositado", 0) > 0:
+        if venta_data.get("monto_depositado", 0) >= 0:
             try:
-                pago_data = {
-                    "id_venta": nuevo_id_venta,
-                    "fecha_pago": datetime.now().strftime("%Y-%m-%d"),
-                    "monto_pagado": venta_data.get("monto_depositado"),
-                    "moneda": venta_data.get("moneda", "USD"),
-                    "metodo_pago": "OTRO",
-                    "tipo_pago": "ADELANTO",
-                    "numero_operacion": venta_data.get("numero_operacion")
-                }
-                self.client.table('pago').insert(pago_data).execute()
+                # Si el monto es 0, igual creamos un registro "PENDIENTE" o simplemente saltamos
+                # En este flujo, si hay monto_depositado (adelanto) lo registramos
+                monto_dep = venta_data.get("monto_depositado", 0)
+                if monto_dep > 0:
+                    # Normalizar tipo de comprobante para el CHECK constraint del SQL
+                    tipo_c_raw = str(venta_data.get("tipo_comprobante", "RECIBO")).upper()
+                    if "BOLETA" in tipo_c_raw: tipo_c_db = "BOLETA"
+                    elif "FACTURA" in tipo_c_raw: tipo_c_db = "FACTURA"
+                    elif "SIMPLE" in tipo_c_raw: tipo_c_db = "RECIBO SIMPLE"
+                    else: tipo_c_db = "RECIBO"
+
+                    pago_data = {
+                        "id_venta": nuevo_id_venta,
+                        "fecha_pago": datetime.now().strftime("%Y-%m-%d"),
+                        "monto_pagado": monto_dep,
+                        "moneda": venta_data.get("moneda", "USD"),
+                        "metodo_pago": "OTRO",
+                        "tipo_pago": "ADELANTO" if monto_dep < venta_data.get("monto_total", 0) else "TOTAL",
+                        "tipo_comprobante": tipo_c_db
+                    }
+                    self.client.table('pago').insert(pago_data).execute()
             except Exception as e:
                 # No fallar toda la venta si el pago no se registra
                 print(f"Advertencia: Error registrando pago inicial: {e}")

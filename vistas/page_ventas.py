@@ -130,7 +130,7 @@ def registro_ventas_directa():
     
     # 1. Buscador/Selector de Lead para auto-completar
     leads = lead_controller.obtener_todos_leads()
-    lead_opt = ["--- Ingreso Manual / Sin Lead ---"]
+    lead_opt = ["--- Selecciona un Lead (Obligatorio) ---"]
     lead_map = {}
     
     if leads:
@@ -139,7 +139,7 @@ def registro_ventas_directa():
             lead_opt.append(lbl)
             lead_map[lbl] = l
 
-    lead_sel = st.selectbox("🎯 Vincular con un Lead existente (Opcional)", lead_opt)
+    lead_sel = st.selectbox("🎯 Vincular con un Lead existente", lead_opt)
     lead_data = lead_map.get(lead_sel)
 
     # --- 🕵️ SELECTOR DE ITINERARIO (Buscador por Contacto) ---
@@ -205,13 +205,20 @@ def registro_ventas_directa():
                 title_2 = render.get('title_2', '')
                 tour_nombre_cloud = f"{title_1} {title_2}".strip()
             
+            # Extraer celular del lead asociado al itinerario
+            cel_cloud = ''
+            if it_data.get('lead') and isinstance(it_data['lead'], dict):
+                cel_cloud = it_data['lead'].get('numero_celular', '')
+            
             st.session_state[f"val_nom_{id_itinerario_dig}"] = nombre_pax_cloud
             st.session_state[f"val_tour_{id_itinerario_dig}"] = tour_nombre_cloud
+            st.session_state[f"val_cel_{id_itinerario_dig}"] = cel_cloud
             if id_itinerario_dig and id_itinerario_dig != st.session_state.get('last_loaded_itin'):
                 # 1. Intentar obtener el precio de cierre directo (Nivel raíz)
                 precio_raw = render.get('precio_cierre')
                 
                 # 2. Si no existe, buscar en la estructura de precios (Nivel 'precios')
+                moneda_detectada = None
                 if not precio_raw:
                     precios = render.get('precios', {})
                     # La estructura puede ser directa (float) o diccionario ({"monto": "..."})
@@ -223,7 +230,21 @@ def registro_ventas_directa():
                     p_nac = extract_val(precios.get('nacional') or precios.get('nac'))
                     p_can = extract_val(precios.get('can'))
                     
-                    precio_raw = p_ext or p_nac or p_can or "0.00"
+                    # Detectar moneda según el tipo de precio que se usó
+                    if p_ext:
+                        precio_raw = p_ext
+                        moneda_detectada = 'USD'
+                    elif p_nac:
+                        precio_raw = p_nac
+                        moneda_detectada = 'PEN'
+                    elif p_can:
+                        precio_raw = p_can
+                        moneda_detectada = 'USD'
+                    else:
+                        precio_raw = "0.00"
+
+                # Moneda explícita en el render tiene prioridad
+                moneda_detectada = render.get('moneda') or moneda_detectada or 'USD'
 
                 # 3. Limpiar y convertir a float
                 try:
@@ -237,6 +258,7 @@ def registro_ventas_directa():
                     p_sug = 0.0
 
                 st.session_state['m_total'] = p_sug
+                st.session_state['moneda_auto'] = moneda_detectada
                 st.session_state['last_loaded_itin'] = id_itinerario_dig
                 st.success(f"✅ Itinerario cargado: **{tour_nombre_cloud}** (Precio sugerido: ${p_sug:,.2f})")
             else:
@@ -246,16 +268,18 @@ def registro_ventas_directa():
     # --- 💳 BALANCE Y MONEDA (TIEMPO REAL / INTERACTIVO) ---
     st.markdown("### 💰 Detalles de Pago")
     c_m0, c_m1, c_m2 = st.columns([1, 2, 2])
-    moneda_sel = c_m0.selectbox("Moneda", ["USD", "PEN"], help="Seleccione la moneda del pago")
+    
+    # Auto-seleccionar moneda desde itinerario
+    monedas_list = ["USD", "PEN"]
+    moneda_auto = st.session_state.get('moneda_auto', 'USD')
+    idx_moneda = monedas_list.index(moneda_auto) if moneda_auto in monedas_list else 0
+    moneda_sel = c_m0.selectbox("Moneda", monedas_list, index=idx_moneda, help="Se auto-detecta del itinerario")
     # Usamos session_state para persistencia y auto-llenado
     if 'm_total' not in st.session_state: st.session_state['m_total'] = 0.0
     if 'm_pago' not in st.session_state: st.session_state['m_pago'] = 0.0
     
     monto_total = c_m1.number_input(f"Monto Total ({moneda_sel})", min_value=0.0, format="%.2f", key="m_total")
     monto_pagado = c_m2.number_input(f"Monto Pagado ({moneda_sel})", min_value=0.0, format="%.2f", key="m_pago")
-    
-    # Campo para número de operación (Nuevo requerimiento contabilidad)
-    num_op = st.text_input("Número de Operación / Referencia (Opcional)", placeholder="Ej: TRANSF-12345, YAPE-XYZ")
     
     saldo = monto_total - monto_pagado
     
@@ -287,7 +311,8 @@ def registro_ventas_directa():
             is_disabled = True
             
         nombre = col1.text_input("Nombre Cliente", value=def_nombre, disabled=is_disabled)
-        tel = col1.text_input("Celular", value=lead_data.get('numero_celular', '') if lead_data else '')
+        def_cel = lead_data.get('numero_celular', '') if lead_data else st.session_state.get(f"val_cel_{id_itinerario_dig}", '')
+        tel = col1.text_input("Celular", value=def_cel)
         
         vendedor_actual = st.session_state.get('user_id', 'Admin')
         col1.markdown(f"👤 **Vendedor:** {vendedor_actual}")
@@ -340,7 +365,10 @@ def registro_ventas_directa():
 
         if submitted:
             # Validación previa
-            if not nombre or not tel:
+            id_lead_final = id_lead_seleccionado or id_lead_from_itinerario
+            if not id_lead_final:
+                st.error("❌ Debes seleccionar un Lead. No se puede registrar una venta sin Lead vinculado.")
+            elif not nombre or not tel:
                 st.error("❌ El Nombre y el Celular son obligatorios.")
             elif not id_paquete:
                 st.error("❌ El nombre del Tour/Paquete es obligatorio.")
@@ -363,8 +391,7 @@ def registro_ventas_directa():
                     id_itinerario_digital=id_itinerario_dig if id_itinerario_dig else None,
                     id_lead=id_lead_seleccionado or id_lead_from_itinerario,
                     file_itinerario=None,
-                    file_pago=None,
-                    numero_operacion=num_op
+                    file_pago=None
                 )
                 
                 if exito:

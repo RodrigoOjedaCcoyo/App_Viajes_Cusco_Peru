@@ -275,7 +275,7 @@ def registro_ventas_proveedores(supabase_client):
     # 1️⃣ SELECTOR DE LEAD (Auto-completar datos del cliente)
     # ═══════════════════════════════════════════════════════════════
     leads = lead_controller.obtener_todos_leads()
-    lead_opt = ["--- Ingreso Manual / Sin Lead ---"]
+    lead_opt = ["--- Selecciona un Lead (Obligatorio) ---"]
     lead_map = {}
 
     if leads:
@@ -284,7 +284,7 @@ def registro_ventas_proveedores(supabase_client):
             lead_opt.append(lbl)
             lead_map[lbl] = l
 
-    lead_sel = st.selectbox("🎯 Vincular con un Lead existente (Opcional)", lead_opt, key="b2b_lead_sel")
+    lead_sel = st.selectbox("🎯 Vincular con un Lead existente", lead_opt, key="b2b_lead_sel")
     lead_data = lead_map.get(lead_sel)
     id_lead_seleccionado = lead_data.get('id_lead') if lead_data else None
 
@@ -433,8 +433,6 @@ def registro_ventas_proveedores(supabase_client):
 
     monto_total = c_m1.number_input(f"Monto Total ({moneda_sel})", min_value=0.0, format="%.2f", key="b2b_m_total")
     monto_pagado = c_m2.number_input(f"Adelanto Recibido ({moneda_sel})", min_value=0.0, format="%.2f", key="b2b_m_pago")
-
-    num_op = st.text_input("Número de Operación / Referencia (Opcional)", placeholder="Ej: TRANSF-12345, YAPE-XYZ", key="b2b_num_op")
 
     saldo = monto_total - monto_pagado
     if monto_total > 0:
@@ -702,27 +700,60 @@ def dashboard_simulador_costos(controller):
                 
                 # Cargar Desglose de Servicios (Venta Tour)
                 detalles = vc.obtener_detalles_itinerario_venta(v['id_venta'])
+                # Cargar Liquidaciones Existentes (Desglose de Costos)
+                liq_existentes = controller.get_liquidaciones_venta(v['id_venta'])
+                mapa_liq = {}
+                for l in liq_existentes:
+                    k = f"{l['id_venta']}-{l['n_linea']}"
+                    if k not in mapa_liq: mapa_liq[k] = []
+                    mapa_liq[k].append(l)
                 
                 if detalles:
                     nuevos_items = []
                     for d in detalles:
-                        nuevos_items.append({
-                            "FECHA": date.fromisoformat(d['fecha_servicio']),
-                            "SERVICIO": d.get('observacion') or "Servicio sin nombre",
-                            "PROVEEDOR": next((f"{p['nombre_comercial']} ({p.get('servicios_ofrecidos', ['N/A'])[0]})" for p in prov_items if p['id_proveedor'] == d.get('id_proveedor')), "--- Sin Asignar ---"),
-                            "MONEDA": d.get('moneda_costo', 'USD'),
-                            "CANT": d.get('cantidad') or v.get('num_pasajeros', 1),
-                            "UNIT": float(d.get('costo_unitario') or 0.0),
-                            "TOTAL": float(d.get('costo_applied') or 0.0),
-                            "VENTA": float(d.get('precio_applied') or 0.0),
-                            "VTA_VENDEDOR": float(d.get('precio_vendedor') or d.get('precio_applied') or 0.0),
-                            "💵 Pago Op.": d.get('estado_pago_operativo', 'NO_REQUERIDO'),
-                            "📝 Info Pago": d.get('datos_pago_operativo') or '',
-                            "📎 Voucher": d.get('url_voucher_operativo', ''),
-                            "id_venta": d['id_venta'],
-                            "n_linea": d['n_linea'],
-                            "ORIGINAL_SERVICE": d.get('observacion') or "Servicio sin nombre"
-                        })
+                        key_d = f"{d['id_venta']}-{d['n_linea']}"
+                        
+                        # Si existen liquidaciones grabadas para esta linea, usarlas
+                        if key_d in mapa_liq:
+                            for l in mapa_liq[key_d]:
+                                nuevos_items.append({
+                                    "FECHA": date.fromisoformat(d['fecha_servicio']),
+                                    "TIPO_SERVICIO": l.get('tipo_servicio', 'ENDOSE'),
+                                    "SERVICIO": d.get('observacion') or "Servicio sin nombre",
+                                    "PROVEEDOR": next((f"{p['nombre_comercial']} ({p.get('servicios_ofrecidos', ['N/A'])[0]})" for p in prov_items if p['id_proveedor'] == l.get('id_proveedor')), "--- Sin Asignar ---"),
+                                    "MONEDA": l.get('moneda', 'USD'),
+                                    "CANT": 1.0, # En liquidacion_proveedor guardamos el TOTAL en costo_unitario 
+                                    "UNIT": float(l.get('costo_unitario') or 0.0),
+                                    "TOTAL": float(l.get('costo_unitario') or 0.0),
+                                    "VENTA": float(d.get('precio_applied') or 0.0),
+                                    "VTA_VENDEDOR": float(d.get('precio_vendedor') or d.get('precio_applied') or 0.0),
+                                    "💵 Pago Op.": d.get('estado_pago_operativo', 'NO_REQUERIDO'),
+                                    "📝 Info Pago": d.get('datos_pago_operativo') or '',
+                                    "📎 Voucher": d.get('url_voucher_operativo', ''),
+                                    "id_venta": d['id_venta'],
+                                    "n_linea": d['n_linea'],
+                                    "ORIGINAL_SERVICE": d.get('observacion') or "Servicio sin nombre"
+                                })
+                        else:
+                            # Caso default (lo que había antes)
+                            nuevos_items.append({
+                                "FECHA": date.fromisoformat(d['fecha_servicio']),
+                                "TIPO_SERVICIO": "ENDOSE",
+                                "SERVICIO": d.get('observacion') or "Servicio sin nombre",
+                                "PROVEEDOR": next((f"{p['nombre_comercial']} ({p.get('servicios_ofrecidos', ['N/A'])[0]})" for p in prov_items if p['id_proveedor'] == d.get('id_proveedor')), "--- Sin Asignar ---"),
+                                "MONEDA": d.get('moneda_costo', 'USD'),
+                                "CANT": d.get('cantidad') or v.get('num_pasajeros', 1),
+                                "UNIT": float(d.get('costo_unitario') or 0.0),
+                                "TOTAL": float(d.get('costo_applied') or 0.0),
+                                "VENTA": float(d.get('precio_applied') or 0.0),
+                                "VTA_VENDEDOR": float(d.get('precio_vendedor') or d.get('precio_applied') or 0.0),
+                                "💵 Pago Op.": d.get('estado_pago_operativo', 'NO_REQUERIDO'),
+                                "📝 Info Pago": d.get('datos_pago_operativo') or '',
+                                "📎 Voucher": d.get('url_voucher_operativo', ''),
+                                "id_venta": d['id_venta'],
+                                "n_linea": d['n_linea'],
+                                "ORIGINAL_SERVICE": d.get('observacion') or "Servicio sin nombre"
+                            })
                     st.session_state['simulador_data'] = nuevos_items
                     st.session_state['last_loaded_id_venta'] = v['id_venta']
                     st.rerun()
@@ -742,7 +773,7 @@ def dashboard_simulador_costos(controller):
     df_full = pd.DataFrame(st.session_state['simulador_data'])
     
     # Asegurar columnas nuevas y existentes
-    required_cols = ["CANT", "UNIT", "VENTA", "VTA_VENDEDOR", "💵 Pago Op.", "📝 Info Pago", "📎 Voucher", "PROVEEDOR", "SERVICIO", "MONEDA", "TOTAL", "id_venta", "n_linea"]
+    required_cols = ["CANT", "UNIT", "VENTA", "VTA_VENDEDOR", "💵 Pago Op.", "📝 Info Pago", "📎 Voucher", "PROVEEDOR", "SERVICIO", "MONEDA", "TOTAL", "id_venta", "n_linea", "TIPO_SERVICIO"]
     for col in required_cols:
         if col not in df_full.columns:
             if col == "CANT": df_full[col] = 1
@@ -765,6 +796,7 @@ def dashboard_simulador_costos(controller):
 
     col_config = {
         "FECHA": st.column_config.DateColumn("FECHA", disabled=True),
+        "TIPO_SERVICIO": st.column_config.SelectboxColumn("TIPO", options=['TRANSPORTE', 'ALOJAMIENTO', 'ALIMENTACION', 'GUIA', 'TICKETS', 'ENDOSE'], default="ENDOSE"),
         "SERVICIO": st.column_config.TextColumn("SERVICIO", required=True, width="large"),
         "PROVEEDOR": st.column_config.SelectboxColumn("PROVEEDOR", options=lista_proveedores, width="medium"),
         "UNIT": st.column_config.NumberColumn("COSTO UNITARIO", format="$ %.2f", min_value=0.0, width="small"),
@@ -777,6 +809,53 @@ def dashboard_simulador_costos(controller):
         "📝 Info Pago": st.column_config.TextColumn("INFO PAGO", width="medium"),
         "📎 Voucher": st.column_config.LinkColumn("VOUCHER", width="small")
     }
+
+    # El Editor Real
+    all_edited = st.data_editor(
+        df_full,
+        column_config=col_config,
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        key="editor_master_sheet"
+    )
+
+    # Botón de Guardado
+    c_save1, c_save2 = st.columns([4, 1])
+    with c_save2:
+        if st.button("💾 Guardar Liquidación", type="primary", use_container_width=True):
+            # Preparar datos para el controlador
+            save_list = []
+            
+            # Mapa reverso de proveedores
+            mapa_rev_prov = {f"{p['nombre_comercial']} ({p.get('servicios_ofrecidos', ['N/A'])[0]})": p['id_proveedor'] for p in prov_items}
+
+            for index, row in all_edited.iterrows():
+                # Asegurar cálculos
+                row_unit = float(row.get('UNIT') or 0.0)
+                row_cant = float(row.get('CANT') or 1.0)
+                row_total = row_unit * row_cant
+                
+                # Obtener ID de proveedor
+                p_id = mapa_rev_prov.get(row.get('PROVEEDOR'))
+                
+                save_list.append({
+                    "id_venta": row.get('id_venta'),
+                    "n_linea": row.get('n_linea'),
+                    "id_proveedor": p_id,
+                    "TIPO_SERVICIO": row.get('TIPO_SERVICIO', 'ENDOSE'),
+                    "TOTAL": row_total,
+                    "MONEDA": row.get('MONEDA', 'USD')
+                })
+            
+            success, msg = controller.save_liquidation(save_list)
+            if success:
+                st.success(msg)
+                # Actualizar session state para reflejar cálculos de total
+                st.session_state['simulador_data'] = all_edited.to_dict('records')
+                st.rerun()
+            else:
+                st.error(msg)
 
     # --- PROCESAMIENTO DE DATOS (Background) ---
     df_master = pd.DataFrame(st.session_state['simulador_data'])

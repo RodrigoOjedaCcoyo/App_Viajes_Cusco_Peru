@@ -241,6 +241,54 @@ class OperacionesController:
             print(f"Error en Tablero Diario: {e}")
             return []
 
+    def save_liquidation(self, items: list) -> tuple[bool, str]:
+        """
+        Persiste los datos del simulador/liquidación en la tabla venta_servicio_proveedor.
+        Realiza upsert basado en el UNIQUE constraint (id_venta, n_linea, tipo_servicio).
+        """
+        try:
+            if not items:
+                return False, "No hay datos para guardar."
+
+            clean_items = []
+            for it in items:
+                if not it.get('id_venta') or it.get('n_linea') is None:
+                    continue
+                
+                clean_items.append({
+                    "id_venta": it['id_venta'],
+                    "n_linea": it['n_linea'],
+                    "id_proveedor": it.get('id_proveedor'),
+                    "tipo_servicio": it.get('TIPO_SERVICIO', 'ENDOSE'),
+                    "costo_unitario": float(it.get('TOTAL') or 0.0),
+                    "moneda": it.get('MONEDA', 'USD')
+                })
+
+            if clean_items:
+                self.client.table('venta_servicio_proveedor').upsert(
+                    clean_items,
+                    on_conflict='id_venta, n_linea, tipo_servicio'
+                ).execute()
+                return True, "Liquidación guardada exitosamente."
+            return False, "No se encontraron filas válidas para procesar."
+        except Exception as e:
+            print(f"Error en save_liquidation: {e}")
+            return False, f"Error al guardar: {str(e)}"
+
+    def get_liquidaciones_venta(self, id_venta: int) -> list:
+        """Obtiene el desglose detallado de costos por servicio de una venta."""
+        try:
+            res = (
+                self.client.table('venta_servicio_proveedor')
+                .select('*, proveedor(nombre_comercial, servicios_ofrecidos)')
+                .eq('id_venta', id_venta)
+                .execute()
+            )
+            return res.data or []
+        except Exception as e:
+            print(f"Error en get_liquidaciones_venta: {e}")
+            return []
+
     def get_data_for_analytics(self):
         try:
             # Traer los servicios de los últimos meses para el dashboard
