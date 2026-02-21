@@ -51,7 +51,8 @@ class VentaController:
                                 moneda: str = "USD",
                                 id_itinerario_digital: Optional[str] = None, # Vínculo opcional
                                 id_lead: Optional[int] = None, # Vínculo opcional
-                                file_itinerario: Optional[Any] = None
+                                file_itinerario: Optional[Any] = None,
+                                file_pago: Optional[Any] = None
                                 ) -> tuple[bool, str]:
         """Registra una venta con todos los detalles extendidos."""
         
@@ -62,6 +63,7 @@ class VentaController:
         # 2. Manejo de Archivos Reales (Supabase Storage)
         clean_name = nombre_cliente.replace(" ", "_").lower()
         url_itinerario = self._subir_archivo("itinerarios", file_itinerario, f"itin_{clean_name}")
+        url_pago = self._subir_archivo("pagos", file_pago, f"pago_{clean_name}")
         
         # 3. Preparar datos
         saldo = monto_total - monto_depositado
@@ -83,6 +85,7 @@ class VentaController:
             "tipo_comprobante": tipo_comprobante,
             "moneda": moneda,
             "url_itinerario": url_itinerario,
+            "url_pago": url_pago,
             "id_itinerario_digital": id_itinerario_digital,
             "id_lead": id_lead
         }
@@ -116,6 +119,7 @@ class VentaController:
                                   id_itinerario_digital: Optional[str] = None,
                                   id_lead: Optional[int] = None,
                                   file_itinerario: Optional[Any] = None,
+                                  file_pago: Optional[Any] = None,
                                   tipo_comprobante: str = "RECIBO"
                                   ) -> tuple[bool, str]:
         """Registra una venta proveniente de una agencia externa (B2B)."""
@@ -123,6 +127,7 @@ class VentaController:
             # 1. Manejo de Archivos
             clean_name = nombre_cliente.replace(" ", "_").lower()
             url_it = self._subir_archivo("itinerarios", file_itinerario, f"itin_b2b_{clean_name}")
+            url_pg = self._subir_archivo("pagos", file_pago, f"pago_b2b_{clean_name}")
 
             # 2. Lógica de Pago
             saldo = monto_total - monto_depositado
@@ -144,6 +149,7 @@ class VentaController:
                 "cantidad": cantidad_pax,
                 "id_itinerario_digital": id_itinerario_digital,
                 "url_itinerario": url_it,
+                "url_pago": url_pg,
                 "tipo_comprobante": tipo_comprobante
             }
             

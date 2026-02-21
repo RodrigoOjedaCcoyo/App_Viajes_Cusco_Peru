@@ -170,7 +170,8 @@ class VentaModel(BaseModel):
                         "moneda": venta_data.get("moneda", "USD"),
                         "metodo_pago": "OTRO",
                         "tipo_pago": "ADELANTO" if monto_dep < venta_data.get("monto_total", 0) else "TOTAL",
-                        "tipo_comprobante": tipo_c_db
+                        "tipo_comprobante": tipo_c_db,
+                        "url_voucher": venta_data.get("url_pago")
                     }
                     self.client.table('pago').insert(pago_data).execute()
             except Exception as e:

@@ -1,6 +1,7 @@
 # vistas/page_contabilidad.py
 import streamlit as st
 import pandas as pd
+from datetime import date
 from controllers.reporte_controller import ReporteController
 
 # Renderiza el Botón para el PDF del Itinerario Simple.
@@ -502,9 +503,9 @@ def bandeja_limpieza_reportes(controller):
         st.write(f"ID Venta: `{v_sel_data['id_venta']}` | Servicio: **{v_sel_data.get('tour_nombre', 'N/A')}**")
         
         # --- NUEVA CAJITA DE DATOS ---
-        with st.expander("📝 Notas Adicionales / Link al Google Sheet Maestro", expanded=True):
+        with st.expander("📝 Notas Adicionales / Link al Google Sheet Maestro", expanded=False):
             st.text_area("Cajita de Datos:", placeholder="Pega aquí el link del Google Sheet o cualquier dato relevante para el cierre...", key="link_maestro_input")
-        
+
         col1, col2 = st.columns(2)
         
         with col1:
@@ -521,10 +522,62 @@ def bandeja_limpieza_reportes(controller):
             st.markdown("#### 💰 Contabilidad")
             excel_cont = st.file_uploader("Subir Cierre de Contabilidad (Excel)", type=['xlsx', 'xls'], key="upload_cont")
             if excel_cont:
-                st.success("✅ Excel de Contabilidad cargado. Listo para limpieza.")
+                st.success("✅ Excel de Contabilidad cargado.")
                 df_cont = pd.read_excel(excel_cont)
-                st.dataframe(df_cont.head(10), use_container_width=True)
-                st.warning("🚧 El motor de limpieza verificará saldos y pagos contra Supabase.")
+                st.dataframe(df_cont.head(5), use_container_width=True)
+                
+                # --- BOTÓN DE SINCRONIZACIÓN (SOLICITADO: ALIMENTAR BASE DE DATOS DESDE EXCEL) ---
+                if st.button("🔄 Sincronizar Historial de Pagos con Base de Datos", use_container_width=True, type="secondary"):
+                    with st.status("Procesando Excel...", expanded=True) as status:
+                        try:
+                            # 1. Mapeo de Columnas (Robustez)
+                            # Se busca: Fecha Pago, Monto pagado, Moneda, Metodo de Pago, Tipo de Pago
+                            cols_necesarias = ["Fecha Pago", "Monto pagado", "Moneda", "Metodo de Pago", "Tipo de Pago"]
+                            columnas_excel = df_cont.columns.tolist()
+                            
+                            st.write("🔍 Verificando columnas...")
+                            cumple = all(c in columnas_excel for c in cols_necesarias)
+                            
+                            if not cumple:
+                                st.error(f"❌ El Excel debe contener exactamente estas columnas: {', '.join(cols_necesarias)}")
+                                status.update(label="Error de Formato", state="error")
+                            else:
+                                # 2. Limpiar pagos previos para esta venta (Evitar duplicados)
+                                st.write("🧹 Limpiando registros previos...")
+                                controller.client.table('pago').delete().eq('id_venta', v_sel_data['id_venta']).execute()
+                                
+                                # 3. Insertar registros
+                                st.write("📥 Insertando nuevos pagos...")
+                                nuevos_pagos = []
+                                for _, row in df_cont.iterrows():
+                                    try:
+                                        # Convertir fecha
+                                        f_raw = row['Fecha Pago']
+                                        if isinstance(f_raw, str): f_iso = f_raw # Asumimos ISO
+                                        elif hasattr(f_raw, 'isoformat'): f_iso = f_raw.isoformat()
+                                        else: f_iso = str(f_raw)
+                                        
+                                        nuevos_pagos.append({
+                                            "id_venta": v_sel_data['id_venta'],
+                                            "fecha_pago": f_iso,
+                                            "monto_pagado": float(row['Monto pagado']),
+                                            "moneda": str(row['Moneda']).upper(),
+                                            "metodo_pago": str(row['Metodo de Pago']).upper(),
+                                            "tipo_pago": str(row['Tipo de Pago']).upper()
+                                        })
+                                    except: continue
+                                
+                                if nuevos_pagos:
+                                    controller.client.table('pago').insert(nuevos_pagos).execute()
+                                    st.success(f"✅ Se han sincronizado {len(nuevos_pagos)} pagos correctamente.")
+                                    status.update(label="Sincronización Completada", state="complete")
+                                    st.rerun()
+                                else:
+                                    st.warning("No se encontraron filas con montos válidos para insertar.")
+                                    status.update(label="Sin Datos", state="error")
+                        except Exception as e:
+                            st.error(f"Error crítico en sincronización: {e}")
+                            status.update(label="Fallo del Sistema", state="error")
 
         if excel_op or excel_cont:
             st.button("✨ Procesar y Limpiar Datos", type="primary", use_container_width=True)
