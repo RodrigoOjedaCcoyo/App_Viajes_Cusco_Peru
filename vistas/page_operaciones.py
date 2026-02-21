@@ -460,33 +460,11 @@ def registro_ventas_proveedores(supabase_client):
         tel_pax = col1.text_input("Celular del Pasajero", value=def_tel)
 
         if id_itinerario_dig:
-            col1.success(f"🗓️ **Viaje:** {def_f_inicio.strftime('%d/%m/%Y')} → {def_f_fin.strftime('%d/%m/%Y')} | 👥 **Pax:** {def_cant_pax}")
-            f_inicio = def_f_inicio
-            f_fin = def_f_fin
-            cant_pax = def_cant_pax
-        else:
-            c1a, c1b = col1.columns(2)
-            f_inicio = c1a.date_input("Fecha Inicio", value=def_f_inicio)
-            f_fin = c1b.date_input("Fecha Fin", value=def_f_fin)
-            cant_pax = col1.number_input("Total Pax", min_value=1, value=def_cant_pax)
+            st.success(f"🗓️ **Viaje:** {def_f_inicio.strftime('%d/%m/%Y')} → {def_f_fin.strftime('%d/%m/%Y')} | 👥 **Pax:** {def_cant_pax}")
 
         vendedor_actual = st.session_state.get('user_id', 'Operaciones')
-        col1.markdown(f"👤 **Registrado por:** {vendedor_actual}")
 
-        # --- Col 2: Tour + Catálogo + Comprobante ---
-        catalogo = venta_controller.obtener_catalogo_opciones()
-        nombres_cat = ["--- Escribir Manualmente ---"] + [c['nombre'] for c in catalogo]
-        mapa_cat = {c['nombre']: c['id'] for c in catalogo}
-
-        idx_default = 0
-        if def_tour:
-            for i, nombre in enumerate(nombres_cat):
-                if def_tour.upper() in nombre.upper() or nombre.upper() in def_tour.upper():
-                    idx_default = i
-                    break
-
-        item_sel = col2.selectbox("Clasificar como (Paquete Catálogo)", nombres_cat, index=idx_default)
-        tour_manual = col2.text_input("Nombre del Tour / Servicio", value=def_tour, placeholder="Ej: Cusco Mágico", disabled=is_disabled)
+        # --- Col 2: Comprobante ---
         tipo_comp = col2.radio("Tipo Comprobante", ["Boleta", "Factura", "Recibo Simple"], horizontal=True)
 
         st.divider()
@@ -501,20 +479,18 @@ def registro_ventas_proveedores(supabase_client):
                 st.error("❌ El Monto Total debe ser mayor a 0.")
             else:
                 id_age = mapa_agencias.get(proveedor_sel)
-                id_tour_final = mapa_cat.get(item_sel) if item_sel != "--- Escribir Manualmente ---" else (tour_manual or def_tour)
-
                 exito, msg = venta_controller.registrar_venta_proveedor(
                     nombre_proveedor=proveedor_sel,
                     nombre_cliente=nombre_pax_final,
                     telefono=tel_pax,
                     vendedor=vendedor_actual,
-                    tour=id_tour_final,
+                    tour=def_tour,
                     monto_total=monto_total,
                     monto_depositado=monto_pagado,
                     id_agencia_aliada=id_age,
-                    fecha_inicio=f_inicio,
-                    fecha_fin=f_fin,
-                    cantidad_pax=cant_pax,
+                    fecha_inicio=def_f_inicio,
+                    fecha_fin=def_f_fin,
+                    cantidad_pax=def_cant_pax,
                     id_itinerario_digital=id_itinerario_dig,
                     id_lead=id_lead_seleccionado or (it_data.get('id_lead') if it_data else None),
                     file_itinerario=None,
@@ -698,23 +674,12 @@ def dashboard_simulador_costos(controller):
             if st.session_state.get('last_loaded_id_venta') != v['id_venta']:
                 st.session_state['master_pax_count'] = v.get('num_pasajeros', 1)
                 
-                # Cargar Desglose de Servicios (Venta Tour) para previsualización
-                detalles = vc.obtener_detalles_itinerario_venta(v['id_venta'])
-                
-                if detalles:
-                    st.session_state['simulador_data'] = [
-                        {
-                            "FECHA": d['fecha_servicio'],
-                            "SERVICIO": d.get('observacion') or "Servicio sin nombre",
-                            "MONEDA": d.get('moneda_costo', 'USD'),
-                            "TOTAL": float(d.get('costo_applied') or 0.0)
-                        } for d in detalles
-                    ]
-                    st.session_state['last_loaded_id_venta'] = v['id_venta']
-                    st.rerun()
+                # Actualizar venta actual
+                st.session_state['last_loaded_id_venta'] = v['id_venta']
+                st.rerun()
 
-    # Previsualización y Carga de Archivos
-    if 'simulador_data' not in st.session_state or not st.session_state['simulador_data']:
+    # Carga de Archivos
+    if not st.session_state.get('last_loaded_id_venta'):
         st.info("Seleccione una venta para gestionar su información.")
         return
 
@@ -736,11 +701,6 @@ def dashboard_simulador_costos(controller):
             st.success(f"✅ {f_pax.name} listo.")
 
     st.divider()
-
-    # Previsualización simple de servicios
-    st.markdown("#### 🔍 Vista Previa de Servicios (Itinerario)")
-    df_pre = pd.DataFrame(st.session_state['simulador_data'])
-    st.dataframe(df_pre, use_container_width=True, hide_index=True)
 
     # Botón de envío a contabilidad
     if st.session_state.get('last_loaded_id_venta'):
