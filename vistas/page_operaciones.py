@@ -446,7 +446,8 @@ def registro_ventas_proveedores(supabase_client):
                     id_itinerario_digital=id_itinerario_dig,
                     id_lead=None, # B2B no requiere Lead
                     file_itinerario=None,
-                    file_pago=None
+                    file_pago=None,
+                    tipo_comprobante=tipo_comp
                 )
                 
                 if exito:

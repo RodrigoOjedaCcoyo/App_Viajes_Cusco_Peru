@@ -115,7 +115,8 @@ class VentaController:
                                   cantidad_pax: int = 1,
                                   id_itinerario_digital: Optional[str] = None,
                                   id_lead: Optional[int] = None,
-                                  file_itinerario: Optional[Any] = None
+                                  file_itinerario: Optional[Any] = None,
+                                  tipo_comprobante: str = "RECIBO"
                                   ) -> tuple[bool, str]:
         """Registra una venta proveniente de una agencia externa (B2B)."""
         try:
@@ -142,7 +143,8 @@ class VentaController:
                 "fecha_fin": (fecha_fin or date.today()).isoformat(),
                 "cantidad": cantidad_pax,
                 "id_itinerario_digital": id_itinerario_digital,
-                "url_itinerario": url_it
+                "url_itinerario": url_it,
+                "tipo_comprobante": tipo_comprobante
             }
             
             res_id = self.model.create_venta(venta_data)

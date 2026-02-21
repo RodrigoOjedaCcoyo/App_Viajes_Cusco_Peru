@@ -41,7 +41,7 @@ class VentaModel(BaseModel):
             print(f"Error buscando tour {nombre}: {e}")
         return None
 
-    def get_or_create_cliente(self, nombre: str, celular: str, origen: str, id_lead: Optional[int] = None) -> Optional[int]:
+    def get_or_create_cliente(self, nombre: str, celular: str, origen: str, id_lead: Optional[int] = None, tipo_cliente: str = "B2C") -> Optional[int]:
         """Busca un cliente por nombre (simplicidad), si no existe lo crea."""
         if not nombre: 
             raise Exception("El nombre del cliente es obligatorio")
@@ -49,12 +49,14 @@ class VentaModel(BaseModel):
         # 1. Buscar existente
         res = self.client.table('cliente').select('id_cliente').eq('nombre', nombre).limit(1).execute()
         if res.data:
+            # Si existe, opcionalmente podríamos actualizar el tipo_cliente si es B2B, 
+            # pero por ahora simplemente retornamos el ID.
             return res.data[0]['id_cliente']
         
         # 2. Crear nuevo (esto lanzará excepción si falla)
         nuevo_cliente = {
             "nombre": nombre,
-            "tipo_cliente": "B2C",
+            "tipo_cliente": tipo_cliente,
             "id_lead": id_lead
         }
         res_insert = self.client.table('cliente').insert(nuevo_cliente).execute()
@@ -69,12 +71,17 @@ class VentaModel(BaseModel):
         Orquesta la creación de la Venta Relacional según esquema SQL:
         """
         
-        # 1. Obtener IDs Relacionales
+        # 1. Determinar Tipo de Cliente (B2C o B2B)
+        id_age = venta_data.get('id_agencia_aliada')
+        tipo_final = "B2B" if id_age else "B2C"
+
+        # 2. Obtener IDs Relacionales
         id_cliente = self.get_or_create_cliente(
             venta_data.get('nombre_cliente'), 
             venta_data.get('telefono_cliente'), 
             venta_data.get('origen'),
-            id_lead=venta_data.get('id_lead')
+            id_lead=venta_data.get('id_lead'),
+            tipo_cliente=tipo_final
         )
         
         if not id_cliente:
