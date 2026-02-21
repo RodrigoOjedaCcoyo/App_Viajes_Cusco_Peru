@@ -185,10 +185,12 @@ def registro_ventas_directa():
     
     # Auto-completar datos si se seleccionó un itinerario
     id_itinerario_dig = None
+    id_lead_from_itinerario = None  # Respaldo: extraer id_lead del itinerario
     if itinerario_seleccionado != "--- Sin Itinerario ---":
         it_data = mapa_itinerarios.get(itinerario_seleccionado)
         if it_data:
             id_itinerario_dig = it_data.get('id_itinerario_digital')
+            id_lead_from_itinerario = it_data.get('id_lead')
             render = it_data.get('datos_render', {})
             
             # Extraer nombre del pasajero (soporta ambas estructuras)
@@ -359,7 +361,7 @@ def registro_ventas_directa():
                     tipo_comprobante=tipo_comp,
                     moneda=moneda_sel,
                     id_itinerario_digital=id_itinerario_dig if id_itinerario_dig else None,
-                    id_lead=id_lead_seleccionado,
+                    id_lead=id_lead_seleccionado or id_lead_from_itinerario,
                     file_itinerario=None,
                     file_pago=None,
                     numero_operacion=num_op

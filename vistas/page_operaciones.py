@@ -262,213 +262,271 @@ def generar_mensaje_whatsapp(data):
 
 def registro_ventas_proveedores(supabase_client):
     from controllers.itinerario_digital_controller import ItinerarioDigitalController
+    from controllers.lead_controller import LeadController
+    import json
+
     venta_controller = VentaController(supabase_client)
     it_controller = ItinerarioDigitalController(supabase_client)
+    lead_controller = LeadController(supabase_client)
 
     st.subheader("🤝 Registro de Venta para Proveedores (B2B)")
-    
-    # --- 🆔 SELECTOR DE ITINERARIO (FILTRADO SOLO B2B) ---
-    itinerarios_raw = it_controller.obtener_todos_recientes(limit=50)
-    
-    import json
-    itinerarios = []
+
+    # ═══════════════════════════════════════════════════════════════
+    # 1️⃣ SELECTOR DE LEAD (Auto-completar datos del cliente)
+    # ═══════════════════════════════════════════════════════════════
+    leads = lead_controller.obtener_todos_leads()
+    lead_opt = ["--- Ingreso Manual / Sin Lead ---"]
+    lead_map = {}
+
+    if leads:
+        for l in leads:
+            lbl = f"{l['numero_celular']} - {l.get('nombre_pasajero') or 'Sin Nombre'}"
+            lead_opt.append(lbl)
+            lead_map[lbl] = l
+
+    lead_sel = st.selectbox("🎯 Vincular con un Lead existente (Opcional)", lead_opt, key="b2b_lead_sel")
+    lead_data = lead_map.get(lead_sel)
+    id_lead_seleccionado = lead_data.get('id_lead') if lead_data else None
+
+    # ═══════════════════════════════════════════════════════════════
+    # 2️⃣ SELECTOR DE ITINERARIO (Filtrado por Lead o recientes B2B)
+    # ═══════════════════════════════════════════════════════════════
+    if id_lead_seleccionado:
+        itinerarios_raw = it_controller.listar_itinerarios_lead(id_lead_seleccionado)
+    else:
+        itinerarios_raw = it_controller.obtener_todos_recientes(limit=50)
+
+    # Construir opciones de itinerario
+    opciones_it = ["--- Sin Itinerario / Registro Manual ---"]
+    mapa_it = {}
+
     for it in itinerarios_raw:
         render = it.get('datos_render', {})
-        # Robustez: Si viene como string, intentar parsear
         if isinstance(render, str):
             try: render = json.loads(render)
             except: render = {}
-        
-        # Verificar marca B2B (Checkbox, Canal o palabra clave en títulos)
-        meta = render.get('metadata', {})
-        tipo = meta.get('tipo_venta', 'B2C')
-        canal = str(render.get('canal', '')).upper()
-        
-        # Juntar todos los títulos posibles para la búsqueda
-        full_title = f"{render.get('titulo', '')} {render.get('title_1', '')} {render.get('title_2', '')}".upper()
-        
-        if tipo == 'B2B' or canal == 'B2B' or "B2B" in full_title:
-            itinerarios.append(it)
-    
-    opciones_it = ["--- Sin Itinerario / Registro Manual ---"]
-    mapa_it = {}
-    
-    for it in itinerarios:
-        uuid = it.get('id_itinerario_digital')
-        render = it.get('datos_render', {})
-        if isinstance(render, str): 
-            try: render = json.loads(render)
-            except: render = {}
-            
+
+        uuid = it.get('id_itinerario_digital', '')
         t1, t2 = render.get('title_1', ''), render.get('title_2', '')
         titulo = render.get('titulo') or (f"{t1} {t2}").strip() or "Sin Título"
         pax = it.get('nombre_pasajero_itinerario') or render.get('pasajero', 'Sin Nombre')
-        fecha = it.get('fecha_generacion', '')[:10]
-        
-        # Obtener celular si existe (viene del join extra)
+        fecha = it.get('fecha_generacion', '')[:10] if it.get('fecha_generacion') else ''
+
         celular = it.get('lead', {}).get('numero_celular', '') if it.get('lead') else ''
+        if not celular and lead_data:
+            celular = lead_data.get('numero_celular', '')
         cel_label = f"📱 {celular} | " if celular else ""
-        
+
         label = f"[{fecha}] {cel_label}{pax} - {titulo}"
         opciones_it.append(label)
         mapa_it[label] = it
 
-    if not itinerarios:
-        st.warning("⚠️ No se encontraron itinerarios recientes marcados como B2B. Asegúrese de marcar la casilla '🚩 Venta B2B / Agencia' al crear el itinerario en la sección de Ventas.")
+    if len(opciones_it) <= 1:
+        st.info("ℹ️ No se encontraron itinerarios. Puede registrar la venta manualmente.")
 
-    it_sel = st.selectbox("🎯 Vincular con un Itinerario Digital (B2B CLOUD)", opciones_it, 
-                          help="Solo se muestran itinerarios creados específicamente para B2B.")
-    
+    it_sel = st.selectbox("✨ Seleccionar Itinerario Visual (Diseño Cloud)", opciones_it,
+                          help="Si seleccionó un Lead, se muestran solo sus itinerarios.", key="b2b_it_sel")
+
+    # ═══════════════════════════════════════════════════════════════
+    # 3️⃣ AUTO-COMPLETAR DATOS DESDE ITINERARIO
+    # ═══════════════════════════════════════════════════════════════
     id_itinerario_dig = None
-    def_pax = ""
+    it_data = None
+    def_pax = lead_data.get('nombre_pasajero', '') if lead_data else ""
+    def_tel = lead_data.get('numero_celular', '') if lead_data else ""
     def_tour = ""
     def_f_inicio = date.today()
     def_f_fin = date.today() + timedelta(days=1)
     def_cant_pax = 1
-    def_precio_pax = 0.0  # Inicialización segura
+    def_precio_total = 0.0
 
     if it_sel != "--- Sin Itinerario / Registro Manual ---":
         it_data = mapa_it.get(it_sel)
-        id_itinerario_dig = it_data.get('id_itinerario_digital')
-        render = it_data.get('datos_render', {})
-        if isinstance(render, str):
-            try: render = json.loads(render)
-            except: render = {}
-        
-        def_pax = it_data.get('nombre_pasajero_itinerario') or render.get('pasajero', '')
-        def_tour = render.get('titulo') or (f"{render.get('title_1', '')} {render.get('title_2', '')}").strip()
-        
-        # Extraer Fechas (Soporta "fecha_viaje" y "fechas")
-        f_inicio_str = render.get('fecha_viaje')
-        if f_inicio_str:
-            try: def_f_inicio = date.fromisoformat(f_inicio_str)
-            except: pass
-        else:
-            # Intentar parsear desde "fechas" (ej: "DEL 19/01 AL 21/01, 2026")
-            f_texto = render.get('fechas', '')
-            if "DEL " in f_texto and ", " in f_texto:
+        if it_data:
+            id_itinerario_dig = it_data.get('id_itinerario_digital')
+            render = it_data.get('datos_render', {})
+            if isinstance(render, str):
+                try: render = json.loads(render)
+                except: render = {}
+
+            # Nombre del pasajero
+            def_pax = it_data.get('nombre_pasajero_itinerario') or render.get('pasajero', '') or def_pax
+
+            # Título del tour
+            def_tour = render.get('titulo') or (f"{render.get('title_1', '')} {render.get('title_2', '')}").strip()
+
+            # --- Fechas ---
+            f_inicio_str = render.get('fecha_viaje')
+            if f_inicio_str:
+                try: def_f_inicio = date.fromisoformat(f_inicio_str)
+                except: pass
+            else:
+                f_texto = render.get('fechas', '')
+                if "DEL " in f_texto and ", " in f_texto:
+                    try:
+                        partes = f_texto.split(", ")
+                        anio = partes[1].strip()
+                        dia_mes = partes[0].replace("DEL ", "").split(" AL ")[0]
+                        dia, mes = dia_mes.split("/")
+                        def_f_inicio = date(int(anio), int(mes), int(dia))
+                    except: pass
+
+            # Fecha fin desde duración
+            duracion_raw = render.get('duracion')
+            if duracion_raw and isinstance(duracion_raw, str) and 'D' in duracion_raw.upper():
                 try:
+                    num_dias_str = ''.join(filter(str.isdigit, duracion_raw.split('D')[0]))
+                    if num_dias_str:
+                        def_f_fin = def_f_inicio + timedelta(days=int(num_dias_str) - 1)
+                except: pass
+            elif "AL " in render.get('fechas', ''):
+                try:
+                    f_texto = render.get('fechas', '')
                     partes = f_texto.split(", ")
                     anio = partes[1].strip()
-                    dia_mes = partes[0].replace("DEL ", "").split(" AL ")[0]
-                    dia, mes = dia_mes.split("/")
-                    def_f_inicio = date(int(anio), int(mes), int(dia))
+                    dia_mes_fin = partes[0].split(" AL ")[1]
+                    dia, mes = dia_mes_fin.split("/")
+                    def_f_fin = date(int(anio), int(mes), int(dia))
                 except: pass
-        
-        # Calcular fecha fin desde duración
-        duracion_raw = render.get('duracion')
-        if duracion_raw and isinstance(duracion_raw, str) and 'D' in duracion_raw.upper():
-            try:
-                num_dias_str = ''.join(filter(str.isdigit, duracion_raw.split('D')[0]))
-                if num_dias_str:
-                    num_dias = int(num_dias_str)
-                    def_f_fin = def_f_inicio + timedelta(days=num_dias - 1)
-            except Exception as e:
-                print(f"Error parsing duracion in B2B: {e}")
-        elif "AL " in render.get('fechas', ''):
-            # Intentar extraer fecha fin desde "fechas"
-            try:
-                f_texto = render.get('fechas', '')
-                partes = f_texto.split(", ")
-                anio = partes[1].strip()
-                dia_mes_fin = partes[0].split(" AL ")[1]
-                dia, mes = dia_mes_fin.split("/")
-                def_f_fin = date(int(anio), int(mes), int(dia))
-            except: pass
-        
-        # Extraer cantidad de pasajeros
-        def_cant_pax = int(render.get('cantidad_pax') or 1)
-        
-        # Extraer precio desde estructura "precios" (ej: precios.nac.monto)
-        def_precio_pax = 0.0
-        precios = render.get('precios', {})
-        if isinstance(precios, dict):
-            # Intentar nacional primero, luego extranjero, luego CAN
-            for tipo in ['nac', 'ext', 'can']:
-                precio_obj = precios.get(tipo, {})
-                if isinstance(precio_obj, dict) and precio_obj.get('monto'):
-                    try:
-                        def_precio_pax = float(precio_obj['monto'])
-                        break
-                    except: pass
-        
-        st.success(f"✅ Datos cargados del itinerario: **{def_tour}**")
 
-    # --- 📝 FORMULARIO DE REGISTRO ---
+            # Cantidad de pasajeros
+            def_cant_pax = int(render.get('cantidad_pax') or 1)
+
+            # --- Precio (misma lógica del B2C: precio_cierre > precios > 0) ---
+            precio_raw = render.get('precio_cierre')
+            if not precio_raw:
+                precios = render.get('precios', {})
+                def extract_val(val):
+                    if isinstance(val, dict): return val.get('total') or val.get('monto')
+                    return val
+                p_ext = extract_val(precios.get('extranjero') or precios.get('ext'))
+                p_nac = extract_val(precios.get('nacional') or precios.get('nac'))
+                p_can = extract_val(precios.get('can'))
+                precio_raw = p_ext or p_nac or p_can or "0.00"
+
+            try:
+                if isinstance(precio_raw, (int, float)):
+                    def_precio_total = float(precio_raw)
+                else:
+                    clean_str = str(precio_raw).replace(',', '').replace(' ', '').strip()
+                    def_precio_total = float(clean_str) if clean_str else 0.0
+            except:
+                def_precio_total = 0.0
+
+            st.success(f"✅ Itinerario cargado: **{def_tour}** | 👥 {def_cant_pax} Pax | 🗓️ {def_f_inicio.strftime('%d/%m/%Y')} → {def_f_fin.strftime('%d/%m/%Y')}")
+
+    # ═══════════════════════════════════════════════════════════════
+    # 4️⃣ BALANCE INTERACTIVO (Fuera del formulario, como B2C)
+    # ═══════════════════════════════════════════════════════════════
+    st.markdown("### 💰 Detalles de Pago")
+    c_m0, c_m1, c_m2 = st.columns([1, 2, 2])
+    moneda_sel = c_m0.selectbox("Moneda", ["USD", "PEN"], key="b2b_moneda")
+
+    if 'b2b_m_total' not in st.session_state:
+        st.session_state['b2b_m_total'] = def_precio_total
+    # Actualizar si cambia el itinerario cargado
+    if id_itinerario_dig and id_itinerario_dig != st.session_state.get('b2b_last_itin'):
+        st.session_state['b2b_m_total'] = def_precio_total
+        st.session_state['b2b_last_itin'] = id_itinerario_dig
+    if 'b2b_m_pago' not in st.session_state:
+        st.session_state['b2b_m_pago'] = 0.0
+
+    monto_total = c_m1.number_input(f"Monto Total ({moneda_sel})", min_value=0.0, format="%.2f", key="b2b_m_total")
+    monto_pagado = c_m2.number_input(f"Adelanto Recibido ({moneda_sel})", min_value=0.0, format="%.2f", key="b2b_m_pago")
+
+    num_op = st.text_input("Número de Operación / Referencia (Opcional)", placeholder="Ej: TRANSF-12345, YAPE-XYZ", key="b2b_num_op")
+
+    saldo = monto_total - monto_pagado
+    if monto_total > 0:
+        if saldo <= 0.01:
+            st.success(f"✅ **VENTA SALDADA** (Saldo: $0.00)")
+        else:
+            porcentaje = (monto_pagado / monto_total) * 100
+            st.warning(f"⏳ **SALDO PENDIENTE: ${saldo:,.2f}** (A cuenta: {porcentaje:.0f}%)")
+
+    # ═══════════════════════════════════════════════════════════════
+    # 5️⃣ FORMULARIO DE REGISTRO
+    # ═══════════════════════════════════════════════════════════════
     with st.form("form_registro_venta_proveedores_ops"):
         col1, col2 = st.columns(2)
-        
-        # Agencias
+
+        # --- Col 1: Agencia + Cliente + Fechas ---
         agencias = venta_controller.obtener_agencias_aliadas()
         nombres_agencias = [a['nombre'] for a in agencias]
         mapa_agencias = {a['nombre']: a['id_agencia'] for a in agencias}
-        
-        proveedor_sel = col1.selectbox("Seleccione la Agencia / Proveedor", ["--- Seleccione ---"] + nombres_agencias)
-        nombre_pax_final = col1.text_input("Nombre del Pasajero Principal", value=def_pax)
-        
-        c1a, c1b = col1.columns(2)
-        f_inicio = c1a.date_input("Fecha Inicio", value=def_f_inicio)
-        f_fin = c1b.date_input("Fecha Fin", value=def_f_fin)
-        
-        c1c, c1d = col1.columns(2)
-        cant_pax = c1c.number_input("Total Pax", min_value=1, value=def_cant_pax)
-        precio_pax = c1d.number_input("Precio Neto/Pax ($)", min_value=0.0, value=def_precio_pax, format="%.2f")
 
-        # Catálogo vs Manual
+        proveedor_sel = col1.selectbox("Seleccione la Agencia / Proveedor", ["--- Seleccione ---"] + nombres_agencias)
+
+        is_disabled = bool(id_itinerario_dig)
+        nombre_pax_final = col1.text_input("Nombre del Pasajero Principal", value=def_pax, disabled=is_disabled)
+        tel_pax = col1.text_input("Celular del Pasajero", value=def_tel)
+
+        if id_itinerario_dig:
+            col1.success(f"🗓️ **Viaje:** {def_f_inicio.strftime('%d/%m/%Y')} → {def_f_fin.strftime('%d/%m/%Y')} | 👥 **Pax:** {def_cant_pax}")
+            f_inicio = def_f_inicio
+            f_fin = def_f_fin
+            cant_pax = def_cant_pax
+        else:
+            c1a, c1b = col1.columns(2)
+            f_inicio = c1a.date_input("Fecha Inicio", value=def_f_inicio)
+            f_fin = c1b.date_input("Fecha Fin", value=def_f_fin)
+            cant_pax = col1.number_input("Total Pax", min_value=1, value=def_cant_pax)
+
+        vendedor_actual = st.session_state.get('user_id', 'Operaciones')
+        col1.markdown(f"👤 **Registrado por:** {vendedor_actual}")
+
+        # --- Col 2: Tour + Catálogo + Comprobante ---
         catalogo = venta_controller.obtener_catalogo_opciones()
         nombres_cat = ["--- Escribir Manualmente ---"] + [c['nombre'] for c in catalogo]
         mapa_cat = {c['nombre']: c['id'] for c in catalogo}
-        
-        # Intentar encontrar coincidencia en el catálogo
-        idx_default = 0  # "--- Escribir Manualmente ---"
+
+        idx_default = 0
         if def_tour:
             for i, nombre in enumerate(nombres_cat):
                 if def_tour.upper() in nombre.upper() or nombre.upper() in def_tour.upper():
                     idx_default = i
                     break
-        
-        item_sel = col2.selectbox("Clasificar como (Paquete Catálogo)", nombres_cat, index=idx_default)
-        
-        tour_manual = col2.text_input("Nombre del Tour / Servicio", value=def_tour, placeholder="Ej: Cusco Mágico")
-        
-        monto_neto_total = cant_pax * precio_pax
-        col2.metric("Monto Neto a Cobrar", f"$ {monto_neto_total:,.2f}")
-        monto_dep = col2.number_input("Adelanto Recibido ($)", min_value=0.0, value=0.0, format="%.2f")
 
-        submitted = st.form_submit_button("✅ REGISTRAR VENTA B2B", use_container_width=True)
-        
+        item_sel = col2.selectbox("Clasificar como (Paquete Catálogo)", nombres_cat, index=idx_default)
+        tour_manual = col2.text_input("Nombre del Tour / Servicio", value=def_tour, placeholder="Ej: Cusco Mágico", disabled=is_disabled)
+        tipo_comp = col2.radio("Tipo Comprobante", ["Boleta", "Factura", "Recibo Simple"], horizontal=True)
+
+        st.divider()
+        submitted = st.form_submit_button("✅ REGISTRAR VENTA B2B", use_container_width=True, type="primary")
+
         if submitted:
             if proveedor_sel == "--- Seleccione ---":
                 st.error("❌ Seleccione una agencia.")
-            elif not nombre_pax_final or (not item_sel and not tour_manual):
-                st.error("❌ El nombre del pasajero y el tour son obligatorios.")
+            elif not nombre_pax_final:
+                st.error("❌ El nombre del pasajero es obligatorio.")
+            elif monto_total <= 0:
+                st.error("❌ El Monto Total debe ser mayor a 0.")
             else:
                 id_age = mapa_agencias.get(proveedor_sel)
-                # Si no seleccionó catálogo, usamos el texto manual
-                id_tour_final = mapa_cat.get(item_sel) if item_sel != "--- Escribir Manualmente ---" else tour_manual
-                
+                id_tour_final = mapa_cat.get(item_sel) if item_sel != "--- Escribir Manualmente ---" else (tour_manual or def_tour)
+
                 exito, msg = venta_controller.registrar_venta_proveedor(
                     nombre_proveedor=proveedor_sel,
                     nombre_cliente=nombre_pax_final,
-                    telefono="", 
-                    vendedor=None,
-                    tour=id_tour_final, 
-                    monto_total=monto_neto_total,
-                    monto_depositado=monto_dep,
+                    telefono=tel_pax,
+                    vendedor=vendedor_actual,
+                    tour=id_tour_final,
+                    monto_total=monto_total,
+                    monto_depositado=monto_pagado,
                     id_agencia_aliada=id_age,
                     fecha_inicio=f_inicio,
                     fecha_fin=f_fin,
                     cantidad_pax=cant_pax,
                     id_itinerario_digital=id_itinerario_dig,
-                    id_lead=it_data.get('id_lead') if id_itinerario_dig else None,
+                    id_lead=id_lead_seleccionado or (it_data.get('id_lead') if it_data else None),
                     file_itinerario=None,
                     file_pago=None
                 )
-                
-                if exito: 
+
+                if exito:
                     st.success(msg)
                     st.balloons()
-                else: 
+                else:
                     st.error(msg)
 
 def reporte_operativo(controller):
