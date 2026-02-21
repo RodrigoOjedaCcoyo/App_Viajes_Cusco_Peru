@@ -272,36 +272,16 @@ def registro_ventas_proveedores(supabase_client):
     st.subheader("🤝 Registro de Venta B2B (Agencias & Partners)")
 
     # ═══════════════════════════════════════════════════════════════
-    # 1️⃣ SELECCIÓN DE CLIENTE (LEAD)
+    # 1️⃣ SELECTOR DE ITINERARIO (Diseño Cloud)
     # ═══════════════════════════════════════════════════════════════
-    leads = lead_controller.obtener_todos_leads()
-    lead_opt = ["--- Selecciona un Lead (Obligatorio) ---"]
-    lead_map = {}
-
-    if leads:
-        for l in leads:
-            lbl = f"{l['numero_celular']} - {l.get('nombre_pasajero') or 'Sin Nombre'}"
-            lead_opt.append(lbl)
-            lead_map[lbl] = l
-
-    lead_sel = st.selectbox("🎯 Vincular con un Lead existente", lead_opt, key="b2b_lead_sel")
-    lead_data = lead_map.get(lead_sel)
-    id_lead_seleccionado = lead_data.get('id_lead') if lead_data else None
-
-    # ═══════════════════════════════════════════════════════════════
-    # 2️⃣ SELECTOR DE ITINERARIO (Diseño Cloud)
-    # ═══════════════════════════════════════════════════════════════
-    if id_lead_seleccionado:
-        itinerarios_recuperados = it_controller.listar_itinerarios_lead(id_lead_seleccionado)
-    else:
-        itinerarios_recuperados = it_controller.obtener_todos_recientes(limit=30)
+    # Mostrar itinerarios recientes de forma global para B2B
+    itinerarios_recuperados = it_controller.obtener_todos_recientes(limit=50)
     
     opciones_itinerario = ["--- Sin Itinerario ---"]
     mapa_itinerarios = {}
     
     if itinerarios_recuperados:
         for it in itinerarios_recuperados:
-            uuid = it.get('id_itinerario_digital', '')
             render_data = it.get('datos_render', {})
             if isinstance(render_data, str):
                 try: render_data = json.loads(render_data)
@@ -312,12 +292,11 @@ def registro_ventas_proveedores(supabase_client):
                 t1, t2 = render_data.get('title_1', ''), render_data.get('title_2', '')
                 titulo = f"{t1} {t2}".strip() or 'Sin título'
             
+            pax_itin = it.get('nombre_pasajero_itinerario') or render_data.get('pasajero', 'Sin Nombre')
             fecha = it.get('fecha_generacion', '')[:10] if it.get('fecha_generacion') else 'Sin fecha'
             
-            celular = it.get('lead', {}).get('numero_celular', '') if it.get('lead') else lead_data.get('numero_celular', '') if lead_data else ''
-            cel_label = f"📱 {celular} | " if celular else ""
-            
-            label = f"{cel_label}{titulo} ({fecha})"
+            # Label descriptivo para B2B
+            label = f"[{fecha}] {pax_itin} - {titulo}"
             opciones_itinerario.append(label)
             mapa_itinerarios[label] = it
     
@@ -328,13 +307,12 @@ def registro_ventas_proveedores(supabase_client):
     )
 
     # ═══════════════════════════════════════════════════════════════
-    # 3️⃣ AUTO-COMPLETADO Y DATOS SUGERIDOS
+    # 2️⃣ AUTO-COMPLETADO Y DATOS SUGERIDOS
     # ═══════════════════════════════════════════════════════════════
     id_itinerario_dig = None
-    id_lead_from_itinerario = None
-    def_pax = lead_data.get('nombre_pasajero', '') if lead_data else ''
+    def_pax = ""
     def_tour = ""
-    def_cel = lead_data.get('numero_celular', '') if lead_data else ''
+    def_cel = ""
     def_precio_total = 0.0
     def_moneda = 'USD'
     def_f_inicio = date.today()
@@ -445,11 +423,8 @@ def registro_ventas_proveedores(supabase_client):
         submitted = st.form_submit_button("✅ REGISTRAR VENTA B2B Y NOTIFICAR", use_container_width=True, type="primary")
 
         if submitted:
-            id_lead_final = id_lead_seleccionado or id_lead_from_itinerario
             if prov_final == "--- Seleccione ---":
                 st.error("❌ Debe seleccionar una Agencia/Partner.")
-            elif not id_lead_final:
-                st.error("❌ Debe vincular un Lead.")
             elif not pax_name or not tour_name:
                 st.error("❌ El nombre del pasajero y del programa son obligatorios.")
             elif monto_total <= 0:
@@ -469,7 +444,7 @@ def registro_ventas_proveedores(supabase_client):
                     fecha_fin=def_f_fin.isoformat(),
                     cantidad_pax=def_cant_pax,
                     id_itinerario_digital=id_itinerario_dig,
-                    id_lead=id_lead_final,
+                    id_lead=None, # B2B no requiere Lead
                     file_itinerario=None,
                     file_pago=None
                 )
