@@ -331,6 +331,7 @@ def registro_ventas_proveedores(supabase_client):
             id_lead_from_itinerario = it_data.get('id_lead')
             render = it_data.get('datos_render', {})
             if isinstance(render, str):
+                import json
                 try: render = json.loads(render)
                 except: render = {}
 
@@ -449,39 +450,88 @@ def registro_ventas_proveedores(supabase_client):
         # --- DESGLOSE DE INGRESOS B2B ---
         items_ingreso = []
         if id_itinerario_dig:
-            render = mapa_itinerarios.get(itinerario_seleccionado, {}).get('datos_render', {})
-            
-            # Nueva Lógica: Priorizar 'detalle_ingresos' (Lista detallada)
-            det_ing = render.get('detalle_ingresos', [])
-            if det_ing:
-                st.markdown("##### 📝 Desglose Sugerido")
-                for idx, det in enumerate(det_ing):
-                    tipo = det.get('tipo', 'Servicio')
-                    cant = int(det.get('cantidad', 1))
-                    pre_u = float(det.get('precio_unitario', 0))
-                    desc = det.get('descripcion', tipo)
-                    
-                    # Mostrar formalmente (Automático)
-                    st.info(f"✨ **{desc}**: Se han cargado **{cant}** pasajero(s) a **${pre_u:,.2f}** c/u.")
-                    items_ingreso.append({"descripcion": desc, "cantidad": cant, "precio_unitario": pre_u})
-            else:
-                p_nac_count = int(render.get('num_pax_nac', 0) or 0)
-                p_ext_count = int(render.get('num_pax_ext', 0) or 0)
-                p_can_count = int(render.get('num_pax_can', 0) or 0)
-                p_nac_price = float(render.get('precio_nacional', 0) or 0)
-                p_ext_price = float(render.get('precio_extranjero', 0) or 0)
-                p_can_price = float(render.get('precio_can', 0) or 0)
+            # --- MOTOR DE EXTRACCIÓN ULTRA-ROBUSTO (B2B) ---
+            items_ingreso = []
+            tipos_vistos = set()
 
-                st.markdown("##### 📝 Desglose Sugerido")
-                if p_nac_count > 0:
-                    st.info(f"✨ **Pax Nacional**: Se han cargado **{p_nac_count}** pasajero(s) a **${p_nac_price:,.2f}** c/u.")
-                    items_ingreso.append({"descripcion": "Pax Nacional", "cantidad": p_nac_count, "precio_unitario": p_nac_price})
-                if p_ext_count > 0:
-                    st.info(f"✨ **Pax Extranjero**: Se han cargado **{p_ext_count}** pasajero(s) a **${p_ext_price:,.2f}** c/u.")
-                    items_ingreso.append({"descripcion": "Pax Extranjero", "cantidad": p_ext_count, "precio_unitario": p_ext_price})
-                if p_can_count > 0:
-                    st.info(f"✨ **Pax CAN**: Se han cargado **{p_can_count}** pasajero(s) a **${p_can_price:,.2f}** c/u.")
-                    items_ingreso.append({"descripcion": "Pax CAN", "cantidad": p_can_count, "precio_unitario": p_can_price})
+            # 1. PRIORIDAD MÁXIMA: 'detalle_ingresos'
+            det_ing = render.get('detalle_ingresos', [])
+            if not isinstance(det_ing, list): det_ing = []
+            
+            for d in det_ing:
+                t = str(d.get('tipo', '')).upper()
+                c = int(d.get('cantidad', 0))
+                p = float(d.get('precio_unitario', 0))
+                lbl = d.get('descripcion') or f"Pax {t.capitalize()}"
+                if c > 0:
+                    items_ingreso.append({"descripcion": lbl, "cantidad": c, "precio_unitario": p})
+                    tipos_vistos.add(t)
+
+            # 2. SEGUNDA PRIORIDAD: 'control_interno'
+            ci = render.get('control_interno', {})
+            desglose = ci.get('desglose_pasajeros', {})
+            if isinstance(desglose, dict):
+                for k, v in desglose.items():
+                    t_slug = k.upper()
+                    if t_slug not in tipos_vistos:
+                        c_total = 0
+                        if isinstance(v, dict): c_total = sum(int(x or 0) for x in v.values())
+                        elif isinstance(v, (int, float)): c_total = int(v)
+                        
+                        if c_total > 0:
+                            p_u = 0.0
+                            if t_slug == 'NACIONAL': p_u = render.get('precio_nacional') or render.get('p_nac')
+                            elif t_slug == 'EXTRANJERO': p_u = render.get('precio_extranjero') or render.get('p_ext')
+                            elif t_slug == 'CAN': p_u = render.get('precio_can') or render.get('p_can')
+                            
+                            if not p_u:
+                                sub_precios = render.get('precios', {})
+                                p_obj = sub_precios.get(k.lower()) or sub_precios.get(t_slug)
+                                if isinstance(p_obj, dict): p_u = p_obj.get('total') or p_obj.get('monto')
+                                else: p_u = p_obj
+                            
+                            try: p_u = float(p_u or 0)
+                            except: p_u = 0.0
+                            
+                            items_ingreso.append({
+                                "descripcion": f"Pax {k.capitalize()} (Auto B2B)", 
+                                "cantidad": c_total, 
+                                "precio_unitario": p_u
+                            })
+                            tipos_vistos.add(t_slug)
+
+            # 3. FALLBACK: Raíz
+            fallbacks = [
+                ('NACIONAL', ['num_pax_nac', 'pax_nac'], ['precio_nacional', 'p_nac']),
+                ('EXTRANJERO', ['num_pax_ext', 'pax_ext'], ['precio_extranjero', 'p_ext']),
+                ('CAN', ['num_pax_can', 'pax_can'], ['precio_can', 'p_can'])
+            ]
+            for t_code, c_keys, p_keys in fallbacks:
+                if t_code not in tipos_vistos:
+                    c_found = 0
+                    for ck in c_keys:
+                        c_found = int(render.get(ck, 0) or 0)
+                        if c_found > 0: break
+                    
+                    if c_found > 0:
+                        p_found = 0.0
+                        for pk in p_keys:
+                            p_found = float(render.get(pk, 0) or 0)
+                            if p_found > 0: break
+                        
+                        items_ingreso.append({
+                            "descripcion": f"Pax {t_code.capitalize()} (Legacy B2B)",
+                            "cantidad": c_found,
+                            "precio_unitario": p_found
+                        })
+
+            # --- MOSTRAR RESULTADOS ---
+            if items_ingreso:
+                st.markdown("##### 📝 Desglose Sugerido B2B")
+                for it in items_ingreso:
+                    st.info(f"✨ **{it['descripcion']}**: Se han cargado **{it['cantidad']}** pasajero(s) a **${it['precio_unitario']:,.2f}** c/u.")
+            else:
+                st.warning("⚠️ No se encontró desglose de pasajeros B2B en el itinerario.")
 
         st.divider()
         submitted = st.form_submit_button("✅ REGISTRAR VENTA B2B Y NOTIFICAR", use_container_width=True, type="primary")

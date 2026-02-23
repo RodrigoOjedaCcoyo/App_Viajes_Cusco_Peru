@@ -160,32 +160,76 @@ class VentaModel(BaseModel):
                 res_it = self.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin).single().execute()
                 if res_it.data:
                     render = res_it.data.get('datos_render', {})
+                    if isinstance(render, str):
+                        import json
+                        try: render = json.loads(render)
+                        except: render = {}
                     
-                    # Nueva Lógica: Priorizar 'detalle_ingresos' (Lista detallada)
+                    # --- MOTOR DE EXTRACCIÓN ULTRA-ROBUSTO (BACKEND) ---
+                    tipos_vistos = set()
+
+                    # 1. PRIORIDAD MÁXIMA: 'detalle_ingresos'
                     det_ing = render.get('detalle_ingresos', [])
-                    if det_ing:
-                        for det in det_ing:
-                            items_ingreso.append({
-                                "descripcion": det.get('descripcion', det.get('tipo', 'Servicio')),
-                                "cantidad": int(det.get('cantidad', 1)),
-                                "precio_unitario": float(det.get('precio_unitario', 0))
-                            })
-                    else:
-                        # Fallback: Detectar Pax Nacional
-                        pax_nac = int(render.get('num_pax_nac', 0) or 0)
-                        price_nac = float(render.get('precio_nacional', 0) or 0)
-                        if pax_nac > 0:
-                            items_ingreso.append({"descripcion": "Pax Nacional", "cantidad": pax_nac, "precio_unitario": price_nac})
-                        
-                        # Fallback: Detectar Pax Extranjero
-                        pax_ext = int(render.get('num_pax_ext', 0) or 0)
-                        price_ext = float(render.get('precio_extranjero', 0) or 0)
-                        if pax_ext > 0:
-                            items_ingreso.append({"descripcion": "Pax Extranjero", "cantidad": pax_ext, "precio_unitario": price_ext})
-                    
-                    # Otros fallbacks podrían añadirse aquí (CAN, etc.)
+                    if isinstance(det_ing, list):
+                        for d in det_ing:
+                            t = str(d.get('tipo', '')).upper()
+                            c = int(d.get('cantidad', 0))
+                            p = float(d.get('precio_unitario', 0))
+                            lbl = d.get('descripcion') or f"Pax {t.capitalize()}"
+                            if c > 0:
+                                items_ingreso.append({"descripcion": lbl, "cantidad": c, "precio_unitario": p})
+                                tipos_vistos.add(t)
+
+                    # 2. SEGUNDA PRIORIDAD: 'control_interno'
+                    ci = render.get('control_interno', {})
+                    desglose = ci.get('desglose_pasajeros', {})
+                    if isinstance(desglose, dict):
+                        for k, v in desglose.items():
+                            t_slug = k.upper()
+                            if t_slug not in tipos_vistos:
+                                c_total = 0
+                                if isinstance(v, dict): c_total = sum(int(x or 0) for x in v.values())
+                                elif isinstance(v, (int, float)): c_total = int(v)
+                                
+                                if c_total > 0:
+                                    p_u = 0.0
+                                    # Fallbacks de precio en raíz
+                                    if t_slug == 'NACIONAL': p_u = render.get('precio_nacional') or render.get('p_nac')
+                                    elif t_slug == 'EXTRANJERO': p_u = render.get('precio_extranjero') or render.get('p_ext')
+                                    elif t_slug == 'CAN': p_u = render.get('precio_can') or render.get('p_can')
+                                    
+                                    if not p_u:
+                                        sub_p = render.get('precios', {})
+                                        p_obj = sub_p.get(k.lower()) or sub_p.get(t_slug)
+                                        if isinstance(p_obj, dict): p_u = p_obj.get('total') or p_obj.get('monto')
+                                        else: p_u = p_obj
+                                    
+                                    try: p_u = float(p_u or 0)
+                                    except: p_u = 0.0
+                                    
+                                    items_ingreso.append({"descripcion": f"Pax {k.capitalize()}", "cantidad": c_total, "precio_unitario": p_u})
+                                    tipos_vistos.add(t_slug)
+
+                    # 3. FALLBACK LEGACY: Raíz
+                    fallbacks = [
+                        ('NACIONAL', ['num_pax_nac', 'pax_nac'], ['precio_nacional', 'p_nac']),
+                        ('EXTRANJERO', ['num_pax_ext', 'pax_ext'], ['precio_extranjero', 'p_ext']),
+                        ('CAN', ['num_pax_can', 'pax_can'], ['precio_can', 'p_can'])
+                    ]
+                    for t_code, c_keys, p_keys in fallbacks:
+                        if t_code not in tipos_vistos:
+                            c_f = 0
+                            for ck in c_keys:
+                                c_f = int(render.get(ck, 0) or 0)
+                                if c_f > 0: break
+                            if c_f > 0:
+                                p_f = 0.0
+                                for pk in p_keys:
+                                    p_f = float(render.get(pk, 0) or 0)
+                                    if p_f > 0: break
+                                items_ingreso.append({"descripcion": f"Pax {t_code.capitalize()}", "cantidad": c_f, "precio_unitario": p_f})
             except Exception as e:
-                print(f"Error extrayendo items del itinerario: {e}")
+                print(f"Error extrayendo items del itinerario (Backend): {e}")
 
         # Guardar items en la tabla nueva
         if items_ingreso:
