@@ -134,6 +134,7 @@ class VentaModel(BaseModel):
             "canal_venta": venta_data.get("origen", "DIRECTO"),
             "precio_total_cierre": venta_data.get("monto_total"),
             "moneda": venta_data.get("moneda", "USD"),
+            "tipo_cambio": venta_data.get("tipo_cambio"), # "Foto" del dólar
             "estado_pago": "PENDIENTE", # Será actualizado por el trigger de pagos
             "estado_venta": "CONFIRMADO",
             "id_paquete": id_paquete,
@@ -143,13 +144,53 @@ class VentaModel(BaseModel):
             "id_itinerario_digital": id_itin
         }
 
-        # 3. Insertar Venta (esto lanzará excepción si falla)
+        # 3. Insertar Venta
         nuevo_id_venta = self.save(datos_venta_sql)
         
         if not nuevo_id_venta:
-            raise Exception("El método save() devolvió None. Error desconocido al insertar en la tabla 'venta'.")
+            raise Exception("No se pudo insertar en la tabla 'venta'.")
         
-        # 4. Registrar Pago Inicial (Tabla 'pago')
+        # 4. Registrar Desglose de Ingresos (Opción 3)
+        # Intentar obtener items del controller o extraerlos del itinerario si no vienen
+        items_ingreso = venta_data.get("items_ingreso", [])
+        
+        if not items_ingreso and id_itin:
+            # Si no vienen del UI, intentamos rescatarlos del itinerario digital
+            try:
+                res_it = self.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin).single().execute()
+                if res_it.data:
+                    render = res_it.data.get('datos_render', {})
+                    # Detectar Pax Nacional
+                    pax_nac = int(render.get('num_pax_nac', 0) or 0)
+                    price_nac = float(render.get('precio_nacional', 0) or 0)
+                    if pax_nac > 0:
+                        items_ingreso.append({"descripcion": "Pax Nacional", "cantidad": pax_nac, "precio_unitario": price_nac})
+                    
+                    # Detectar Pax Extranjero
+                    pax_ext = int(render.get('num_pax_ext', 0) or 0)
+                    price_ext = float(render.get('precio_extranjero', 0) or 0)
+                    if pax_ext > 0:
+                        items_ingreso.append({"descripcion": "Pax Extranjero", "cantidad": pax_ext, "precio_unitario": price_ext})
+                    
+                    # Detectar otros (CAN, Niños si estuvieran en el JSON)
+            except Exception as e:
+                print(f"Error extrayendo items del itinerario: {e}")
+
+        # Guardar items en la tabla nueva
+        if items_ingreso:
+            for item in items_ingreso:
+                item["id_venta"] = nuevo_id_venta
+                self.client.table('venta_item_ingreso').insert(item).execute()
+        else:
+            # Fallback: Si no hay items, crear uno genérico por el total
+            self.client.table('venta_item_ingreso').insert({
+                "id_venta": nuevo_id_venta,
+                "descripcion": f"Servicio: {tour_raw}",
+                "cantidad": num_pax_final,
+                "precio_unitario": float(venta_data.get("monto_total", 0)) / (num_pax_final if num_pax_final > 0 else 1)
+            }).execute()
+
+        # 5. Registrar Pago Inicial (Tabla 'pago')
         if venta_data.get("monto_depositado", 0) >= 0:
             try:
                 # Si el monto es 0, igual creamos un registro "PENDIENTE" o simplemente saltamos

@@ -275,19 +275,22 @@ def registro_ventas_directa():
 
     # --- 💳 BALANCE Y MONEDA (TIEMPO REAL / INTERACTIVO) ---
     st.markdown("### 💰 Detalles de Pago")
-    c_m0, c_m1, c_m2 = st.columns([1, 2, 2])
+    c_m0, c_m1, c_m2, c_m3 = st.columns([1, 1.5, 1.5, 1.5])
     
     # Auto-seleccionar moneda desde itinerario
     monedas_list = ["USD", "PEN"]
     moneda_auto = st.session_state.get('moneda_auto', 'USD')
     idx_moneda = monedas_list.index(moneda_auto) if moneda_auto in monedas_list else 0
     moneda_sel = c_m0.selectbox("Moneda", monedas_list, index=idx_moneda, help="Se auto-detecta del itinerario")
-    # Usamos session_state para persistencia y auto-llenado
+    
+    # TC: Tipo de Cambio "Foto Congelada"
+    tipo_cambio = c_m1.number_input("Tipo de Cambio (Foto)", min_value=0.0, value=3.80, format="%.3f", help="A cuánto está el dólar hoy para esta venta")
+
     if 'm_total' not in st.session_state: st.session_state['m_total'] = 0.0
     if 'm_pago' not in st.session_state: st.session_state['m_pago'] = 0.0
     
-    monto_total = c_m1.number_input(f"Monto Total ({moneda_sel})", min_value=0.0, format="%.2f", key="m_total")
-    monto_pagado = c_m2.number_input(f"Monto Pagado ({moneda_sel})", min_value=0.0, format="%.2f", key="m_pago")
+    monto_total = c_m2.number_input(f"Monto Total ({moneda_sel})", min_value=0.0, format="%.2f", key="m_total")
+    monto_pagado = c_m3.number_input(f"Monto Pagado ({moneda_sel})", min_value=0.0, format="%.2f", key="m_pago")
     
     saldo = monto_total - monto_pagado
     
@@ -364,10 +367,30 @@ def registro_ventas_directa():
             fecha_inicio_sel = itin_fecha_inicio
             fecha_fin_sel = itin_fecha_fin
         else:
-            with st.expander("📅 Programación de Viaje (Manual)", expanded=True):
-                col_f1, col_f2 = st.columns(2)
-                fecha_inicio_sel = col_f1.date_input("Fecha Inicio", value=date.today())
                 fecha_fin_sel = col_f2.date_input("Fecha Fin", value=date.today())
+        
+        # --- NUEVO: DESGLOSE DE INGRESOS (OPCION 3) ---
+        st.markdown("##### 📝 Desglose de Ingresos (Opcional)")
+        items_ingreso = []
+        if id_itinerario_dig:
+            render = mapa_itinerarios.get(itinerario_seleccionado, {}).get('datos_render', {})
+            p_nac_count = int(render.get('num_pax_nac', 0) or 0)
+            p_ext_count = int(render.get('num_pax_ext', 0) or 0)
+            p_nac_price = float(render.get('precio_nacional', 0) or 0)
+            p_ext_price = float(render.get('precio_extranjero', 0) or 0)
+
+            c_i1, c_i2 = st.columns(2)
+            if p_nac_count > 0:
+                c_i1.info(f"Sugerido: {p_nac_count} Nacional(es) @ ${p_nac_price}")
+                cnt_nac = c_i1.number_input("Cant. Nacional", value=p_nac_count, min_value=0)
+                items_ingreso.append({"descripcion": "Pax Nacional", "cantidad": cnt_nac, "precio_unitario": p_nac_price})
+            
+            if p_ext_count > 0:
+                c_i2.info(f"Sugerido: {p_ext_count} Extranjero(s) @ ${p_ext_price}")
+                cnt_ext = c_i2.number_input("Cant. Extranjero", value=p_ext_count, min_value=0)
+                items_ingreso.append({"descripcion": "Pax Extranjero", "cantidad": cnt_ext, "precio_unitario": p_ext_price})
+        else:
+            st.caption("No hay itinerario vinculado. El desglose se generará automáticamente por el total.")
         
         submitted = st.form_submit_button("🚀 REGISTRAR VENTA Y NOTIFICAR", use_container_width=True)
 
@@ -396,8 +419,10 @@ def registro_ventas_directa():
                     monto_depositado=monto_pagado,
                     tipo_comprobante=tipo_comp,
                     moneda=moneda_sel,
+                    tipo_cambio=tipo_cambio,
                     id_itinerario_digital=id_itinerario_dig if id_itinerario_dig else None,
-                    id_lead=id_lead_seleccionado or id_lead_from_itinerario
+                    id_lead=id_lead_seleccionado or id_lead_from_itinerario,
+                    items_ingreso=items_ingreso if items_ingreso else None
                 )
                 
                 if exito:

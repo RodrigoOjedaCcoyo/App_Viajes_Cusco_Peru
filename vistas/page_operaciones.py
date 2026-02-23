@@ -383,18 +383,21 @@ def registro_ventas_proveedores(supabase_client):
     # 4️⃣ BALANCE INTERACTIVO (Igual que Ventas Directas)
     # ═══════════════════════════════════════════════════════════════
     st.markdown("### 💰 Detalles de Pago B2B")
-    c_p0, c_p1, c_p2 = st.columns([1, 2, 2])
+    c_p0, c_p1, c_p2, c_p3 = st.columns([1, 1.5, 1.5, 1.5])
     
     monedas_list = ["USD", "PEN"]
     m_auto = st.session_state.get('b2b_moneda_auto', 'USD')
     idx_m = monedas_list.index(m_auto) if m_auto in monedas_list else 0
     moneda_sel = c_p0.selectbox("Moneda", monedas_list, index=idx_m, key="b2b_final_moneda")
     
+    # TC: Tipo de Cambio "Foto"
+    tipo_cambio = c_p1.number_input("TC (Foto)", min_value=0.0, value=3.80, format="%.3f", key="b2b_tc")
+
     if 'b2b_m_total' not in st.session_state: st.session_state['b2b_m_total'] = 0.0
     if 'b2b_m_pago' not in st.session_state: st.session_state['b2b_m_pago'] = 0.0
     
-    monto_total = c_p1.number_input(f"Monto Venta B2B ({moneda_sel})", min_value=0.0, format="%.2f", key="b2b_m_total")
-    monto_pagado = c_p2.number_input(f"Adelanto Agencia ({moneda_sel})", min_value=0.0, format="%.2f", key="b2b_m_pago")
+    monto_total = c_p2.number_input(f"Monto Total ({moneda_sel})", min_value=0.0, format="%.2f", key="b2b_m_total")
+    monto_pagado = c_p3.number_input(f"Adelanto Agencia ({moneda_sel})", min_value=0.0, format="%.2f", key="b2b_m_pago")
     
     saldo = monto_total - monto_pagado
     if monto_total > 0:
@@ -424,6 +427,24 @@ def registro_ventas_proveedores(supabase_client):
         tour_name = col2.text_input("Nombre del Programa B2B", value=def_tour, disabled=is_disabled)
         tipo_comp = col2.radio("Comprobante para Agencia", ["Boleta", "Factura", "Recibo Simple"], horizontal=True)
         
+        # --- DESGLOSE DE INGRESOS B2B ---
+        items_ingreso = []
+        if id_itinerario_dig:
+            render = mapa_itinerarios.get(itinerario_seleccionado, {}).get('datos_render', {})
+            p_nac_count = int(render.get('num_pax_nac', 0) or 0)
+            p_ext_count = int(render.get('num_pax_ext', 0) or 0)
+            p_nac_price = float(render.get('precio_nacional', 0) or 0)
+            p_ext_price = float(render.get('precio_extranjero', 0) or 0)
+
+            st.markdown("##### 📝 Desglose Sugerido")
+            c_i1, c_i2 = st.columns(2)
+            if p_nac_count > 0:
+                cnt_nac = c_i1.number_input("Cant. Nacional", value=p_nac_count, min_value=0, key="b2b_cnt_nac")
+                items_ingreso.append({"descripcion": "Pax Nacional", "cantidad": cnt_nac, "precio_unitario": p_nac_price})
+            if p_ext_count > 0:
+                cnt_ext = c_i2.number_input("Cant. Extranjero", value=p_ext_count, min_value=0, key="b2b_cnt_ext")
+                items_ingreso.append({"descripcion": "Pax Extranjero", "cantidad": cnt_ext, "precio_unitario": p_ext_price})
+
         st.divider()
         submitted = st.form_submit_button("✅ REGISTRAR VENTA B2B Y NOTIFICAR", use_container_width=True, type="primary")
 
@@ -450,7 +471,9 @@ def registro_ventas_proveedores(supabase_client):
                     cantidad_pax=def_cant_pax,
                     id_itinerario_digital=id_itinerario_dig,
                     id_lead=None, # B2B no requiere Lead
-                    tipo_comprobante=tipo_comp
+                    tipo_comprobante=tipo_comp,
+                    tipo_cambio=tipo_cambio,
+                    items_ingreso=items_ingreso if items_ingreso else None
                 )
                 
                 if exito:

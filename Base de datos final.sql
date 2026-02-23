@@ -190,12 +190,21 @@
       -- Flujo de Caja Maestro (Liquidación + Requerimientos + Endosos)
       estado_pago_operativo VARCHAR(20) DEFAULT 'NO_REQUERIDO' CHECK (estado_pago_operativo IN ('NO_REQUERIDO', 'PENDIENTE', 'PAGADO')),
       datos_pago_operativo TEXT, -- Cuentas, Yape, Plin del proveedor o guía
-      url_voucher_operativo TEXT, -- Comprobante subido por contabilidad
       es_endoso BOOLEAN DEFAULT FALSE, -- Flag para identificar si fue tercerizado
       costo_unitario DECIMAL(10,2) DEFAULT 0,
       cantidad_items INTEGER DEFAULT 1,
       precio_vendedor DECIMAL(10,2) DEFAULT 0, -- Precio proyectado por el vendedor (referencia)
       PRIMARY KEY (id_venta, n_linea)
+  );
+  
+  CREATE TABLE venta_item_ingreso (
+      id_item_ingreso SERIAL PRIMARY KEY,
+      id_venta INTEGER REFERENCES venta(id_venta) ON DELETE CASCADE,
+      descripcion VARCHAR(255) NOT NULL, -- Ej: 'Pax Nacional', 'Pax Extranjero', 'Suplemento', etc.
+      cantidad INTEGER NOT NULL DEFAULT 1,
+      precio_unitario DECIMAL(10,2) NOT NULL,
+      subtotal DECIMAL(10,2) GENERATED ALWAYS AS (cantidad * precio_unitario) STORED,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
   );
 
   CREATE TABLE pago (
@@ -207,7 +216,6 @@
       metodo_pago VARCHAR(50) CHECK (metodo_pago IN ('EFECTIVO', 'TRANSFERENCIA', 'TARJETA', 'PAYPAL', 'YAPE', 'PLIN', 'OTRO')),
       tipo_pago VARCHAR(50) CHECK (tipo_pago IN ('ADELANTO', 'SALDO', 'TOTAL', 'PARCIAL', 'REEMBOLSO')),
       tipo_comprobante VARCHAR(50) DEFAULT 'RECIBO' CHECK (tipo_comprobante IN ('BOLETA', 'FACTURA', 'RECIBO', 'RECIBO SIMPLE', 'SIN_COMPROBANTE')),
-      url_voucher TEXT,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
   );
 
