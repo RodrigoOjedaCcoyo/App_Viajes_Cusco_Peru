@@ -298,6 +298,11 @@ def registro_ventas_proveedores(supabase_client):
             if tipo_v != 'B2B':
                 continue
 
+            # --- FILTRO ESTRATEGIA: Solo mostrar los que dicen 'General' ---
+            estrategia = it.get('lead', {}).get('estrategia_venta', 'General')
+            if estrategia != 'General':
+                continue
+
             titulo = render_data.get('titulo', '')
             if not titulo:
                 t1, t2 = render_data.get('title_1', ''), render_data.get('title_2', '')

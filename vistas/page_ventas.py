@@ -173,6 +173,11 @@ def registro_ventas_directa():
             tipo_v = render_data.get('metadata', {}).get('tipo_venta', 'B2C')
             if tipo_v == 'B2B':
                 continue
+            
+            # --- FILTRO ESTRATEGIA: Solo mostrar los que dicen 'General' ---
+            estrategia = it.get('lead', {}).get('estrategia_venta', 'General')
+            if estrategia != 'General':
+                continue
 
             # Soportar ambas estructuras
             titulo = render_data.get('titulo', '')
