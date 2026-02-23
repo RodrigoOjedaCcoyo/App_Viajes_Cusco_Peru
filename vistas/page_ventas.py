@@ -309,16 +309,30 @@ def registro_ventas_directa():
     monto_total = c_m2.number_input(f"Monto Total ({moneda_sel})", min_value=0.0, format="%.2f", key="m_total")
     monto_pagado = c_m3.number_input(f"Monto Pagado ({moneda_sel})", min_value=0.0, format="%.2f", key="m_pago")
     
+    # --- MOSTRAR CONVERSIÓN EN TIEMPO REAL ---
+    if tipo_cambio > 0:
+        if moneda_sel == "USD":
+            c_m2.caption(f"🛡️ Equiv: **S/ {monto_total * tipo_cambio:,.2f}**")
+            c_m3.caption(f"🛡️ Equiv: **S/ {monto_pagado * tipo_cambio:,.2f}**")
+        else:
+            c_m2.caption(f"🛡️ Equiv: **$ {monto_total / tipo_cambio:,.2f}**")
+            c_m3.caption(f"🛡️ Equiv: **$ {monto_pagado / tipo_cambio:,.2f}**")
+
     saldo = monto_total - monto_pagado
     
     # Visualización Dinámica del Saldo
     if monto_total > 0:
         col_saldo = st.container()
         if saldo <= 0.01: # Margen de error flotante
-             col_saldo.success(f"✅ **VENTA SALDADA** (Saldo: $0.00)")
+             col_saldo.success(f"✅ **VENTA SALDADA** (Saldo: {moneda_sel} 0.00)")
         else:
              porcentaje = (monto_pagado / monto_total) * 100
-             col_saldo.warning(f"⏳ **SALDO PENDIENTE: ${saldo:,.2f}** (A cuenta: {porcentaje:.0f}%)")
+             # Mostrar saldo en ambas monedas
+             if moneda_sel == "USD":
+                 info_saldo = f"⏳ **SALDO PENDIENTE: ${saldo:,.2f}** (S/ {saldo * tipo_cambio:,.2f})"
+             else:
+                 info_saldo = f"⏳ **SALDO PENDIENTE: S/ {saldo:,.2f}** (${saldo / tipo_cambio:,.2f})"
+             col_saldo.warning(f"{info_saldo} (A cuenta: {porcentaje:.0f}%)")
              
     # --- 📝 FORMULARIO DE REGISTRO ---
     with st.form("form_registro_venta"):

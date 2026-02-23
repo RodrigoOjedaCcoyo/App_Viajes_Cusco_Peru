@@ -425,10 +425,26 @@ def registro_ventas_proveedores(supabase_client):
     monto_total = c_p2.number_input(f"Monto Total ({moneda_sel})", min_value=0.0, format="%.2f", key="b2b_m_total")
     monto_pagado = c_p3.number_input(f"Adelanto Agencia ({moneda_sel})", min_value=0.0, format="%.2f", key="b2b_m_pago")
     
+    # --- MOSTRAR CONVERSIÓN EN TIEMPO REAL (B2B) ---
+    if tipo_cambio > 0:
+        if moneda_sel == "USD":
+            c_p2.caption(f"🛡️ Equiv: **S/ {monto_total * tipo_cambio:,.2f}**")
+            c_p3.caption(f"🛡️ Equiv: **S/ {monto_pagado * tipo_cambio:,.2f}**")
+        else:
+            c_p2.caption(f"🛡️ Equiv: **$ {monto_total / tipo_cambio:,.2f}**")
+            c_p3.caption(f"🛡️ Equiv: **$ {monto_pagado / tipo_cambio:,.2f}**")
+
     saldo = monto_total - monto_pagado
     if monto_total > 0:
-        if saldo <= 0.01: st.success(f"✅ **VENTA B2B SALDADA**")
-        else: st.warning(f"⏳ **SALDO PENDIENTE AGENCIA: ${saldo:,.2f}**")
+        if saldo <= 0.01: 
+            st.success(f"✅ **VENTA B2B SALDADA**")
+        else:
+            # Mostrar saldo bilingüe
+            if moneda_sel == "USD":
+                info_s = f"⏳ **SALDO PENDIENTE AGENCIA: ${saldo:,.2f}** (S/ {saldo * tipo_cambio:,.2f})"
+            else:
+                info_s = f"⏳ **SALDO PENDIENTE AGENCIA: S/ {saldo:,.2f}** (${saldo / tipo_cambio:,.2f})"
+            st.warning(info_s)
 
     # ═══════════════════════════════════════════════════════════════
     # 5️⃣ FORMULARIO DE REGISTRO
