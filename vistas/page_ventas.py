@@ -238,54 +238,74 @@ def registro_ventas_directa():
             st.session_state[f"val_nom_{id_itinerario_dig}"] = nombre_pax_cloud
             st.session_state[f"val_tour_{id_itinerario_dig}"] = tour_nombre_cloud
             st.session_state[f"val_cel_{id_itinerario_dig}"] = cel_cloud
-            if id_itinerario_dig and id_itinerario_dig != st.session_state.get('last_loaded_itin'):
-                # 1. Intentar obtener el precio de cierre directo (Nivel raíz o total_final_calculado)
-                precio_raw = render.get('total_final_calculado') or render.get('precio_cierre')
-                
-                # 2. Si no existe, buscar en la estructura de precios (Nivel 'precios')
-                moneda_detectada = None
-                if not precio_raw:
-                    precios = render.get('precios', {})
-                    # La estructura puede ser directa (float) o diccionario ({"monto": "..."})
-                    def extract_val(val):
-                        if isinstance(val, dict): return val.get('total') or val.get('monto')
-                        return val
+            # --- NUEVA LÓGICA: EXTRACCIÓN Y SUMA INTELIGENTE (TOTAL EN SOLES) ---
+            items_extraidos = []
+            tipos_vistos = set()
+            tc_itin = render.get('control_interno', {}).get('tipo_cambio_aplicado', 3.8)
+            try: tc_itin = float(tc_itin or 3.8)
+            except: tc_itin = 3.8
 
-                    p_ext = extract_val(precios.get('extranjero') or precios.get('ext'))
-                    p_nac = extract_val(precios.get('nacional') or precios.get('nac'))
-                    p_can = extract_val(precios.get('can'))
+            # 1. Prioridad: detalle_ingresos (Lista robusta)
+            det_ing = render.get('detalle_ingresos', [])
+            if isinstance(det_ing, list):
+                for d in det_ing:
+                    t = str(d.get('tipo', '')).upper()
+                    if t in ['EXT', 'INT', 'EXTRANJERO']: t = 'EXTRANJERO'
+                    elif t in ['NAC', 'NACIONAL']: t = 'NACIONAL'
+                    c = int(d.get('cantidad', 0))
+                    p_raw = float(d.get('precio_unitario', 0))
                     
-                    # Detectar moneda según el tipo de precio que se usó
-                    if p_ext:
-                        precio_raw = p_ext
-                        moneda_detectada = 'USD'
-                    elif p_nac:
-                        precio_raw = p_nac
-                        moneda_detectada = 'PEN'
-                    elif p_can:
-                        precio_raw = p_can
-                        moneda_detectada = 'USD'
-                    else:
-                        precio_raw = 0.0
+                    p_soles = p_raw * tc_itin if t in ['EXTRANJERO', 'CAN'] else p_raw
+                    items_extraidos.append({"descripcion": d.get('descripcion') or f"Pax {t.capitalize()}", "cantidad": c, "precio_unitario": p_soles, "tipo": t, "p_raw": p_raw})
+                    tipos_vistos.add(t)
 
-                # Moneda explícita en el render tiene prioridad
-                moneda_detectada = render.get('moneda') or moneda_detectada or 'USD'
+            # 2. Prioridad: control_interno (Desglose pasajeros)
+            ci = render.get('control_interno', {})
+            desglose = ci.get('desglose_pasajeros', {})
+            if isinstance(desglose, dict):
+                for k, v in desglose.items():
+                    t_slug = k.upper()
+                    if t_slug not in tipos_vistos:
+                        c_total = sum(int(x or 0) for x in v.values()) if isinstance(v, dict) else int(v or 0)
+                        if c_total > 0:
+                            p_raw = 0.0
+                            if t_slug == 'NACIONAL': p_raw = render.get('precio_nacional') or render.get('p_nac') or 0
+                            elif t_slug == 'EXTRANJERO': p_raw = render.get('precio_extranjero') or render.get('p_ext') or 0
+                            elif t_slug == 'CAN': p_raw = render.get('precio_can') or render.get('p_can') or 0
+                            
+                            p_soles = float(p_raw) * tc_itin if t_slug in ['EXTRANJERO', 'CAN'] else float(p_raw)
+                            items_extraidos.append({"descripcion": f"Pax {k.capitalize()} (Auto)", "cantidad": c_total, "precio_unitario": p_soles, "tipo": t_slug, "p_raw": p_raw})
+                            tipos_vistos.add(t_slug)
 
-                # 3. Limpiar y convertir a float
-                try:
-                    if isinstance(precio_raw, (int, float)):
-                        p_sug = float(precio_raw)
-                    else:
-                        # Eliminar comas y espacios, ej: "1,180.00" -> "1180.00"
-                        clean_str = str(precio_raw).replace(',', '').replace(' ', '').strip()
-                        p_sug = float(clean_str) if clean_str else 0.0
-                except:
-                    p_sug = 0.0
+            # 3. Fallback: Raíz (num_pax_nac, etc.)
+            fallbacks = [
+                ('NACIONAL', ['num_pax_nac', 'pax_nac'], ['precio_nacional', 'p_nac']),
+                ('EXTRANJERO', ['num_pax_ext', 'pax_ext'], ['precio_extranjero', 'p_ext']),
+                ('CAN', ['num_pax_can', 'pax_can'], ['precio_can', 'p_can'])
+            ]
+            for t_code, c_keys, p_keys in fallbacks:
+                if t_code not in tipos_vistos:
+                    c_f = 0
+                    for ck in c_keys:
+                        c_f = int(render.get(ck, 0) or 0)
+                        if c_f > 0: break
+                    if c_f > 0:
+                        p_f_raw = 0.0
+                        for pk in p_keys:
+                            p_f_raw = float(render.get(pk, 0) or 0)
+                            if p_f_raw > 0: break
+                        p_f_soles = p_f_raw * tc_itin if t_code in ['EXTRANJERO', 'CAN'] else p_f_raw
+                        items_extraidos.append({"descripcion": f"Pax {t_code.capitalize()} (Legacy)", "cantidad": c_f, "precio_unitario": p_f_soles, "tipo": t_code, "p_raw": p_f_raw})
 
-                st.session_state['m_total'] = p_sug
-                st.session_state['moneda_auto'] = moneda_detectada
+            # Cálculo de Total Final en Soles
+            total_soles = sum(it['cantidad'] * it['precio_unitario'] for it in items_extraidos)
+
+            if id_itinerario_dig and id_itinerario_dig != st.session_state.get('last_loaded_itin'):
+                st.session_state['m_total'] = total_soles
+                st.session_state['moneda_auto'] = 'PEN'
                 st.session_state['last_loaded_itin'] = id_itinerario_dig
-                st.success(f"✅ Itinerario cargado: **{tour_nombre_cloud}** (Precio sugerido: ${p_sug:,.2f})")
+                st.session_state[f"items_itin_{id_itinerario_dig}"] = items_extraidos
+                st.success(f"✅ Itinerario cargado: **{tour_nombre_cloud}** (Total calculado: S/ {total_soles:,.2f})")
             else:
                 st.success(f"✅ Itinerario cargado: **{tour_nombre_cloud}**")
 
@@ -415,133 +435,26 @@ def registro_ventas_directa():
             fecha_inicio_sel = c_f1.date_input("Fecha Inicio", value=date.today())
             fecha_fin_sel = c_f2.date_input("Fecha Fin", value=date.today())
         
-        # --- NUEVO: DESGLOSE DE INGRESOS (OPCION 3) ---
+        # --- NUEVO: DESGLOSE DE INGRESOS (USANDO CACHE DE SESIÓN) ---
         st.markdown("##### 📝 Desglose de Ingresos (Opcional)")
+        items_ingreso = []
         if id_itinerario_dig:
-            # --- MOTOR DE EXTRACCIÓN ULTRA-ROBUSTO ---
-            items_ingreso = []
-            tipos_vistos = set()
-
-            # 1. PRIORIDAD MÁXIMA: 'detalle_ingresos' (Lista estructurada)
-            det_ing = render.get('detalle_ingresos', [])
-            if not isinstance(det_ing, list): det_ing = []
-            
-            # --- CONFIGURACIÓN DE MONEDA Y TIPO CAMBIO ---
-            tc_itin = render.get('control_interno', {}).get('tipo_cambio_aplicado', 3.8)
-            try: tc_itin = float(tc_itin or 3.8)
-            except: tc_itin = 3.8
-
-            for d in det_ing:
-                t_raw = str(d.get('tipo', '')).upper()
-                # Mapeo de sinónimos para mayor robustez
-                t = t_raw
-                if t in ['EXT', 'INT', 'EXTRANJERO']: t = 'EXTRANJERO'
-                elif t in ['NAC', 'NACIONAL']: t = 'NACIONAL'
-                elif t in ['CAN']: t = 'CAN'
-                
-                c = int(d.get('cantidad', 0))
-                p_raw = float(d.get('precio_unitario', 0))
-                
-                # --- LÓGICA DE CONVERSIÓN ---
-                moneda = "S/"
-                p_final = p_raw
-                info_extra = ""
-                
-                if t in ['EXTRANJERO', 'CAN']:
-                    p_final = p_raw * tc_itin
-                    moneda = "S/"
-                    info_extra = f" (Original: ${p_raw:,.2f} x {tc_itin})"
-                
-                lbl = d.get('descripcion') or f"Pax {t.capitalize()}"
-                if c > 0:
-                    items_ingreso.append({
-                        "descripcion": f"{lbl}{info_extra}", 
-                        "cantidad": c, 
-                        "precio_unitario": p_final
-                    })
-                    tipos_vistos.add(t)
-
-            # 2. SEGUNDA PRIORIDAD: 'control_interno' (Sumar todas las sub-categorías)
-            ci = render.get('control_interno', {})
-            desglose = ci.get('desglose_pasajeros', {})
-            if isinstance(desglose, dict):
-                for k, v in desglose.items():
-                    t_slug = k.upper()
-                    if t_slug not in tipos_vistos:
-                        # Sumar adultos, niños, etc.
-                        c_total = 0
-                        if isinstance(v, dict): c_total = sum(int(x or 0) for x in v.values())
-                        elif isinstance(v, (int, float)): c_total = int(v)
-                        
-                        if c_total > 0:
-                            # Intentar buscar precio unitario en el root
-                            p_u_raw = 0.0
-                            if t_slug == 'NACIONAL': p_u_raw = render.get('precio_nacional') or render.get('p_nac')
-                            elif t_slug == 'EXTRANJERO': p_u_raw = render.get('precio_extranjero') or render.get('p_ext')
-                            elif t_slug == 'CAN': p_u_raw = render.get('precio_can') or render.get('p_can')
-                            
-                            # Si no hay en root, buscar en precios
-                            if not p_u_raw:
-                                sub_precios = render.get('precios', {})
-                                p_obj = sub_precios.get(k.lower()) or sub_precios.get(t_slug)
-                                if isinstance(p_obj, dict): p_u_raw = p_obj.get('total') or p_obj.get('monto')
-                                else: p_u_raw = p_obj
-                            
-                            try: p_u_raw = float(p_u_raw or 0)
-                            except: p_u_raw = 0.0
-                            
-                            # --- LÓGICA DE CONVERSIÓN FALLBACK ---
-                            p_u_final = p_u_raw
-                            info_e = ""
-                            if t_slug in ['EXTRANJERO', 'CAN']:
-                                p_u_final = p_u_raw * tc_itin
-                                info_e = f" (${p_u_raw:,.0f} x {tc_itin})"
-
-                            items_ingreso.append({
-                                "descripcion": f"Pax {k.capitalize()}{info_e} (Auto)", 
-                                "cantidad": c_total, 
-                                "precio_unitario": p_u_final
-                            })
-                            tipos_vistos.add(t_slug)
-
-            # 3. FALLBACK: Raíz (num_pax_nac, etc.)
-            fallbacks = [
-                ('NACIONAL', ['num_pax_nac', 'pax_nac'], ['precio_nacional', 'p_nac']),
-                ('EXTRANJERO', ['num_pax_ext', 'pax_ext'], ['precio_extranjero', 'p_ext']),
-                ('CAN', ['num_pax_can', 'pax_can'], ['precio_can', 'p_can'])
-            ]
-            for t_code, c_keys, p_keys in fallbacks:
-                if t_code not in tipos_vistos:
-                    c_found = 0
-                    for ck in c_keys:
-                        c_found = int(render.get(ck, 0) or 0)
-                        if c_found > 0: break
+            cached_items = st.session_state.get(f"items_itin_{id_itinerario_dig}", [])
+            if cached_items:
+                for it in cached_items:
+                    desc = it['descripcion']
+                    if it['tipo'] in ['EXTRANJERO', 'CAN']:
+                        # Usar tc_itin que ya está en el render dentro del cached_items o sacarlo de nuevo
+                        desc += f" (Ref: ${it['p_raw']:.2f} x {tc_itin})"
                     
-                    if c_found > 0:
-                        p_found_raw = 0.0
-                        for pk in p_keys:
-                            p_found_raw = float(render.get(pk, 0) or 0)
-                            if p_found_raw > 0: break
-                        
-                        # --- LÓGICA DE CONVERSIÓN FALLBACK 2 ---
-                        p_found_final = p_found_raw
-                        info_f = ""
-                        if t_code in ['EXTRANJERO', 'CAN']:
-                            p_found_final = p_found_raw * tc_itin
-                            info_f = f" (${p_found_raw:,.0f} x {tc_itin})"
-
-                        items_ingreso.append({
-                            "descripcion": f"Pax {t_code.capitalize()}{info_f} (Legacy)",
-                            "cantidad": c_found,
-                            "precio_unitario": p_found_final
-                        })
-
-            # --- MOSTRAR RESULTADOS ---
-            if items_ingreso:
-                for it in items_ingreso:
-                    st.info(f"✨ **{it['descripcion']}**: Se han cargado **{it['cantidad']}** pasajero(s) a **${it['precio_unitario']:,.2f}** c/u.")
+                    items_ingreso.append({
+                        "descripcion": desc,
+                        "cantidad": it['cantidad'],
+                        "precio_unitario": it['precio_unitario']
+                    })
+                    st.info(f"✨ **{desc}**: Se han cargado **{it['cantidad']}** pax a **S/ {it['precio_unitario']:,.2f}** c/u.")
             else:
-                st.warning("⚠️ No se encontró desglose de pasajeros en el itinerario.")
+                st.warning("⚠️ No se encontró desglose en este itinerario.")
         else:
             st.caption("No hay itinerario vinculado. El desglose se generará automáticamente por el total.")
         
