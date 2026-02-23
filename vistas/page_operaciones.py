@@ -461,6 +461,18 @@ def registro_ventas_proveedores(supabase_client):
     # TC: Tipo de Cambio "Foto"
     tipo_cambio = c_p1.number_input("TC (Foto)", min_value=0.0, value=3.80, format="%.3f", key="b2b_tc")
 
+    # --- RECÁLCULO DINÁMICO B2B: Usar el TC del usuario para actualizar el total ---
+    if id_itinerario_dig and tipo_cambio > 0:
+        items_recalc_b2b = st.session_state.get(f"b2b_items_{id_itinerario_dig}", [])
+        if items_recalc_b2b:
+            nuevo_total_b2b = 0.0
+            for it in items_recalc_b2b:
+                if it['tipo'] in ['EXTRANJERO', 'CAN']:
+                    nuevo_total_b2b += it['cantidad'] * it['p_raw'] * tipo_cambio
+                else:
+                    nuevo_total_b2b += it['cantidad'] * it['p_raw']
+            st.session_state['b2b_m_total'] = round(nuevo_total_b2b, 2)
+
     if 'b2b_m_total' not in st.session_state: st.session_state['b2b_m_total'] = 0.0
     if 'b2b_m_pago' not in st.session_state: st.session_state['b2b_m_pago'] = 0.0
     

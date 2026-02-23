@@ -359,6 +359,18 @@ def registro_ventas_directa():
     # TC: Tipo de Cambio "Foto Congelada"
     tipo_cambio = c_m1.number_input("Tipo de Cambio (Foto)", min_value=0.0, value=3.80, format="%.3f", help="A cuánto está el dólar hoy para esta venta")
 
+    # --- RECÁLCULO DINÁMICO: Usar el TC del usuario para actualizar el total ---
+    if id_itinerario_dig and tipo_cambio > 0:
+        items_recalc = st.session_state.get(f"items_itin_{id_itinerario_dig}", [])
+        if items_recalc:
+            nuevo_total = 0.0
+            for it in items_recalc:
+                if it['tipo'] in ['EXTRANJERO', 'CAN']:
+                    nuevo_total += it['cantidad'] * it['p_raw'] * tipo_cambio
+                else:
+                    nuevo_total += it['cantidad'] * it['p_raw']
+            st.session_state['m_total'] = round(nuevo_total, 2)
+
     if 'm_total' not in st.session_state: st.session_state['m_total'] = 0.0
     if 'm_pago' not in st.session_state: st.session_state['m_pago'] = 0.0
     
