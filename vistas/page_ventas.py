@@ -156,6 +156,12 @@ def registro_ventas_directa():
     mapa_itinerarios = {}
     
     if itinerarios_recuperados:
+        # 1. Ordenar por fecha de generación (antigüedad)
+        itinerarios_recuperados.sort(key=lambda x: x.get('fecha_generacion', ''))
+        
+        # 2. Contador para versiones
+        conteos = {}
+
         for it in itinerarios_recuperados:
             id_lead_from_itinerario = it.get('id_lead')
             render_data = it.get('datos_render', {})
@@ -177,13 +183,20 @@ def registro_ventas_directa():
             
             fecha = it.get('fecha_generacion', '')[:10] if it.get('fecha_generacion') else 'Sin fecha'
             
-            # Celular para el label (muy importante según feedback)
+            # Celular para el label
             celular = it.get('lead', {}).get('numero_celular', '') if it.get('lead') else lead_data.get('numero_celular', '') if lead_data else ''
             cel_label = f"📱 {celular} | " if celular else ""
             
-            label = f"{cel_label}{titulo} ({fecha})"
-            opciones_itinerario.append(label)
-            mapa_itinerarios[label] = it
+            # Label base sin versión
+            base_label = f"{cel_label}{titulo} ({fecha})"
+            
+            # Manejo de Versiones (V1, V2...)
+            conteos[base_label] = conteos.get(base_label, 0) + 1
+            ver = conteos[base_label]
+            
+            label_final = f"{base_label} - V{ver}"
+            opciones_itinerario.append(label_final)
+            mapa_itinerarios[label_final] = it
     
     itinerario_seleccionado = st.selectbox(
         "✨ Seleccionar Itinerario Visual (Diseño Cloud)", 

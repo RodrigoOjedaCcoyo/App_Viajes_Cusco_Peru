@@ -281,6 +281,12 @@ def registro_ventas_proveedores(supabase_client):
     mapa_itinerarios = {}
     
     if itinerarios_recuperados:
+        # 1. Ordenar por antigüedad (fecha_generacion ascendente)
+        itinerarios_recuperados.sort(key=lambda x: x.get('fecha_generacion', ''))
+        
+        # 2. Contador para versiones
+        conteos = {}
+
         for it in itinerarios_recuperados:
             render_data = it.get('datos_render', {})
             if isinstance(render_data, str):
@@ -300,10 +306,16 @@ def registro_ventas_proveedores(supabase_client):
             pax_itin = it.get('nombre_pasajero_itinerario') or render_data.get('pasajero', 'Sin Nombre')
             fecha = it.get('fecha_generacion', '')[:10] if it.get('fecha_generacion') else 'Sin fecha'
             
-            # Label descriptivo para B2B
-            label = f"[{fecha}] {pax_itin} - {titulo}"
-            opciones_itinerario.append(label)
-            mapa_itinerarios[label] = it
+            # Label descriptivo base
+            base_label = f"[{fecha}] {pax_itin} - {titulo}"
+            
+            # Manejo de Versiones (V1, V2...)
+            conteos[base_label] = conteos.get(base_label, 0) + 1
+            ver = conteos[base_label]
+            
+            label_final = f"{base_label} - V{ver}"
+            opciones_itinerario.append(label_final)
+            mapa_itinerarios[label_final] = it
     
     itinerario_seleccionado = st.selectbox(
         "✨ Seleccionar Itinerario Visual (Diseño Cloud)", 
