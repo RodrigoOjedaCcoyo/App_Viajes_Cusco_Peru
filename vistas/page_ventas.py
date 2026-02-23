@@ -279,8 +279,8 @@ def registro_ventas_directa():
 
             # 3. Fallback: Raíz (num_pax_nac, etc.)
             fallbacks = [
-                ('NACIONAL', ['num_pax_nac', 'pax_nac'], ['precio_nacional', 'p_nac']),
-                ('EXTRANJERO', ['num_pax_ext', 'pax_ext'], ['precio_extranjero', 'p_ext']),
+                ('NACIONAL', ['num_pax_nac', 'pax_nac', 'num_pax_nacional'], ['precio_nacional', 'p_nac']),
+                ('EXTRANJERO', ['num_pax_ext', 'pax_ext', 'num_pax_extranjero'], ['precio_extranjero', 'p_ext']),
                 ('CAN', ['num_pax_can', 'pax_can'], ['precio_can', 'p_can'])
             ]
             for t_code, c_keys, p_keys in fallbacks:
@@ -297,17 +297,38 @@ def registro_ventas_directa():
                         p_f_soles = p_f_raw * tc_itin if t_code in ['EXTRANJERO', 'CAN'] else p_f_raw
                         items_extraidos.append({"descripcion": f"Pax {t_code.capitalize()} (Legacy)", "cantidad": c_f, "precio_unitario": p_f_soles, "tipo": t_code, "p_raw": p_f_raw})
 
+            # --- FALLBACK FINAL: SI NO HAY NADA, USAR CONTEO GENÉRICO ---
+            if not items_extraidos:
+                pax_gen = render.get('cantidad_pax') or render.get('pax_count') or render.get('num_pax') or 0
+                if not pax_gen and ci: 
+                    pax_gen = ci.get('total_pasajeros') or ci.get('total_pax') or 0
+                
+                if pax_gen:
+                    p_sug_raw = render.get('total_final_calculado') or render.get('precio_cierre') or 0
+                    try: p_sug_val = float(p_sug_raw)
+                    except: p_sug_val = 0.0
+                    items_extraidos.append({
+                        "descripcion": "Pax (Itinerario)", 
+                        "cantidad": int(pax_gen), 
+                        "precio_unitario": p_sug_val / int(pax_gen) if int(pax_gen) > 0 else 0,
+                        "tipo": "NACIONAL", 
+                        "p_raw": p_sug_val
+                    })
+
             # Cálculo de Total Final en Soles
             total_soles = sum(it['cantidad'] * it['precio_unitario'] for it in items_extraidos)
 
-            if id_itinerario_dig and id_itinerario_dig != st.session_state.get('last_loaded_itin'):
-                st.session_state['m_total'] = total_soles
-                st.session_state['moneda_auto'] = 'PEN'
-                st.session_state['last_loaded_itin'] = id_itinerario_dig
+            if id_itinerario_dig:
+                # Actualizar siempre los items en sesión para evitar que el formulario se quede vacío
                 st.session_state[f"items_itin_{id_itinerario_dig}"] = items_extraidos
-                st.success(f"✅ Itinerario cargado: **{tour_nombre_cloud}** (Total calculado: S/ {total_soles:,.2f})")
-            else:
-                st.success(f"✅ Itinerario cargado: **{tour_nombre_cloud}**")
+                
+                if id_itinerario_dig != st.session_state.get('last_loaded_itin'):
+                    st.session_state['m_total'] = total_soles
+                    st.session_state['moneda_auto'] = 'PEN'
+                    st.session_state['last_loaded_itin'] = id_itinerario_dig
+                    st.success(f"✅ Itinerario cargado: **{tour_nombre_cloud}** (Total calculado: S/ {total_soles:,.2f})")
+                else:
+                    st.success(f"✅ Itinerario cargado: **{tour_nombre_cloud}**")
 
 
     # --- 💳 BALANCE Y MONEDA (TIEMPO REAL / INTERACTIVO) ---

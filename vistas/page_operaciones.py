@@ -379,56 +379,58 @@ def registro_ventas_proveedores(supabase_client):
             else:
                 def_cant_pax = int(render.get('cantidad_pax') or 1)
 
-            # --- NUEVA LÓGICA: EXTRACCIÓN Y SUMA INTELIGENTE B2B (TOTAL EN SOLES) ---
-            items_extraidos = []
-            tipos_vistos = set()
-            tc_itin = render.get('control_interno', {}).get('tipo_cambio_aplicado', 3.8)
-            try: tc_itin = float(tc_itin or 3.8)
-            except: tc_itin = 3.8
+            # 3. Fallback: Raíz (num_pax_nac, etc.)
+            fallbacks = [
+                ('NACIONAL', ['num_pax_nac', 'pax_nac', 'num_pax_nacional'], ['precio_nacional', 'p_nac']),
+                ('EXTRANJERO', ['num_pax_ext', 'pax_ext', 'num_pax_extranjero'], ['precio_extranjero', 'p_ext']),
+                ('CAN', ['num_pax_can', 'pax_can'], ['precio_can', 'p_can'])
+            ]
+            for t_code, c_keys, p_keys in fallbacks:
+                if t_code not in tipos_vistos:
+                    c_f = 0
+                    for ck in c_keys:
+                        c_f = int(render.get(ck, 0) or 0)
+                        if c_f > 0: break
+                    if c_f > 0:
+                        p_f_raw = 0.0
+                        for pk in p_keys:
+                            p_f_raw = float(render.get(pk, 0) or 0)
+                            if p_f_raw > 0: break
+                        p_f_soles = p_f_raw * tc_itin if t_code in ['EXTRANJERO', 'CAN'] else p_f_raw
+                        items_extraidos.append({"descripcion": f"Pax {t_code.capitalize()} (Legacy)", "cantidad": c_f, "precio_unitario": p_f_soles, "tipo": t_code, "p_raw": p_f_raw})
 
-            # 1. Prioridad: detalle_ingresos
-            det_ing = render.get('detalle_ingresos', [])
-            if isinstance(det_ing, list):
-                for d in det_ing:
-                    t = str(d.get('tipo', '')).upper()
-                    if t in ['EXT', 'INT', 'EXTRANJERO']: t = 'EXTRANJERO'
-                    elif t in ['NAC', 'NACIONAL']: t = 'NACIONAL'
-                    c = int(d.get('cantidad', 0))
-                    p_raw = float(d.get('precio_unitario', 0))
-                    
-                    p_soles = p_raw * tc_itin if t in ['EXTRANJERO', 'CAN'] else p_raw
-                    items_extraidos.append({"descripcion": d.get('descripcion') or f"Pax {t.capitalize()}", "cantidad": c, "precio_unitario": p_soles, "tipo": t, "p_raw": p_raw})
-                    tipos_vistos.add(t)
-
-            # 2. Prioridad: control_interno
-            ci = render.get('control_interno', {})
-            desglose = ci.get('desglose_pasajeros', {})
-            if isinstance(desglose, dict):
-                for k, v in desglose.items():
-                    t_slug = k.upper()
-                    if t_slug not in tipos_vistos:
-                        c_total = sum(int(x or 0) for x in v.values()) if isinstance(v, dict) else int(v or 0)
-                        if c_total > 0:
-                            p_raw = 0.0
-                            if t_slug == 'NACIONAL': p_raw = render.get('precio_nacional') or render.get('p_nac') or 0
-                            elif t_slug == 'EXTRANJERO': p_raw = render.get('precio_extranjero') or render.get('p_ext') or 0
-                            elif t_slug == 'CAN': p_raw = render.get('precio_can') or render.get('p_can') or 0
-                            
-                            p_soles = float(p_raw) * tc_itin if t_slug in ['EXTRANJERO', 'CAN'] else float(p_raw)
-                            items_extraidos.append({"descripcion": f"Pax {k.capitalize()} (Auto)", "cantidad": c_total, "precio_unitario": p_soles, "tipo": t_slug, "p_raw": p_raw})
-                            tipos_vistos.add(t_slug)
+            # --- FALLBACK FINAL B2B: SI NO HAY NADA, USAR CONTEO GENÉRICO ---
+            if not items_extraidos:
+                pax_gen = render.get('cantidad_pax') or render.get('pax_count') or render.get('num_pax') or 0
+                if not pax_gen and ci: 
+                    pax_gen = ci.get('total_pasajeros') or ci.get('total_pax') or 0
+                
+                if pax_gen:
+                    p_sug_raw = render.get('total_final_calculado') or render.get('precio_cierre') or 0
+                    try: p_sug_val = float(p_sug_raw)
+                    except: p_sug_val = 0.0
+                    items_extraidos.append({
+                        "descripcion": "Pax (Itinerario)", 
+                        "cantidad": int(pax_gen), 
+                        "precio_unitario": p_sug_val / int(pax_gen) if int(pax_gen) > 0 else 0,
+                        "tipo": "NACIONAL", 
+                        "p_raw": p_sug_val
+                    })
 
             # Cálculo de Total Final en Soles
             total_soles = sum(it['cantidad'] * it['precio_unitario'] for it in items_extraidos)
 
-            if id_itinerario_dig and id_itinerario_dig != st.session_state.get('b2b_last_itin_v2'):
-                st.session_state['b2b_m_total'] = total_soles
-                st.session_state['b2b_moneda_auto'] = 'PEN'
-                st.session_state['b2b_last_itin_v2'] = id_itinerario_dig
+            if id_itinerario_dig:
+                # Actualizar siempre los items en sesión B2B
                 st.session_state[f"b2b_items_{id_itinerario_dig}"] = items_extraidos
-                st.success(f"✅ Itinerario cargado: **{def_tour}** (Total calculado: S/ {total_soles:,.2f})")
-            else:
-                st.success(f"✅ Itinerario cargado: **{def_tour}**")
+
+                if id_itinerario_dig != st.session_state.get('b2b_last_itin_v2'):
+                    st.session_state['b2b_m_total'] = total_soles
+                    st.session_state['b2b_moneda_auto'] = 'PEN'
+                    st.session_state['b2b_last_itin_v2'] = id_itinerario_dig
+                    st.success(f"✅ Itinerario cargado: **{def_tour}** (Total calculado: S/ {total_soles:,.2f})")
+                else:
+                    st.success(f"✅ Itinerario cargado: **{def_tour}**")
 
     # ═══════════════════════════════════════════════════════════════
     # 4️⃣ BALANCE INTERACTIVO (Igual que Ventas Directas)
