@@ -470,6 +470,11 @@ def registro_ventas_proveedores(supabase_client):
             det_ing = render.get('detalle_ingresos', [])
             if not isinstance(det_ing, list): det_ing = []
             
+            # --- CONFIGURACIÓN DE MONEDA Y TIPO CAMBIO (B2B) ---
+            tc_itin = render.get('control_interno', {}).get('tipo_cambio_aplicado', 3.8)
+            try: tc_itin = float(tc_itin or 3.8)
+            except: tc_itin = 3.8
+
             for d in det_ing:
                 t_raw = str(d.get('tipo', '')).upper()
                 # Mapeo de sinónimos
@@ -479,10 +484,22 @@ def registro_ventas_proveedores(supabase_client):
                 elif t in ['CAN']: t = 'CAN'
                 
                 c = int(d.get('cantidad', 0))
-                p = float(d.get('precio_unitario', 0))
+                p_raw = float(d.get('precio_unitario', 0))
+
+                # Conversión USD -> PEN
+                p_final = p_raw
+                info_extra = ""
+                if t in ['EXTRANJERO', 'CAN']:
+                    p_final = p_raw * tc_itin
+                    info_extra = f" (${p_raw:,.2f} x {tc_itin})"
+                
                 lbl = d.get('descripcion') or f"Pax {t.capitalize()}"
                 if c > 0:
-                    items_ingreso.append({"descripcion": lbl, "cantidad": c, "precio_unitario": p})
+                    items_ingreso.append({
+                        "descripcion": f"{lbl}{info_extra}", 
+                        "cantidad": c, 
+                        "precio_unitario": p_final
+                    })
                     tipos_vistos.add(t)
 
             # 2. SEGUNDA PRIORIDAD: 'control_interno'
@@ -497,24 +514,31 @@ def registro_ventas_proveedores(supabase_client):
                         elif isinstance(v, (int, float)): c_total = int(v)
                         
                         if c_total > 0:
-                            p_u = 0.0
-                            if t_slug == 'NACIONAL': p_u = render.get('precio_nacional') or render.get('p_nac')
-                            elif t_slug == 'EXTRANJERO': p_u = render.get('precio_extranjero') or render.get('p_ext')
-                            elif t_slug == 'CAN': p_u = render.get('precio_can') or render.get('p_can')
+                            p_u_raw = 0.0
+                            if t_slug == 'NACIONAL': p_u_raw = render.get('precio_nacional') or render.get('p_nac')
+                            elif t_slug == 'EXTRANJERO': p_u_raw = render.get('precio_extranjero') or render.get('p_ext')
+                            elif t_slug == 'CAN': p_u_raw = render.get('precio_can') or render.get('p_can')
                             
-                            if not p_u:
+                            if not p_u_raw:
                                 sub_precios = render.get('precios', {})
                                 p_obj = sub_precios.get(k.lower()) or sub_precios.get(t_slug)
-                                if isinstance(p_obj, dict): p_u = p_obj.get('total') or p_obj.get('monto')
-                                else: p_u = p_obj
+                                if isinstance(p_obj, dict): p_u_raw = p_obj.get('total') or p_obj.get('monto')
+                                else: p_u_raw = p_obj
                             
-                            try: p_u = float(p_u or 0)
-                            except: p_u = 0.0
+                            try: p_u_raw = float(p_u_raw or 0)
+                            except: p_u_raw = 0.0
                             
+                            # Conversión B2B Auto
+                            p_u_final = p_u_raw
+                            info_e = ""
+                            if t_slug in ['EXTRANJERO', 'CAN']:
+                                p_u_final = p_u_raw * tc_itin
+                                info_e = f" (${p_u_raw:,.0f} x {tc_itin})"
+                                
                             items_ingreso.append({
-                                "descripcion": f"Pax {k.capitalize()} (Auto B2B)", 
+                                "descripcion": f"Pax {k.capitalize()}{info_e} (Auto B2B)", 
                                 "cantidad": c_total, 
-                                "precio_unitario": p_u
+                                "precio_unitario": p_u_final
                             })
                             tipos_vistos.add(t_slug)
 
@@ -532,15 +556,21 @@ def registro_ventas_proveedores(supabase_client):
                         if c_found > 0: break
                     
                     if c_found > 0:
-                        p_found = 0.0
+                        p_found_raw = 0.0
                         for pk in p_keys:
-                            p_found = float(render.get(pk, 0) or 0)
-                            if p_found > 0: break
+                            p_found_raw = float(render.get(pk, 0) or 0)
+                            if p_found_raw > 0: break
                         
+                        p_found_final = p_found_raw
+                        info_f = ""
+                        if t_code in ['EXTRANJERO', 'CAN']:
+                            p_found_final = p_found_raw * tc_itin
+                            info_f = f" (${p_found_raw:,.0f} x {tc_itin})"
+
                         items_ingreso.append({
-                            "descripcion": f"Pax {t_code.capitalize()} (Legacy B2B)",
+                            "descripcion": f"Pax {t_code.capitalize()}{info_f} (Legacy B2B)",
                             "cantidad": c_found,
-                            "precio_unitario": p_found
+                            "precio_unitario": p_found_final
                         })
 
             # --- MOSTRAR RESULTADOS ---

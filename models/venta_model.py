@@ -153,7 +153,6 @@ class VentaModel(BaseModel):
         # 4. Registrar Desglose de Ingresos (Opción 3)
         # Intentar obtener items del controller o extraerlos del itinerario si no vienen
         items_ingreso = venta_data.get("items_ingreso", [])
-        
         if not items_ingreso and id_itin:
             # Si no vienen del UI, intentamos rescatarlos del itinerario digital
             try:
@@ -165,25 +164,40 @@ class VentaModel(BaseModel):
                         try: render = json.loads(render)
                         except: render = {}
                     
-                    # --- MOTOR DE EXTRACCIÓN ULTRA-ROBUSTO (BACKEND) ---
+                    # --- MOTOR DE EXTRACCIÓN ULTRA-ROBUSTO CON CONVERSIÓN ---
                     tipos_vistos = set()
+                    # Tipo de Cambio del itinerario
+                    tc_itin = render.get('control_interno', {}).get('tipo_cambio_aplicado', 3.8)
+                    try: tc_itin = float(tc_itin or 3.8)
+                    except: tc_itin = 3.8
 
                     # 1. PRIORIDAD MÁXIMA: 'detalle_ingresos'
                     det_ing = render.get('detalle_ingresos', [])
                     if isinstance(det_ing, list):
                         for d in det_ing:
                             t_raw = str(d.get('tipo', '')).upper()
-                            # Mapeo de sinónimos
                             t = t_raw
                             if t in ['EXT', 'INT', 'EXTRANJERO']: t = 'EXTRANJERO'
                             elif t in ['NAC', 'NACIONAL']: t = 'NACIONAL'
                             elif t in ['CAN']: t = 'CAN'
 
                             c = int(d.get('cantidad', 0))
-                            p = float(d.get('precio_unitario', 0))
+                            p_raw = float(d.get('precio_unitario', 0))
+                            
+                            # Conversión USD -> PEN para el backend
+                            p_final = p_raw
+                            info_xtra = ""
+                            if t in ['EXTRANJERO', 'CAN']:
+                                p_final = p_raw * tc_itin
+                                info_xtra = f" (${p_raw}x{tc_itin})"
+
                             lbl = d.get('descripcion') or f"Pax {t.capitalize()}"
                             if c > 0:
-                                items_ingreso.append({"descripcion": lbl, "cantidad": c, "precio_unitario": p})
+                                items_ingreso.append({
+                                    "descripcion": f"{lbl}{info_xtra}", 
+                                    "cantidad": c, 
+                                    "precio_unitario": p_final
+                                })
                                 tipos_vistos.add(t)
 
                     # 2. SEGUNDA PRIORIDAD: 'control_interno'
@@ -198,25 +212,34 @@ class VentaModel(BaseModel):
                                 elif isinstance(v, (int, float)): c_total = int(v)
                                 
                                 if c_total > 0:
-                                    p_u = 0.0
-                                    # Fallbacks de precio en raíz
-                                    if t_slug == 'NACIONAL': p_u = render.get('precio_nacional') or render.get('p_nac')
-                                    elif t_slug == 'EXTRANJERO': p_u = render.get('precio_extranjero') or render.get('p_ext')
-                                    elif t_slug == 'CAN': p_u = render.get('precio_can') or render.get('p_can')
+                                    p_u_raw = 0.0
+                                    if t_slug == 'NACIONAL': p_u_raw = render.get('precio_nacional') or render.get('p_nac')
+                                    elif t_slug == 'EXTRANJERO': p_u_raw = render.get('precio_extranjero') or render.get('p_ext')
+                                    elif t_slug == 'CAN': p_u_raw = render.get('precio_can') or render.get('p_can')
                                     
-                                    if not p_u:
+                                    if not p_u_raw:
                                         sub_p = render.get('precios', {})
                                         p_obj = sub_p.get(k.lower()) or sub_p.get(t_slug)
-                                        if isinstance(p_obj, dict): p_u = p_obj.get('total') or p_obj.get('monto')
-                                        else: p_u = p_obj
+                                        if isinstance(p_obj, dict): p_u_raw = p_obj.get('total') or p_obj.get('monto')
+                                        else: p_u_raw = p_obj
                                     
-                                    try: p_u = float(p_u or 0)
-                                    except: p_u = 0.0
+                                    try: p_u_raw = float(p_u_raw or 0)
+                                    except: p_u_raw = 0.0
                                     
-                                    items_ingreso.append({"descripcion": f"Pax {k.capitalize()}", "cantidad": c_total, "precio_unitario": p_u})
+                                    p_u_final = p_u_raw
+                                    inf_e = ""
+                                    if t_slug in ['EXTRANJERO', 'CAN']:
+                                        p_u_final = p_u_raw * tc_itin
+                                        inf_e = f" (${p_u_raw}x{tc_itin})"
+
+                                    items_ingreso.append({
+                                        "descripcion": f"Pax {k.capitalize()}{inf_e}", 
+                                        "cantidad": c_total, 
+                                        "precio_unitario": p_u_final
+                                    })
                                     tipos_vistos.add(t_slug)
 
-                    # 3. FALLBACK LEGACY: Raíz
+                    # 3. FALLBACK LEGACY
                     fallbacks = [
                         ('NACIONAL', ['num_pax_nac', 'pax_nac'], ['precio_nacional', 'p_nac']),
                         ('EXTRANJERO', ['num_pax_ext', 'pax_ext'], ['precio_extranjero', 'p_ext']),
@@ -229,11 +252,22 @@ class VentaModel(BaseModel):
                                 c_f = int(render.get(ck, 0) or 0)
                                 if c_f > 0: break
                             if c_f > 0:
-                                p_f = 0.0
+                                p_f_raw = 0.0
                                 for pk in p_keys:
-                                    p_f = float(render.get(pk, 0) or 0)
-                                    if p_f > 0: break
-                                items_ingreso.append({"descripcion": f"Pax {t_code.capitalize()}", "cantidad": c_f, "precio_unitario": p_f})
+                                    p_f_raw = float(render.get(pk, 0) or 0)
+                                    if p_f_raw > 0: break
+                                
+                                p_f_final = p_f_raw
+                                inf_f = ""
+                                if t_code in ['EXTRANJERO', 'CAN']:
+                                    p_f_final = p_f_raw * tc_itin
+                                    inf_f = f" (${p_f_raw}x{tc_itin})"
+
+                                items_ingreso.append({
+                                    "descripcion": f"Pax {t_code.capitalize()}{inf_f}", 
+                                    "cantidad": c_f, 
+                                    "precio_unitario": p_f_final
+                                })
             except Exception as e:
                 print(f"Error extrayendo items del itinerario (Backend): {e}")
 
