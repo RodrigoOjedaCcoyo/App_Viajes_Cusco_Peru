@@ -871,18 +871,8 @@
       END LOOP;
   END $$;
 
-  -- Permisos storage (Ejecutar en panel SQL)
-  -- Requiere buckets 'itinerarios' y 'vouchers' creados como Públicos
-  DROP POLICY IF EXISTS "Acceso Público Itinerarios" ON storage.objects;
-  DROP POLICY IF EXISTS "Subida Libre Itinerarios" ON storage.objects;
-  DROP POLICY IF EXISTS "Acceso Público Vouchers" ON storage.objects;
-  DROP POLICY IF EXISTS "Subida Libre Vouchers" ON storage.objects;
-
-  CREATE POLICY "Acceso Público Itinerarios" ON storage.objects FOR SELECT USING (bucket_id = 'itinerarios');
-  CREATE POLICY "Subida Libre Itinerarios" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'itinerarios');
-  CREATE POLICY "Acceso Público Vouchers" ON storage.objects FOR SELECT USING (bucket_id = 'vouchers');
-  CREATE POLICY "Subida Libre Vouchers" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'vouchers');
-
+  -- Permisos storage: NO REQUERIDOS ya que no se gestionan archivos físicos.
+  
   -- ==============================================================
   -- ✅ FIN DEL SCRIPT: INSTALACIÓN EXITOSA
   -- ==============================================================

@@ -91,6 +91,14 @@ def render_sales_dashboard_visual(supabase_client):
 def render_ops_dashboard_visual(supabase_client):
     """Vista visual para Operaciones con Tablero Diario."""
     st.title("⚙️ Visión General de Operaciones")
+    
+    # Modo En Vivo (Auto-refresh manual)
+    c_live, _ = st.columns([1, 4])
+    live_mode = c_live.toggle("🛰️ Modo en Vivo", help="Refresca los datos automáticamente cada 60 segundos", key="ops_live")
+    if live_mode:
+        from streamlit_autorefresh import st_autorefresh
+        st_autorefresh(interval=60 * 1000, key="ops_refresh_counter")
+
     from controllers.operaciones_controller import OperacionesController
     controller = OperacionesController(supabase_client)
     
@@ -222,6 +230,14 @@ def render_tablero_diario_visual(controller):
 def render_contable_dashboard_visual(supabase_client):
     """Vista visual para Contabilidad."""
     st.title("🏦 Dashboard Financiero")
+    
+    # Modo En Vivo (Auto-refresh manual)
+    c_live, _ = st.columns([1, 4])
+    live_mode = c_live.toggle("🛰️ Modo en Vivo", help="Refresca los datos automáticamente cada 60 segundos", key="fin_live")
+    if live_mode:
+        from streamlit_autorefresh import st_autorefresh
+        st_autorefresh(interval=60 * 1000, key="fin_refresh_counter")
+
     reporte_ctrl = ReporteController(supabase_client)
     from vistas.dashboard_analytics import render_financial_dashboard
     

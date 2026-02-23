@@ -183,7 +183,11 @@ def main():
             st.error(f"Error General Inesperado durante la ejecución del módulo: {e}")
 
     st.sidebar.markdown("---")
-    st.sidebar.button("Cerrar Sesión", on_click=logout_user)
+    c_ref, c_out = st.sidebar.columns(2)
+    if c_ref.button("🔄 Refrescar", use_container_width=True, help="Forzar actualización de datos"):
+        st.rerun()
+    if c_out.button("🚪 Salir", use_container_width=True):
+        logout_user()
 
 if __name__ == "__main__":
     main()
