@@ -367,8 +367,15 @@ def registro_ventas_directa():
                 except Exception as e:
                     print(f"Error calculando fecha fin: {e}")
             
-            # Mostrar Pax Count si existe
-            num_pax = render.get('cantidad_pax') or render.get('pax_count') or 1
+            # Mostrar Pax Count (Búsqueda robusta)
+            num_pax = 1
+            if render.get('control_interno'):
+                num_pax = render['control_interno'].get('total_pasajeros') or render['control_interno'].get('total_pax') or 1
+            elif render.get('detalle_ingresos'):
+                num_pax = sum(int(d.get('cantidad', 0)) for d in render['detalle_ingresos'])
+            else:
+                num_pax = render.get('cantidad_pax') or render.get('pax_count') or 1
+
             st.success(f"🗓️ **Viaje Programado:** Del {itin_fecha_inicio.strftime('%d/%m/%Y')} al {itin_fecha_fin.strftime('%d/%m/%Y')} | 👥 **Pax:** {num_pax}")
             fecha_inicio_sel = itin_fecha_inicio
             fecha_fin_sel = itin_fecha_fin
@@ -381,38 +388,36 @@ def registro_ventas_directa():
         st.markdown("##### 📝 Desglose de Ingresos (Opcional)")
         items_ingreso = []
         if id_itinerario_dig:
-            render = mapa_itinerarios.get(itinerario_seleccionado, {}).get('datos_render', {})
-            
             # Nueva Lógica: Priorizar 'detalle_ingresos' (Lista detallada)
             det_ing = render.get('detalle_ingresos', [])
             if det_ing:
-                c_i_cols = st.columns(len(det_ing))
                 for idx, det in enumerate(det_ing):
                     tipo = det.get('tipo', 'Servicio')
                     cant = int(det.get('cantidad', 1))
                     pre_u = float(det.get('precio_unitario', 0))
                     desc = det.get('descripcion', tipo)
                     
-                    with c_i_cols[idx]:
-                        val_ui = st.number_input(f"{desc} (Unit.)", value=cant, min_value=0, key=f"itin_det_{idx}")
-                        items_ingreso.append({"descripcion": desc, "cantidad": val_ui, "precio_unitario": pre_u})
+                    # Mostrar como Información (Automático) en vez de Input si existe Itinerario
+                    st.info(f"✅ {desc}: **{cant}** pax @ ${pre_u:,.2f}")
+                    items_ingreso.append({"descripcion": desc, "cantidad": cant, "precio_unitario": pre_u})
             else:
                 # Fallback a lógica anterior si no hay detalle_ingresos
                 p_nac_count = int(render.get('num_pax_nac', 0) or 0)
                 p_ext_count = int(render.get('num_pax_ext', 0) or 0)
+                p_can_count = int(render.get('num_pax_can', 0) or 0)
                 p_nac_price = float(render.get('precio_nacional', 0) or 0)
                 p_ext_price = float(render.get('precio_extranjero', 0) or 0)
+                p_can_price = float(render.get('precio_can', 0) or 0)
 
-                c_i1, c_i2 = st.columns(2)
                 if p_nac_count > 0:
-                    c_i1.info(f"Sugerido: {p_nac_count} Nacional(es) @ ${p_nac_price}")
-                    cnt_nac = c_i1.number_input("Cant. Nacional", value=p_nac_count, min_value=0)
-                    items_ingreso.append({"descripcion": "Pax Nacional", "cantidad": cnt_nac, "precio_unitario": p_nac_price})
-                
+                    st.info(f"✅ Pax Nacional: **{p_nac_count}** @ ${p_nac_price}")
+                    items_ingreso.append({"descripcion": "Pax Nacional", "cantidad": p_nac_count, "precio_unitario": p_nac_price})
                 if p_ext_count > 0:
-                    c_i2.info(f"Sugerido: {p_ext_count} Extranjero(s) @ ${p_ext_price}")
-                    cnt_ext = c_i2.number_input("Cant. Extranjero", value=p_ext_count, min_value=0)
-                    items_ingreso.append({"descripcion": "Pax Extranjero", "cantidad": cnt_ext, "precio_unitario": p_ext_price})
+                    st.info(f"✅ Pax Extranjero: **{p_ext_count}** @ ${p_ext_price}")
+                    items_ingreso.append({"descripcion": "Pax Extranjero", "cantidad": p_ext_count, "precio_unitario": p_ext_price})
+                if p_can_count > 0:
+                    st.info(f"✅ Pax CAN: **{p_can_count}** @ ${p_can_price}")
+                    items_ingreso.append({"descripcion": "Pax CAN", "cantidad": p_can_count, "precio_unitario": p_can_price})
         else:
             st.caption("No hay itinerario vinculado. El desglose se generará automáticamente por el total.")
         
