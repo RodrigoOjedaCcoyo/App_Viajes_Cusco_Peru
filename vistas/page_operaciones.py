@@ -451,7 +451,7 @@ def registro_ventas_proveedores(supabase_client):
             st.markdown(f"📊 **SUB-TOTALES B2B:** Nac: **S/ {sub_nac_b2b:,.2f}** | Ext (CAN): **$ {sub_ext_b2b:,.2f}**")
 
     idx_m = monedas_list.index(m_auto) if m_auto in monedas_list else 0
-    moneda_sel = c_p0.selectbox("Moneda", monedas_list, index=idx_m, key="b2b_final_moneda")
+    moneda_sel = c_p0.selectbox("Moneda", monedas_list, index=idx_m, key="b2b_final_moneda", disabled=(id_itinerario_dig is not None))
     
     # TC: Tipo de Cambio "Foto"
     tipo_cambio = c_p1.number_input("TC (Foto)", min_value=0.0, value=3.80, format="%.3f", key="b2b_tc")
@@ -459,7 +459,7 @@ def registro_ventas_proveedores(supabase_client):
     if 'b2b_m_total' not in st.session_state: st.session_state['b2b_m_total'] = 0.0
     if 'b2b_m_pago' not in st.session_state: st.session_state['b2b_m_pago'] = 0.0
     
-    monto_total = c_p2.number_input(f"Monto Total ({moneda_sel})", min_value=0.0, format="%.2f", key="b2b_m_total")
+    monto_total = c_p2.number_input(f"Monto Total ({moneda_sel})", min_value=0.0, format="%.2f", key="b2b_m_total", disabled=(id_itinerario_dig is not None))
     monto_pagado = c_p3.number_input(f"Adelanto Agencia ({moneda_sel})", min_value=0.0, format="%.2f", key="b2b_m_pago")
     
     # --- MOSTRAR CONVERSIÓN EN TIEMPO REAL (B2B) ---

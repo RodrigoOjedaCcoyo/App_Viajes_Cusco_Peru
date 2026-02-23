@@ -349,7 +349,7 @@ def registro_ventas_directa():
             st.markdown(f"📊 **SUB-TOTALES:** Nac: **S/ {sub_nac:,.2f}** | Ext (CAN): **$ {sub_ext:,.2f}**")
 
     idx_moneda = monedas_list.index(moneda_auto) if moneda_auto in monedas_list else 0
-    moneda_sel = c_m0.selectbox("Moneda", monedas_list, index=idx_moneda, help="Se auto-detecta del itinerario")
+    moneda_sel = c_m0.selectbox("Moneda", monedas_list, index=idx_moneda, help="Se auto-detecta del itinerario", disabled=(id_itinerario_dig is not None))
     
     # TC: Tipo de Cambio "Foto Congelada"
     tipo_cambio = c_m1.number_input("Tipo de Cambio (Foto)", min_value=0.0, value=3.80, format="%.3f", help="A cuánto está el dólar hoy para esta venta")
@@ -357,7 +357,7 @@ def registro_ventas_directa():
     if 'm_total' not in st.session_state: st.session_state['m_total'] = 0.0
     if 'm_pago' not in st.session_state: st.session_state['m_pago'] = 0.0
     
-    monto_total = c_m2.number_input(f"Monto Total ({moneda_sel})", min_value=0.0, format="%.2f", key="m_total")
+    monto_total = c_m2.number_input(f"Monto Total ({moneda_sel})", min_value=0.0, format="%.2f", key="m_total", disabled=(id_itinerario_dig is not None))
     monto_pagado = c_m3.number_input(f"Monto Pagado ({moneda_sel})", min_value=0.0, format="%.2f", key="m_pago")
     
     # --- MOSTRAR CONVERSIÓN EN TIEMPO REAL ---
