@@ -436,6 +436,7 @@ def registro_ventas_directa():
             help="Se auto-completa si seleccionas un itinerario"
         )
         tipo_comp = col2.radio("Tipo Comprobante", ["Boleta", "Factura", "Recibo Simple"], horizontal=True)
+        metodo_pago = col2.selectbox("💳 Método de Pago", ["EFECTIVO", "TRANSFERENCIA", "YAPE", "PLIN", "TARJETA", "PAYPAL", "OTRO"])
         
         # --- 📅 CÁLCULO AUTOMÁTICO DE FECHAS ---
         itin_fecha_inicio = date.today()
@@ -536,7 +537,8 @@ def registro_ventas_directa():
                     tipo_cambio=tipo_cambio,
                     id_itinerario_digital=id_itinerario_dig if id_itinerario_dig else None,
                     id_lead=id_lead_seleccionado or id_lead_from_itinerario,
-                    items_ingreso=items_ingreso if items_ingreso else None
+                    items_ingreso=items_ingreso if items_ingreso else None,
+                    metodo_pago=metodo_pago
                 )
                 
                 if exito:

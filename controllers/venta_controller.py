@@ -25,9 +25,10 @@ class VentaController:
                                 tipo_comprobante: str,
                                 moneda: str = "USD",
                                 tipo_cambio: Optional[float] = None,
-                                id_itinerario_digital: Optional[str] = None, # Vínculo opcional
-                                id_lead: Optional[int] = None, # Vínculo opcional
-                                items_ingreso: Optional[list] = None
+                                id_itinerario_digital: Optional[str] = None,
+                                id_lead: Optional[int] = None,
+                                items_ingreso: Optional[list] = None,
+                                metodo_pago: str = "OTRO"
                                 ) -> tuple[bool, str]:
         """Registra una venta con todos los detalles extendidos."""
         
@@ -56,7 +57,8 @@ class VentaController:
             "tipo_cambio": tipo_cambio,
             "id_itinerario_digital": id_itinerario_digital,
             "id_lead": id_lead,
-            "items_ingreso": items_ingreso
+            "items_ingreso": items_ingreso,
+            "metodo_pago": metodo_pago
         }
         
         # Corregir typo detectado
@@ -89,7 +91,8 @@ class VentaController:
                                   id_lead: Optional[int] = None,
                                   tipo_comprobante: str = "RECIBO",
                                   tipo_cambio: Optional[float] = None,
-                                  items_ingreso: Optional[list] = None
+                                  items_ingreso: Optional[list] = None,
+                                  metodo_pago: str = "OTRO"
                                   ) -> tuple[bool, str]:
         """Registra una venta proveniente de una agencia externa (B2B)."""
         try:
@@ -114,7 +117,8 @@ class VentaController:
                 "id_itinerario_digital": id_itinerario_digital,
                 "tipo_comprobante": tipo_comprobante,
                 "tipo_cambio": tipo_cambio,
-                "items_ingreso": items_ingreso
+                "items_ingreso": items_ingreso,
+                "metodo_pago": metodo_pago
             }
             
             res_id = self.model.create_venta(venta_data)

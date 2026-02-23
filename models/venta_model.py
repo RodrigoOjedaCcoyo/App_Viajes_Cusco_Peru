@@ -304,7 +304,7 @@ class VentaModel(BaseModel):
                         "fecha_pago": datetime.now().strftime("%Y-%m-%d"),
                         "monto_pagado": float(monto_dep), # Asegurar float
                         "moneda": venta_data.get("moneda", "USD"),
-                        "metodo_pago": "OTRO",
+                        "metodo_pago": venta_data.get("metodo_pago", "OTRO"),
                         "tipo_pago": "ADELANTO" if monto_dep < venta_data.get("monto_total", 0) else "TOTAL",
                         "tipo_comprobante": tipo_c_db
                     }
