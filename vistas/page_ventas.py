@@ -367,7 +367,9 @@ def registro_ventas_directa():
             fecha_inicio_sel = itin_fecha_inicio
             fecha_fin_sel = itin_fecha_fin
         else:
-                fecha_fin_sel = col_f2.date_input("Fecha Fin", value=date.today())
+            c_f1, c_f2 = st.columns(2)
+            fecha_inicio_sel = c_f1.date_input("Fecha Inicio", value=date.today())
+            fecha_fin_sel = c_f2.date_input("Fecha Fin", value=date.today())
         
         # --- NUEVO: DESGLOSE DE INGRESOS (OPCION 3) ---
         st.markdown("##### 📝 Desglose de Ingresos (Opcional)")

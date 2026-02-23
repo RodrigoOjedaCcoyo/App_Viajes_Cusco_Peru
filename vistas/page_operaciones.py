@@ -427,6 +427,12 @@ def registro_ventas_proveedores(supabase_client):
         tour_name = col2.text_input("Nombre del Programa B2B", value=def_tour, disabled=is_disabled)
         tipo_comp = col2.radio("Comprobante para Agencia", ["Boleta", "Factura", "Recibo Simple"], horizontal=True)
         
+        # --- NUEVO: FECHAS MANUALES SI NO HAY ITINERARIO ---
+        if not id_itinerario_dig:
+            c_f1, c_f2 = st.columns(2)
+            def_f_inicio = c_f1.date_input("Fecha Inicio", value=def_f_inicio)
+            def_f_fin = c_f2.date_input("Fecha Fin", value=def_f_fin)
+
         # --- DESGLOSE DE INGRESOS B2B ---
         items_ingreso = []
         if id_itinerario_dig:
