@@ -121,8 +121,12 @@ class VentaModel(BaseModel):
                 res_it = self.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin).single().execute()
                 if res_it.data:
                     render = res_it.data.get('datos_render', {})
-                    # Extraer Pax
-                    num_pax_final = int(render.get('cantidad_pax') or render.get('pax_count') or 1)
+                    # Extraer Pax de raíz o control interno
+                    num_pax_temp = render.get('cantidad_pax') or render.get('pax_count') or render.get('num_pax') or 0
+                    if not num_pax_temp:
+                        ci = render.get('control_interno', {})
+                        num_pax_temp = ci.get('total_pasajeros') or ci.get('total_pax') or 1
+                    num_pax_final = int(num_pax_temp)
             except: pass
 
         datos_venta_sql = {

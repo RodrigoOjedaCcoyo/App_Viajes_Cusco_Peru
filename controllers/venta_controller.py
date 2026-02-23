@@ -28,7 +28,8 @@ class VentaController:
                                 id_itinerario_digital: Optional[str] = None,
                                 id_lead: Optional[int] = None,
                                 items_ingreso: Optional[list] = None,
-                                metodo_pago: str = "OTRO"
+                                metodo_pago: str = "OTRO",
+                                cantidad_pax: int = 1
                                 ) -> tuple[bool, str]:
         """Registra una venta con todos los detalles extendidos."""
         
@@ -58,7 +59,8 @@ class VentaController:
             "id_itinerario_digital": id_itinerario_digital,
             "id_lead": id_lead,
             "items_ingreso": items_ingreso,
-            "metodo_pago": metodo_pago
+            "metodo_pago": metodo_pago,
+            "cantidad": cantidad_pax
         }
         
         # Corregir typo detectado

@@ -435,8 +435,23 @@ def registro_ventas_directa():
             disabled=is_disabled,
             help="Se auto-completa si seleccionas un itinerario"
         )
+        
+        # --- CÁLCULO PREVIO DE PAX SI HAY ITINERARIO ---
+        def_pax = 1
+        if id_itinerario_dig:
+            render = mapa_itinerarios.get(itinerario_seleccionado, {}).get('datos_render', {})
+            if render.get('control_interno'):
+                def_pax = render['control_interno'].get('total_pasajeros') or render['control_interno'].get('total_pax') or 1
+            elif render.get('detalle_ingresos'):
+                def_pax = sum(int(d.get('cantidad', 0)) for d in render['detalle_ingresos'])
+            else:
+                def_pax = render.get('cantidad_pax') or render.get('pax_count') or 1
+        
+        cantidad_pax = col1.number_input("Cantidad Pax", min_value=1, value=int(def_pax), disabled=is_disabled)
+        
         tipo_comp = col2.radio("Tipo Comprobante", ["Boleta", "Factura", "Recibo Simple"], horizontal=True)
         metodo_pago = col2.selectbox("💳 Método de Pago", ["EFECTIVO", "TRANSFERENCIA", "YAPE", "PLIN", "TARJETA", "PAYPAL", "OTRO"])
+
         
         # --- 📅 CÁLCULO AUTOMÁTICO DE FECHAS ---
         itin_fecha_inicio = date.today()
@@ -538,7 +553,8 @@ def registro_ventas_directa():
                     id_itinerario_digital=id_itinerario_dig if id_itinerario_dig else None,
                     id_lead=id_lead_seleccionado or id_lead_from_itinerario,
                     items_ingreso=items_ingreso if items_ingreso else None,
-                    metodo_pago=metodo_pago
+                    metodo_pago=metodo_pago,
+                    cantidad_pax=int(cantidad_pax)
                 )
                 
                 if exito:
