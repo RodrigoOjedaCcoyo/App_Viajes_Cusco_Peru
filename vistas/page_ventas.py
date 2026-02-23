@@ -339,18 +339,14 @@ def registro_ventas_directa():
     monedas_list = ["USD", "PEN"]
     moneda_auto = st.session_state.get('moneda_auto', 'USD')
     
-    # --- MOSTRAR PRECIOS DE REFERENCIA (PEDIDO USUARIO) ---
+    # --- MOSTRAR SUB-TOTALES POR NACIONALIDAD (PEDIDO USUARIO) ---
     if id_itinerario_dig:
         items_ref = st.session_state.get(f"items_itin_{id_itinerario_dig}", [])
         if items_ref:
-            # Buscar precios unitarios originales
-            p_nac = 0.0
-            p_ext = 0.0
-            for it in items_ref:
-                if it['tipo'] == 'NACIONAL' and p_nac == 0: p_nac = it['p_raw']
-                elif it['tipo'] in ['EXTRANJERO', 'CAN'] and p_ext == 0: p_ext = it['p_raw']
+            sub_nac = sum(it['cantidad'] * it['p_raw'] for it in items_ref if it['tipo'] == 'NACIONAL')
+            sub_ext = sum(it['cantidad'] * it['p_raw'] for it in items_ref if it['tipo'] in ['EXTRANJERO', 'CAN'])
             
-            st.markdown(f"🏷️ **PRECIOS REF:** Nacional: **S/ {p_nac:,.2f}** | Extranjero (CAN): **$ {p_ext:,.2f}**")
+            st.markdown(f"📊 **SUB-TOTALES:** Nac: **S/ {sub_nac:,.2f}** | Ext (CAN): **$ {sub_ext:,.2f}**")
 
     idx_moneda = monedas_list.index(moneda_auto) if moneda_auto in monedas_list else 0
     moneda_sel = c_m0.selectbox("Moneda", monedas_list, index=idx_moneda, help="Se auto-detecta del itinerario")

@@ -441,17 +441,14 @@ def registro_ventas_proveedores(supabase_client):
     monedas_list = ["USD", "PEN"]
     m_auto = st.session_state.get('b2b_moneda_auto', 'USD')
     
-    # --- MOSTRAR PRECIOS DE REFERENCIA B2B (PEDIDO USUARIO) ---
+    # --- MOSTRAR SUB-TOTALES POR NACIONALIDAD B2B (PEDIDO USUARIO) ---
     if id_itinerario_dig:
         items_ref_b2b = st.session_state.get(f"b2b_items_{id_itinerario_dig}", [])
         if items_ref_b2b:
-            p_nac_b2b = 0.0
-            p_ext_b2b = 0.0
-            for it in items_ref_b2b:
-                if it['tipo'] == 'NACIONAL' and p_nac_b2b == 0: p_nac_b2b = it['p_raw']
-                elif it['tipo'] in ['EXTRANJERO', 'CAN'] and p_ext_b2b == 0: p_ext_b2b = it['p_raw']
+            sub_nac_b2b = sum(it['cantidad'] * it['p_raw'] for it in items_ref_b2b if it['tipo'] == 'NACIONAL')
+            sub_ext_b2b = sum(it['cantidad'] * it['p_raw'] for it in items_ref_b2b if it['tipo'] in ['EXTRANJERO', 'CAN'])
             
-            st.markdown(f"🏷️ **PRECIOS REF B2B:** Nac: **S/ {p_nac_b2b:,.2f}** | Ext (CAN): **$ {p_ext_b2b:,.2f}**")
+            st.markdown(f"📊 **SUB-TOTALES B2B:** Nac: **S/ {sub_nac_b2b:,.2f}** | Ext (CAN): **$ {sub_ext_b2b:,.2f}**")
 
     idx_m = monedas_list.index(m_auto) if m_auto in monedas_list else 0
     moneda_sel = c_p0.selectbox("Moneda", monedas_list, index=idx_m, key="b2b_final_moneda")
