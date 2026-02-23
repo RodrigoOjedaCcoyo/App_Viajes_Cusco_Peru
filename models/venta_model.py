@@ -172,7 +172,13 @@ class VentaModel(BaseModel):
                     det_ing = render.get('detalle_ingresos', [])
                     if isinstance(det_ing, list):
                         for d in det_ing:
-                            t = str(d.get('tipo', '')).upper()
+                            t_raw = str(d.get('tipo', '')).upper()
+                            # Mapeo de sinónimos
+                            t = t_raw
+                            if t in ['EXT', 'INT', 'EXTRANJERO']: t = 'EXTRANJERO'
+                            elif t in ['NAC', 'NACIONAL']: t = 'NACIONAL'
+                            elif t in ['CAN']: t = 'CAN'
+
                             c = int(d.get('cantidad', 0))
                             p = float(d.get('precio_unitario', 0))
                             lbl = d.get('descripcion') or f"Pax {t.capitalize()}"
