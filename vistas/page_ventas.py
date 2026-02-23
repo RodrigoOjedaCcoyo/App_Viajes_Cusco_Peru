@@ -397,8 +397,8 @@ def registro_ventas_directa():
                     pre_u = float(det.get('precio_unitario', 0))
                     desc = det.get('descripcion', tipo)
                     
-                    # Mostrar como Información (Automático) en vez de Input si existe Itinerario
-                    st.info(f"✅ {desc}: **{cant}** pax @ ${pre_u:,.2f}")
+                    # Mostrar formalmente (Automático)
+                    st.info(f"✨ **{desc}**: Se han cargado **{cant}** pasajero(s) a **${pre_u:,.2f}** c/u.")
                     items_ingreso.append({"descripcion": desc, "cantidad": cant, "precio_unitario": pre_u})
             else:
                 # Fallback a lógica anterior si no hay detalle_ingresos
@@ -410,13 +410,13 @@ def registro_ventas_directa():
                 p_can_price = float(render.get('precio_can', 0) or 0)
 
                 if p_nac_count > 0:
-                    st.info(f"✅ Pax Nacional: **{p_nac_count}** @ ${p_nac_price}")
+                    st.info(f"✨ **Pax Nacional**: Se han cargado **{p_nac_count}** pasajero(s) a **${p_nac_price:,.2f}** c/u.")
                     items_ingreso.append({"descripcion": "Pax Nacional", "cantidad": p_nac_count, "precio_unitario": p_nac_price})
                 if p_ext_count > 0:
-                    st.info(f"✅ Pax Extranjero: **{p_ext_count}** @ ${p_ext_price}")
+                    st.info(f"✨ **Pax Extranjero**: Se han cargado **{p_ext_count}** pasajero(s) a **${p_ext_price:,.2f}** c/u.")
                     items_ingreso.append({"descripcion": "Pax Extranjero", "cantidad": p_ext_count, "precio_unitario": p_ext_price})
                 if p_can_count > 0:
-                    st.info(f"✅ Pax CAN: **{p_can_count}** @ ${p_can_price}")
+                    st.info(f"✨ **Pax CAN**: Se han cargado **{p_can_count}** pasajero(s) a **${p_can_price:,.2f}** c/u.")
                     items_ingreso.append({"descripcion": "Pax CAN", "cantidad": p_can_count, "precio_unitario": p_can_price})
         else:
             st.caption("No hay itinerario vinculado. El desglose se generará automáticamente por el total.")
