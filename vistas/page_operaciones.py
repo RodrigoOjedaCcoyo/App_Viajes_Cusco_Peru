@@ -340,7 +340,13 @@ def registro_ventas_proveedores(supabase_client):
             # Fechas y Pax
             f_viaje = render.get('fecha_viaje')
             if f_viaje:
-                try: def_f_inicio = date.fromisoformat(f_viaje)
+                try: 
+                    f_clean = f_viaje.replace(" ", "")
+                    if '/' in f_clean:
+                        from datetime import datetime
+                        def_f_inicio = datetime.strptime(f_clean, "%d/%m/%Y").date()
+                    else:
+                        def_f_inicio = date.fromisoformat(f_clean)
                 except: pass
             
             def_f_fin = def_f_inicio
@@ -355,7 +361,7 @@ def registro_ventas_proveedores(supabase_client):
 
             # Lógica de Precio Sugerido
             if id_itinerario_dig and id_itinerario_dig != st.session_state.get('b2b_last_itin_v2'):
-                precio_raw = render.get('precio_cierre')
+                precio_raw = render.get('total_final_calculado') or render.get('precio_cierre')
                 moneda_det = render.get('moneda', 'USD')
                 if not precio_raw:
                     precios = render.get('precios', {})
@@ -437,19 +443,35 @@ def registro_ventas_proveedores(supabase_client):
         items_ingreso = []
         if id_itinerario_dig:
             render = mapa_itinerarios.get(itinerario_seleccionado, {}).get('datos_render', {})
-            p_nac_count = int(render.get('num_pax_nac', 0) or 0)
-            p_ext_count = int(render.get('num_pax_ext', 0) or 0)
-            p_nac_price = float(render.get('precio_nacional', 0) or 0)
-            p_ext_price = float(render.get('precio_extranjero', 0) or 0)
+            
+            # Nueva Lógica: Priorizar 'detalle_ingresos' (Lista detallada)
+            det_ing = render.get('detalle_ingresos', [])
+            if det_ing:
+                st.markdown("##### 📝 Desglose Sugerido")
+                c_i_cols = st.columns(len(det_ing))
+                for idx, det in enumerate(det_ing):
+                    tipo = det.get('tipo', 'Servicio')
+                    cant = int(det.get('cantidad', 1))
+                    pre_u = float(det.get('precio_unitario', 0))
+                    desc = det.get('descripcion', tipo)
+                    
+                    with c_i_cols[idx]:
+                        val_ui = st.number_input(f"{desc} (Unit.)", value=cant, min_value=0, key=f"b2b_det_{idx}")
+                        items_ingreso.append({"descripcion": desc, "cantidad": val_ui, "precio_unitario": pre_u})
+            else:
+                p_nac_count = int(render.get('num_pax_nac', 0) or 0)
+                p_ext_count = int(render.get('num_pax_ext', 0) or 0)
+                p_nac_price = float(render.get('precio_nacional', 0) or 0)
+                p_ext_price = float(render.get('precio_extranjero', 0) or 0)
 
-            st.markdown("##### 📝 Desglose Sugerido")
-            c_i1, c_i2 = st.columns(2)
-            if p_nac_count > 0:
-                cnt_nac = c_i1.number_input("Cant. Nacional", value=p_nac_count, min_value=0, key="b2b_cnt_nac")
-                items_ingreso.append({"descripcion": "Pax Nacional", "cantidad": cnt_nac, "precio_unitario": p_nac_price})
-            if p_ext_count > 0:
-                cnt_ext = c_i2.number_input("Cant. Extranjero", value=p_ext_count, min_value=0, key="b2b_cnt_ext")
-                items_ingreso.append({"descripcion": "Pax Extranjero", "cantidad": cnt_ext, "precio_unitario": p_ext_price})
+                st.markdown("##### 📝 Desglose Sugerido")
+                c_i1, c_i2 = st.columns(2)
+                if p_nac_count > 0:
+                    cnt_nac = c_i1.number_input("Cant. Nacional", value=p_nac_count, min_value=0, key="b2b_cnt_nac")
+                    items_ingreso.append({"descripcion": "Pax Nacional", "cantidad": cnt_nac, "precio_unitario": p_nac_price})
+                if p_ext_count > 0:
+                    cnt_ext = c_i2.number_input("Cant. Extranjero", value=p_ext_count, min_value=0, key="b2b_cnt_ext")
+                    items_ingreso.append({"descripcion": "Pax Extranjero", "cantidad": cnt_ext, "precio_unitario": p_ext_price})
 
         st.divider()
         submitted = st.form_submit_button("✅ REGISTRAR VENTA B2B Y NOTIFICAR", use_container_width=True, type="primary")

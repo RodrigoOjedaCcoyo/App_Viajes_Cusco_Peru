@@ -222,8 +222,8 @@ def registro_ventas_directa():
             st.session_state[f"val_tour_{id_itinerario_dig}"] = tour_nombre_cloud
             st.session_state[f"val_cel_{id_itinerario_dig}"] = cel_cloud
             if id_itinerario_dig and id_itinerario_dig != st.session_state.get('last_loaded_itin'):
-                # 1. Intentar obtener el precio de cierre directo (Nivel raíz)
-                precio_raw = render.get('precio_cierre')
+                # 1. Intentar obtener el precio de cierre directo (Nivel raíz o total_final_calculado)
+                precio_raw = render.get('total_final_calculado') or render.get('precio_cierre')
                 
                 # 2. Si no existe, buscar en la estructura de precios (Nivel 'precios')
                 moneda_detectada = None
@@ -249,7 +249,7 @@ def registro_ventas_directa():
                         precio_raw = p_can
                         moneda_detectada = 'USD'
                     else:
-                        precio_raw = "0.00"
+                        precio_raw = 0.0
 
                 # Moneda explícita en el render tiene prioridad
                 moneda_detectada = render.get('moneda') or moneda_detectada or 'USD'
@@ -346,7 +346,13 @@ def registro_ventas_directa():
             render = mapa_itinerarios.get(itinerario_seleccionado, {}).get('datos_render', {})
             f_viaje = render.get('fecha_viaje')
             if f_viaje:
-                try: itin_fecha_inicio = date.fromisoformat(f_viaje)
+                try: 
+                    # Limpiar espacios: "23 / 02 / 2026" -> "23/02/2026"
+                    f_clean = f_viaje.replace(" ", "")
+                    if '/' in f_clean:
+                        itin_fecha_inicio = datetime.strptime(f_clean, "%d/%m/%Y").date()
+                    else:
+                        itin_fecha_inicio = date.fromisoformat(f_clean)
                 except: pass
             
             # Calcular Fin basado en Duración (ej: "3D")
@@ -376,21 +382,37 @@ def registro_ventas_directa():
         items_ingreso = []
         if id_itinerario_dig:
             render = mapa_itinerarios.get(itinerario_seleccionado, {}).get('datos_render', {})
-            p_nac_count = int(render.get('num_pax_nac', 0) or 0)
-            p_ext_count = int(render.get('num_pax_ext', 0) or 0)
-            p_nac_price = float(render.get('precio_nacional', 0) or 0)
-            p_ext_price = float(render.get('precio_extranjero', 0) or 0)
-
-            c_i1, c_i2 = st.columns(2)
-            if p_nac_count > 0:
-                c_i1.info(f"Sugerido: {p_nac_count} Nacional(es) @ ${p_nac_price}")
-                cnt_nac = c_i1.number_input("Cant. Nacional", value=p_nac_count, min_value=0)
-                items_ingreso.append({"descripcion": "Pax Nacional", "cantidad": cnt_nac, "precio_unitario": p_nac_price})
             
-            if p_ext_count > 0:
-                c_i2.info(f"Sugerido: {p_ext_count} Extranjero(s) @ ${p_ext_price}")
-                cnt_ext = c_i2.number_input("Cant. Extranjero", value=p_ext_count, min_value=0)
-                items_ingreso.append({"descripcion": "Pax Extranjero", "cantidad": cnt_ext, "precio_unitario": p_ext_price})
+            # Nueva Lógica: Priorizar 'detalle_ingresos' (Lista detallada)
+            det_ing = render.get('detalle_ingresos', [])
+            if det_ing:
+                c_i_cols = st.columns(len(det_ing))
+                for idx, det in enumerate(det_ing):
+                    tipo = det.get('tipo', 'Servicio')
+                    cant = int(det.get('cantidad', 1))
+                    pre_u = float(det.get('precio_unitario', 0))
+                    desc = det.get('descripcion', tipo)
+                    
+                    with c_i_cols[idx]:
+                        val_ui = st.number_input(f"{desc} (Unit.)", value=cant, min_value=0, key=f"itin_det_{idx}")
+                        items_ingreso.append({"descripcion": desc, "cantidad": val_ui, "precio_unitario": pre_u})
+            else:
+                # Fallback a lógica anterior si no hay detalle_ingresos
+                p_nac_count = int(render.get('num_pax_nac', 0) or 0)
+                p_ext_count = int(render.get('num_pax_ext', 0) or 0)
+                p_nac_price = float(render.get('precio_nacional', 0) or 0)
+                p_ext_price = float(render.get('precio_extranjero', 0) or 0)
+
+                c_i1, c_i2 = st.columns(2)
+                if p_nac_count > 0:
+                    c_i1.info(f"Sugerido: {p_nac_count} Nacional(es) @ ${p_nac_price}")
+                    cnt_nac = c_i1.number_input("Cant. Nacional", value=p_nac_count, min_value=0)
+                    items_ingreso.append({"descripcion": "Pax Nacional", "cantidad": cnt_nac, "precio_unitario": p_nac_price})
+                
+                if p_ext_count > 0:
+                    c_i2.info(f"Sugerido: {p_ext_count} Extranjero(s) @ ${p_ext_price}")
+                    cnt_ext = c_i2.number_input("Cant. Extranjero", value=p_ext_count, min_value=0)
+                    items_ingreso.append({"descripcion": "Pax Extranjero", "cantidad": cnt_ext, "precio_unitario": p_ext_price})
         else:
             st.caption("No hay itinerario vinculado. El desglose se generará automáticamente por el total.")
         

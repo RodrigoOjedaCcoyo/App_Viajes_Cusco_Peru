@@ -160,19 +160,30 @@ class VentaModel(BaseModel):
                 res_it = self.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin).single().execute()
                 if res_it.data:
                     render = res_it.data.get('datos_render', {})
-                    # Detectar Pax Nacional
-                    pax_nac = int(render.get('num_pax_nac', 0) or 0)
-                    price_nac = float(render.get('precio_nacional', 0) or 0)
-                    if pax_nac > 0:
-                        items_ingreso.append({"descripcion": "Pax Nacional", "cantidad": pax_nac, "precio_unitario": price_nac})
                     
-                    # Detectar Pax Extranjero
-                    pax_ext = int(render.get('num_pax_ext', 0) or 0)
-                    price_ext = float(render.get('precio_extranjero', 0) or 0)
-                    if pax_ext > 0:
-                        items_ingreso.append({"descripcion": "Pax Extranjero", "cantidad": pax_ext, "precio_unitario": price_ext})
+                    # Nueva Lógica: Priorizar 'detalle_ingresos' (Lista detallada)
+                    det_ing = render.get('detalle_ingresos', [])
+                    if det_ing:
+                        for det in det_ing:
+                            items_ingreso.append({
+                                "descripcion": det.get('descripcion', det.get('tipo', 'Servicio')),
+                                "cantidad": int(det.get('cantidad', 1)),
+                                "precio_unitario": float(det.get('precio_unitario', 0))
+                            })
+                    else:
+                        # Fallback: Detectar Pax Nacional
+                        pax_nac = int(render.get('num_pax_nac', 0) or 0)
+                        price_nac = float(render.get('precio_nacional', 0) or 0)
+                        if pax_nac > 0:
+                            items_ingreso.append({"descripcion": "Pax Nacional", "cantidad": pax_nac, "precio_unitario": price_nac})
+                        
+                        # Fallback: Detectar Pax Extranjero
+                        pax_ext = int(render.get('num_pax_ext', 0) or 0)
+                        price_ext = float(render.get('precio_extranjero', 0) or 0)
+                        if pax_ext > 0:
+                            items_ingreso.append({"descripcion": "Pax Extranjero", "cantidad": pax_ext, "precio_unitario": price_ext})
                     
-                    # Detectar otros (CAN, Niños si estuvieran en el JSON)
+                    # Otros fallbacks podrían añadirse aquí (CAN, etc.)
             except Exception as e:
                 print(f"Error extrayendo items del itinerario: {e}")
 
