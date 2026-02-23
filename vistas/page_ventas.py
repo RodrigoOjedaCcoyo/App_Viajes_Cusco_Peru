@@ -771,14 +771,7 @@ def constructor_itinerarios():
 
 def gestion_registros_multicanal():
     st.subheader("📝 Registro de Nuevos Clientes")
-    tab1, tab2 = st.tabs(["💰 Venta Directa", "👤 Nuevo Lead"])
-    
-    with tab1:
-        registro_ventas_directa()
-    with tab2:
-        formulario_registro_leads()
-        st.divider()
-        seguimiento_leads()
+    registro_ventas_directa()
 
 from controllers.itinerario_digital_controller import ItinerarioDigitalController
 
