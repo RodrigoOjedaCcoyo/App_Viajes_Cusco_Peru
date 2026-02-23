@@ -422,7 +422,7 @@ def registro_ventas_directa():
             
         nombre = col1.text_input("Nombre Cliente", value=def_nombre, disabled=is_disabled)
         def_cel = lead_data.get('numero_celular', '') if lead_data else st.session_state.get(f"val_cel_{id_itinerario_dig}", '')
-        tel = col1.text_input("Celular", value=def_cel)
+        tel = col1.text_input("Celular", value=def_cel, disabled=is_disabled)
         
         vendedor_actual = st.session_state.get('user_id', 'Admin')
         col1.markdown(f"👤 **Vendedor:** {vendedor_actual}")
