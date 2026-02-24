@@ -818,24 +818,28 @@ def render_directorio_proveedores(supabase_client):
         with st.form("form_nuevo_proveedor"):
             c1, c2 = st.columns(2)
             
-            nombre = c1.text_input("Nombre Comercial / Razón Social*", placeholder="Ej: Transportes Cóndor")
-            contacto = c1.text_input("Teléfono de Contacto", placeholder="Ej: +51 987 654 321")
-            
-            pais = c2.text_input("País origen", value="Perú")
-            servicios = c2.multiselect(
-                "Servicios que ofrece",
-                ["GUIA", "TRANSPORTE", "ALIMENTACION", "ALOJAMIENTO", "TICKETS", "ENDOSE", "OTROS"],
-                default=["ENDOSE"]
-            )
-            
             st.caption("* Campos obligatorios")
+            
+            # --- NUEVO: OPCIÓN PARA CATEGORÍAS PERSONALIZADAS ---
+            custom_services = []
+            if "OTROS" in servicios:
+                otros_texto = c2.text_input("Especifique otros servicios (separados por coma)", placeholder="Ej: Vuelos, Entradas Especiales")
+                if otros_texto:
+                    custom_services = [s.strip().upper() for s in otros_texto.split(",") if s.strip()]
+
             submit_prov = st.form_submit_button("🔨 Registrar Proveedor", use_container_width=True, type="primary")
             
             if submit_prov:
                 if not nombre:
                     st.error("El nombre del proveedor es obligatorio.")
                 else:
-                    exito, msg = prov_ctrl.registrar_proveedor(nombre, servicios, contacto, pais)
+                    # Limpiar lista de servicios: quitar 'OTROS' y añadir personalizados
+                    servicios_finales = [s for s in servicios if s != "OTROS"]
+                    servicios_finales.extend(custom_services)
+                    # Quitar duplicados
+                    servicios_finales = list(set(servicios_finales))
+                    
+                    exito, msg = prov_ctrl.registrar_proveedor(nombre, servicios_finales, contacto, pais)
                     if exito:
                         st.success(msg)
                         st.balloons()
@@ -876,13 +880,25 @@ def render_directorio_proveedores(supabase_client):
                 new_pais = col_e2.text_input("País", value=p_data.get('pais', 'Perú'))
                 new_activo = col_e2.toggle("Proveedor Activo", value=p_data.get('activo', True), help="Desactiva esto para ocultar al proveedor en las listas de selección.")
                 
+                # --- NUEVO EN EDITOR: CATEGORÍAS PERSONALIZADAS ---
+                custom_services_edit = []
+                if "OTROS" in new_servicios:
+                    otros_texto_edit = col_e2.text_input("Especifique nuevos servicios (separados por coma)", key="edit_otros")
+                    if otros_texto_edit:
+                        custom_services_edit = [s.strip().upper() for s in otros_texto_edit.split(",") if s.strip()]
+
                 submit_edit = st.form_submit_button("✅ Guardar Cambios", use_container_width=True)
                 
                 if submit_edit:
+                    # Mezclar servicios
+                    servicios_finales_edit = [s for s in new_servicios if s != "OTROS"]
+                    servicios_finales_edit.extend(custom_services_edit)
+                    servicios_finales_edit = list(set(servicios_finales_edit))
+
                     exito_e, msg_e = prov_ctrl.actualizar_proveedor(
                         p_data['id_proveedor'], 
                         new_nombre, 
-                        new_servicios, 
+                        servicios_finales_edit, 
                         new_contacto, 
                         new_pais, 
                         new_activo
