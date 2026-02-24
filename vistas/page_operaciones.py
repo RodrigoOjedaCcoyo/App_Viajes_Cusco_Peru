@@ -818,6 +818,16 @@ def render_directorio_proveedores(supabase_client):
         with st.form("form_nuevo_proveedor"):
             c1, c2 = st.columns(2)
             
+            nombre = c1.text_input("Nombre Comercial / Razón Social*", placeholder="Ej: Transportes Cóndor")
+            contacto = c1.text_input("Teléfono de Contacto", placeholder="Ej: +51 987 654 321")
+            
+            pais = c2.text_input("País origen", value="Perú")
+            servicios = c2.multiselect(
+                "Servicios que ofrece",
+                ["GUIA", "TRANSPORTE", "ALIMENTACION", "ALOJAMIENTO", "TICKETS", "ENDOSE", "OTROS"],
+                default=["ENDOSE"]
+            )
+            
             st.caption("* Campos obligatorios")
             
             # --- NUEVO: OPCIÓN PARA CATEGORÍAS PERSONALIZADAS ---
