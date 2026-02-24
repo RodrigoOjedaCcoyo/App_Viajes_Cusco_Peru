@@ -665,9 +665,10 @@ def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
     st.markdown("---")
     
     if nombre_modulo == "Gestión de Registros":
-        tab1, tab2 = st.tabs([
+        tab1, tab2, tab3 = st.tabs([
             "📊 Estructurador de Gastos (Master Sheet)",
-            "🤝 Ventas B2B (Entrada)"
+            "🤝 Ventas B2B (Entrada)",
+            "🏢 Directorio de Proveedores"
         ])
         
         with tab1:
@@ -675,6 +676,9 @@ def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
             
         with tab2:
             registro_ventas_proveedores(supabase_client)
+
+        with tab3:
+            render_directorio_proveedores(supabase_client)
 
     elif nombre_modulo == "Dashboard Diario":
         dashboard_tablero_diario(controller)
@@ -799,3 +803,74 @@ def dashboard_simulador_costos(controller):
                 st.warning("Por favor, suba al menos un archivo antes de enviar.")
 
     # UI de Endoso eliminada por petición del usuario
+
+def render_directorio_proveedores(supabase_client):
+    """Módulo para el registro y gestión de proveedores logísticos."""
+    from controllers.proveedor_controller import ProveedorController
+    prov_ctrl = ProveedorController(supabase_client)
+
+    st.subheader("🏢 Directorio de Proveedores Logísticos", divider="gray")
+    
+    # ═══════════════════════════════════════════════════════════════
+    # 1. FORMULARIO DE REGISTRO
+    # ═══════════════════════════════════════════════════════════════
+    with st.expander("➕ Registrar Nuevo Proveedor", expanded=True):
+        with st.form("form_nuevo_proveedor"):
+            c1, c2 = st.columns(2)
+            
+            nombre = c1.text_input("Nombre Comercial / Razón Social*", placeholder="Ej: Transportes Cóndor")
+            contacto = c1.text_input("Teléfono de Contacto", placeholder="Ej: +51 987 654 321")
+            
+            pais = c2.text_input("País origen", value="Perú")
+            servicios = c2.multiselect(
+                "Servicios que ofrece",
+                ["GUIA", "TRANSPORTE", "ALIMENTACION", "ALOJAMIENTO", "TICKETS", "ENDOSE", "OTROS"],
+                default=["ENDOSE"]
+            )
+            
+            st.caption("* Campos obligatorios")
+            submit_prov = st.form_submit_button("🔨 Registrar Proveedor", use_container_width=True, type="primary")
+            
+            if submit_prov:
+                if not nombre:
+                    st.error("El nombre del proveedor es obligatorio.")
+                else:
+                    exito, msg = prov_ctrl.registrar_proveedor(nombre, servicios, contacto, pais)
+                    if exito:
+                        st.success(msg)
+                        st.balloons()
+                        # No hacemos rerun forzado aquí para no cerrar el expander drásticamente, 
+                        # pero los datos se verán en la tabla inferior al refrescar.
+                    else:
+                        st.error(msg)
+
+    st.divider()
+
+    # ═══════════════════════════════════════════════════════════════
+    # 2. TABLA DE PROVEEDORES EXISTENTES
+    # ═══════════════════════════════════════════════════════════════
+    st.write("### 📜 Lista de Proveedores Registrados")
+    proveedores = prov_ctrl.obtener_proveedores()
+    
+    if not proveedores:
+        st.info("Aún no hay proveedores registrados en el directorio.")
+    else:
+        df_prov = pd.DataFrame(proveedores)
+        
+        # Formatear la columna de servicios para que sea más legible si es una lista
+        if 'servicios_ofrecidos' in df_prov.columns:
+            df_prov['servicios_ofrecidos'] = df_prov['servicios_ofrecidos'].apply(lambda x: ", ".join(x) if isinstance(x, list) else x)
+        
+        st.dataframe(
+            df_prov,
+            column_order=["nombre_comercial", "servicios_ofrecidos", "contacto_telefono", "pais", "activo"],
+            column_config={
+                "nombre_comercial": "Proveedor",
+                "servicios_ofrecidos": "Servicios",
+                "contacto_telefono": "Teléfono",
+                "pais": "País",
+                "activo": st.column_config.CheckboxColumn("Activo")
+            },
+            hide_index=True,
+            use_container_width=True
+        )
