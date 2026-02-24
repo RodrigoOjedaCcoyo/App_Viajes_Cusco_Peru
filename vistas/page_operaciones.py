@@ -814,7 +814,7 @@ def render_directorio_proveedores(supabase_client):
     # ═══════════════════════════════════════════════════════════════
     # 1. FORMULARIO DE REGISTRO
     # ═══════════════════════════════════════════════════════════════
-    with st.expander("➕ Registrar Nuevo Proveedor", expanded=True):
+    with st.expander("➕ Registrar Nuevo Proveedor", expanded=False):
         with st.form("form_nuevo_proveedor"):
             c1, c2 = st.columns(2)
             
@@ -839,18 +839,67 @@ def render_directorio_proveedores(supabase_client):
                     if exito:
                         st.success(msg)
                         st.balloons()
-                        # No hacemos rerun forzado aquí para no cerrar el expander drásticamente, 
-                        # pero los datos se verán en la tabla inferior al refrescar.
+                        st.rerun()
                     else:
                         st.error(msg)
+
+    # ═══════════════════════════════════════════════════════════════
+    # 2. EDITOR DE PROVEEDORES (NUEVO)
+    # ═══════════════════════════════════════════════════════════════
+    st.write("### 🖋️ Editor / Actualización de Datos")
+    listado_prov = prov_ctrl.obtener_proveedores()
+    
+    if listado_prov:
+        mapa_nombres = {p['nombre_comercial']: p for p in listado_prov}
+        prov_sel_edit = st.selectbox("Seleccione el proveedor que desea modificar:", ["--- Seleccione ---"] + list(mapa_nombres.keys()))
+        
+        if prov_sel_edit != "--- Seleccione ---":
+            p_data = mapa_nombres[prov_sel_edit]
+            
+            with st.form("form_editar_proveedor"):
+                st.info(f"Editando: **{p_data['nombre_comercial']}** (ID: {p_data['id_proveedor']})")
+                col_e1, col_e2 = st.columns(2)
+                
+                new_nombre = col_e1.text_input("Nombre Comercial", value=p_data['nombre_comercial'])
+                new_contacto = col_e1.text_input("Contacto", value=p_data.get('contacto_telefono', '') or '')
+                
+                # Manejar servicios (lista)
+                servicios_actuales = p_data.get('servicios_ofrecidos', [])
+                if not isinstance(servicios_actuales, list): servicios_actuales = []
+                
+                new_servicios = col_e2.multiselect(
+                    "Servicios Actualizados",
+                    ["GUIA", "TRANSPORTE", "ALIMENTACION", "ALOJAMIENTO", "TICKETS", "ENDOSE", "OTROS"],
+                    default=servicios_actuales
+                )
+                
+                new_pais = col_e2.text_input("País", value=p_data.get('pais', 'Perú'))
+                new_activo = col_e2.toggle("Proveedor Activo", value=p_data.get('activo', True), help="Desactiva esto para ocultar al proveedor en las listas de selección.")
+                
+                submit_edit = st.form_submit_button("✅ Guardar Cambios", use_container_width=True)
+                
+                if submit_edit:
+                    exito_e, msg_e = prov_ctrl.actualizar_proveedor(
+                        p_data['id_proveedor'], 
+                        new_nombre, 
+                        new_servicios, 
+                        new_contacto, 
+                        new_pais, 
+                        new_activo
+                    )
+                    if exito_e:
+                        st.success(msg_e)
+                        st.rerun()
+                    else:
+                        st.error(msg_e)
 
     st.divider()
 
     # ═══════════════════════════════════════════════════════════════
-    # 2. TABLA DE PROVEEDORES EXISTENTES
+    # 3. TABLA DE PROVEEDORES EXISTENTES
     # ═══════════════════════════════════════════════════════════════
-    st.write("### 📜 Lista de Proveedores Registrados")
-    proveedores = prov_ctrl.obtener_proveedores()
+    st.write("### 📜 Directorio General")
+    proveedores = listado_prov # Usamos la misma lista ya cargada
     
     if not proveedores:
         st.info("Aún no hay proveedores registrados en el directorio.")

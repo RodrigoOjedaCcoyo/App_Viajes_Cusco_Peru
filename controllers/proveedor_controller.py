@@ -36,3 +36,27 @@ class ProveedorController:
                 return False, "No se pudo registrar el proveedor en la base de datos."
         except Exception as e:
             return False, f"Error al registrar proveedor: {str(e)}"
+
+    def actualizar_proveedor(self, id_proveedor: int, nombre: str, servicios: List[str], contacto: str, pais: str, activo: bool) -> Tuple[bool, str]:
+        """
+        Actualiza un proveedor existente.
+        """
+        if not id_proveedor:
+            return False, "ID de proveedor no proporcionado."
+        
+        data = {
+            "nombre_comercial": nombre.strip(),
+            "servicios_ofrecidos": servicios,
+            "contacto_telefono": contacto.strip() if contacto else None,
+            "pais": pais.strip() if pais else "Perú",
+            "activo": activo
+        }
+
+        try:
+            exito = self.model.update_by_id(id_proveedor, data)
+            if exito:
+                return True, "Proveedor actualizado exitosamente."
+            else:
+                return False, "No se encontró el proveedor o no se realizaron cambios."
+        except Exception as e:
+            return False, f"Error al actualizar proveedor: {str(e)}"
