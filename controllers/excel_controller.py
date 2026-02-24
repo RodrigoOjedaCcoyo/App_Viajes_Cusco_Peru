@@ -65,8 +65,11 @@ class ExcelController:
             
             ws.cell(row=current_row, column=4, value=pax_count).alignment = center_al
             
-            # Precio (Priorizar precio del itinerario)
-            p_val = d.get('precio') or d.get('costo') or "---"
+            # Precio (Priorizar precio del itinerario con múltiples fallbacks)
+            p_val = (d.get('precio') or d.get('costo') or 
+                     d.get('valor') or d.get('monto') or 
+                     d.get('price') or "---")
+            
             ws.cell(row=current_row, column=5, value=p_val).alignment = center_al
             
             # Detalles (Solo Inclusiones/Exclusiones, sin descripción)
