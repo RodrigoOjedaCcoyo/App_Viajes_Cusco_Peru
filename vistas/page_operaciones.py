@@ -862,31 +862,41 @@ def dashboard_simulador_costos(controller):
                     import json
                     render_data = json.loads(render_data)
                 
-                # --- ENRIQUECER CON DATOS LIVE ---
-                render_data['nombre_pasajero'] = v_live.get('cliente', {}).get('nombre') or render_data.get('nombre_pasajero')
-                render_data['num_adultos'] = v_live.get('num_pasajeros', 1)
-                render_data['fecha_inicio'] = v_live.get('fecha_inicio')
-                render_data['fecha_fin'] = v_live.get('fecha_fin')
+                # --- ENRIQUECER CON DATOS LIVE (CON SEGURIDAD) ---
+                if isinstance(render_data, dict):
+                    # Usar or {} para evitar fallos si cliente es None
+                    cliente_live = v_live.get('cliente') or {}
+                    render_data['nombre_pasajero'] = cliente_live.get('nombre') or render_data.get('nombre_pasajero')
+                    render_data['num_adultos'] = v_live.get('num_pasajeros', 1)
+                    render_data['fecha_inicio'] = v_live.get('fecha_inicio')
+                    render_data['fecha_fin'] = v_live.get('fecha_fin')
+                    
+                    # Sincronizar servicios (precios y nombres de la DB)
+                    res_vt = controller.client.table('venta_tour').select('*, tour(nombre)').eq('id_venta', id_venta_act).order('fecha_servicio').execute()
+                    live_tours = res_vt.data or []
+                    
+                    itin_list = (render_data.get('itinerario_detalles') or 
+                                 render_data.get('days') or 
+                                 render_data.get('itinerario') or [])
+                    
+                    # Asegurar que itin_list es una lista mutable
+                    if isinstance(itin_list, list):
+                        for i, tour_live in enumerate(live_tours):
+                            if i < len(itin_list) and isinstance(itin_list[i], dict):
+                                # Actualizar datos estáticos con datos reales de la operación
+                                itin_list[i]['fecha'] = tour_live.get('fecha_servicio')
+                                
+                                tour_info = tour_live.get('tour') or {}
+                                nombre_tour_db = tour_info.get('nombre') if isinstance(tour_info, dict) else None
+                                
+                                itin_list[i]['titulo'] = nombre_tour_db or tour_live.get('observacion') or itin_list[i].get('titulo')
+                                itin_list[i]['precio'] = f"{v_live.get('moneda', '$')} {tour_live.get('precio_applied', 0)}"
+                        
+                        render_data['itinerario_detalles'] = itin_list
                 
-                # Sincronizar servicios (precios y nombres de la DB)
-                res_vt = controller.client.table('venta_tour').select('*, tour(nombre)').eq('id_venta', id_venta_act).order('fecha_servicio').execute()
-                live_tours = res_vt.data or []
-                
-                itin_list = (render_data.get('itinerario_detalles') or 
-                             render_data.get('days') or 
-                             render_data.get('itinerario') or [])
-                
-                for i, tour_live in enumerate(live_tours):
-                    if i < len(itin_list):
-                        # Actualizar datos estáticos con datos reales de la operación
-                        itin_list[i]['fecha'] = tour_live.get('fecha_servicio')
-                        itin_list[i]['titulo'] = tour_live.get('tour', {}).get('nombre') or tour_live.get('observacion')
-                        itin_list[i]['precio'] = f"{v_live.get('moneda', '$')} {tour_live.get('precio_applied', 0)}"
-                
-                render_data['itinerario_detalles'] = itin_list
-                
-                # Renderizar los botones de descarga
-                render_itinerary_simple_download(render_data)
+                # Renderizar los botones de descarga (Solo si render_data es válido)
+                if render_data:
+                    render_itinerary_simple_download(render_data)
         
         # NUEVO: Botón Maestro Operativo (Independiente del Itinerario Digital)
         st.markdown("---")
