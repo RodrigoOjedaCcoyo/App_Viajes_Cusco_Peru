@@ -75,6 +75,34 @@ def render_sales_dashboard(df_ventas):
             st.warning("💪 ¡Ya pasamos la mitad de la meta! Sigamos empujando.")
         else:
             st.write("✨ ¡Cada venta cuenta! Vamos juntos por esa meta.")
+            
+        st.markdown("---")
+        
+        # --- CALCULADORA GENERAL DE COMISIONES ---
+        st.subheader("💰 Calculadora de Comisiones Reales")
+        st.write("Calcula dinámicamente el pozo estimado de comisiones según las ventas logradas.")
+        
+        if 'porcentaje_comision' not in st.session_state:
+            st.session_state['porcentaje_comision'] = 10.0 # Valor por defecto: 10%
+            
+        c_comis, c_resul = st.columns([1, 2])
+        
+        with c_comis:
+            porcentaje_input = st.number_input(
+                "% de Comisión General",
+                min_value=0.0,
+                max_value=100.0,
+                value=st.session_state['porcentaje_comision'],
+                step=1.0,
+                format="%.1f"
+            )
+            st.session_state['porcentaje_comision'] = porcentaje_input
+            
+        with c_resul:
+            pozo_comisiones = total_sales_pen * (porcentaje_input / 100.0)
+            with st.container(border=True):
+                st.metric("Pozo de Comisiones Generadas", f"S/ {pozo_comisiones:,.2f}", delta=f"{porcentaje_input}% del Total")
+
 
 def render_operations_dashboard(df_servicios):
     """Genera el Dashboard Operativo Profesional."""
