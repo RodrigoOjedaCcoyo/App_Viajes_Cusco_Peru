@@ -8,108 +8,104 @@ class ExcelController:
     """Controlador para la generación de documentos Excel a partir de datos del itinerario."""
 
     def generar_resumen_itinerario_xlsx(self, datos_render: dict) -> BytesIO:
-        """Genera un archivo XLSX con el resumen del itinerario imitando el formato del usuario."""
+        """Genera un archivo XLSX detallado (Ink Saver) con el contenido real del itinerario."""
         import openpyxl
         from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
         
         wb = openpyxl.Workbook()
         ws = wb.active
-        ws.title = "RESUMEN"
+        ws.title = "ITINERARIO_RESUMEN"
         
-        # --- DATOS GENERALES ---
-        cliente = (datos_render.get("nombre_pasajero") or "Pasajero").upper()
+        # --- ESTILOS ---
+        bold_font = Font(bold=True)
+        header_font = Font(bold=True, size=14)
+        border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+        
+        # --- HEADER GENERAL ---
+        ws.merge_cells('A1:E1')
+        ws['A1'] = (datos_render.get('titulo') or "RESUMEN DE ITINERARIO").upper()
+        ws['A1'].font = header_font
+        ws['A1'].alignment = Alignment(horizontal='center')
+        
+        ws['A3'] = "PASAJERO:"
+        ws['B3'] = (datos_render.get("nombre_pasajero") or "---").upper()
+        ws['A4'] = "GRUPO:"
         pax_count = int(datos_render.get("num_adultos", 1)) + int(datos_render.get("num_ninos", 0))
-        dni = datos_render.get("dni", "---")
+        ws['B4'] = f"{pax_count} Persona(s)"
         
-        # Precios (Simulado si no existe o extraído de precios)
-        precios_d = datos_render.get("precios", {})
-        moneda = "S/" if "PEN" in str(precios_d).upper() else "$"
-        p_unit = precios_d.get("extranjero", 0) or precios_d.get("adulto", 0) or 0
-        p_total = p_unit * pax_count
-        pago = datos_render.get("monto_pagado", p_total) # Si no hay, asumimos pagado total
-        pendiente = p_total - pago
-        
-        # --- HEADER (Filas 1-15 aprox) ---
-        ws.merge_cells('D2:G2')
-        ws['D2'] = "RESUMEN"
-        ws['D2'].font = Font(bold=True, size=12)
-        ws['D2'].alignment = Alignment(horizontal='center')
-        
-        ws['C4'] = "DIAS:"
-        ws['D4'] = len(datos_render.get("days", [])) or len(datos_render.get("itinerario_detalles", [])) or 1
-        ws['D4'].font = Font(bold=True)
-        
-        ws['A7'] = "GRUPO : X"
-        ws['B7'] = pax_count
-        ws['B7'].font = Font(bold=True)
-        ws['C7'] = cliente
-        ws['C8'] = f"DNI:{dni}"
-        
-        # Financiero
-        ws['A11'] = f"PRECIO POR PERSONA: ADULTO {moneda} {p_unit}"
-        ws['A11'].font = Font(bold=True)
-        ws['A12'] = f"PRECIO TOTAL {pax_count:02d} PERSONAS: {moneda} {p_total}"
-        ws['A12'].font = Font(bold=True)
-        
-        ws['A14'] = f"PAGÓ 100%: {moneda} {pago}" # Asumimos 100% o lo que haya
-        ws['A14'].font = Font(bold=True)
-        ws['A15'] = "PENDIENTE:"
-        ws.merge_cells('C15:I15')
-        ws['C15'].border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'), outline=True)
-        ws['C15'] = f"{moneda} {pendiente}" if pendiente > 0 else ""
-        
-        # --- ITINERARIO (A partir de fila 18) ---
-        current_row = 18
-        
-        items = (datos_render.get("itinerario_detalles") or 
-                 datos_render.get("itinerario_detales") or 
-                 datos_render.get("days") or 
-                 datos_render.get("servicios") or 
-                 datos_render.get("itinerario") or [])
+        ws['D3'] = "FECHA INICIO:"
+        ws['E3'] = datos_render.get("fecha_inicio", "---")
+        ws['D4'] = "DÍAS TOTALES:"
+        ws['E4'] = len(datos_render.get("days", [])) or 1
 
-        for i, t in enumerate(items):
-            # Fila de Día
-            ws.cell(row=current_row, column=1, value=i+1).font = Font(bold=True)
-            fecha_txt = t.get('fecha') or f"DÍA {i+1}"
-            ws.cell(row=current_row, column=2, value=f"DIA: {fecha_txt}").font = Font(bold=True)
-            current_row += 2 # Espacio según imagen
-            
-            # Fila de Servicio
-            ws.cell(row=current_row, column=2, value=1)
-            ws.cell(row=current_row, column=3, value=t.get('hora', '---'))
-            ws.cell(row=current_row, column=4, value=(t.get('nombre') or t.get('titulo') or "SERVICIO").upper()).font = Font(bold=True)
+        # --- CUERPO DEL ITINERARIO ---
+        current_row = 6
+        
+        items = (datos_render.get("days") or 
+                 datos_render.get("itinerario_detalles") or 
+                 datos_render.get("servicios") or [])
+
+        for i, d in enumerate(items):
+            # Barra de Día
+            ws.merge_cells(f'A{current_row}:E{current_row}')
+            cell_dia = ws[f'A{current_row}']
+            fecha_val = d.get('fecha') or f"DÍA {i+1}"
+            titulo_val = (d.get('title') or d.get('nombre') or d.get('titulo') or "Servicio").upper()
+            cell_dia.value = f" {fecha_val} - {titulo_val} "
+            cell_dia.font = bold_font
+            cell_dia.fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
             current_row += 1
             
-            # Inclusiones
-            inc_list = t.get('incluye') or t.get('inclusiones', []) or t.get('servicios', [])
-            for inc in inc_list:
-                txt = inc.get('texto') if isinstance(inc, dict) else inc
-                if txt:
-                    ws.cell(row=current_row, column=2, value=1)
-                    ws.cell(row=current_row, column=4, value=f"INCLUYE {str(txt).upper()}")
-                    current_row += 1
+            # Descripción (si existe)
+            desc = d.get('description') or d.get('descripcion') or ""
+            if desc:
+                ws.merge_cells(f'B{current_row}:E{current_row+1}')
+                cell_desc = ws[f'B{current_row}']
+                cell_desc.value = desc
+                cell_desc.alignment = Alignment(wrap_text=True, vertical='top')
+                current_row += 2
             
-            # Exclusiones
-            exc_list = t.get('no_incluye') or t.get('exclusiones', []) or t.get('servicios_no', [])
-            if exc_list:
+            # Comidas y Hotel
+            comidas = []
+            if d.get('breakfast') or d.get('desayuno'): comidas.append("Desayuno")
+            if d.get('lunch') or d.get('almuerzo'): comidas.append("Almuerzo")
+            if d.get('dinner') or d.get('cena'): comidas.append("Cena")
+            
+            txt_extra = ""
+            if comidas: txt_extra += f"🍴 Alimentos: {', '.join(comidas)} | "
+            hotel = d.get('hotel') or d.get('accommodation') or ""
+            if hotel: txt_extra += f"🏨 Hotel: {hotel}"
+            
+            if txt_extra:
+                ws.merge_cells(f'B{current_row}:E{current_row}')
+                ws[f'B{current_row}'] = txt_extra
+                ws[f'B{current_row}'].font = Font(italic=True, size=9)
                 current_row += 1
-                ws.cell(row=current_row, column=4, value="NO INCLUYE:").font = Font(bold=True, color="2E7D32")
-                current_row += 1
-                for exc in exc_list:
-                    txt = exc.get('texto') if isinstance(exc, dict) else exc
-                    if txt:
-                        ws.cell(row=current_row, column=3, value=0)
-                        ws.cell(row=current_row, column=4, value=str(txt).upper()).font = Font(color="2E7D32")
-                        current_row += 1
-            
-            current_row += 2 # Salto entre días
-            
-        # Ajustes finales de ancho
-        ws.column_dimensions['A'].width = 5
-        ws.column_dimensions['B'].width = 12
-        ws.column_dimensions['C'].width = 15
-        ws.column_dimensions['D'].width = 60
+                
+            current_row += 1 # Espacio entre días
+
+        # --- RESUMEN FINAL DE INCLUSIONES ---
+        current_row += 1
+        ws.merge_cells(f'A{current_row}:E{current_row}')
+        ws[f'A{current_row}'] = "RESUMEN DE SERVICIOS INCLUIDOS"
+        ws[f'A{current_row}'].font = bold_font
+        ws[f'A{current_row}'].fill = PatternFill(start_color="D9EAD3", end_color="D9EAD3", fill_type="solid")
+        current_row += 1
         
+        inclusiones = datos_render.get("incluye_resumen") or []
+        for inc in inclusiones:
+            ws.cell(row=current_row, column=1, value="•")
+            ws.merge_cells(f'B{current_row}:E{current_row}')
+            ws.cell(row=current_row, column=2, value=str(inc))
+            current_row += 1
+
+        # --- AJUSTES DE COLUMNAS ---
+        ws.column_dimensions['A'].width = 15
+        ws.column_dimensions['B'].width = 20
+        ws.column_dimensions['C'].width = 20
+        ws.column_dimensions['D'].width = 20
+        ws.column_dimensions['E'].width = 30
+
         output = BytesIO()
         wb.save(output)
         output.seek(0)
