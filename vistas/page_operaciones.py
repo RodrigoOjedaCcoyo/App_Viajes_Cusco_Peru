@@ -802,7 +802,7 @@ def dashboard_simulador_costos(controller):
     import io
     template_df = pd.DataFrame(columns=["Dia", "Tipo_Servicio", "Proveedor", "Moneda", "Costo Unitario"])
     buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
         template_df.to_excel(writer, index=False, sheet_name='Plantilla')
     
     st.download_button(
@@ -857,7 +857,7 @@ def dashboard_simulador_costos(controller):
         # Botón de Plantilla Pax
         pax_template_df = pd.DataFrame(columns=['Nombre Completo', 'Documento', 'Tipo Doc', 'Nacionalidad', 'Fecha Nacimiento', 'Genero', 'Cuidados', 'Es Principal'])
         pax_buffer = io.BytesIO()
-        with pd.ExcelWriter(pax_buffer, engine='xlsxwriter') as writer:
+        with pd.ExcelWriter(pax_buffer, engine='openpyxl') as writer:
             pax_template_df.to_excel(writer, index=False, sheet_name='Rooming')
         
         st.download_button(
