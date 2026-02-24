@@ -52,11 +52,47 @@ def render_itinerary_details_visual(render):
 def render_sales_dashboard_visual(supabase_client):
     """Vista puramente visual para el Dashboard Comercial (Objetivos B2C - Soles)."""
     
+    st.markdown("### 🗓️ Periodo Comercial")
+    col_mes, col_anio, _ = st.columns([1, 1, 3])
+    
+    meses_opciones = {
+        1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
+        5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
+        9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
+    }
+    
+    with col_mes:
+        mes_sel_nombre = st.selectbox("Mes", list(meses_opciones.values()), index=date.today().month - 1)
+        mes_sel = [k for k, v in meses_opciones.items() if v == mes_sel_nombre][0]
+    
+    with col_anio:
+        anio_actual = date.today().year
+        anios_opciones = list(range(anio_actual - 2, anio_actual + 3))
+        anio_sel = st.selectbox("Año", anios_opciones, index=anios_opciones.index(anio_actual))
+    
+    st.divider()
+
     # KPIs Reales pero solo B2C directos
     venta_ctrl = VentaController(supabase_client)
-    ventas_b2c = venta_ctrl.obtener_ventas_directas() or []
+    ventas_b2c_raw = venta_ctrl.obtener_ventas_directas() or []
+    
+    # --- APLICAR FILTRO TEMPORAL ---
+    ventas_b2c = []
+    for v in ventas_b2c_raw:
+        fecha_str = v.get('fecha_venta')
+        if fecha_str:
+            try:
+                # Convertir a objeto date para extraer mes/año sin error
+                from datetime import datetime
+                fecha_obj = datetime.strptime(fecha_str.split('T')[0], '%Y-%m-%d').date()
+                if fecha_obj.year == anio_sel and fecha_obj.month == mes_sel:
+                    ventas_b2c.append(v)
+            except Exception as e:
+                # Si falla el parseo, se descarta para ser seguros
+                pass
     
     lead_ctrl = LeadController(supabase_client)
+    # Ideally leads should also be filtered, but for now we filter sales.
     total_leads = len(lead_ctrl.obtener_todos_leads())
     
     # Procesar ventas B2C para estandarizar en Soles (PEN)
@@ -83,12 +119,12 @@ def render_sales_dashboard_visual(supabase_client):
         df_ventas.rename(columns={'fecha_venta': 'fecha_venta'}, inplace=True) # Ensure column exists
         
     c1, c2, c3 = st.columns(3)
-    c1.metric("Ventas Totales B2C (Soles)", f"S/ {float(total_b2c_pen):,.2f}")
-    c2.metric("Leads Registrados", total_leads)
+    c1.metric(f"Ventas B2C ({mes_sel_nombre} {anio_sel})", f"S/ {float(total_b2c_pen):,.2f}")
+    c2.metric("Leads Totales", total_leads)
     
     # Cálculo de tasa de conversión básico (B2C + B2B leads mixtos, pero da una idea)
     tasa = (len(ventas_b2c) / total_leads * 100) if total_leads > 0 else 0
-    c3.metric("Tasa de Conversión B2C", f"{tasa:.1f}%")
+    c3.metric(f"Conversión B2C", f"{tasa:.1f}%")
     
     st.divider()
     
