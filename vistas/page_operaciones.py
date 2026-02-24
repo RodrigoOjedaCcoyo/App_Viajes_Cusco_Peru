@@ -22,24 +22,28 @@ def render_operational_master_download(controller, id_venta):
         # 1. Obtener Datos de la Venta
         vc = VentaController(controller.client)
         # Buscar la venta específica en la base de datos para tener datos frescos
-        res_v = controller.client.table('venta').select('*, cliente(nombre, celular)').eq('id_venta', id_venta).single().execute()
+        # Join: venta -> cliente -> lead(numero_celular)
+        res_v = controller.client.table('venta').select('*, cliente(nombre, lead(numero_celular))').eq('id_venta', id_venta).single().execute()
         if not res_v.data:
             st.error("No se pudo recuperar la información de la venta.")
             return
             
         v_raw = res_v.data
+        cliente_nest = v_raw.get('cliente', {})
+        lead_nest = cliente_nest.get('lead', {}) if isinstance(cliente_nest, dict) else {}
+        
         v_data = {
             "id_venta": v_raw['id_venta'],
-            "nombre_cliente": v_raw.get('cliente', {}).get('nombre', 'Desconocido'),
-            "telefono": v_raw.get('cliente', {}).get('celular', '---'),
+            "nombre_cliente": cliente_nest.get('nombre', 'Desconocido') if isinstance(cliente_nest, dict) else 'Desconocido',
+            "telefono": lead_nest.get('numero_celular', '---') if isinstance(lead_nest, dict) else '---',
             "tour_nombre": v_raw.get('tour_nombre', 'Sin Tour'),
             "fecha_inicio": v_raw.get('fecha_inicio'),
             "fecha_fin": v_raw.get('fecha_fin'),
             "num_pasajeros": v_raw.get('num_pasajeros', 1),
-            "vendedor": "---", # Se podría buscar si es necesario
+            "vendedor": "---", 
             "moneda": v_raw.get('moneda', 'USD'),
             "monto_total": v_raw.get('precio_total_cierre', 0),
-            "monto_pagado": 0 # Se calculará abajo
+            "monto_pagado": 0 
         }
 
         # 2. Calcular Pagos
