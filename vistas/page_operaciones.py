@@ -777,32 +777,155 @@ def dashboard_simulador_costos(controller):
     # --- SECCIÓN DE ARCHIVOS (CSV/Excel) ---
     st.markdown("### 📝 Gestión de Información Externa")
     st.info("Suba los archivos correspondientes para el cierre y control de pasajeros.")
+
+    # NUEVO: Botón de Plantilla
+    import io
+    template_df = pd.DataFrame(columns=["Dia", "Tipo_Servicio", "Proveedor", "Moneda", "Costo Unitario"])
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+        template_df.to_excel(writer, index=False, sheet_name='Plantilla')
+    
+    st.download_button(
+        label="📥 Descargar Plantilla Excel para Endoses",
+        data=buffer.getvalue(),
+        file_name="plantilla_endoses.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
     
     c_arch1, c_arch2 = st.columns(2)
     with c_arch1:
         st.subheader("📊 Liquidación")
         f_liq = st.file_uploader("Cierre de Operaciones (Excel/CSV):", type=['xlsx', 'xls', 'csv'], key="up_liqrar_final")
+        
+        # PROCESAMIENTO DE ENDOSES
         if f_liq:
-            st.success(f"✅ {f_liq.name} listo.")
+            try:
+                # Cargar datos
+                if f_liq.name.endswith('.csv'):
+                    df_preview = pd.read_csv(f_liq)
+                else:
+                    df_preview = pd.read_excel(f_liq)
+                
+                # Previsualización
+                st.write("**Previsualización de datos a cargar:**")
+                st.dataframe(df_preview, use_container_width=True, hide_index=True)
+                
+                # Validar columnas
+                cols_req = ["Dia", "Tipo_Servicio", "Proveedor", "Moneda", "Costo Unitario"]
+                if all(c in df_preview.columns for c in cols_req):
+                    if st.button("📦 Procesar y Guardar Endoses en DB", type="primary", use_container_width=True):
+                        # Llamar al controlador (estamos en dashboard_simulador_costos(controller))
+                        res_bulk = controller.vincular_endoses_masivos(st.session_state['last_loaded_id_venta'], df_preview)
+                        
+                        if res_bulk['exitos'] > 0:
+                            st.success(f"✅ Se vincularon {res_bulk['exitos']} registros correctamente.")
+                        if res_bulk['errores']:
+                            with st.expander("⚠️ Ver errores de carga"):
+                                for err in res_bulk['errores']:
+                                    st.error(err)
+                        
+                        if res_bulk['exitos'] > 0:
+                            st.balloons()
+                            st.rerun()
+                else:
+                    st.error(f"El archivo debe tener las columnas: {', '.join(cols_req)}")
+            except Exception as e:
+                st.error(f"Error al leer el archivo: {e}")
 
     with c_arch2:
         st.subheader("👥 Pasajeros")
+        # Botón de Plantilla Pax
+        pax_template_df = pd.DataFrame(columns=['Nombre Completo', 'Documento', 'Tipo Doc', 'Nacionalidad', 'Fecha Nacimiento', 'Genero', 'Cuidados', 'Es Principal'])
+        pax_buffer = io.BytesIO()
+        with pd.ExcelWriter(pax_buffer, engine='xlsxwriter') as writer:
+            pax_template_df.to_excel(writer, index=False, sheet_name='Rooming')
+        
+        st.download_button(
+            label="📥 Descargar Plantilla Rooming",
+            data=pax_buffer.getvalue(),
+            file_name="plantilla_rooming.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
+
         f_pax = st.file_uploader("Lista de Pasajeros / Rooming (Excel/CSV):", type=['xlsx', 'xls', 'csv'], key="up_paxrar_final")
         if f_pax:
-            st.success(f"✅ {f_pax.name} listo.")
+            try:
+                if f_pax.name.endswith('.csv'):
+                    df_pax = pd.read_csv(f_pax)
+                else:
+                    df_pax = pd.read_excel(f_pax)
+                
+                st.dataframe(df_pax, use_container_width=True, hide_index=True)
+                
+                if st.button("👥 Cargar Rooming a la DB", type="primary", use_container_width=True):
+                    res_pax = controller.vincular_pasajeros_masivos(st.session_state['last_loaded_id_venta'], df_pax)
+                    if res_pax['exitos'] > 0:
+                        st.success(f"✅ Se cargaron {res_pax['exitos']} pasajeros.")
+                    if res_pax['errores']:
+                        with st.expander("⚠️ Errores"):
+                            for e in res_pax['errores']: st.error(e)
+                    if res_pax['exitos'] > 0:
+                        st.rerun()
+            except Exception as e:
+                st.error(f"Error: {e}")
 
     st.divider()
 
+    # --- SECCIÓN: RESUMEN DE ASIGNACIONES (VISUALIZACIÓN) ---
+    c_res1, c_res2 = st.columns(2)
+    
+    with c_res1:
+        st.markdown("### 📋 Resumen de Endoses y Guías")
+        try:
+            data_db = controller.get_servicios_rango_fechas(date(2000, 1, 1), date(2100, 1, 1))
+            id_actual = st.session_state.get('last_loaded_id_venta')
+            data_actual = [d for d in data_db if d['ID Venta'] == id_actual]
+            
+            if data_actual:
+                df_resumen = pd.DataFrame(data_actual)
+                cols_show = ['Día Itin.', 'Servicio', 'Proveedor', 'Endoso?', 'Pax']
+                st.table(df_resumen[cols_show])
+                
+                with st.expander("🚨 Zona de Peligro: Limpieza de Endoses"):
+                    st.warning("Se borrarán todos los costos y proveedores asignados.")
+                    confirm_reset = st.checkbox("Confirmar borrado de endoses", key="reset_end_confirm")
+                    if st.button("🗑️ Borrar Endoses", type="primary", disabled=not confirm_reset, use_container_width=True):
+                        exito_r, msg_r = controller.borrar_endoses_venta(id_actual)
+                        if exito_r: st.success(msg_r); st.rerun()
+                        else: st.error(msg_r)
+            else:
+                st.info("Sin endoses registrados.")
+        except Exception as e:
+            st.error(f"Error cargando endoses: {e}")
+
+    with c_res2:
+        st.markdown("### 👥 Resumen de Pasajeros (Rooming)")
+        try:
+            pax_data = controller.pasajero_model.get_by_venta_id(id_actual)
+            if pax_data:
+                df_pax_res = pd.DataFrame(pax_data)
+                cols_pax = ['nombre_completo', 'nacionalidad', 'numero_documento', 'es_principal']
+                st.table(df_pax_res[cols_pax])
+
+                with st.expander("🚨 Zona de Peligro: Limpieza de Pasajeros"):
+                    st.warning("Se borrarán todos los pasajeros de esta venta.")
+                    confirm_pax = st.checkbox("Confirmar borrado de pasajeros", key="reset_pax_confirm")
+                    if st.button("🗑️ Borrar Lista de Pasajeros", type="primary", disabled=not confirm_pax, use_container_width=True):
+                        exito_p, msg_p = controller.borrar_pasajeros_venta(id_actual)
+                        if exito_p: st.success(msg_p); st.rerun()
+                        else: st.error(msg_p)
+            else:
+                st.info("Sin pasajeros registrados.")
+        except Exception as e:
+            st.error(f"Error cargando pasajeros: {e}")
+
     # Botón de envío a contabilidad
+    st.divider()
     if st.session_state.get('last_loaded_id_venta'):
         if st.button("🚀 Enviar Reportes a Contabilidad", type="primary", use_container_width=True):
-            if f_liq or f_pax:
-                st.balloons()
-                st.success("Correcto: Documentos enviados satisfactoriamente.")
-            else:
-                st.warning("Por favor, suba al menos un archivo antes de enviar.")
-
-    # UI de Endoso eliminada por petición del usuario
+            st.balloons()
+            st.success("Correcto: Documentos enviados satisfactoriamente (Simulado).")
 
 def render_directorio_proveedores(supabase_client):
     """Módulo para el registro y gestión de proveedores logísticos."""

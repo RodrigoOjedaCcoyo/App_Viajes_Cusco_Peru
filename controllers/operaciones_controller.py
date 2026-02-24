@@ -34,14 +34,12 @@ class OperacionesController:
             
             fechas_activas = set()
             if res.data:
-                # DEBUG print(f"DEBUG: Found {len(res.data)} services for {month}/{year}")
                 for item in res.data:
                     try:
                         f_raw = item['fecha_servicio']
                         f_date = pd.to_datetime(f_raw).date()
                         fechas_activas.add(f_date)
-                    except Exception as e:
-                        # DEBUG print(f"DEBUG: Error parsing date {item.get('fecha_servicio')}: {e}")
+                    except:
                         pass
             return list(fechas_activas)
         except Exception as e:
@@ -51,7 +49,6 @@ class OperacionesController:
     def get_servicios_rango_fechas(self, start_date: date, end_date: date):
         """Obtiene servicios para un rango de fechas con nombres de clientes y ventas."""
         try:
-            print(f"DEBUG Dashboard: Querying range {start_date} to {end_date}")
             res_servicios = (
                 self.client.table('venta_tour')
                 .select('*')
@@ -60,7 +57,6 @@ class OperacionesController:
                 .order('fecha_servicio')
                 .execute()
             )
-            print(f"DEBUG Dashboard: Found {len(res_servicios.data or [])} raw rows in range")
             
             if not res_servicios.data:
                 return []
@@ -95,7 +91,6 @@ class OperacionesController:
                     vid = p['id_venta']
                     pagos_map[vid] = pagos_map.get(vid, 0) + (p['monto_pagado'] or 0)
 
-            # Guías y Endosos
             guias_map = {}
             proveedor_endoso_map = {}
             detalles_proveedores_map = {}
@@ -119,7 +114,7 @@ class OperacionesController:
                     detalles_proveedores_map[key].append({
                         "tipo": g.get('tipo_servicio'),
                         "nombre": prov_nom,
-                        "estado": 'PENDIENTE' # Por defecto ya que no está en DB aún
+                        "estado": 'PENDIENTE'
                     })
             
             resultado = []
@@ -145,13 +140,13 @@ class OperacionesController:
                     'ID Venta': s['id_venta'],
                     'N Linea': s['n_linea'],
                     'Fecha': s['fecha_servicio'],
-                    'fecha_servicio': s['fecha_servicio'], # Para analítica
-                    'Hora': s.get('hora_inicio', '08:00 AM'), # Updated to use s.get
+                    'fecha_servicio': s['fecha_servicio'],
+                    'Hora': s.get('hora_inicio', '08:00 AM'), 
                     'Servicio': nombre_tour,
-                    'observacion': nombre_tour, # Para analítica
+                    'observacion': nombre_tour,
                     'Endoso?': es_endoso,
                     'Pax': s.get('cantidad', 1),
-                    'cantidad': s.get('cantidad', 1), # Para analítica
+                    'cantidad': s.get('cantidad', 1),
                     'Cliente': nombre_cliente,
                     'Guía': nombre_guia,
                     'Agencia Endoso': nombre_endoso,
@@ -180,7 +175,6 @@ class OperacionesController:
                 .lt('fecha_servicio', f_iso_end)
                 .execute()
             )
-            print(f"DEBUG Today: Found {len(res_servicios.data or [])} rows for {f_iso_start}")
             
             if not res_servicios.data:
                 return []
@@ -207,9 +201,7 @@ class OperacionesController:
                     v = ventas_map.get(s['id_venta'], {})
                     id_cliente = v.get('id_cliente')
                     nombre_cliente = clientes_map.get(id_cliente, "Desconocido")
-                    
                     nombre_tour = s.get('observacion') or v.get('tour_nombre') or "Tour Desconocido"
-                    
                     es_endoso = s.get('es_endoso', False)
                     tipo_venta = '🏢 B2B' if v.get('id_agencia_aliada') else '👤 B2C'
 
@@ -225,7 +217,7 @@ class OperacionesController:
                         'Agencia Endoso': "---",
                         'Proveedor': "Ver Detalle",
                         'Detalle Proveedores': [],
-                        'Estado Pago': "✅", # Simplificado para evitar fallos por ahora
+                        'Estado Pago': "✅",
                         'Tipo': tipo_venta,
                         'ID Venta': s['id_venta'],
                         'N Linea': s['n_linea'],
@@ -233,9 +225,8 @@ class OperacionesController:
                         'ID Itinerario': v.get('id_itinerario_digital'),
                         'URL Cloud': v.get('url_itinerario') or ""
                     })
-                except Exception as inner_e:
-                    print(f"DEBUG: Error processing service row: {inner_e}")
-                    
+                except:
+                    pass
             return resultado
         except Exception as e:
             print(f"Error en Tablero Diario: {e}")
@@ -243,10 +234,145 @@ class OperacionesController:
 
     def get_data_for_analytics(self):
         try:
-            # Traer los servicios de los últimos meses para el dashboard
             res = self.client.table('venta_tour').select('*').execute()
-            data = res.data or []
-            return data
+            return res.data or []
         except Exception as e:
             print(f"Error dashboard operaciones: {e}")
             return []
+
+    def vincular_endoses_masivos(self, id_venta: str, df_liq: pd.DataFrame):
+        """
+        Vincula masivamente costos y proveedores a una venta basándose en el 'Dia'.
+        df_liq debe tener: ['Dia', 'Tipo_Servicio', 'Proveedor', 'Moneda', 'Costo Unitario']
+        """
+        resultados = {"exitos": 0, "errores": []}
+        
+        try:
+            res_p = self.client.table('proveedor').select('id_proveedor, nombre_comercial').eq('activo', True).execute()
+            mapa_prov = {str(p['nombre_comercial']).strip().upper(): p['id_proveedor'] for p in res_p.data}
+        except Exception as e:
+            return {"exitos": 0, "errores": [f"Error al cargar proveedores: {str(e)}"]}
+
+        try:
+            res_s = self.client.table('venta_tour').select('n_linea, id_itinerario_dia_index').eq('id_venta', id_venta).execute()
+            mapa_servicios = {}
+            for s in res_s.data:
+                dia = s.get('id_itinerario_dia_index')
+                if dia:
+                    if dia not in mapa_servicios: mapa_servicios[dia] = []
+                    mapa_servicios[dia].append(s['n_linea'])
+        except Exception as e:
+            return {"exitos": 0, "errores": [f"Error al obtener servicios de la venta: {str(e)}"]}
+
+        for idx, row in df_liq.iterrows():
+            try:
+                dia_excel = int(row.get('Dia', 0))
+                prov_nombre = str(row.get('Proveedor', '')).strip().upper()
+                costo = float(row.get('Costo Unitario', 0))
+                tipo = str(row.get('Tipo_Servicio', 'ENDOSE')).strip().upper()
+                moneda = str(row.get('Moneda', 'USD')).strip().upper()
+
+                id_prov = mapa_prov.get(prov_nombre)
+                if not id_prov:
+                    resultados["errores"].append(f"Fila {idx+1}: Proveedor '{prov_nombre}' no encontrado.")
+                    continue
+
+                n_lineas = mapa_servicios.get(dia_excel)
+                if not n_lineas:
+                    resultados["errores"].append(f"Fila {idx+1}: No se encontró el Día {dia_excel} en esta venta.")
+                    continue
+
+                for nl in n_lineas:
+                    try:
+                        data_ins = {
+                            "id_venta": id_venta,
+                            "n_linea": nl,
+                            "id_proveedor": id_prov,
+                            "tipo_servicio": tipo if tipo in ["GUIA", "TRANSPORTE", "ENDOSE"] else "ENDOSE",
+                            "costo_unitario": costo,
+                            "moneda": moneda
+                        }
+                        self.client.table('venta_servicio_proveedor').upsert(data_ins).execute()
+                        
+                        update_data = {"costo_unitario": costo}
+                        if tipo == "ENDOSE":
+                            update_data["es_endoso"] = True
+                        
+                        self.client.table('venta_tour').update(update_data).eq('id_venta', id_venta).eq('n_linea', nl).execute()
+                        resultados["exitos"] += 1
+                    except Exception as e:
+                        resultados["errores"].append(f"Fila {idx+1}: Error DB: {str(e)}")
+            except Exception as e:
+                resultados["errores"].append(f"Fila {idx+1}: Error formato: {str(e)}")
+
+        return resultados
+
+    def borrar_endoses_venta(self, id_venta: str):
+        """
+        Borra todos los costos y asignaciones vinculados a una venta.
+        """
+        try:
+            # 1. Borrar en venta_servicio_proveedor
+            self.client.table('venta_servicio_proveedor').delete().eq('id_venta', id_venta).execute()
+
+            # 2. Resetear en venta_tour
+            self.client.table('venta_tour').update({
+                "costo_unitario": 0,
+                "es_endoso": False,
+                "id_proveedor": None
+            }).eq('id_venta', id_venta).execute()
+
+            return True, "Costos y proveedores reseteados exitosamente."
+        except Exception as e:
+            return False, f"Error al resetear costos: {str(e)}"
+
+    def vincular_pasajeros_masivos(self, id_venta: str, df_pax: pd.DataFrame):
+        """
+        Registra masivamente pasajeros a una venta desde un DataFrame.
+        """
+        resultados = {"exitos": 0, "errores": []}
+        
+        for idx, row in df_pax.iterrows():
+            try:
+                nombre = str(row.get('Nombre Completo', '')).strip()
+                if not nombre:
+                    resultados["errores"].append(f"Fila {idx+1}: Nombre vacío.")
+                    continue
+                
+                doc = str(row.get('Documento', '')).strip()
+                tipo_doc = str(row.get('Tipo Doc', 'PASAPORTE')).strip().upper()
+                nac = str(row.get('Nacionalidad', '')).strip()
+                f_nac = row.get('Fecha Nacimiento')
+                genero = str(row.get('Genero', '')).strip()
+                cuidados = str(row.get('Cuidados', '')).strip()
+                es_p = row.get('Es Principal', False)
+
+                if tipo_doc not in ['DNI', 'PASAPORTE', 'CARNET_EXTRANJERIA', 'DIE']:
+                    tipo_doc = 'PASAPORTE'
+
+                data_ins = {
+                    "id_venta": id_venta,
+                    "nombre_completo": nombre,
+                    "numero_documento": doc if doc else None,
+                    "tipo_documento": tipo_doc,
+                    "nacionalidad": nac if nac else None,
+                    "fecha_nacimiento": str(f_nac) if pd.notnull(f_nac) else None,
+                    "genero": genero if genero else None,
+                    "cuidados_especiales": cuidados if cuidados else None,
+                    "es_principal": bool(es_p)
+                }
+                
+                self.client.table('pasajero').insert(data_ins).execute()
+                resultados["exitos"] += 1
+            except Exception as e:
+                resultados["errores"].append(f"Fila {idx+1}: {str(e)}")
+
+        return resultados
+
+    def borrar_pasajeros_venta(self, id_venta: str):
+        """Borra todos los pasajeros de una venta."""
+        try:
+            self.client.table('pasajero').delete().eq('id_venta', id_venta).execute()
+            return True, "Lista de pasajeros reseteada."
+        except Exception as e:
+            return False, str(e)
