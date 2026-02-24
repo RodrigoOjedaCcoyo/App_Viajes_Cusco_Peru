@@ -2,6 +2,7 @@
 
 import streamlit as st
 import pandas as pd
+import io
 import plotly.express as px
 import calendar
 from datetime import date, timedelta
@@ -770,9 +771,28 @@ def dashboard_simulador_costos(controller):
                 st.rerun()
 
     # Carga de Archivos
-    if not st.session_state.get('last_loaded_id_venta'):
+    id_venta_act = st.session_state.get('last_loaded_id_venta')
+    if not id_venta_act:
         st.info("Seleccione una venta para gestionar su información.")
         return
+
+    # --- NUEVO: RECUPERAR DATOS DEL ITINERARIO PARA DESCARGA ---
+    try:
+        res_itin = controller.client.table('venta').select('id_itinerario_digital').eq('id_venta', id_venta_act).single().execute()
+        id_itin_dig = res_itin.data.get('id_itinerario_digital') if res_itin.data else None
+        
+        if id_itin_dig:
+            res_render = controller.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin_dig).single().execute()
+            if res_render.data:
+                render_data = res_render.data.get('datos_render')
+                if isinstance(render_data, str):
+                    import json
+                    render_data = json.loads(render_data)
+                
+                # Renderizar los botones de descarga
+                render_itinerary_simple_download(render_data)
+    except Exception as e:
+        st.warning(f"Nota: No se pudo cargar el resumen del itinerario para descarga. ({e})")
 
     # --- SECCIÓN DE ARCHIVOS (CSV/Excel) ---
     st.markdown("### 📝 Gestión de Información Externa")
