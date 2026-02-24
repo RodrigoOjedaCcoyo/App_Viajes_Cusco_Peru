@@ -8,7 +8,7 @@ class ExcelController:
     """Controlador para la generación de documentos Excel a partir de datos del itinerario."""
 
     def generar_resumen_itinerario_xlsx(self, datos_render: dict) -> BytesIO:
-        """Genera un archivo XLSX resumido para operaciones: fechas, pax, incluye/no incluye."""
+        """Genera un archivo XLSX resumido para operaciones con mapeo robusto de datos."""
         import openpyxl
         from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
         
@@ -18,33 +18,28 @@ class ExcelController:
         
         # --- ESTILOS ---
         bold_f = Font(bold=True)
-        header_f = Font(bold=True, size=12)
-        center_al = Alignment(horizontal='center')
-        fill_day = PatternFill(start_color="F9F9F9", end_color="F9F9F9", fill_type="solid")
-        fill_inc = PatternFill(start_color="D9EAD3", end_color="D9EAD3", fill_type="solid")
-        fill_exc = PatternFill(start_color="F4CCCC", end_color="F4CCCC", fill_type="solid")
+        center_al = Alignment(horizontal='center', vertical='center')
         
         # --- HEADER ---
         ws.merge_cells('A1:F1')
-        ws['A1'] = f"RESUMEN OPERATIVO: {str(datos_render.get('titulo', 'ITINERARIO')).upper()}"
+        titulo_itin = (datos_render.get('titulo') or datos_render.get('paquete_nombre') or 'ITINERARIO').upper()
+        ws['A1'] = f"RESUMEN OPERATIVO: {titulo_itin}"
         ws['A1'].font = Font(bold=True, size=14)
         ws['A1'].alignment = center_al
         
         ws['A3'] = "FECHA INICIO:"
-        ws['B3'] = datos_render.get("fecha_inicio", "---")
+        ws['B3'] = datos_render.get("fecha_inicio") or datos_render.get("fecha_viaje") or "---"
         ws['D3'] = "FECHA FINAL:"
-        ws['E3'] = datos_render.get("fecha_fin", "---")
+        ws['E3'] = datos_render.get("fecha_fin") or "---"
         
         ws['A4'] = "PASAJERO:"
-        ws['B4'] = (datos_render.get("nombre_pasajero") or "---").upper()
+        ws['B4'] = (datos_render.get("nombre_pasajero") or datos_render.get("cliente_nombre") or "---").upper()
         ws['D4'] = "TOTAL PAX:"
         pax_count = int(datos_render.get("num_adultos", 1)) + int(datos_render.get("num_ninos", 0))
         ws['E4'] = f"{pax_count} Personas"
 
         # --- TABLA DE DÍAS ---
         current_row = 6
-        
-        # Encabezados de tabla
         headers = ["DÍA", "FECHA", "SERVICIO / TOUR", "PAX", "PRECIO ACT.", "DETALLES"]
         for c_idx, h in enumerate(headers, 1):
             cell = ws.cell(row=current_row, column=c_idx, value=h)
@@ -55,31 +50,36 @@ class ExcelController:
 
         items = (datos_render.get("days") or 
                  datos_render.get("itinerario_detalles") or 
-                 datos_render.get("servicios") or [])
+                 datos_render.get("servicios") or 
+                 datos_render.get("itinerario") or [])
 
         for i, d in enumerate(items):
-            ws.cell(row=current_row, column=1, value=i+1)
-            ws.cell(row=current_row, column=2, value=d.get('fecha') or f"DIA {i+1}")
-            ws.cell(row=current_row, column=3, value=(d.get('title') or d.get('nombre') or "---").upper()).font = bold_f
-            ws.cell(row=current_row, column=4, value=pax_count)
+            ws.cell(row=current_row, column=1, value=i+1).alignment = center_al
+            ws.cell(row=current_row, column=2, value=d.get('fecha') or f"DIA {i+1}").alignment = center_al
             
-            # Precio (si existe en el item o en el general)
-            precio_val = d.get('precio') or "---"
-            ws.cell(row=current_row, column=5, value=precio_val)
+            # Nombre del Servicio (Mapeo robusto)
+            nombre_serv = (d.get('title') or d.get('nombre') or d.get('titulo') or d.get('servicio') or "---").upper()
+            ws.cell(row=current_row, column=3, value=nombre_serv).font = bold_f
             
-            # Sub-sección de Incluye / No Incluye
-            start_inc_row = current_row
+            ws.cell(row=current_row, column=4, value=pax_count).alignment = center_al
             
-            inc_list = d.get('incluye') or d.get('inclusiones', [])
-            exc_list = d.get('no_incluye') or d.get('exclusiones', [])
+            # Precio
+            precio_val = d.get('precio') or d.get('costo') or "---"
+            ws.cell(row=current_row, column=5, value=precio_val).alignment = center_al
             
+            # Detalles (Inclusiones/Exclusiones)
             details_txt = []
+            
+            # Inclusiones
+            inc_list = d.get('incluye') or d.get('inclusiones') or []
             if inc_list:
                 details_txt.append("✅ INCLUYE:")
                 for inc in inc_list:
                     txt = inc.get('texto') if isinstance(inc, dict) else inc
                     details_txt.append(f"  • {txt}")
             
+            # Exclusiones
+            exc_list = d.get('no_incluye') or d.get('exclusiones') or []
             if exc_list:
                 if details_txt: details_txt.append("")
                 details_txt.append("❌ NO INCLUYE:")
@@ -87,22 +87,33 @@ class ExcelController:
                     txt = exc.get('texto') if isinstance(exc, dict) else exc
                     details_txt.append(f"  • {txt}")
             
+            if not details_txt:
+                # Fallback: si no hay detalles específicos, tal vez hay una descripción corta
+                desc_fallback = d.get('descripcion') or d.get('description') or ""
+                if desc_fallback:
+                    details_txt.append(desc_fallback[:100] + ("..." if len(desc_fallback) > 100 else ""))
+            
             ws.cell(row=current_row, column=6, value="\n".join(details_txt)).alignment = Alignment(wrap_text=True, vertical='top')
             
-            # Ajustar altura si hay mucho texto
-            num_lines = len(details_txt)
-            if num_lines > 1:
-                ws.row_dimensions[current_row].height = num_lines * 14
-                
+            # Ajustar altura de fila si hay mucho texto
+            if details_txt:
+                line_count = len("\n".join(details_txt).split("\n"))
+                ws.row_dimensions[current_row].height = max(15, line_count * 12)
+            
             current_row += 1
 
         # --- ANCHOS DE COLUMNA ---
         ws.column_dimensions['A'].width = 6
-        ws.column_dimensions['B'].width = 12
-        ws.column_dimensions['C'].width = 35
+        ws.column_dimensions['B'].width = 15
+        ws.column_dimensions['C'].width = 40
         ws.column_dimensions['D'].width = 8
         ws.column_dimensions['E'].width = 12
-        ws.column_dimensions['F'].width = 60
+        ws.column_dimensions['F'].width = 65
+
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        return output
 
         output = BytesIO()
         wb.save(output)

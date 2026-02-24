@@ -848,8 +848,11 @@ def dashboard_simulador_costos(controller):
 
     # --- NUEVO: RECUPERAR DATOS DEL ITINERARIO PARA DESCARGA ---
     try:
-        res_itin = controller.client.table('venta').select('id_itinerario_digital').eq('id_venta', id_venta_act).single().execute()
-        id_itin_dig = res_itin.data.get('id_itinerario_digital') if res_itin.data else None
+        # Recuperar Venta Live para sincronizar datos
+        res_v_live = controller.client.table('venta').select('*, cliente(nombre)').eq('id_venta', id_venta_act).single().execute()
+        v_live = res_v_live.data or {}
+        
+        id_itin_dig = v_live.get('id_itinerario_digital')
         
         if id_itin_dig:
             res_render = controller.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin_dig).single().execute()
@@ -858,6 +861,29 @@ def dashboard_simulador_costos(controller):
                 if isinstance(render_data, str):
                     import json
                     render_data = json.loads(render_data)
+                
+                # --- ENRIQUECER CON DATOS LIVE ---
+                render_data['nombre_pasajero'] = v_live.get('cliente', {}).get('nombre') or render_data.get('nombre_pasajero')
+                render_data['num_adultos'] = v_live.get('num_pasajeros', 1)
+                render_data['fecha_inicio'] = v_live.get('fecha_inicio')
+                render_data['fecha_fin'] = v_live.get('fecha_fin')
+                
+                # Sincronizar servicios (precios y nombres de la DB)
+                res_vt = controller.client.table('venta_tour').select('*, tour(nombre)').eq('id_venta', id_venta_act).order('fecha_servicio').execute()
+                live_tours = res_vt.data or []
+                
+                itin_list = (render_data.get('itinerario_detalles') or 
+                             render_data.get('days') or 
+                             render_data.get('itinerario') or [])
+                
+                for i, tour_live in enumerate(live_tours):
+                    if i < len(itin_list):
+                        # Actualizar datos estáticos con datos reales de la operación
+                        itin_list[i]['fecha'] = tour_live.get('fecha_servicio')
+                        itin_list[i]['titulo'] = tour_live.get('tour', {}).get('nombre') or tour_live.get('observacion')
+                        itin_list[i]['precio'] = f"{v_live.get('moneda', '$')} {tour_live.get('precio_applied', 0)}"
+                
+                render_data['itinerario_detalles'] = itin_list
                 
                 # Renderizar los botones de descarga
                 render_itinerary_simple_download(render_data)
