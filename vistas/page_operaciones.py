@@ -9,6 +9,72 @@ from datetime import date, timedelta
 import urllib.parse
 from controllers.operaciones_controller import OperacionesController
 from controllers.venta_controller import VentaController
+from controllers.excel_controller import ExcelController
+
+# NUEVO: Renderiza el Botón para el Excel Maestro Operativo.
+def render_operational_master_download(controller, id_venta):
+    """
+    Recopila toda la información de la operación y ofrece la descarga del Excel Maestro.
+    """
+    try:
+        xl_ctrl = ExcelController()
+        
+        # 1. Obtener Datos de la Venta
+        vc = VentaController(controller.client)
+        # Buscar la venta específica en la base de datos para tener datos frescos
+        res_v = controller.client.table('venta').select('*, cliente(nombre, celular)').eq('id_venta', id_venta).single().execute()
+        if not res_v.data:
+            st.error("No se pudo recuperar la información de la venta.")
+            return
+            
+        v_raw = res_v.data
+        v_data = {
+            "id_venta": v_raw['id_venta'],
+            "nombre_cliente": v_raw.get('cliente', {}).get('nombre', 'Desconocido'),
+            "telefono": v_raw.get('cliente', {}).get('celular', '---'),
+            "tour_nombre": v_raw.get('tour_nombre', 'Sin Tour'),
+            "fecha_inicio": v_raw.get('fecha_inicio'),
+            "fecha_fin": v_raw.get('fecha_fin'),
+            "num_pasajeros": v_raw.get('num_pasajeros', 1),
+            "vendedor": "---", # Se podría buscar si es necesario
+            "moneda": v_raw.get('moneda', 'USD'),
+            "monto_total": v_raw.get('precio_total_cierre', 0),
+            "monto_pagado": 0 # Se calculará abajo
+        }
+
+        # 2. Calcular Pagos
+        res_p = controller.client.table('pago').select('monto_pagado').eq('id_venta', id_venta).execute()
+        v_data['monto_pagado'] = sum(float(p['monto_pagado'] or 0) for p in res_p.data)
+
+        # 3. Obtener Itinerario Logístico (Con proveedores asignados)
+        itinerario = controller.get_servicios_rango_fechas(date(2000,1,1), date(2100,1,1))
+        it_venta = [s for s in itinerario if s['ID Venta'] == id_venta]
+
+        # 4. Obtener Pasajeros
+        pasajeros = controller.pasajero_model.get_by_venta_id(id_venta)
+
+        # 5. Generar Excel
+        data_hoja = {
+            "venta": v_data,
+            "itinerario": it_venta,
+            "pasajeros": pasajeros
+        }
+        
+        master_buffer = xl_ctrl.generar_hoja_servicio_maestra_xlsx(data_hoja)
+        
+        if master_buffer:
+            st.download_button(
+                label="📁 Descargar Hoja de Servicio Operativa (Master Excel)",
+                data=master_buffer,
+                file_name=f"hoja_servicio_{id_venta}_{v_data['nombre_cliente'].replace(' ', '_')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                help="Incluye Resumen, Logística diaria y Lista de Pasajeros.",
+                use_container_width=True,
+                type="primary"
+            )
+            
+    except Exception as e:
+        st.error(f"Error generando Hoja de Servicio: {e}")
 
 # Renderiza el Botón para el PDF del Itinerario Simple.
 def render_itinerary_simple_download(render):
@@ -791,6 +857,10 @@ def dashboard_simulador_costos(controller):
                 
                 # Renderizar los botones de descarga
                 render_itinerary_simple_download(render_data)
+        
+        # NUEVO: Botón Maestro Operativo (Independiente del Itinerario Digital)
+        st.markdown("---")
+        render_operational_master_download(controller, id_venta_act)
     except Exception as e:
         st.warning(f"Nota: No se pudo cargar el resumen del itinerario para descarga. ({e})")
 

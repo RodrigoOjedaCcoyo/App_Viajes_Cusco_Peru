@@ -114,3 +114,99 @@ class ExcelController:
         wb.save(output)
         output.seek(0)
         return output
+
+    def generar_hoja_servicio_maestra_xlsx(self, data_hoja: dict) -> BytesIO:
+        """
+        Genera un Excel Maestro para Operaciones sin diseño visual complejo.
+        data_hoja debe contener: 'venta', 'itinerario', 'pasajeros'
+        """
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment
+        
+        wb = openpyxl.Workbook()
+        
+        # --- HOJA 1: RESUMEN DE VENTA ---
+        ws1 = wb.active
+        ws1.title = "RESUMEN_VENTA"
+        v = data_hoja.get('venta', {})
+        
+        datos_v = [
+            ["CAMPO", "VALOR"],
+            ["ID Venta", v.get('id_venta')],
+            ["Cliente", v.get('nombre_cliente')],
+            ["Celular", v.get('telefono')],
+            ["Tour/Paquete", v.get('tour_nombre')],
+            ["Fecha Inicio", v.get('fecha_inicio')],
+            ["Fecha Fin", v.get('fecha_fin')],
+            ["Pax Totales", v.get('num_pasajeros')],
+            ["Vendedor", v.get('vendedor')],
+            ["", ""],
+            ["FINANCIERO", ""],
+            ["Moneda", v.get('moneda')],
+            ["Monto Total", v.get('monto_total')],
+            ["Monto Pagado", v.get('monto_pagado')],
+            ["Saldo Pendiente", float(v.get('monto_total') or 0) - float(v.get('monto_pagado') or 0)]
+        ]
+        
+        for r_idx, row in enumerate(datos_v, 1):
+            for c_idx, val in enumerate(row, 1):
+                cell = ws1.cell(row=r_idx, column=c_idx, value=val)
+                if r_idx == 1 or "FINANCIERO" in str(val):
+                    cell.font = Font(bold=True)
+                    cell.fill = PatternFill(start_color="DDDDDD", end_color="DDDDDD", fill_type="solid")
+
+        ws1.column_dimensions['A'].width = 25
+        ws1.column_dimensions['B'].width = 50
+
+        # --- HOJA 2: ITINERARIO LOGÍSTICO ---
+        ws2 = wb.create_sheet("LOGISTICA_DIARIA")
+        it = data_hoja.get('itinerario', [])
+        
+        headers_it = ["Día", "Fecha", "Hora", "Servicio", "Proveedor/Asignado", "Pax", "Tipo", "Observaciones"]
+        for c_idx, h in enumerate(headers_it, 1):
+            cell = ws2.cell(row=1, column=c_idx, value=h)
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(start_color="CCE5FF", end_color="CCE5FF", fill_type="solid")
+            cell.alignment = Alignment(horizontal='center')
+
+        for r_idx, s in enumerate(it, 2):
+            ws2.cell(row=r_idx, column=1, value=s.get('Día Itin.'))
+            ws2.cell(row=r_idx, column=2, value=s.get('Fecha'))
+            ws2.cell(row=r_idx, column=3, value=s.get('Hora'))
+            ws2.cell(row=r_idx, column=4, value=s.get('Servicio'))
+            ws2.cell(row=r_idx, column=5, value=s.get('Proveedor'))
+            ws2.cell(row=r_idx, column=6, value=s.get('Pax'))
+            ws2.cell(row=r_idx, column=7, value=s.get('Tipo'))
+            ws2.cell(row=r_idx, column=8, value=s.get('observacion') or "")
+
+        for col in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']:
+            ws2.column_dimensions[col].width = 15 if col != 'D' and col != 'H' else 40
+
+        # --- HOJA 3: PASAJEROS (ROOMING) ---
+        ws3 = wb.create_sheet("PASAJEROS_ROOMING")
+        pax = data_hoja.get('pasajeros', [])
+        
+        headers_px = ["Nombre Completo", "Documento", "Tipo Doc", "Nacionalidad", "Fecha Nac", "Género", "Cuidados", "Principal?"]
+        for c_idx, h in enumerate(headers_px, 1):
+            cell = ws3.cell(row=1, column=c_idx, value=h)
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(start_color="D1E7DD", end_color="D1E7DD", fill_type="solid")
+
+        for r_idx, p in enumerate(pax, 2):
+            ws3.cell(row=r_idx, column=1, value=p.get('nombre_completo'))
+            ws3.cell(row=r_idx, column=2, value=p.get('numero_documento'))
+            ws3.cell(row=r_idx, column=3, value=p.get('tipo_documento'))
+            ws3.cell(row=r_idx, column=4, value=p.get('nacionalidad'))
+            ws3.cell(row=r_idx, column=5, value=p.get('fecha_nacimiento'))
+            ws3.cell(row=r_idx, column=6, value=p.get('genero'))
+            ws3.cell(row=r_idx, column=7, value=p.get('cuidados_especiales'))
+            ws3.cell(row=r_idx, column=8, value="SÍ" if p.get('es_principal') else "NO")
+
+        ws3.column_dimensions['A'].width = 40
+        for col in ['B', 'C', 'D', 'E', 'F', 'G', 'H']:
+            ws3.column_dimensions[col].width = 15
+
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        return output
