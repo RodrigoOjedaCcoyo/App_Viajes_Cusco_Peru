@@ -158,7 +158,30 @@ def auditoria_de_pagos():
                 if id_itin_audit:
                     res_itin = st.session_state['reporte_controller'].client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin_audit).single().execute()
                     if res_itin.data:
-                        render_itinerary_simple_download(res_itin.data['datos_render'])
+                        render_data = res_itin.data['datos_render']
+                        
+                        # --- ENRIQUECIMIENTO CON DATOS REALES DE VENTA ---
+                        from controllers.venta_controller import VentaController
+                        v_ctrl = VentaController(st.session_state['reporte_controller'].client)
+                        v_act = v_ctrl.obtener_venta_por_id(sel_v_id)
+                        
+                        if isinstance(render_data, dict) and v_act:
+                            # Sincronizar fechas generales
+                            render_data['fecha_inicio'] = v_act.get('fecha_inicio') or render_data.get('fecha_inicio')
+                            render_data['fecha_fin'] = v_act.get('fecha_fin') or render_data.get('fecha_fin')
+                            render_data['nombre_pasajero'] = v_act.get('cliente_nombre') or render_data.get('nombre_pasajero')
+                            
+                            # Sincronizar fechas de cada tour (Día a Día)
+                            live_tours = v_ctrl.obtener_detalles_itinerario_venta(sel_v_id)
+                            if live_tours:
+                                itin_list = render_data.get('itinerario_detalles') or render_data.get('days') or []
+                                if isinstance(itin_list, list):
+                                    for i, t_live in enumerate(live_tours):
+                                        if i < len(itin_list) and isinstance(itin_list[i], dict):
+                                            itin_list[i]['fecha'] = t_live.get('fecha_servicio') or itin_list[i].get('fecha')
+                                    render_data['itinerario_detalles'] = itin_list
+
+                        render_itinerary_simple_download(render_data)
             else:
                 st.info("No hay ventas con itinerarios digitales para auditar en esta lista.")
     else:
@@ -340,6 +363,33 @@ def estructurador_liquidacion_pro(controller):
                     } for d in detalles]
                     st.session_state['last_loaded_id_venta_acc'] = v_act['id_venta']
                     st.rerun()
+
+            # --- 📥 AUDITORÍA DE ITINERARIO (BOTÓN DE DESCARGA) ---
+            id_it_dig = v_act.get('id_itinerario_digital')
+            if id_it_dig:
+                with st.expander("📄 Ver Itinerario Original para Auditoría", expanded=False):
+                    res_it = controller.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_it_dig).single().execute()
+                    if res_it.data:
+                        render_data = res_it.data['datos_render']
+                        
+                        # --- ENRIQUECIMIENTO ---
+                        if isinstance(render_data, dict):
+                            render_data['fecha_inicio'] = v_act.get('fecha_inicio') or render_data.get('fecha_inicio')
+                            render_data['fecha_fin'] = v_act.get('fecha_fin') or render_data.get('fecha_fin')
+                            render_data['nombre_pasajero'] = v_act.get('cliente_nombre') or render_data.get('nombre_pasajero')
+                            
+                            live_tours = vc.obtener_detalles_itinerario_venta(v_act['id_venta'])
+                            if live_tours:
+                                itin_list = render_data.get('itinerario_detalles') or render_data.get('days') or []
+                                if isinstance(itin_list, list):
+                                    for i, t_live in enumerate(live_tours):
+                                        if i < len(itin_list) and isinstance(itin_list[i], dict):
+                                            itin_list[i]['fecha'] = t_live.get('fecha_servicio') or itin_list[i].get('fecha')
+                                    render_data['itinerario_detalles'] = itin_list
+
+                        render_itinerary_simple_download(render_data)
+            else:
+                st.caption("Esta venta no tiene un itinerario digital vinculado.")
 
     # Editor estilo Excel
     df = pd.DataFrame(st.session_state['simulador_contable_adv_data'])
