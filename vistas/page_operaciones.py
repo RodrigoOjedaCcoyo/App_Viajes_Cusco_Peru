@@ -883,14 +883,23 @@ def dashboard_simulador_costos(controller):
                     if isinstance(itin_list, list):
                         for i, tour_live in enumerate(live_tours):
                             if i < len(itin_list) and isinstance(itin_list[i], dict):
-                                # Actualizar datos estáticos con datos reales de la operación
-                                itin_list[i]['fecha'] = tour_live.get('fecha_servicio')
+                                # Sincronizar SOLO la fecha operativa
+                                itin_list[i]['fecha'] = tour_live.get('fecha_servicio') or itin_list[i].get('fecha')
                                 
-                                tour_info = tour_live.get('tour') or {}
-                                nombre_tour_db = tour_info.get('nombre') if isinstance(tour_info, dict) else None
-                                
-                                itin_list[i]['titulo'] = nombre_tour_db or tour_live.get('observacion') or itin_list[i].get('titulo')
-                                itin_list[i]['precio'] = f"{v_live.get('moneda', '$')} {tour_live.get('precio_applied', 0)}"
+                                # Preservar Título y Precio del itinerario si existen y no son "---"
+                                # Solo usamos el de la DB si el del itinerario está vacío
+                                itin_titulo = str(itin_list[i].get('titulo') or itin_list[i].get('nombre') or "").strip()
+                                if itin_titulo in ["", "---", "Servicio"]:
+                                    tour_info = tour_live.get('tour') or {}
+                                    nombre_tour_db = tour_info.get('nombre') if isinstance(tour_info, dict) else None
+                                    itin_list[i]['titulo'] = nombre_tour_db or tour_live.get('observacion') or "SERVICIO"
+                                    
+                                itin_precio = str(itin_list[i].get('precio') or itin_list[i].get('costo') or "").strip()
+                                if itin_precio in ["", "---", "0", "0.0"]:
+                                    # Solo en este caso de emergencia usamos el precio de la venta_tour
+                                    # Pero cuidado: a veces precio_applied es el TOTAL, no el unitario.
+                                    p_app = tour_live.get('precio_applied', 0)
+                                    itin_list[i]['precio'] = f"{v_live.get('moneda', '$')} {p_app}"
                         
                         render_data['itinerario_detalles'] = itin_list
                 

@@ -8,7 +8,7 @@ class ExcelController:
     """Controlador para la generación de documentos Excel a partir de datos del itinerario."""
 
     def generar_resumen_itinerario_xlsx(self, datos_render: dict) -> BytesIO:
-        """Genera un archivo XLSX resumido para operaciones con mapeo robusto de datos."""
+        """Genera un archivo XLSX resumido para operaciones basado estrictamente en el itinerario."""
         import openpyxl
         from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
         
@@ -19,6 +19,7 @@ class ExcelController:
         # --- ESTILOS ---
         bold_f = Font(bold=True)
         center_al = Alignment(horizontal='center', vertical='center')
+        top_al = Alignment(vertical='top', wrap_text=True)
         
         # --- HEADER ---
         ws.merge_cells('A1:F1')
@@ -37,10 +38,11 @@ class ExcelController:
         ws['D4'] = "TOTAL PAX:"
         pax_count = int(datos_render.get("num_adultos", 1)) + int(datos_render.get("num_ninos", 0))
         ws['E4'] = f"{pax_count} Personas"
+        ws['E4'].font = bold_f
 
         # --- TABLA DE DÍAS ---
         current_row = 6
-        headers = ["DÍA", "FECHA", "SERVICIO / TOUR", "PAX", "PRECIO ACT.", "DETALLES"]
+        headers = ["DÍA", "FECHA", "SERVICIO / TOUR", "PAX", "PRECIO", "INCLUYE / NO INCLUYE"]
         for c_idx, h in enumerate(headers, 1):
             cell = ws.cell(row=current_row, column=c_idx, value=h)
             cell.font = bold_f
@@ -48,8 +50,8 @@ class ExcelController:
             cell.alignment = center_al
         current_row += 1
 
-        items = (datos_render.get("days") or 
-                 datos_render.get("itinerario_detalles") or 
+        items = (datos_render.get("itinerario_detalles") or 
+                 datos_render.get("days") or 
                  datos_render.get("servicios") or 
                  datos_render.get("itinerario") or [])
 
@@ -58,57 +60,60 @@ class ExcelController:
             ws.cell(row=current_row, column=2, value=d.get('fecha') or f"DIA {i+1}").alignment = center_al
             
             # Nombre del Servicio (Mapeo robusto)
-            nombre_serv = (d.get('title') or d.get('nombre') or d.get('titulo') or d.get('servicio') or "---").upper()
+            nombre_serv = (d.get('titulo') or d.get('nombre') or d.get('title') or d.get('servicio') or "---").upper()
             ws.cell(row=current_row, column=3, value=nombre_serv).font = bold_f
             
             ws.cell(row=current_row, column=4, value=pax_count).alignment = center_al
             
-            # Precio
-            precio_val = d.get('precio') or d.get('costo') or "---"
-            ws.cell(row=current_row, column=5, value=precio_val).alignment = center_al
+            # Precio (Priorizar precio del itinerario)
+            p_val = d.get('precio') or d.get('costo') or "---"
+            ws.cell(row=current_row, column=5, value=p_val).alignment = center_al
             
-            # Detalles (Inclusiones/Exclusiones)
+            # Detalles (Solo Inclusiones/Exclusiones, sin descripción)
             details_txt = []
             
             # Inclusiones
-            inc_list = d.get('incluye') or d.get('inclusiones') or []
-            if inc_list:
+            inc_list = d.get('incluye') or d.get('inclusiones') or d.get('servicios') or []
+            if isinstance(inc_list, list) and inc_list:
                 details_txt.append("✅ INCLUYE:")
                 for inc in inc_list:
                     txt = inc.get('texto') if isinstance(inc, dict) else inc
-                    details_txt.append(f"  • {txt}")
+                    if txt: details_txt.append(f"  • {str(txt).upper()}")
             
             # Exclusiones
-            exc_list = d.get('no_incluye') or d.get('exclusiones') or []
-            if exc_list:
+            exc_list = d.get('no_incluye') or d.get('exclusiones') or d.get('servicios_no') or []
+            if isinstance(exc_list, list) and exc_list:
                 if details_txt: details_txt.append("")
                 details_txt.append("❌ NO INCLUYE:")
                 for exc in exc_list:
                     txt = exc.get('texto') if isinstance(exc, dict) else exc
-                    details_txt.append(f"  • {txt}")
+                    if txt: details_txt.append(f"  • {str(txt).upper()}")
             
-            if not details_txt:
-                # Fallback: si no hay detalles específicos, tal vez hay una descripción corta
-                desc_fallback = d.get('descripcion') or d.get('description') or ""
-                if desc_fallback:
-                    details_txt.append(desc_fallback[:100] + ("..." if len(desc_fallback) > 100 else ""))
+            detail_cell = ws.cell(row=current_row, column=6, value="\n".join(details_txt))
+            detail_cell.alignment = top_al
+            detail_cell.font = Font(size=9)
             
-            ws.cell(row=current_row, column=6, value="\n".join(details_txt)).alignment = Alignment(wrap_text=True, vertical='top')
-            
-            # Ajustar altura de fila si hay mucho texto
+            # Ajustar altura de fila basada en el contenido
             if details_txt:
-                line_count = len("\n".join(details_txt).split("\n"))
-                ws.row_dimensions[current_row].height = max(15, line_count * 12)
+                line_count = len(details_txt)
+                ws.row_dimensions[current_row].height = max(20, line_count * 12)
+            else:
+                ws.row_dimensions[current_row].height = 20
             
             current_row += 1
 
         # --- ANCHOS DE COLUMNA ---
-        ws.column_dimensions['A'].width = 6
+        ws.column_dimensions['A'].width = 5
         ws.column_dimensions['B'].width = 15
-        ws.column_dimensions['C'].width = 40
+        ws.column_dimensions['C'].width = 45
         ws.column_dimensions['D'].width = 8
-        ws.column_dimensions['E'].width = 12
-        ws.column_dimensions['F'].width = 65
+        ws.column_dimensions['E'].width = 15
+        ws.column_dimensions['F'].width = 70
+
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        return output
 
         output = BytesIO()
         wb.save(output)
