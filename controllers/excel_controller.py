@@ -8,103 +8,101 @@ class ExcelController:
     """Controlador para la generación de documentos Excel a partir de datos del itinerario."""
 
     def generar_resumen_itinerario_xlsx(self, datos_render: dict) -> BytesIO:
-        """Genera un archivo XLSX detallado (Ink Saver) con el contenido real del itinerario."""
+        """Genera un archivo XLSX resumido para operaciones: fechas, pax, incluye/no incluye."""
         import openpyxl
         from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
         
         wb = openpyxl.Workbook()
         ws = wb.active
-        ws.title = "ITINERARIO_RESUMEN"
+        ws.title = "RESUMEN_OPERATIVO"
         
         # --- ESTILOS ---
-        bold_font = Font(bold=True)
-        header_font = Font(bold=True, size=14)
-        border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+        bold_f = Font(bold=True)
+        header_f = Font(bold=True, size=12)
+        center_al = Alignment(horizontal='center')
+        fill_day = PatternFill(start_color="F9F9F9", end_color="F9F9F9", fill_type="solid")
+        fill_inc = PatternFill(start_color="D9EAD3", end_color="D9EAD3", fill_type="solid")
+        fill_exc = PatternFill(start_color="F4CCCC", end_color="F4CCCC", fill_type="solid")
         
-        # --- HEADER GENERAL ---
-        ws.merge_cells('A1:E1')
-        ws['A1'] = (datos_render.get('titulo') or "RESUMEN DE ITINERARIO").upper()
-        ws['A1'].font = header_font
-        ws['A1'].alignment = Alignment(horizontal='center')
+        # --- HEADER ---
+        ws.merge_cells('A1:F1')
+        ws['A1'] = f"RESUMEN OPERATIVO: {str(datos_render.get('titulo', 'ITINERARIO')).upper()}"
+        ws['A1'].font = Font(bold=True, size=14)
+        ws['A1'].alignment = center_al
         
-        ws['A3'] = "PASAJERO:"
-        ws['B3'] = (datos_render.get("nombre_pasajero") or "---").upper()
-        ws['A4'] = "GRUPO:"
+        ws['A3'] = "FECHA INICIO:"
+        ws['B3'] = datos_render.get("fecha_inicio", "---")
+        ws['D3'] = "FECHA FINAL:"
+        ws['E3'] = datos_render.get("fecha_fin", "---")
+        
+        ws['A4'] = "PASAJERO:"
+        ws['B4'] = (datos_render.get("nombre_pasajero") or "---").upper()
+        ws['D4'] = "TOTAL PAX:"
         pax_count = int(datos_render.get("num_adultos", 1)) + int(datos_render.get("num_ninos", 0))
-        ws['B4'] = f"{pax_count} Persona(s)"
-        
-        ws['D3'] = "FECHA INICIO:"
-        ws['E3'] = datos_render.get("fecha_inicio", "---")
-        ws['D4'] = "DÍAS TOTALES:"
-        ws['E4'] = len(datos_render.get("days", [])) or 1
+        ws['E4'] = f"{pax_count} Personas"
 
-        # --- CUERPO DEL ITINERARIO ---
+        # --- TABLA DE DÍAS ---
         current_row = 6
         
+        # Encabezados de tabla
+        headers = ["DÍA", "FECHA", "SERVICIO / TOUR", "PAX", "PRECIO ACT.", "DETALLES"]
+        for c_idx, h in enumerate(headers, 1):
+            cell = ws.cell(row=current_row, column=c_idx, value=h)
+            cell.font = bold_f
+            cell.fill = PatternFill(start_color="DDDDDD", end_color="DDDDDD", fill_type="solid")
+            cell.alignment = center_al
+        current_row += 1
+
         items = (datos_render.get("days") or 
                  datos_render.get("itinerario_detalles") or 
                  datos_render.get("servicios") or [])
 
         for i, d in enumerate(items):
-            # Barra de Día
-            ws.merge_cells(f'A{current_row}:E{current_row}')
-            cell_dia = ws[f'A{current_row}']
-            fecha_val = d.get('fecha') or f"DÍA {i+1}"
-            titulo_val = (d.get('title') or d.get('nombre') or d.get('titulo') or "Servicio").upper()
-            cell_dia.value = f" {fecha_val} - {titulo_val} "
-            cell_dia.font = bold_font
-            cell_dia.fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
-            current_row += 1
+            ws.cell(row=current_row, column=1, value=i+1)
+            ws.cell(row=current_row, column=2, value=d.get('fecha') or f"DIA {i+1}")
+            ws.cell(row=current_row, column=3, value=(d.get('title') or d.get('nombre') or "---").upper()).font = bold_f
+            ws.cell(row=current_row, column=4, value=pax_count)
             
-            # Descripción (si existe)
-            desc = d.get('description') or d.get('descripcion') or ""
-            if desc:
-                ws.merge_cells(f'B{current_row}:E{current_row+1}')
-                cell_desc = ws[f'B{current_row}']
-                cell_desc.value = desc
-                cell_desc.alignment = Alignment(wrap_text=True, vertical='top')
-                current_row += 2
+            # Precio (si existe en el item o en el general)
+            precio_val = d.get('precio') or "---"
+            ws.cell(row=current_row, column=5, value=precio_val)
             
-            # Comidas y Hotel
-            comidas = []
-            if d.get('breakfast') or d.get('desayuno'): comidas.append("Desayuno")
-            if d.get('lunch') or d.get('almuerzo'): comidas.append("Almuerzo")
-            if d.get('dinner') or d.get('cena'): comidas.append("Cena")
+            # Sub-sección de Incluye / No Incluye
+            start_inc_row = current_row
             
-            txt_extra = ""
-            if comidas: txt_extra += f"🍴 Alimentos: {', '.join(comidas)} | "
-            hotel = d.get('hotel') or d.get('accommodation') or ""
-            if hotel: txt_extra += f"🏨 Hotel: {hotel}"
+            inc_list = d.get('incluye') or d.get('inclusiones', [])
+            exc_list = d.get('no_incluye') or d.get('exclusiones', [])
             
-            if txt_extra:
-                ws.merge_cells(f'B{current_row}:E{current_row}')
-                ws[f'B{current_row}'] = txt_extra
-                ws[f'B{current_row}'].font = Font(italic=True, size=9)
-                current_row += 1
+            details_txt = []
+            if inc_list:
+                details_txt.append("✅ INCLUYE:")
+                for inc in inc_list:
+                    txt = inc.get('texto') if isinstance(inc, dict) else inc
+                    details_txt.append(f"  • {txt}")
+            
+            if exc_list:
+                if details_txt: details_txt.append("")
+                details_txt.append("❌ NO INCLUYE:")
+                for exc in exc_list:
+                    txt = exc.get('texto') if isinstance(exc, dict) else exc
+                    details_txt.append(f"  • {txt}")
+            
+            ws.cell(row=current_row, column=6, value="\n".join(details_txt)).alignment = Alignment(wrap_text=True, vertical='top')
+            
+            # Ajustar altura si hay mucho texto
+            num_lines = len(details_txt)
+            if num_lines > 1:
+                ws.row_dimensions[current_row].height = num_lines * 14
                 
-            current_row += 1 # Espacio entre días
-
-        # --- RESUMEN FINAL DE INCLUSIONES ---
-        current_row += 1
-        ws.merge_cells(f'A{current_row}:E{current_row}')
-        ws[f'A{current_row}'] = "RESUMEN DE SERVICIOS INCLUIDOS"
-        ws[f'A{current_row}'].font = bold_font
-        ws[f'A{current_row}'].fill = PatternFill(start_color="D9EAD3", end_color="D9EAD3", fill_type="solid")
-        current_row += 1
-        
-        inclusiones = datos_render.get("incluye_resumen") or []
-        for inc in inclusiones:
-            ws.cell(row=current_row, column=1, value="•")
-            ws.merge_cells(f'B{current_row}:E{current_row}')
-            ws.cell(row=current_row, column=2, value=str(inc))
             current_row += 1
 
-        # --- AJUSTES DE COLUMNAS ---
-        ws.column_dimensions['A'].width = 15
-        ws.column_dimensions['B'].width = 20
-        ws.column_dimensions['C'].width = 20
-        ws.column_dimensions['D'].width = 20
-        ws.column_dimensions['E'].width = 30
+        # --- ANCHOS DE COLUMNA ---
+        ws.column_dimensions['A'].width = 6
+        ws.column_dimensions['B'].width = 12
+        ws.column_dimensions['C'].width = 35
+        ws.column_dimensions['D'].width = 8
+        ws.column_dimensions['E'].width = 12
+        ws.column_dimensions['F'].width = 60
 
         output = BytesIO()
         wb.save(output)
