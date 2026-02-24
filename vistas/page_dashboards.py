@@ -50,43 +50,51 @@ def render_itinerary_details_visual(render):
                 )
 
 def render_sales_dashboard_visual(supabase_client):
-    """Vista puramente visual para el Dashboard Comercial."""
-    st.title("📊 Dashboard Comercial")
+    """Vista puramente visual para el Dashboard Comercial (Objetivos B2C - Soles)."""
     
-    # KPIs Reales
-    reporte_ctrl = ReporteController(supabase_client)
-    resumen_ventas = reporte_ctrl.obtener_resumen_ventas()
+    # KPIs Reales pero solo B2C directos
+    venta_ctrl = VentaController(supabase_client)
+    ventas_b2c = venta_ctrl.obtener_ventas_directas() or []
     
     lead_ctrl = LeadController(supabase_client)
     total_leads = len(lead_ctrl.obtener_todos_leads())
     
+    # Procesar ventas B2C para estandarizar en Soles (PEN)
+    df_ventas = pd.DataFrame()
+    total_b2c_pen = 0.0
+    
+    if ventas_b2c:
+        for v in ventas_b2c:
+            monto_orig = float(v.get('precio_total_cierre') or 0.0)
+            tipo_c = float(v.get('tipo_cambio') or 3.80)
+            moneda = str(v.get('moneda', 'USD')).upper()
+            
+            if moneda == 'USD':
+                monto_pen = monto_orig * tipo_c
+            elif moneda == 'EUR':
+                monto_pen = monto_orig * (tipo_c * 1.05) # Asumiendo ratio simplificado
+            else:
+                monto_pen = monto_orig
+                
+            v['monto_total_pen'] = monto_pen
+            total_b2c_pen += monto_pen
+
+        df_ventas = pd.DataFrame(ventas_b2c)
+        df_ventas.rename(columns={'fecha_venta': 'fecha_venta'}, inplace=True) # Ensure column exists
+        
     c1, c2, c3 = st.columns(3)
-    c1.metric("Ventas Totales (USD)", f"${float(resumen_ventas.get('monto_total_acumulado') or 0):,.2f}")
+    c1.metric("Ventas Totales B2C (Soles)", f"S/ {float(total_b2c_pen):,.2f}")
     c2.metric("Leads Registrados", total_leads)
     
-    # Cálculo de tasa de conversión básico
-    tasa = (resumen_ventas['total_ventas_registradas'] / total_leads * 100) if total_leads > 0 else 0
-    c3.metric("Tasa de Conversión", f"{tasa:.1f}%")
+    # Cálculo de tasa de conversión básico (B2C + B2B leads mixtos, pero da una idea)
+    tasa = (len(ventas_b2c) / total_leads * 100) if total_leads > 0 else 0
+    c3.metric("Tasa de Conversión B2C", f"{tasa:.1f}%")
     
     st.divider()
     
-    col_a, col_b = st.columns([2, 1])
-    with col_a:
-        st.write("📈 **Ranking de Ventas por Vendedor**")
-        reporte_ctrl = ReporteController(supabase_client)
-        df_ventas, _ = reporte_ctrl.get_data_for_dashboard()
-        if not df_ventas.empty:
-            sales_by_vendor = df_ventas.groupby('vendedor')['monto_total'].sum().reset_index()
-            import plotly.express as px
-            fig = px.bar(sales_by_vendor, x='vendedor', y='monto_total', color='monto_total', 
-                         color_continuous_scale='Viridis')
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("No hay datos de ventas disponibles.")
-
-    with col_b:
-        st.write("🔔 **Estado General**")
-        st.info("La agenda de seguimiento ya no está disponible en este dashboard.")
+    # Llamar al renderizador de objetivos visuales (Gauge Chart)
+    from vistas.dashboard_analytics import render_sales_dashboard
+    render_sales_dashboard(df_ventas)
 
 def render_ops_dashboard_visual(supabase_client):
     """Vista visual para Operaciones con Tablero Diario."""
