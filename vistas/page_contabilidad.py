@@ -122,158 +122,6 @@ def render_operational_master_download(controller, id_venta):
             except Exception as e:
                 st.error(f"Error generando Hoja de Servicio: {e}")
 
-# Inicializar controladores (Se hace dentro de mostrar_pagina ahora)
-
-def reporte_de_montos():
-    """Sub-función para la funcionalidad 'Reporte de Montos'."""
-    reporte_controller = st.session_state.get('reporte_controller')
-    if not reporte_controller:
-        st.error("Error: Controlador no inicializado.")
-        return
-
-    st.subheader("💰 Reporte de Ingresos Totales")
-    
-    # Nuevo Dashboard Financiero Integrado
-    from vistas.dashboard_analytics import render_financial_dashboard
-    df_ventas, df_reqs = reporte_controller.get_data_for_dashboard()
-    
-    # Renderizamos Dashboard
-    render_financial_dashboard(df_ventas, df_reqs)
-    
-    st.divider()
-    
-    # Mantener funcionalidad anterior: tabla de detalle
-    data_reporte = reporte_controller.obtener_resumen_ventas()
-    
-    # Mostrar tabla de detalle
-    st.write("### 📋 Detalle de Ventas (Auditoría)")
-    
-    ventas = data_reporte['detalle_ventas']
-    if ventas:
-        df_ventas = pd.DataFrame(ventas)
-        
-        # Seleccionamos y renombramos columnas para el reporte
-        columnas_reporte = {
-            'id_venta': 'Venta ID',
-            'lead_id': 'Lead Origen ID',
-            'monto_total': 'Monto ($)',
-            'tour_paquete': 'Tour',
-            'fecha_tour': 'Fecha Inicio Tour',
-            'vendedor': 'Registrado Por'
-        }
-        
-        if 'monto_total' not in df_ventas.columns and 'precio_total_cierre' in df_ventas.columns:
-            df_ventas['monto_total'] = df_ventas['precio_total_cierre']
-        
-        df_display = df_ventas.rename(columns=columnas_reporte)
-        st.dataframe(df_display[list(columnas_reporte.values())], use_container_width=True, hide_index=True)
-        
-    else:
-        st.info("Aún no hay ventas registradas en el sistema.")
-
-
-def auditoria_de_pagos():
-    """Sub-función para la funcionalidad 'Auditoría de Pagos'."""
-    reporte_controller = st.session_state.get('reporte_controller')
-    if not reporte_controller:
-        st.error("Error: Controlador no inicializado.")
-        return
-
-    st.subheader("🏦 Auditoría de Pagos y Estados")
-    
-    # Llama a la función que devuelve el detalle de ventas (por ahora)
-    ventas_para_auditoria = reporte_controller.obtener_detalle_auditoria()
-
-    if ventas_para_auditoria:
-        df_auditoria = pd.DataFrame(ventas_para_auditoria)
-        
-        # Un contador necesita ver el estado del pago, que en el modelo de ventas es 'estado_venta'
-        # Usar nombres de columnas correctos según esquema
-        columnas_auditoria = ['id_venta', 'precio_total_cierre', 'fecha_venta', 'estado_venta', 'url_itinerario']
-        # Mapeo para visualización
-        df_auditoria_show = df_auditoria.copy()
-        df_auditoria_show.rename(columns={
-            'id_venta': 'Venta ID',
-            'precio_total_cierre': 'Monto ($)',
-            'fecha_venta': 'Fecha',
-            'estado_venta': 'Estado',
-            'url_itinerario': 'PDF 📄'
-        }, inplace=True)
-        
-        st.dataframe(
-            df_auditoria_show[['Venta ID', 'Monto ($)', 'Fecha', 'Estado', 'PDF 📄']], 
-            column_config={
-                "PDF 📄": st.column_config.LinkColumn("PDF 📄", help="Abrir Itinerario Premium en la nube")
-            },
-            use_container_width=True, hide_index=True
-        )
-
-        # --- 🔍 DETALLE VISUAL PARA AUDITORÍA (ESTILO IMAGEN) ---
-        st.markdown("---")
-        st.subheader("📋 Verificación de Itinerario Digital")
-        
-        # Filtramos ventas que tengan un itinerario vinculado
-        col_itin = 'id_itinerario_digital'
-        if col_itin not in df_auditoria.columns:
-            st.info("No se encontró la columna de itinerario digital.")
-        else:
-            ventas_con_itin = df_auditoria[df_auditoria[col_itin].notna()]
-            
-            if not ventas_con_itin.empty:
-                sel_v_id = st.selectbox("Seleccione Venta para auditar su Itinerario:", 
-                                     ventas_con_itin['id_venta'].tolist(),
-                                     format_func=lambda x: f"{ventas_con_itin[ventas_con_itin['id_venta']==x]['cliente_nombre'].values[0]} ({x})",
-                                     key="sb_audit_itin")
-                
-                # Obtener el UUID del itinerario
-                id_itin_audit = ventas_con_itin[ventas_con_itin['id_venta'] == sel_v_id][col_itin].iloc[0]
-                
-                if id_itin_audit:
-                    res_itin = st.session_state['reporte_controller'].client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin_audit).single().execute()
-                    if res_itin.data:
-                        render_data = res_itin.data['datos_render']
-                        
-                        # --- ENRIQUECIMIENTO CON DATOS REALES DE VENTA ---
-                        from controllers.venta_controller import VentaController
-                        v_ctrl = VentaController(st.session_state['reporte_controller'].client)
-                        v_act = v_ctrl.obtener_venta_por_id(sel_v_id)
-                        
-                        if isinstance(render_data, dict) and v_act:
-                            # Sincronizar fechas generales
-                            render_data['fecha_inicio'] = v_act.get('fecha_inicio') or render_data.get('fecha_inicio')
-                            render_data['fecha_fin'] = v_act.get('fecha_fin') or render_data.get('fecha_fin')
-                            render_data['nombre_pasajero'] = v_act.get('cliente_nombre') or render_data.get('nombre_pasajero')
-                            
-                            # Sincronizar fechas de cada tour (Día a Día)
-                            live_tours = v_ctrl.obtener_detalles_itinerario_venta(sel_v_id)
-                            if live_tours:
-                                itin_list = render_data.get('itinerario_detalles') or render_data.get('days') or []
-                                if isinstance(itin_list, list):
-                                    for i, t_live in enumerate(live_tours):
-                                        if i < len(itin_list) and isinstance(itin_list[i], dict):
-                                            itin_list[i]['fecha'] = t_live.get('fecha_servicio') or itin_list[i].get('fecha')
-                                    render_data['itinerario_detalles'] = itin_list
-
-                        # render_itinerary_simple_download(render_data) el boton maestro abajo es suficiente
-                        
-                        # NUEVO: Botón Maestro
-                        st.markdown("---")
-                        render_operational_master_download(st.session_state['reporte_controller'], sel_v_id)
-            else:
-                st.info("No hay ventas con itinerarios digitales para auditar en esta lista.")
-    else:
-        st.info("No hay transacciones para auditar.")
-
-
-def mostrar_requerimientos():
-    """Muestra la lista de requerimientos enviados por Operaciones."""
-    reporte_controller = st.session_state.get('reporte_controller')
-    
-    # Verificación de seguridad: si el método no existe, forzamos reinicialización
-# ----------------------------------------------------------------------
-# FUNCIÓN PRINCIPAL DE LA VISTA (Llamada por main.py)
-# ----------------------------------------------------------------------
-
 def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, supabase_client=None):
     if supabase_client:
         st.session_state['reporte_controller'] = ReporteController(supabase_client)
@@ -282,10 +130,9 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, su
     st.markdown("---")
     
     if funcionalidad_seleccionada == "Gestión de Registros":
-        tab1, tab2, tab3 = st.tabs([
+        tab1, tab2 = st.tabs([
             "📊 Estructurador Financiero", 
-            "💎 Cuentas por Cobrar (B2B)",
-            "🧹 Bandeja de Limpieza (ENTREGA EXCEL)"
+            "💎 Cuentas por Cobrar (B2B)"
         ])
         
         with tab1:
@@ -293,9 +140,6 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, su
             
         with tab2:
             dashboard_cuentas_por_cobrar_b2b(supabase_client)
-
-        with tab3:
-            bandeja_limpieza_reportes(st.session_state['reporte_controller'])
     else:
         st.info("Utilice el Dashboard Contable para ver reportes.")
 
