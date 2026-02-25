@@ -345,7 +345,9 @@ class OperacionesController:
                 f_nac = row.get('Fecha Nacimiento')
                 genero = str(row.get('Genero', '')).strip()
                 cuidados = str(row.get('Cuidados', '')).strip()
-                es_p = row.get('Es Principal', False)
+                # Lógica robusta para 'Es Principal'
+                es_p_raw = str(row.get('Es Principal', '')).strip().upper()
+                es_p = es_p_raw in ['SI', 'SÍ', 'TRUE', '1', 'VERDADERO']
 
                 if tipo_doc not in ['DNI', 'PASAPORTE', 'CARNET_EXTRANJERIA', 'DIE']:
                     tipo_doc = 'PASAPORTE'
@@ -359,7 +361,7 @@ class OperacionesController:
                     "fecha_nacimiento": str(f_nac) if pd.notnull(f_nac) else None,
                     "genero": genero if genero else None,
                     "cuidados_especiales": cuidados if cuidados else None,
-                    "es_principal": bool(es_p)
+                    "es_principal": es_p
                 }
                 
                 self.client.table('pasajero').insert(data_ins).execute()
