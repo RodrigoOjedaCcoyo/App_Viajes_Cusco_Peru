@@ -383,6 +383,22 @@ class OperacionesController:
         except Exception as e:
             return False, f"Error al finalizar liquidación: {e}"
 
+    def get_liquidaciones_venta(self, id_venta: int):
+        """
+        Obtiene el detalle de costos (liquidación) vinculado a una venta.
+        """
+        try:
+            res = (
+                self.client.table('venta_servicio_proveedor')
+                .select('*, proveedor(nombre_comercial)')
+                .eq('id_venta', id_venta)
+                .execute()
+            )
+            return res.data or []
+        except Exception as e:
+            print(f"Error cargando liquidaciones: {e}")
+            return []
+
     def borrar_pasajeros_venta(self, id_venta: str):
         """Borra todos los pasajeros de una venta."""
         try:

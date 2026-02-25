@@ -57,11 +57,15 @@ def render_operational_master_download(controller, id_venta):
         # 4. Obtener Pasajeros
         pasajeros = controller.pasajero_model.get_by_venta_id(id_venta)
 
-        # 5. Generar Excel
+        # 5. Obtener Liquidación Detallada (Costos)
+        liquidaciones = controller.get_liquidaciones_venta(id_venta)
+
+        # 6. Generar Excel
         data_hoja = {
             "venta": v_data,
             "itinerario": it_venta,
-            "pasajeros": pasajeros
+            "pasajeros": pasajeros,
+            "liquidaciones": liquidaciones
         }
         
         master_buffer = xl_ctrl.generar_hoja_servicio_maestra_xlsx(data_hoja)
