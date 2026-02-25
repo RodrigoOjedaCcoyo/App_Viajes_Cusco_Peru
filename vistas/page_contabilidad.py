@@ -358,132 +358,53 @@ def dashboard_cuentas_por_cobrar_b2b(supabase_client):
         df_det = pd.DataFrame(lista_detalle, index=None)
         st.dataframe(df_det, use_container_width=True, hide_index=True)
 
-def bandeja_limpieza_reportes(controller):
-    """
-    Bandeja de Limpieza: Donde Operaciones y Contabilidad entregan sus reportes Excel.
-    Usa segmentadores para evitar errores de ID.
-    """
-    st.subheader("🧹 Bandeja de Entrega y Limpieza de Reportes", divider='orange')
-    st.info("🎯 Selecciona la venta específica para entregar el reporte de cierre correspondiente.")
-
-    # --- FILTROS SEGMENTADORES (CÓDIGO REUTILIZADO) ---
-    from controllers.venta_controller import VentaController
-    vc = VentaController(controller.client)
-    
-    c_tipo, c_ag, c_pax = st.columns([1, 1.5, 2])
-    
-    with c_tipo:
-        tipo_v = st.selectbox("📥 Entregar Para:", ["--- Seleccione ---", "🏢 B2B (Agencias)", "👤 B2C (Directas)"], key="limp_sel_tipo")
-    
-    ventas_data = []
-    if tipo_v == "🏢 B2B (Agencias)":
-        agencias = vc.obtener_agencias_aliadas()
-        nombres_ag = [a['nombre'] for a in agencias]
-        mapa_ag = {a['nombre']: a['id_agencia'] for a in agencias}
-        with c_ag:
-            ag_sel = st.selectbox("🏢 Seleccione Agencia:", ["--- Seleccione ---"] + nombres_ag, key="limp_sel_ag")
-        if ag_sel != "--- Seleccione ---":
-            ventas_data = vc.obtener_ventas_agencia(mapa_ag[ag_sel])
-    elif tipo_v == "👤 B2C (Directas)":
-        ventas_data = vc.obtener_ventas_directas()
-        with c_ag:
-            st.info("Ventas Directas Seleccionadas")
-
-    v_sel_data = None
-    if ventas_data:
-        opciones_p = [f"{v['nombre_cliente']} | {v.get('tour_nombre', 'Sin Tour')} ({v['id_venta']})" for v in ventas_data]
-        mapa_v = {opciones_p[i]: v for i, v in enumerate(ventas_data)}
-        
-        with c_pax:
-            p_sel = st.selectbox("🔍 Seleccione Venta:", ["--- Seleccione ---"] + opciones_p, key="limp_sel_pax")
-        
-        if p_sel != "--- Seleccione ---":
-            v_sel_data = mapa_v.get(p_sel)
-
     st.divider()
 
-    if v_sel_data:
-        st.markdown(f"### 📤 Entrega de Reporte para: **{v_sel_data['nombre_cliente']}**")
-        st.write(f"ID Venta: `{v_sel_data['id_venta']}` | Servicio: **{v_sel_data.get('tour_nombre', 'N/A')}**")
+    # --- NUEVO: FORMULARIO DE REGISTRO MANUAL DE PAGOS ---
+    with st.expander("➕ Registrar Nuevo Abono / Pago Manual", expanded=False):
+        st.write("Selecciona una venta con saldo pendiente para registrar un abono.")
         
-        # --- NUEVA CAJITA DE DATOS ---
-        with st.expander("📝 Notas Adicionales / Link al Google Sheet Maestro", expanded=False):
-            st.text_area("Cajita de Datos:", placeholder="Pega aquí el link del Google Sheet o cualquier dato relevante para el cierre...", key="link_maestro_input")
-
-        col1, col2 = st.columns(2)
+        # Solo mostrar ventas con saldo > 0
+        ventas_deuda = [v for v in ventas if (float(v.get('precio_total_cierre') or 0) - float(mapa_pagos.get(v['id_venta'], 0))) > 0.1]
         
-        with col1:
-            st.markdown("#### 🚜 Operaciones")
-            excel_op = st.file_uploader("Subir Cierre de Operaciones (Excel)", type=['xlsx', 'xls'], key="upload_op")
-            if excel_op:
-                st.success("✅ Excel de Operaciones cargado. Listo para limpieza.")
-                # Aquí iría la lógica de procesamiento y muestra de tabla de limpieza
-                df_op = pd.read_excel(excel_op)
-                st.dataframe(df_op.head(10), use_container_width=True)
-                st.warning("🚧 El motor de limpieza comparará estos datos con la base de datos oficial próximamente.")
-
-        with col2:
-            st.markdown("#### 💰 Contabilidad")
-            excel_cont = st.file_uploader("Subir Cierre de Contabilidad (Excel)", type=['xlsx', 'xls'], key="upload_cont")
-            if excel_cont:
-                st.success("✅ Excel de Contabilidad cargado.")
-                df_cont = pd.read_excel(excel_cont)
-                st.dataframe(df_cont.head(5), use_container_width=True)
+        if not ventas_deuda:
+            st.success("No hay ventas con saldo pendiente actualmente.")
+        else:
+            opciones_pago = [f"{v['id_venta']} | {v['nombre_cliente']} (Debe: ${float(v.get('precio_total_cierre') or 0) - float(mapa_pagos.get(v['id_venta'], 0)):.2f})" for v in ventas_deuda]
+            v_sel_pago = st.selectbox("Seleccione Venta:", opciones_pago, key="sel_v_pago_manual")
+            
+            if v_sel_pago:
+                id_v_pago = int(v_sel_pago.split(" | ")[0])
+                v_data_pago = next(v for v in ventas_deuda if v['id_venta'] == id_v_pago)
                 
-                # --- BOTÓN DE SINCRONIZACIÓN (SOLICITADO: ALIMENTAR BASE DE DATOS DESDE EXCEL) ---
-                if st.button("🔄 Sincronizar Historial de Pagos con Base de Datos", use_container_width=True, type="secondary"):
-                    with st.status("Procesando Excel...", expanded=True) as status:
-                        try:
-                            # 1. Mapeo de Columnas (Robustez)
-                            # Se busca: Fecha Pago, Monto pagado, Moneda, Metodo de Pago, Tipo de Pago
-                            cols_necesarias = ["Fecha Pago", "Monto pagado", "Moneda", "Metodo de Pago", "Tipo de Pago"]
-                            columnas_excel = df_cont.columns.tolist()
-                            
-                            st.write("🔍 Verificando columnas...")
-                            cumple = all(c in columnas_excel for c in cols_necesarias)
-                            
-                            if not cumple:
-                                st.error(f"❌ El Excel debe contener exactamente estas columnas: {', '.join(cols_necesarias)}")
-                                status.update(label="Error de Formato", state="error")
-                            else:
-                                # 2. Limpiar pagos previos para esta venta (Evitar duplicados)
-                                st.write("🧹 Limpiando registros previos...")
-                                controller.client.table('pago').delete().eq('id_venta', v_sel_data['id_venta']).execute()
-                                
-                                # 3. Insertar registros
-                                st.write("📥 Insertando nuevos pagos...")
-                                nuevos_pagos = []
-                                for _, row in df_cont.iterrows():
-                                    try:
-                                        # Convertir fecha
-                                        f_raw = row['Fecha Pago']
-                                        if isinstance(f_raw, str): f_iso = f_raw # Asumimos ISO
-                                        elif hasattr(f_raw, 'isoformat'): f_iso = f_raw.isoformat()
-                                        else: f_iso = str(f_raw)
-                                        
-                                        nuevos_pagos.append({
-                                            "id_venta": v_sel_data['id_venta'],
-                                            "fecha_pago": f_iso,
-                                            "monto_pagado": float(row['Monto pagado']),
-                                            "moneda": str(row['Moneda']).upper(),
-                                            "metodo_pago": str(row['Metodo de Pago']).upper(),
-                                            "tipo_pago": str(row['Tipo de Pago']).upper()
-                                        })
-                                    except: continue
-                                
-                                if nuevos_pagos:
-                                    controller.client.table('pago').insert(nuevos_pagos).execute()
-                                    st.success(f"✅ Se han sincronizado {len(nuevos_pagos)} pagos correctamente.")
-                                    status.update(label="Sincronización Completada", state="complete")
-                                    st.rerun()
-                                else:
-                                    st.warning("No se encontraron filas con montos válidos para insertar.")
-                                    status.update(label="Sin Datos", state="error")
-                        except Exception as e:
-                            st.error(f"Error crítico en sincronización: {e}")
-                            status.update(label="Fallo del Sistema", state="error")
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    monto_pago = st.number_input("Monto del Abono:", min_value=1.0, step=10.0, format="%.2f")
+                with c2:
+                    moneda_pago = st.selectbox("Moneda:", ["USD", "PEN"], index=0)
+                with c3:
+                    fecha_pago = st.date_input("Fecha de Pago:", date.today())
+                
+                c4, c5 = st.columns(2)
+                with c4:
+                    metodo_pago = st.selectbox("Método:", ["TRANSFERENCIA", "EFECTIVO", "YAPE/PLIN", "TARJETA", "DEPÓSITO"])
+                with c5:
+                    tipo_pago = st.selectbox("Tipo de Pago:", ["ABONO", "SALDO TOTAL", "ADELANTO"])
+                
+                if st.button("🚀 Registrar Pago Ahora", type="primary", use_container_width=True):
+                    try:
+                        nuevo_pago = {
+                            "id_venta": id_v_pago,
+                            "fecha_pago": fecha_pago.isoformat(),
+                            "monto_pagado": monto_pago,
+                            "moneda": moneda_pago,
+                            "metodo_pago": metodo_pago,
+                            "tipo_pago": tipo_pago
+                        }
+                        supabase_client.table('pago').insert(nuevo_pago).execute()
+                        st.success(f"✅ Pago de ${monto_pago} registrado correctamente para {v_data_pago['nombre_cliente']}.")
+                        st.balloons()
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al registrar el pago: {e}")
 
-        if excel_op or excel_cont:
-            st.button("✨ Procesar y Limpiar Datos", type="primary", use_container_width=True)
-    else:
-        st.warning("Por favor, selecciona una venta para habilitar la entrega de documentos.")
