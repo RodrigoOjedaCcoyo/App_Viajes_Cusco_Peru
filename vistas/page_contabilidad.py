@@ -270,85 +270,6 @@ def mostrar_requerimientos():
     reporte_controller = st.session_state.get('reporte_controller')
     
     # Verificación de seguridad: si el método no existe, forzamos reinicialización
-    if reporte_controller and not hasattr(reporte_controller, 'obtener_requerimientos'):
-        if 'supabase_client' in st.session_state:
-            reporte_controller = ReporteController(st.session_state['supabase_client'])
-            st.session_state['reporte_controller'] = reporte_controller
-        else:
-            st.error("Error: Atributo 'obtener_requerimientos' no encontrado y no se pudo reiniciar el controlador.")
-            return
-
-    if not reporte_controller:
-        st.error("Error: Controlador no inicializado.")
-        return
-
-    st.subheader("🏦 Bandeja de Pagos Operativos (Caja Chica)")
-    st.info("💡 Aquí aparecen las solicitudes de fondos (Entradas, Hoteles, Endosos) enviadas desde el Estructurador de Operaciones.")
-    
-    reqs = reporte_controller.obtener_requerimientos()
-    
-    if not reqs:
-        st.success("✅ ¡Todo pagado! No hay requerimientos pendientes.")
-    else:
-        df_reqs = pd.DataFrame(reqs)
-        
-        # Mostrar tabla interactiva
-        st.dataframe(
-            df_reqs,
-            column_order=("fecha", "cliente", "concepto", "monto", "moneda", "datos_pago"),
-            column_config={
-                "fecha": "Fecha Serv.",
-                "cliente": "Cliente/Pax",
-                "concepto": "Concepto / Servicio",
-                "monto": st.column_config.NumberColumn("Importe", format="%.2f"),
-                "moneda": "Divisa",
-                "datos_pago": "🏦 Destino (Cuenta/Yape/Plin)"
-            },
-            hide_index=True,
-            use_container_width=True
-        )
-
-        st.markdown("---")
-        st.write("### 🖋️ Procesar Pago")
-        
-        # Selector para elegir cuál de la lista pagar
-        opciones_pagar = [f"Venta:{r['id_venta']} L:{r['n_linea']} | {r['cliente']} - {r['monto']} {r['moneda']}" for r in reqs]
-        sel_pago = st.selectbox("Seleccione el requerimiento a liquidar:", opciones_pagar)
-        
-        if sel_pago:
-            # Extraer IDs
-            req_idx = opciones_pagar.index(sel_pago)
-            req_data = reqs[req_idx]
-            
-            c1, c2 = st.columns(2)
-            with c1:
-                archivo_voucher = st.file_uploader("📎 Subir Comprobante de Pago (Imagen/PDF)", type=['png', 'jpg', 'jpeg', 'pdf'])
-            
-            with c2:
-                st.write("**Datos de Destino:**")
-                st.code(req_data['datos_pago'])
-                
-                if st.button("🚀 Marcar como PAGADO", use_container_width=True, type="primary"):
-                    # Lógica de actualización
-                    try:
-                        url_voucher = None
-                        if archivo_voucher:
-                            # Subir a storage (simulado o implementar en StorageController)
-                            # Por ahora guardamos el nombre si no hay storage configurado
-                            url_voucher = f"voucher_{req_data['id_venta']}_{req_data['n_linea']}.pdf"
-                        
-                        reporte_controller.client.table('venta_tour').update({
-                            'estado_pago_operativo': 'PAGADO',
-                            'url_voucher_operativo': url_voucher,
-                            'pagado_por': st.session_state.get('user_email', 'Contabilidad')
-                        }).match({'id_venta': req_data['id_venta'], 'n_linea': req_data['n_linea']}).execute()
-                        
-                        st.success(f"✅ Pago registrado para {req_data['cliente']}. El equipo de operaciones ya puede ver el voucher.")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error procesando el pago: {e}")
-
-
 # ----------------------------------------------------------------------
 # FUNCIÓN PRINCIPAL DE LA VISTA (Llamada por main.py)
 # ----------------------------------------------------------------------
@@ -361,23 +282,19 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, su
     st.markdown("---")
     
     if funcionalidad_seleccionada == "Gestión de Registros":
-        tab1, tab2, tab3, tab4 = st.tabs([
-            "📋 Requerimientos", 
+        tab1, tab2, tab3 = st.tabs([
             "📊 Estructurador Financiero", 
             "💎 Cuentas por Cobrar (B2B)",
             "🧹 Bandeja de Limpieza (ENTREGA EXCEL)"
         ])
         
         with tab1:
-            mostrar_requerimientos()
-            
-        with tab2:
             estructurador_liquidacion_pro(st.session_state['reporte_controller'])
             
-        with tab3:
+        with tab2:
             dashboard_cuentas_por_cobrar_b2b(supabase_client)
 
-        with tab4:
+        with tab3:
             bandeja_limpieza_reportes(st.session_state['reporte_controller'])
     else:
         st.info("Utilice el Dashboard Contable para ver reportes.")
