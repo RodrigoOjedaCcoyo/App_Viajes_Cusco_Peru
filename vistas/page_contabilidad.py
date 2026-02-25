@@ -49,6 +49,33 @@ def render_itinerary_simple_download(render):
         if not pdf_buffer and not xlsx_buffer:
             st.error("No se pudo generar el documento en este momento.")
 
+def render_operational_master_download(controller, id_venta):
+    """Renderiza el GRAN BOTÓN ROJO para el reporte maestro (Excel)."""
+    from controllers.excel_controller import ExcelController
+    from controllers.operaciones_controller import OperacionesController
+    
+    xl_ctrl = ExcelController()
+    op_ctrl = OperacionesController(controller.client)
+    
+    # Generar el reporte maestro con toda la data junta
+    if st.button("📊 Generar Informe Maestro (Operaciones + Contabilidad)", type="primary", use_container_width=True):
+        with st.spinner("Compilando Reporte Maestro..."):
+            try:
+                data_maestra = op_ctrl.obtener_data_hoja_servicio_maestra(id_venta)
+                xlsx_maestro = xl_ctrl.generar_hoja_servicio_maestra_xlsx(data_maestra)
+                
+                if xlsx_maestro:
+                    st.download_button(
+                        label="✅ ¡Reporte Listo! Haz clic para Descargar",
+                        data=xlsx_maestro,
+                        file_name=f"MAESTRO_{id_venta}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True
+                    )
+                    st.success("Reporte generado. Recuerda que contiene: Resumen Financiero, Logística, Liquidaciones y Rooming List.")
+            except Exception as e:
+                st.error(f"Error generando Hoja de Servicio: {e}")
+
 # Inicializar controladores (Se hace dentro de mostrar_pagina ahora)
 
 def reporte_de_montos():
@@ -182,6 +209,10 @@ def auditoria_de_pagos():
                                     render_data['itinerario_detalles'] = itin_list
 
                         render_itinerary_simple_download(render_data)
+                        
+                        # NUEVO: Botón Maestro
+                        st.markdown("---")
+                        render_operational_master_download(st.session_state['reporte_controller'], sel_v_id)
             else:
                 st.info("No hay ventas con itinerarios digitales para auditar en esta lista.")
     else:
