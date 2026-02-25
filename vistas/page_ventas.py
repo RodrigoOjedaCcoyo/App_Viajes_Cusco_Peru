@@ -4,6 +4,7 @@ import pandas as pd
 from datetime import date, timedelta
 from controllers.lead_controller import LeadController
 from controllers.venta_controller import VentaController
+from services.exchange_service import ExchangeService
 
 def render_itinerary_details_visual(render):
     """Renderiza el detalle visual del itinerario de forma robusta."""
@@ -356,8 +357,9 @@ def registro_ventas_directa():
     idx_moneda = monedas_list.index(moneda_auto) if moneda_auto in monedas_list else 0
     moneda_sel = c_m0.selectbox("Moneda", monedas_list, index=idx_moneda, help="Se auto-detecta del itinerario", disabled=(id_itinerario_dig is not None))
     
-    # TC: Tipo de Cambio "Foto Congelada"
-    tipo_cambio = c_m1.number_input("Tipo de Cambio (Foto)", min_value=0.0, value=3.80, format="%.3f", help="A cuánto está el dólar hoy para esta venta")
+    # TC: Tipo de Cambio "Foto Congelada" - Se intenta jalar automático
+    default_tc = ExchangeService.get_current_tc()
+    tipo_cambio = c_m1.number_input("Tipo de Cambio (Foto)", min_value=0.0, value=default_tc, format="%.3f", help="A cuánto está el dólar hoy para esta venta")
 
     # --- RECÁLCULO DINÁMICO: Usar el TC del usuario para actualizar el total ---
     if id_itinerario_dig and tipo_cambio > 0:
