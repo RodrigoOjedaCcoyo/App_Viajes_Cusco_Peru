@@ -857,44 +857,45 @@ def dashboard_simulador_costos(controller):
         v_live = res_v_live.data or {}
         
         id_itin_dig = v_live.get('id_itinerario_digital')
-        
-        if id_itin_dig:
-            res_render = controller.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin_dig).single().execute()
-            if res_render.data:
-                render_data = res_render.data.get('datos_render')
-                if isinstance(render_data, str):
-                    import json
-                    render_data = json.loads(render_data)
-                
-                # --- ENRIQUECER CON DATOS LIVE (CON SEGURIDAD) ---
-                if isinstance(render_data, dict):
-                    # Usar or {} para evitar fallos si cliente es None
-                    cliente_live = v_live.get('cliente') or {}
-                    render_data['nombre_pasajero'] = cliente_live.get('nombre') or render_data.get('nombre_pasajero')
-                    render_data['num_adultos'] = v_live.get('num_pasajeros', 1)
-                    render_data['fecha_inicio'] = v_live.get('fecha_inicio')
-                    render_data['fecha_fin'] = v_live.get('fecha_fin')
+        render_data = None
+        try:
+            if id_itin_dig:
+                res_render = controller.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin_dig).single().execute()
+                if res_render.data:
+                    render_data = res_render.data.get('datos_render')
+                    if isinstance(render_data, str):
+                        import json
+                        render_data = json.loads(render_data)
                     
-                    # Sincronizar servicios (precios y nombres de la DB)
-                    res_vt = controller.client.table('venta_tour').select('*, tour(nombre)').eq('id_venta', id_venta_act).order('fecha_servicio').execute()
-                    live_tours = res_vt.data or []
-                    
-                    itin_list = (render_data.get('itinerario_detalles') or 
-                                 render_data.get('days') or 
-                                 render_data.get('itinerario') or [])
-                    
-                    # Asegurar que itin_list es una lista mutable
-                    if isinstance(itin_list, list):
-                        for i, tour_live in enumerate(live_tours):
-                            if i < len(itin_list) and isinstance(itin_list[i], dict):
-                                # Sincronizar ÚNICAMENTE la fecha operativa para el reporte
-                                itin_list[i]['fecha'] = tour_live.get('fecha_servicio') or itin_list[i].get('fecha')
+                    # --- ENRIQUECER CON DATOS LIVE (CON SEGURIDAD) ---
+                    if isinstance(render_data, dict):
+                        # Usar or {} para evitar fallos si cliente es None
+                        cliente_live = v_live.get('cliente') or {}
+                        render_data['nombre_pasajero'] = cliente_live.get('nombre') or render_data.get('nombre_pasajero')
+                        render_data['num_adultos'] = v_live.get('num_pasajeros', 1)
+                        render_data['fecha_inicio'] = v_live.get('fecha_inicio')
+                        render_data['fecha_fin'] = v_live.get('fecha_fin')
                         
-                        render_data['itinerario_detalles'] = itin_list
-                
-                # Renderizar los botones de descarga (Solo si render_data es válido)
-                if render_data:
-                    render_itinerary_simple_download(render_data)
+                        # Carga tours en vivo para sincronizar fechas
+                        res_vt = controller.client.table('venta_tour').select('fecha_servicio').eq('id_venta', id_venta_act).order('n_linea').execute()
+                        live_tours = res_vt.data or []
+                        
+                        itin_list = (render_data.get('itinerario_detalles') or 
+                                     render_data.get('days') or 
+                                     render_data.get('itinerario') or [])
+                        
+                        # Asegurar que itin_list es una lista mutable
+                        if isinstance(itin_list, list):
+                            for i, tour_live in enumerate(live_tours):
+                                if i < len(itin_list) and isinstance(itin_list[i], dict):
+                                    # Sincronizar ÚNICAMENTE la fecha operativa para el reporte
+                                    itin_list[i]['fecha'] = tour_live.get('fecha_servicio') or itin_list[i].get('fecha')
+                            
+                            render_data['itinerario_detalles'] = itin_list
+                    
+                    # Renderizar los botones de descarga (Solo si render_data es válido)
+                    if render_data:
+                        render_itinerary_simple_download(render_data)
         except Exception as e:
             st.warning(f"Nota: No se pudo cargar el resumen del itinerario PDF/Simple. ({e})")
         
