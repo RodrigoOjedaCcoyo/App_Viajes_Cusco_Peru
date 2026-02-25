@@ -428,13 +428,27 @@ def estructurador_liquidacion_pro(controller):
             
             # Solo cargar si ha cambiado la venta
             if st.session_state.get('last_loaded_id_venta_acc') != v_act['id_venta']:
+                from controllers.operaciones_controller import OperacionesController
+                op_ctrl = OperacionesController(controller.client)
+                
                 detalles = vc.obtener_detalles_itinerario_venta(v_act['id_venta'])
+                # Obtener liquidaciones reales para sumar los costos
+                liquidaciones = op_ctrl.get_liquidaciones_venta(v_act['id_venta'])
+                
+                # Mapear costos: n_linea -> Suma de costos de liquidación
+                mapa_costos_reales = {}
+                for liq in liquidaciones:
+                    nl = liq.get('n_linea')
+                    if nl is not None:
+                        mapa_costos_reales[nl] = mapa_costos_reales.get(nl, 0.0) + float(liq.get('costo_unitario') or 0.0)
+
                 if detalles:
                     st.session_state['simulador_contable_adv_data'] = [{
                         "FECHA": date.fromisoformat(d['fecha_servicio']),
                         "SERVICIO": d.get('observacion') or "Servicio",
                         "MONEDA": d.get('moneda_costo', 'USD'),
-                        "TOTAL": float(d.get('costo_applied') or 0.0),
+                        # Usar el costo real liquidado, si no hay, usar el applied (para no romper nada)
+                        "TOTAL": mapa_costos_reales.get(d['n_linea'], float(d.get('costo_applied') or 0.0)),
                         "id_venta": d['id_venta'],
                         "n_linea": d['n_linea']
                     } for d in detalles]
