@@ -212,29 +212,41 @@ class ExcelController:
         
         row_start = 3
         for r_idx, row in enumerate(datos_v, row_start):
+            # Detectar si es una cabecera de sección
+            tipo_seccion = row[0] in ["INFORMACIÓN GENERAL", "ESTADO FINANCIERO (RESUMEN)", "LIQUIDACIÓN DE COSTOS (OPERACIONES)"]
+            
+            if tipo_seccion:
+                # Caso especial: Cabecera fusionada
+                ws1.merge_cells(start_row=r_idx, start_column=1, end_row=r_idx, end_column=3)
+                cell_main = ws1.cell(row=r_idx, column=1, value=row[0])
+                
+                # Estilos para todo el bloque fusionado
+                for c_idx in range(1, 4):
+                    c_node = ws1.cell(row=r_idx, column=c_idx)
+                    c_node.border = thin_border
+                    c_node.fill = header_fill
+                    c_node.font = white_font
+                    c_node.alignment = center_al
+                continue # Saltar al siguiente registro
+            
+            # Caso Normal: Celdas individuales
             for c_idx, val in enumerate(row, 1):
+                # No intentar escribir a la columna 1 si está vacía en este bloque (ya procesada)
                 cell = ws1.cell(row=r_idx, column=c_idx, value=val)
                 cell.border = thin_border
                 
-                # Formato Headers Secciones
-                if val in ["INFORMACIÓN GENERAL", "ESTADO FINANCIERO (RESUMEN)", "LIQUIDACIÓN DE COSTOS (OPERACIONES)"]:
-                    ws1.merge_cells(start_row=r_idx, start_column=1, end_row=r_idx, end_column=3)
-                    cell.fill = header_fill
-                    cell.font = white_font
-                    cell.alignment = center_al
-                
-                # Formato Etiquetas (ColA)
-                elif c_idx == 1 and val != "":
+                # Formato Etiquetas (Col 1)
+                if c_idx == 1 and val != "":
                     cell.fill = subheader_fill
                     cell.font = bold_font
                 
-                # Formato Números (ColB)
+                # Formato Números (Col 2)
                 elif c_idx == 2 and isinstance(val, (int, float)):
                     cell.number_format = '#,##0.00'
                 
-                # Formato utilidades especiales
+                # Formato utilidades especiales (Verde suave)
                 if val == "UTILIDAD BRUTA ESTIMADA":
-                    cell.fill = PatternFill(start_color="DCFCE7", end_color="DCFCE7", fill_type="solid") # Verde suave
+                    cell.fill = PatternFill(start_color="DCFCE7", end_color="DCFCE7", fill_type="solid")
 
         ws1.column_dimensions['A'].width = 30
         ws1.column_dimensions['B'].width = 35
