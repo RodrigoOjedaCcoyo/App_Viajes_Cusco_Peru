@@ -367,9 +367,21 @@ class OperacionesController:
                 self.client.table('pasajero').insert(data_ins).execute()
                 resultados["exitos"] += 1
             except Exception as e:
-                resultados["errores"].append(f"Fila {idx+1}: {str(e)}")
-
+                resultados["errores"].append(f"Fila {idx+1}: {e}")
+        
         return resultados
+
+    def finalizar_liquidacion_venta(self, id_venta: int):
+        """
+        Marca la liquidación de la venta como FINALIZADA en la DB.
+        """
+        try:
+            res = self.client.table('venta').update({"estado_liquidacion": "FINALIZADO"}).eq('id_venta', id_venta).execute()
+            if res.data:
+                return True, "Liquidación enviada a Contabilidad correctamente."
+            return False, "No se pudo actualizar el estado de la venta."
+        except Exception as e:
+            return False, f"Error al finalizar liquidación: {e}"
 
     def borrar_pasajeros_venta(self, id_venta: str):
         """Borra todos los pasajeros de una venta."""

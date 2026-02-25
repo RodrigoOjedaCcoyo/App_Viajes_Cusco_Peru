@@ -1047,9 +1047,14 @@ def dashboard_simulador_costos(controller):
     # Botón de envío a contabilidad
     st.divider()
     if st.session_state.get('last_loaded_id_venta'):
+        id_actual = st.session_state['last_loaded_id_venta']
         if st.button("🚀 Enviar Reportes a Contabilidad", type="primary", use_container_width=True):
-            st.balloons()
-            st.success("Correcto: Documentos enviados satisfactoriamente (Simulado).")
+            exito, msg = controller.finalizar_liquidacion_venta(id_actual)
+            if exito:
+                st.balloons()
+                st.success(msg)
+            else:
+                st.error(msg)
 
 def render_directorio_proveedores(supabase_client):
     """Módulo para el registro y gestión de proveedores logísticos."""
