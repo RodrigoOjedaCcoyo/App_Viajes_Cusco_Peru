@@ -288,7 +288,7 @@ class OperacionesController:
                             "id_venta": id_venta,
                             "n_linea": nl,
                             "id_proveedor": id_prov,
-                            "tipo_servicio": tipo if tipo in ["GUIA", "TRANSPORTE", "ENDOSE"] else "ENDOSE",
+                            "tipo_servicio": tipo,
                             "costo_unitario": costo,
                             "moneda": moneda
                         }

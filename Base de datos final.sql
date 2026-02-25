@@ -10,6 +10,7 @@
   DROP TABLE IF EXISTS pasajero CASCADE;      -- Seguridad para versiones viejas
   DROP TABLE IF EXISTS requerimiento;
   DROP TABLE IF EXISTS pago CASCADE;
+  DROP TABLE IF EXISTS venta_item_ingreso CASCADE;
   DROP TABLE IF EXISTS venta_tour CASCADE;
   DROP TABLE IF EXISTS venta CASCADE;
   DROP TABLE IF EXISTS itinerario_digital CASCADE;
@@ -276,10 +277,7 @@
       id_venta INTEGER,
       n_linea INTEGER,
       id_proveedor INTEGER REFERENCES proveedor(id_proveedor) ON DELETE RESTRICT,
-      tipo_servicio VARCHAR(50) CHECK (tipo_servicio IN (
-          'TRANSPORTE', 'ALOJAMIENTO', 'ALIMENTACION', 
-          'GUIA', 'TICKETS', 'ENDOSE' 
-      )),
+      tipo_servicio VARCHAR(50), 
       costo_unitario DECIMAL(10,2) NOT NULL,
       moneda VARCHAR(10) DEFAULT 'USD',
 
@@ -356,8 +354,8 @@
     8, 1, 44.00, 115.00,
     'FULL DAY', 'MODERADO',
     '{"itinerario": "Después del desayuno, iniciamos la ruta por el ***Valle Sagrado de los Incas*** visitando ***Chinchero***, donde conoceremos un antiguo ***palacio inca***, su ***iglesia colonial*** y un tradicional ***centro textil***. Continuamos hacia ***Moray***, famoso por sus ***terrazas circulares agrícolas***, y luego descendemos a las impresionantes ***Salineras de Maras***, con miles de pozos de sal aún en funcionamiento.\n\nEl recorrido prosigue hacia el valle de ***Urubamba*** para disfrutar de un ***almuerzo buffet***. Posteriormente visitamos ***Ollantaytambo***, conocida como la ***última ciudad inca viviente***, y nos dirigimos a la estación para abordar el ***tren turístico*** rumbo a ***Aguas Calientes*** y nos trasladamos al ***hotel*** para pasar la noche."}'::jsonb,
-    '{"incluye": ["Pisac", "Mercado de Pisac", "Ollantaytambo", "Chinchero"]}'::jsonb,
-    '{"no_incluye": ["Gastos Extras", "Hospedaje", "Aliemntación"]}'::jsonb,
+    '{"incluye": ["Recojo de Hotel", "Almuerzo Buffet", "Transporte Turistico", "Boleto Turistico", "Ingreso a Salineras", "Ticket de Tren Turistico", "Guia Profesional"]}'::jsonb,
+    '{"no_incluye": ["Gastos Extras", "Hospedaje", "Aliementación"]}'::jsonb,
     'valle_sagrado_vip', '06:30:00', TRUE
   ),
   (
@@ -774,6 +772,19 @@
   END $$;
 
   -- ==============================================================
+  -- SECCIÓN 2.2: PROVEEDORES POR DEFECTO
+  -- ==============================================================
+  INSERT INTO proveedor (nombre_comercial, servicios_ofrecidos, contacto_telefono, pais)
+  VALUES 
+  ('OPERACION PROPIA', ARRAY['GUIA', 'TRANSPORTE', 'ALIMENTACION', 'ALOJAMIENTO', 'TICKETS', 'ENDOSE'], '---', 'Perú'),
+  ('PERURAIL', ARRAY['TICKETS', 'TRANSPORTE'], '---', 'Perú'),
+  ('INCARAIL', ARRAY['TICKETS', 'TRANSPORTE'], '---', 'Perú'),
+  ('ENTRADAS MACHU PICCHU', ARRAY['TICKETS'], '---', 'Perú'),
+  ('CONSETTUR', ARRAY['TICKETS', 'TRANSPORTE'], '---', 'Perú'),
+  ('HOTEL PRUEBA 3 ESTRELLAS', ARRAY['ALOJAMIENTO'], '---', 'Perú'),
+  ('HOTEL PRUEBA 4 ESTRELLAS', ARRAY['ALOJAMIENTO'], '---', 'Perú');
+
+  -- ==============================================================
   -- SECCIÓN 3: FUNCIONES Y TRIGGERS (AUTOMATIZACIÓN)
   -- ==============================================================
 
@@ -871,8 +882,18 @@
       END LOOP;
   END $$;
 
-  -- Permisos storage: NO REQUERIDOS ya que no se gestionan archivos físicos.
-  
+  -- Permisos storage (Ejecutar en panel SQL)
+  -- Requiere buckets 'itinerarios' y 'vouchers' creados como Públicos
+  DROP POLICY IF EXISTS "Acceso Público Itinerarios" ON storage.objects;
+  DROP POLICY IF EXISTS "Subida Libre Itinerarios" ON storage.objects;
+  DROP POLICY IF EXISTS "Acceso Público Vouchers" ON storage.objects;
+  DROP POLICY IF EXISTS "Subida Libre Vouchers" ON storage.objects;
+
+  CREATE POLICY "Acceso Público Itinerarios" ON storage.objects FOR SELECT USING (bucket_id = 'itinerarios');
+  CREATE POLICY "Subida Libre Itinerarios" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'itinerarios');
+  CREATE POLICY "Acceso Público Vouchers" ON storage.objects FOR SELECT USING (bucket_id = 'vouchers');
+  CREATE POLICY "Subida Libre Vouchers" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'vouchers');
+
   -- ==============================================================
   -- ✅ FIN DEL SCRIPT: INSTALACIÓN EXITOSA
   -- ==============================================================
