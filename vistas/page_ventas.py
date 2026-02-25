@@ -129,18 +129,33 @@ def registro_ventas_directa():
 
     st.subheader("💰 Registro de Venta Confirmada")
     
-    # 1. Buscador/Selector de Lead para auto-completar
+    # 1. Buscador Inteligente de Lead
+    search_query = st.text_input("🔍 Buscar Pasajero (Nombre o Celular)", placeholder="Escriba para filtrar...").strip().lower()
+    
     leads = lead_controller.obtener_todos_leads()
     lead_opt = ["--- Selecciona un Lead (Obligatorio) ---"]
     lead_map = {}
     
     if leads:
-        for l in leads:
+        # Filtrar leads si hay búsqueda
+        if search_query:
+            filtered_leads = [
+                l for l in leads 
+                if search_query in str(l.get('nombre_pasajero', '')).lower() or 
+                   search_query in str(l.get('numero_celular', '')).lower()
+            ]
+            st.caption(f"✨ Se encontraron {len(filtered_leads)} coincidencias.")
+        else:
+            # Si no hay búsqueda, mostrar solo los 20 más recientes para velocidad
+            filtered_leads = leads[:20]
+            st.caption("💡 Mostrando los 20 más recientes. Use el buscador para ver otros.")
+
+        for l in filtered_leads:
             lbl = f"{l['numero_celular']} - {l.get('nombre_pasajero') or 'Sin Nombre'}"
             lead_opt.append(lbl)
             lead_map[lbl] = l
 
-    lead_sel = st.selectbox("🎯 Vincular con un Lead existente", lead_opt)
+    lead_sel = st.selectbox("🎯 Vincular con un Lead existente", lead_opt, help="Busque por nombre o celular arriba")
     lead_data = lead_map.get(lead_sel)
 
     # --- 🕵️ SELECTOR DE ITINERARIO (Buscador por Contacto) ---
@@ -170,15 +185,7 @@ def registro_ventas_directa():
                 try: import json; render_data = json.loads(render_data)
                 except: render_data = {}
 
-            # --- FILTRO B2C: En Ventas Directas solo mostramos diseños B2C ---
-            tipo_v = render_data.get('metadata', {}).get('tipo_venta', 'B2C')
-            if tipo_v == 'B2B':
-                continue
-            
-            # --- FILTRO ESTRATEGIA: Solo mostrar los que dicen 'General' ---
-            estrategia = it.get('lead', {}).get('estrategia_venta', 'General')
-            if estrategia != 'General':
-                continue
+            # --- FILTRO B2C/ESTRATEGIA ELIMINADO PARA MÁXIMA VISIBILIDAD ---
 
             # Soportar ambas estructuras
             titulo = render_data.get('titulo', '')
