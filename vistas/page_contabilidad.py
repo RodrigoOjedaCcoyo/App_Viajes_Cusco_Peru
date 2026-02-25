@@ -208,7 +208,7 @@ def auditoria_de_pagos():
                                             itin_list[i]['fecha'] = t_live.get('fecha_servicio') or itin_list[i].get('fecha')
                                     render_data['itinerario_detalles'] = itin_list
 
-                        render_itinerary_simple_download(render_data)
+                        # render_itinerary_simple_download(render_data) el boton maestro abajo es suficiente
                         
                         # NUEVO: Botón Maestro
                         st.markdown("---")
@@ -418,7 +418,9 @@ def estructurador_liquidacion_pro(controller):
                                             itin_list[i]['fecha'] = t_live.get('fecha_servicio') or itin_list[i].get('fecha')
                                     render_data['itinerario_detalles'] = itin_list
 
-                        render_itinerary_simple_download(render_data)
+                        # render_itinerary_simple_download(render_data)
+                        st.markdown("---")
+                        render_operational_master_download(controller, v_act['id_venta'])
             else:
                 st.caption("Esta venta no tiene un itinerario digital vinculado.")
 

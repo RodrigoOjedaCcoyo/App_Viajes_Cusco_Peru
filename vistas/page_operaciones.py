@@ -895,7 +895,7 @@ def dashboard_simulador_costos(controller):
                     
                     # Renderizar los botones de descarga (Solo si render_data es válido)
                     if render_data:
-                        render_itinerary_simple_download(render_data)
+                        pass # El Informe Maestro (abajo) es suficiente
         except Exception as e:
             st.warning(f"Nota: No se pudo cargar el resumen del itinerario PDF/Simple. ({e})")
         
