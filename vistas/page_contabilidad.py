@@ -53,6 +53,8 @@ def render_operational_master_download(controller, id_venta):
     """Renderiza el GRAN BOTÓN ROJO para el reporte maestro (Excel)."""
     from controllers.excel_controller import ExcelController
     from controllers.operaciones_controller import OperacionesController
+    from controllers.venta_controller import VentaController
+    from datetime import date
     
     xl_ctrl = ExcelController()
     op_ctrl = OperacionesController(controller.client)
@@ -61,7 +63,51 @@ def render_operational_master_download(controller, id_venta):
     if st.button("📊 Generar Informe Maestro (Operaciones + Contabilidad)", type="primary", use_container_width=True):
         with st.spinner("Compilando Reporte Maestro..."):
             try:
-                data_maestra = op_ctrl.obtener_data_hoja_servicio_maestra(id_venta)
+                # fallback: Obtener toda la data necesaria aquí mismo
+                res_v = controller.client.table('venta').select('*, cliente(nombre, lead(numero_celular))').eq('id_venta', id_venta).single().execute()
+                if not res_v.data:
+                    st.error("No se pudo recuperar la información de la venta.")
+                    return
+                    
+                v_raw = res_v.data
+                cliente_nest = v_raw.get('cliente', {})
+                lead_nest = cliente_nest.get('lead', {}) if isinstance(cliente_nest, dict) else {}
+                
+                v_data = {
+                    "id_venta": v_raw['id_venta'],
+                    "nombre_cliente": cliente_nest.get('nombre', 'Desconocido') if isinstance(cliente_nest, dict) else 'Desconocido',
+                    "telefono": lead_nest.get('numero_celular', '---') if isinstance(lead_nest, dict) else '---',
+                    "tour_nombre": v_raw.get('tour_nombre', 'Sin Tour'),
+                    "fecha_inicio": v_raw.get('fecha_inicio'),
+                    "fecha_fin": v_raw.get('fecha_fin'),
+                    "num_pasajeros": v_raw.get('num_pasajeros', 1),
+                    "vendedor": "---", 
+                    "moneda": v_raw.get('moneda', 'USD'),
+                    "monto_total": v_raw.get('precio_total_cierre', 0),
+                    "monto_pagado": 0 
+                }
+
+                # 2. Calcular Pagos
+                res_p = controller.client.table('pago').select('monto_pagado').eq('id_venta', id_venta).execute()
+                v_data['monto_pagado'] = sum(float(p['monto_pagado'] or 0) for p in res_p.data)
+
+                # 3. Obtener Itinerario Logístico (Usando métodos estables del controller)
+                itinerario = op_ctrl.get_servicios_rango_fechas(date(2000,1,1), date(2100,1,1))
+                it_venta = [s for s in itinerario if s['ID Venta'] == id_venta]
+
+                # 4. Obtener Pasajeros
+                pasajeros = op_ctrl.pasajero_model.get_by_venta_id(id_venta)
+
+                # 5. Obtener Liquidación Detallada (Costos)
+                liquidaciones = op_ctrl.get_liquidaciones_venta(id_venta)
+
+                data_maestra = {
+                    "venta": v_data,
+                    "itinerario": it_venta,
+                    "pasajeros": pasajeros,
+                    "liquidaciones": liquidaciones
+                }
+
                 xlsx_maestro = xl_ctrl.generar_hoja_servicio_maestra_xlsx(data_maestra)
                 
                 if xlsx_maestro:
