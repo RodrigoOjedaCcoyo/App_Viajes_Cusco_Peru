@@ -913,7 +913,7 @@ def dashboard_simulador_costos(controller):
 
     # NUEVO: Botón de Plantilla
     import io
-    template_df = pd.DataFrame(columns=["Dia", "Tipo_Servicio", "Proveedor", "Moneda", "Costo Unitario"])
+    template_df = pd.DataFrame(columns=["Dia", "Tipo_Servicio", "Proveedor", "Moneda", "Costo Total"])
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
         template_df.to_excel(writer, index=False, sheet_name='Plantilla')
@@ -944,7 +944,7 @@ def dashboard_simulador_costos(controller):
                 st.dataframe(df_preview, use_container_width=True, hide_index=True)
                 
                 # Validar columnas
-                cols_req = ["Dia", "Tipo_Servicio", "Proveedor", "Moneda", "Costo Unitario"]
+                cols_req = ["Dia", "Tipo_Servicio", "Proveedor", "Moneda", "Costo Total"]
                 if all(c in df_preview.columns for c in cols_req):
                     if st.button("📦 Procesar y Guardar Endoses en DB", type="primary", use_container_width=True):
                         # Llamar al controlador (estamos en dashboard_simulador_costos(controller))
@@ -1034,7 +1034,7 @@ def dashboard_simulador_costos(controller):
                     column_config={
                         "DIA": st.column_config.NumberColumn("Día", format="%d", width="small"),
                         "tipo_servicio": "Tipo",
-                        "COSTO": st.column_config.NumberColumn("Costo", format="%.2f"),
+                        "COSTO": st.column_config.NumberColumn("Costo Total", format="%.2f"),
                         "moneda": "Moneda"
                     },
                     hide_index=True,

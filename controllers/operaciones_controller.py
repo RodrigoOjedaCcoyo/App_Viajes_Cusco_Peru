@@ -243,7 +243,7 @@ class OperacionesController:
     def vincular_endoses_masivos(self, id_venta: str, df_liq: pd.DataFrame):
         """
         Vincula masivamente costos y proveedores a una venta basándose en el 'Dia'.
-        df_liq debe tener: ['Dia', 'Tipo_Servicio', 'Proveedor', 'Moneda', 'Costo Unitario']
+        df_liq debe tener: ['Dia', 'Tipo_Servicio', 'Proveedor', 'Moneda', 'Costo Total']
         """
         resultados = {"exitos": 0, "errores": []}
         
@@ -268,7 +268,7 @@ class OperacionesController:
             try:
                 dia_excel = int(row.get('Dia', 0))
                 prov_nombre = str(row.get('Proveedor', '')).strip().upper()
-                costo = float(row.get('Costo Unitario', 0))
+                costo = float(row.get('Costo Total', 0))
                 tipo = str(row.get('Tipo_Servicio', 'ENDOSE')).strip().upper()
                 moneda = str(row.get('Moneda', 'USD')).strip().upper()
 
