@@ -100,12 +100,11 @@ def render_itinerary_simple_download(render):
     with st.container(border=True):
         st.markdown(f"#### 📄 Resumen de Viaje: {render.get('titulo', 'Sin Título')}")
         st.info("Este documento es una versión simplificada (Ink Saver) ideal para imprimir y para el personal operativo.")
-        
         c1, c2 = st.columns(2)
         
         with c1:
             # Generar el PDF en memoria
-            pdf_buffer = pdf_ctrl.generar_itinerario_simple_pdf(render)
+            pdf_buffer = pdf_ctrl.generar_itinerario_simple_pdf(render, "Operaciones")
             if pdf_buffer:
                 st.download_button(
                     label="📥 Bajar Resumen (PDF Simple)",

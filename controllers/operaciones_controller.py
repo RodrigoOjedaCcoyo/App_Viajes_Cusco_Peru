@@ -270,7 +270,6 @@ class OperacionesController:
                 prov_nombre = str(row.get('Proveedor', '')).strip().upper()
                 costo_unit = float(row.get('Costo Unitario', 0))
                 pax = float(row.get('Pax', 1)) # Default 1 if missing for safety
-                costo_final_a_guardar = costo_unit * pax # EL CÁLCULO MÁGICO
                 tipo = str(row.get('Tipo_Servicio', 'ENDOSE')).strip().upper()
                 moneda = str(row.get('Moneda', 'USD')).strip().upper()
 
@@ -286,17 +285,24 @@ class OperacionesController:
 
                 for nl in n_lineas:
                     try:
+                        # NUEVO: Lógica de Sobrescritura Limpia
+                        # Antes de insertar, borramos lo que había en esa línea (para ese día) 
+                        # así aseguramos que si cambian el Texto o Proveedor, no se dupliquen por el UNIQUE constraint.
+                        self.client.table('venta_servicio_proveedor').delete().eq('id_venta', id_venta).eq('n_linea', nl).execute()
+
                         data_ins = {
                             "id_venta": id_venta,
                             "n_linea": nl,
                             "id_proveedor": id_prov,
                             "tipo_servicio": tipo,
-                            "costo_unitario": costo_final_a_guardar, # Se guarda el total para no romper la app
-                            "moneda": moneda
+                            "costo_unitario": costo_unit, # Ahora guarda el valor PURO, la matemática la hace PostgreSQL
+                            "moneda": moneda,
+                            "cantidad_pax": pax # Guarda el valor PURO
                         }
                         self.client.table('venta_servicio_proveedor').upsert(data_ins).execute()
                         
-                        update_data = {"costo_unitario": costo_final_a_guardar}
+                        # Actualiza referencialmente venta_tour
+                        update_data = {"costo_unitario": (costo_unit * pax)}
                         if tipo == "ENDOSE":
                             update_data["es_endoso"] = True
                         

@@ -21,7 +21,7 @@
   DROP TABLE IF EXISTS tour CASCADE;
   DROP TABLE IF EXISTS plantilla_servicio CASCADE;
   DROP TABLE IF EXISTS proveedor CASCADE; -- AGREGADO AQUÍ
-  DROP TABLE IF EXISTS agencia_aliada CASCADE;
+  DROP TABLE IF EXISTS agencia_aliada CASCeADE;
   DROP TABLE IF EXISTS cliente CASCADE;
   DROP TABLE IF EXISTS lead CASCADE;
   DROP TABLE IF EXISTS vendedor CASCADE;
@@ -280,6 +280,7 @@
       tipo_servicio VARCHAR(50), 
       costo_unitario DECIMAL(10,2) NOT NULL,
       moneda VARCHAR(10) DEFAULT 'USD',
+      cantidad_pax INTEGER DEFAULT 1,
 
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (id_venta, n_linea) REFERENCES venta_tour(id_venta, n_linea) ON DELETE CASCADE,
@@ -780,9 +781,7 @@
   ('PERURAIL', ARRAY['TICKETS', 'TRANSPORTE'], '---', 'Perú'),
   ('INCARAIL', ARRAY['TICKETS', 'TRANSPORTE'], '---', 'Perú'),
   ('ENTRADAS MACHU PICCHU', ARRAY['TICKETS'], '---', 'Perú'),
-  ('CONSETTUR', ARRAY['TICKETS', 'TRANSPORTE'], '---', 'Perú'),
-  ('HOTEL PRUEBA 3 ESTRELLAS', ARRAY['ALOJAMIENTO'], '---', 'Perú'),
-  ('HOTEL PRUEBA 4 ESTRELLAS', ARRAY['ALOJAMIENTO'], '---', 'Perú');
+  ('CONSETTUR', ARRAY['TICKETS', 'TRANSPORTE'], '---', 'Perú');
 
   -- ==============================================================
   -- SECCIÓN 3: FUNCIONES Y TRIGGERS (AUTOMATIZACIÓN)
@@ -804,7 +803,7 @@
   CREATE OR REPLACE FUNCTION sync_costo_venta_total()
   RETURNS TRIGGER AS $$
   BEGIN
-      UPDATE venta SET costo_total = (SELECT COALESCE(SUM(costo_unitario), 0) FROM venta_servicio_proveedor WHERE id_venta = COALESCE(NEW.id_venta, OLD.id_venta))
+      UPDATE venta SET costo_total = (SELECT COALESCE(SUM(costo_unitario * cantidad_pax), 0) FROM venta_servicio_proveedor WHERE id_venta = COALESCE(NEW.id_venta, OLD.id_venta))
       WHERE id_venta = COALESCE(NEW.id_venta, OLD.id_venta);
       RETURN NULL;
   END;
