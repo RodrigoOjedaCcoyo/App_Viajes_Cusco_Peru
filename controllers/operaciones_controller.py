@@ -243,7 +243,7 @@ class OperacionesController:
     def vincular_endoses_masivos(self, id_venta: str, df_liq: pd.DataFrame):
         """
         Vincula masivamente costos y proveedores a una venta basándose en el 'Dia'.
-        df_liq debe tener: ['Dia', 'Tipo_Servicio', 'Proveedor', 'Moneda', 'Costo Total']
+        df_liq debe tener: ['Dia', 'Tipo_Servicio', 'Proveedor', 'Moneda', 'Costo Unitario', 'Pax']
         """
         resultados = {"exitos": 0, "errores": []}
         
@@ -268,7 +268,9 @@ class OperacionesController:
             try:
                 dia_excel = int(row.get('Dia', 0))
                 prov_nombre = str(row.get('Proveedor', '')).strip().upper()
-                costo = float(row.get('Costo Total', 0))
+                costo_unit = float(row.get('Costo Unitario', 0))
+                pax = float(row.get('Pax', 1)) # Default 1 if missing for safety
+                costo_final_a_guardar = costo_unit * pax # EL CÁLCULO MÁGICO
                 tipo = str(row.get('Tipo_Servicio', 'ENDOSE')).strip().upper()
                 moneda = str(row.get('Moneda', 'USD')).strip().upper()
 
@@ -289,12 +291,12 @@ class OperacionesController:
                             "n_linea": nl,
                             "id_proveedor": id_prov,
                             "tipo_servicio": tipo,
-                            "costo_unitario": costo,
+                            "costo_unitario": costo_final_a_guardar, # Se guarda el total para no romper la app
                             "moneda": moneda
                         }
                         self.client.table('venta_servicio_proveedor').upsert(data_ins).execute()
                         
-                        update_data = {"costo_unitario": costo}
+                        update_data = {"costo_unitario": costo_final_a_guardar}
                         if tipo == "ENDOSE":
                             update_data["es_endoso"] = True
                         

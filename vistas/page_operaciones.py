@@ -913,7 +913,7 @@ def dashboard_simulador_costos(controller):
 
     # NUEVO: Botón de Plantilla
     import io
-    template_df = pd.DataFrame(columns=["Dia", "Tipo_Servicio", "Proveedor", "Moneda", "Costo Total"])
+    template_df = pd.DataFrame(columns=["Dia", "Tipo_Servicio", "Proveedor", "Moneda", "Costo Unitario", "Pax"])
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
         template_df.to_excel(writer, index=False, sheet_name='Plantilla')
@@ -944,7 +944,7 @@ def dashboard_simulador_costos(controller):
                 st.dataframe(df_preview, use_container_width=True, hide_index=True)
                 
                 # Validar columnas
-                cols_req = ["Dia", "Tipo_Servicio", "Proveedor", "Moneda", "Costo Total"]
+                cols_req = ["Dia", "Tipo_Servicio", "Proveedor", "Moneda", "Costo Unitario", "Pax"]
                 if all(c in df_preview.columns for c in cols_req):
                     if st.button("📦 Procesar y Guardar Endoses en DB", type="primary", use_container_width=True):
                         # Llamar al controlador (estamos en dashboard_simulador_costos(controller))
@@ -1027,14 +1027,23 @@ def dashboard_simulador_costos(controller):
                     l['PROVEEDOR'] = l.get('proveedor', {}).get('nombre_comercial') if l.get('proveedor') else "---"
                     l['COSTO'] = l.get('costo_unitario', 0)
                 
-                df_resumen = pd.DataFrame(liq_data)
+                # Adaptar los datos para mostrar el cálculo visualmente en la tabla
+                display_data = []
+                for l in liq_data:
+                    c_unit = float(l.get('costo_unitario', 0))
+                    pax = float(l.get('cantidad_items', 1)) # Asumimos 1 por defecto (fallback visual)
+                    # Nota: la data real viene de la DB, que actualmente solo tiene 'costo_unitario' y pronto tendrá la DB unida.
+                    # Para la tabla de resumen visual (post-carga), mostramos el costo registrado en DB que YA es el Total.
+                    display_data.append(l)
+
+                df_resumen = pd.DataFrame(display_data)
                 cols_show = ['DIA', 'SERVICIO', 'tipo_servicio', 'PROVEEDOR', 'COSTO', 'moneda']
                 st.dataframe(
                     df_resumen[cols_show],
                     column_config={
                         "DIA": st.column_config.NumberColumn("Día", format="%d", width="small"),
                         "tipo_servicio": "Tipo",
-                        "COSTO": st.column_config.NumberColumn("Costo Total", format="%.2f"),
+                        "COSTO": st.column_config.NumberColumn("Total Pagado", format="%.2f"),
                         "moneda": "Moneda"
                     },
                     hide_index=True,
