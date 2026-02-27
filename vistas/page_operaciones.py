@@ -1009,28 +1009,49 @@ def dashboard_simulador_costos(controller):
     c_res1, c_res2 = st.columns(2)
     
     with c_res1:
-        st.markdown("### 📋 Resumen de Endoses y Guías")
+        st.markdown("### 📋 Resumen de Liquidaciones (Costos)")
         try:
-            data_db = controller.get_servicios_rango_fechas(date(2000, 1, 1), date(2100, 1, 1))
             id_actual = st.session_state.get('last_loaded_id_venta')
-            data_actual = [d for d in data_db if d['ID Venta'] == id_actual]
+            # 1. Obtener Itinerario base (Días)
+            servicios_v = vc.obtener_detalles_itinerario_venta(id_actual)
+            mapa_nombres_serv = {s['n_linea']: s['observacion'] for s in servicios_v}
             
-            if data_actual:
-                df_resumen = pd.DataFrame(data_actual)
-                cols_show = ['Día Itin.', 'Servicio', 'Proveedor', 'Endoso?', 'Pax']
-                st.table(df_resumen[cols_show])
+            # 2. Obtener Liquidaciones Reales (Lo que se subió por Excel)
+            liq_data = controller.get_liquidaciones_venta(id_actual)
+            
+            if liq_data:
+                # Enriquecer con nombre de servicio del itinerario
+                for l in liq_data:
+                    l['DIA'] = l.get('n_linea')
+                    l['SERVICIO'] = mapa_nombres_serv.get(l.get('n_linea'), "---")
+                    l['PROVEEDOR'] = l.get('proveedor', {}).get('nombre_comercial') if l.get('proveedor') else "---"
+                    l['COSTO'] = l.get('costo_unitario', 0)
+                
+                df_resumen = pd.DataFrame(liq_data)
+                cols_show = ['DIA', 'SERVICIO', 'tipo_servicio', 'PROVEEDOR', 'COSTO', 'moneda']
+                st.dataframe(
+                    df_resumen[cols_show],
+                    column_config={
+                        "DIA": st.column_config.NumberColumn("Día", format="%d", width="small"),
+                        "tipo_servicio": "Tipo",
+                        "COSTO": st.column_config.NumberColumn("Costo", format="%.2f"),
+                        "moneda": "Moneda"
+                    },
+                    hide_index=True,
+                    use_container_width=True
+                )
                 
                 with st.expander("🚨 Zona de Peligro: Limpieza de Endoses"):
                     st.warning("Se borrarán todos los costos y proveedores asignados.")
-                    confirm_reset = st.checkbox("Confirmar borrado de endoses", key="reset_end_confirm")
-                    if st.button("🗑️ Borrar Endoses", type="primary", disabled=not confirm_reset, use_container_width=True):
+                    confirm_reset = st.checkbox("Confirmar borrado de todos los costos (Liquidación)", key="reset_end_confirm")
+                    if st.button("🗑️ Resetear Liquidación", type="primary", disabled=not confirm_reset, use_container_width=True):
                         exito_r, msg_r = controller.borrar_endoses_venta(id_actual)
                         if exito_r: st.success(msg_r); st.rerun()
                         else: st.error(msg_r)
             else:
-                st.info("Sin endoses registrados.")
+                st.info("Aún no has cargado la liquidación (Excel) para esta venta.")
         except Exception as e:
-            st.error(f"Error cargando endoses: {e}")
+            st.error(f"Error cargando liquidaciones: {e}")
 
     with c_res2:
         st.markdown("### 👥 Resumen de Pasajeros (Rooming)")
