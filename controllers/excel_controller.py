@@ -277,7 +277,7 @@ class ExcelController:
 
         # --- HOJA 3: DETALLE DE PAGOS (LIQUIDACIÓN) ---
         ws3 = wb.create_sheet("3_LIQUIDACION_DETALLADA")
-        headers_l = ["ID", "Proveedor Real", "Tipo Servicio", "Moneda", "Costo Unitario", "Pax", "Total Línea"]
+        headers_l = ["Día", "Proveedor Real", "Tipo Servicio", "Moneda", "Costo Unitario", "Pax", "Total Línea"]
         for c_idx, h in enumerate(headers_l, 1):
             cell = ws3.cell(row=1, column=c_idx, value=h)
             cell.fill = PatternFill(start_color="334155", end_color="334155", fill_type="solid") # Slate
@@ -285,7 +285,7 @@ class ExcelController:
             cell.alignment = center_al
 
         for r_idx, l in enumerate(liq, 2):
-            ws3.cell(row=r_idx, column=1, value=l.get('id_proveedor'))
+            ws3.cell(row=r_idx, column=1, value=l.get('n_linea'))
             prov_name = l.get('proveedor', {}).get('nombre_comercial', '---') if isinstance(l.get('proveedor'), dict) else '---'
             ws3.cell(row=r_idx, column=2, value=prov_name).font = bold_font
             ws3.cell(row=r_idx, column=3, value=l.get('tipo_servicio'))
