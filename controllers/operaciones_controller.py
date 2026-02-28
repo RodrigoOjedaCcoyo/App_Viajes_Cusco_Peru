@@ -279,38 +279,38 @@ class OperacionesController:
                     resultados["errores"].append(f"Fila {idx+1}: Proveedor '{prov_nombre}' no encontrado.")
                     continue
 
-                n_lineas = mapa_servicios.get(dia_excel)
-                if not n_lineas:
-                    resultados["errores"].append(f"Fila {idx+1}: No se encontró el Día {dia_excel} en esta venta.")
+                n_lineas_disponibles = mapa_servicios.get(dia_excel)
+                if not n_lineas_disponibles:
+                    resultados["errores"].append(f"Fila {idx+1}: No hay más servicios disponibles para el Día {dia_excel}.")
                     continue
+                
+                # Consumir exactamente UNA línea (n_linea) para esta fila del Excel
+                nl = n_lineas_disponibles.pop(0)
 
-                for nl in n_lineas:
-                    try:
-                        # NUEVO: Lógica de Sobrescritura Limpia
-                        # Antes de insertar, borramos lo que había en esa línea (para ese día) 
-                        # así aseguramos que si cambian el Texto o Proveedor, no se dupliquen por el UNIQUE constraint.
-                        self.client.table('venta_servicio_proveedor').delete().eq('id_venta', id_venta).eq('n_linea', nl).execute()
+                try:
+                    # Lógica de Sobrescritura Limpia (Sólo para ESTA línea exacta)
+                    self.client.table('venta_servicio_proveedor').delete().eq('id_venta', id_venta).eq('n_linea', nl).execute()
 
-                        data_ins = {
-                            "id_venta": id_venta,
-                            "n_linea": nl,
-                            "id_proveedor": id_prov,
-                            "tipo_servicio": tipo,
-                            "costo_unitario": costo_unit, # Ahora guarda el valor PURO, la matemática la hace PostgreSQL
-                            "moneda": moneda,
-                            "cantidad_pax": pax # Guarda el valor Int PURO
-                        }
-                        self.client.table('venta_servicio_proveedor').upsert(data_ins).execute()
-                        
-                        # Actualiza referencialmente venta_tour
-                        update_data = {"costo_unitario": (costo_unit * float(pax))}
-                        if tipo == "ENDOSE":
-                            update_data["es_endoso"] = True
-                        
-                        self.client.table('venta_tour').update(update_data).eq('id_venta', id_venta).eq('n_linea', nl).execute()
-                        resultados["exitos"] += 1
-                    except Exception as e:
-                        resultados["errores"].append(f"Fila {idx+1}: Error DB: {str(e)}")
+                    data_ins = {
+                        "id_venta": id_venta,
+                        "n_linea": nl,
+                        "id_proveedor": id_prov,
+                        "tipo_servicio": tipo,
+                        "costo_unitario": costo_unit,
+                        "moneda": moneda,
+                        "cantidad_pax": pax
+                    }
+                    self.client.table('venta_servicio_proveedor').upsert(data_ins).execute()
+                    
+                    # Actualiza referencialmente venta_tour
+                    update_data = {"costo_unitario": (costo_unit * float(pax))}
+                    if tipo == "ENDOSE":
+                        update_data["es_endoso"] = True
+                    
+                    self.client.table('venta_tour').update(update_data).eq('id_venta', id_venta).eq('n_linea', nl).execute()
+                    resultados["exitos"] += 1
+                except Exception as e:
+                    resultados["errores"].append(f"Fila {idx+1}: Error DB al guardar Día {dia_excel}, Línea {nl}: {str(e)}")
             except Exception as e:
                 resultados["errores"].append(f"Fila {idx+1}: Error formato: {str(e)}")
 
