@@ -264,6 +264,27 @@ class OperacionesController:
         except Exception as e:
             return {"exitos": 0, "errores": [f"Error al obtener servicios de la venta: {str(e)}"]}
 
+        # PASO 1.5: Sobrescritura Limpia Inteligente (Bulk Delete)
+        # Identificamos qué días vienen en el Excel y borramos SOLO los servicios anteriores de esos días
+        # para que el Excel actúe como la fuente de la verdad absoluta para esos días específicos.
+        try:
+            dias_en_excel = df_liq['Dia'].dropna().astype(int).unique().tolist()
+            lineas_a_borrar = []
+            for d in dias_en_excel:
+                if d in mapa_servicios:
+                    # Agregamos todas las n_linea asociadas a este día
+                    lineas_a_borrar.extend(mapa_servicios[d])
+            
+            if lineas_a_borrar:
+                self.client.table('venta_servicio_proveedor') \
+                    .delete() \
+                    .eq('id_venta', id_venta) \
+                    .in_('n_linea', lineas_a_borrar) \
+                    .execute()
+        except Exception as e:
+            print(f"Alerta: Fallo en Bulk Delete previo: {e}")
+
+        # PASO 2: Inserción de Nuevos Servicios
         for idx, row in df_liq.iterrows():
             try:
                 dia_excel = int(row.get('Dia', 0))
@@ -281,16 +302,14 @@ class OperacionesController:
 
                 n_lineas_disponibles = mapa_servicios.get(dia_excel)
                 if not n_lineas_disponibles:
-                    resultados["errores"].append(f"Fila {idx+1}: No hay más servicios disponibles para el Día {dia_excel}.")
+                    resultados["errores"].append(f"Fila {idx+1}: No se encontró el Día {dia_excel} en esta venta.")
                     continue
                 
-                # Consumir exactamente UNA línea (n_linea) para esta fila del Excel
-                nl = n_lineas_disponibles.pop(0)
+                # Consumir la PRIMERA línea (n_linea) asociada a este día como "Ancla"
+                # Múltiples servicios del mismo día compartirán esta misma n_linea (permitido por UNIQUE constraint)
+                nl = n_lineas_disponibles[0]
 
                 try:
-                    # Lógica de Sobrescritura Limpia (Sólo para ESTA línea exacta)
-                    self.client.table('venta_servicio_proveedor').delete().eq('id_venta', id_venta).eq('n_linea', nl).execute()
-
                     data_ins = {
                         "id_venta": id_venta,
                         "n_linea": nl,
@@ -302,7 +321,7 @@ class OperacionesController:
                     }
                     self.client.table('venta_servicio_proveedor').upsert(data_ins).execute()
                     
-                    # Actualiza referencialmente venta_tour
+                    # Actualiza referencialmente venta_tour (para sincronización heredada)
                     update_data = {"costo_unitario": (costo_unit * float(pax))}
                     if tipo == "ENDOSE":
                         update_data["es_endoso"] = True
