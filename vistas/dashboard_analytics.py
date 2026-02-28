@@ -122,17 +122,7 @@ def render_operations_dashboard(df_servicios):
     if 'fecha_servicio' in df_servicios.columns:
         df_servicios['fecha_servicio'] = pd.to_datetime(df_servicios['fecha_servicio'])
 
-    # KPIs Logísticos
-    k1, k2, k3 = st.columns(3)
-    pax_total = df_servicios['cantidad'].sum() if 'cantidad' in df_servicios.columns else len(df_servicios)
-    servicios_total = len(df_servicios)
-    
-    # Simulación de guías asignados (para la métrica)
-    asignados = 0 # En un futuro se contaría desde la tabla asignación
-    
-    k1.metric("Pax en Ruta (Proyectados)", pax_total, delta="Personas")
-    k2.metric("Servicios Totales", servicios_total, delta="Logística")
-    k3.metric("Complejidad de Operación", f"{max(1, servicios_total//2)} Niv.", delta="Estimado")
+    # KPIs Logísticos removidos a petición del usuario.
     
     # Gráficos de Operación
     st.markdown("**📉 Volumen de Pasajeros por Fecha**")

@@ -269,7 +269,8 @@ class OperacionesController:
                 dia_excel = int(row.get('Dia', 0))
                 prov_nombre = str(row.get('Proveedor', '')).strip().upper()
                 costo_unit = float(row.get('Costo Unitario', 0))
-                pax = float(row.get('Pax', 1)) # Default 1 if missing for safety
+                # Cast to float first to handle string decimals ("7.0"), then to int for Postgres
+                pax = int(float(row.get('Pax', 1))) 
                 tipo = str(row.get('Tipo_Servicio', 'ENDOSE')).strip().upper()
                 moneda = str(row.get('Moneda', 'USD')).strip().upper()
 
@@ -297,12 +298,12 @@ class OperacionesController:
                             "tipo_servicio": tipo,
                             "costo_unitario": costo_unit, # Ahora guarda el valor PURO, la matemática la hace PostgreSQL
                             "moneda": moneda,
-                            "cantidad_pax": pax # Guarda el valor PURO
+                            "cantidad_pax": pax # Guarda el valor Int PURO
                         }
                         self.client.table('venta_servicio_proveedor').upsert(data_ins).execute()
                         
                         # Actualiza referencialmente venta_tour
-                        update_data = {"costo_unitario": (costo_unit * pax)}
+                        update_data = {"costo_unitario": (costo_unit * float(pax))}
                         if tipo == "ENDOSE":
                             update_data["es_endoso"] = True
                         
