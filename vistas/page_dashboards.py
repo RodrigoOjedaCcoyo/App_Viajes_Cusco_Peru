@@ -118,15 +118,8 @@ def render_sales_dashboard_visual(supabase_client):
         df_ventas = pd.DataFrame(ventas_b2c)
         df_ventas.rename(columns={'fecha_venta': 'fecha_venta'}, inplace=True) # Ensure column exists
         
-    c1, c2, c3 = st.columns(3)
-    c1.metric(f"Ventas B2C ({mes_sel_nombre} {anio_sel})", f"S/ {float(total_b2c_pen):,.2f}")
-    c2.metric("Leads Totales", total_leads)
-    
-    # Cálculo de tasa de conversión básico (B2C + B2B leads mixtos, pero da una idea)
-    tasa = (len(ventas_b2c) / total_leads * 100) if total_leads > 0 else 0
-    c3.metric(f"Conversión B2C", f"{tasa:.1f}%")
-    
-    st.divider()
+    # Las métricas superiores (S/, Leads, Conversión) han sido ocultadas a petición del usuario.
+    # Mostrar directamente sólo la gráfica de la "culebrita".
     
     # Llamar al renderizador de objetivos visuales (Gauge Chart)
     from vistas.dashboard_analytics import render_sales_dashboard
