@@ -1032,6 +1032,14 @@ def dashboard_simulador_costos(controller):
                     pax = float(l.get('cantidad_pax') or l.get('cantidad_items') or 1)
                     moneda_l = l.get('moneda', 'USD')
                     
+                    p_venta_orig = float(l.get('precio_applied', 0)) if l.get('precio_applied') else 0
+                    
+                    # Si no hay precio aplicado en la línea, intentar buscarlo en el mapa del itinerario
+                    if p_venta_orig == 0:
+                        nl_act = l.get('n_linea')
+                        # El mapa_nombres_serv podría extenderse a mapa_precios_serv
+                        # Pero por ahora usamos la data que ya viene de la venta_tour filtrada
+                        
                     l['DIA'] = l.get('n_linea')
                     l['SERVICIO'] = mapa_nombres_serv.get(l.get('n_linea'), "---")
                     l['PROVEEDOR'] = l.get('proveedor', {}).get('nombre_comercial') if l.get('proveedor') else "---"
@@ -1044,16 +1052,28 @@ def dashboard_simulador_costos(controller):
                         costo_pen = (c_unit * pax) * tc_v
                     
                     l['TOTAL (S/.)'] = costo_pen
+                    
+                    # PRECIO DE VENTA (Añadido por solicitud del usuario)
+                    # Intentar obtener el precio de venta aplicado para esta línea
+                    try:
+                        # Buscar en servicios_v (que viene de venta_tour)
+                        match_s = next((s for s in servicios_v if s['n_linea'] == l.get('n_linea')), {})
+                        p_v_val = float(match_s.get('precio_applied') or 0)
+                        l['VENTA (S/.)'] = p_v_val * tc_v if moneda_v == 'USD' else p_v_val
+                    except:
+                        l['VENTA (S/.)'] = 0
+                        
                     display_data.append(l)
 
                 df_resumen = pd.DataFrame(display_data)
-                cols_show = ['DIA', 'SERVICIO', 'PROVEEDOR', 'PAX', 'COSTO ORIG.', 'moneda', 'TOTAL (S/.)']
+                cols_show = ['DIA', 'SERVICIO', 'PROVEEDOR', 'PAX', 'VENTA (S/.)', 'COSTO ORIG.', 'moneda', 'TOTAL (S/.)']
                 st.dataframe(
                     df_resumen[cols_show],
                     column_config={
                         "DIA": st.column_config.NumberColumn("Día", format="%d", width="small"),
+                        "VENTA (S/.)": st.column_config.NumberColumn("Venta (S/.) 🟢", format="S/. %.2f", width="medium"),
                         "COSTO ORIG.": st.column_config.NumberColumn("Monto Excel", format="%.2f"),
-                        "TOTAL (S/.)": st.column_config.NumberColumn("Total Soles 🇵🇪", format="S/. %.2f", width="medium"),
+                        "TOTAL (S/.)": st.column_config.NumberColumn("Costo (S/.) 🔴", format="S/. %.2f", width="medium"),
                         "moneda": "Divisa"
                     },
                     hide_index=True,

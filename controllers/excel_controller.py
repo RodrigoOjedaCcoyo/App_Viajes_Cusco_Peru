@@ -65,23 +65,25 @@ class ExcelController:
             
             ws.cell(row=current_row, column=4, value=pax_count).alignment = center_al
             
-            # Precio (Priorizar costo según origen del JSON)
-            origen = str(datos_render.get('origen', '')).upper()
-            p_val = "---"
+            # Precio (Priorizar precio negociado sobre el costo base)
+            p_val = (d.get('precio') or d.get('monto') or 
+                     d.get('precio_venta') or d.get('valor') or 
+                     d.get('price') or "---")
             
-            if "NAC" in origen or "PERU" in origen:
-                p_val = d.get('costo_nac')
-            elif "EXT" in origen or "EXTRANJERO" in origen:
-                p_val = d.get('costo_ext')
-            elif "CAN" in origen:
-                p_val = d.get('costo_can')
+            # Si no hay precio negociado, usar el costo por origen (Base)
+            if p_val == "---":
+                origen = str(datos_render.get('origen', '')).upper()
+                if "NAC" in origen or "PERU" in origen:
+                    p_val = d.get('costo_nac')
+                elif "EXT" in origen or "EXTRANJERO" in origen:
+                    p_val = d.get('costo_ext')
+                elif "CAN" in origen:
+                    p_val = d.get('costo_can')
             
-            # Si p_val sigue siendo None o no se encontró por origen, buscar cualquier costo
+            # Último intento si sigue siendo None o "---"
             if p_val is None or p_val == "---":
-                p_val = (d.get('precio') or d.get('costo') or 
-                         d.get('costo_nac') or d.get('costo_ext') or d.get('costo_can') or
-                         d.get('valor') or d.get('monto') or 
-                         d.get('price') or "---")
+                p_val = (d.get('costo_nac') or d.get('costo_ext') or d.get('costo_can') or
+                         d.get('costo') or "---")
             
             ws.cell(row=current_row, column=5, value=p_val).alignment = center_al
             
