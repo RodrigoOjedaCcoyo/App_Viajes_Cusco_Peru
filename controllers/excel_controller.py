@@ -7,8 +7,11 @@ from openpyxl.styles import Alignment, Font, PatternFill
 class ExcelController:
     """Controlador para la generación de documentos Excel a partir de datos del itinerario."""
 
-    def generar_resumen_itinerario_xlsx(self, datos_render: dict) -> BytesIO:
-        """Genera un archivo XLSX resumido para operaciones basado estrictamente en el itinerario."""
+    def generar_resumen_itinerario_xlsx(self, datos_render: dict, precios_reales: dict = None) -> BytesIO:
+        """
+        Genera un archivo XLSX resumido para operaciones basado estrictamente en el itinerario.
+        Permite inyectar 'precios_reales' (mapa {n_linea: precio}) desde la base de datos.
+        """
         import openpyxl
         from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
         
@@ -65,25 +68,30 @@ class ExcelController:
             
             ws.cell(row=current_row, column=4, value=pax_count).alignment = center_al
             
-            # Precio (Priorizar precio negociado sobre el costo base)
-            p_val = (d.get('precio') or d.get('monto') or 
-                     d.get('precio_venta') or d.get('valor') or 
-                     d.get('price') or "---")
-            
-            # Si no hay precio negociado, usar el costo por origen (Base)
-            if p_val == "---":
-                origen = str(datos_render.get('origen', '')).upper()
-                if "NAC" in origen or "PERU" in origen:
-                    p_val = d.get('costo_nac')
-                elif "EXT" in origen or "EXTRANJERO" in origen:
-                    p_val = d.get('costo_ext')
-                elif "CAN" in origen:
-                    p_val = d.get('costo_can')
-            
-            # Último intento si sigue siendo None o "---"
-            if p_val is None or p_val == "---":
-                p_val = (d.get('costo_nac') or d.get('costo_ext') or d.get('costo_can') or
-                         d.get('costo') or "---")
+            # Precio (Prioridad Máxima: Precios Reales desde base de datos)
+            nl = i + 1
+            if precios_reales and nl in precios_reales:
+                p_val = precios_reales[nl]
+            else:
+                # Fallback: Priorizar precio negociado sobre el costo base de la plantilla
+                p_val = (d.get('precio') or d.get('monto') or 
+                         d.get('precio_venta') or d.get('valor') or 
+                         d.get('price') or "---")
+                
+                # Si no hay precio negociado, usar el costo por origen (Base)
+                if p_val == "---":
+                    origen = str(datos_render.get('origen', '')).upper()
+                    if "NAC" in origen or "PERU" in origen:
+                        p_val = d.get('costo_nac')
+                    elif "EXT" in origen or "EXTRANJERO" in origen:
+                        p_val = d.get('costo_ext')
+                    elif "CAN" in origen:
+                        p_val = d.get('costo_can')
+                
+                # Último intento si sigue siendo None o "---"
+                if p_val is None or p_val == "---":
+                    p_val = (d.get('costo_nac') or d.get('costo_ext') or d.get('costo_can') or
+                             d.get('costo') or "---")
             
             ws.cell(row=current_row, column=5, value=p_val).alignment = center_al
             

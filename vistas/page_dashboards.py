@@ -39,7 +39,21 @@ def render_itinerary_details_visual(render):
                 )
         
         with c_xlsx:
-            xlsx_b = xl_ctrl.generar_resumen_itinerario_xlsx(render)
+            # --- NUEVO: Obtener Precios Reales de la Base de Datos para el Excel ---
+            precios_map = {}
+            id_itin_dig = render.get('id_itinerario_digital')
+            if id_itin_dig:
+                try:
+                    res_v = st.session_state.supabase.table('venta').select('id_venta').eq('id_itinerario_digital', id_itin_dig).execute()
+                    if res_v.data:
+                        id_v = res_v.data[0]['id_venta']
+                        res_vt = st.session_state.supabase.table('venta_tour').select('n_linea, precio_applied').eq('id_venta', id_v).execute()
+                        for s in res_vt.data:
+                            precios_map[s['n_linea']] = s['precio_applied']
+                except: pass
+
+            # Generar el Excel en memoria inyectando los precios reales
+            xlsx_b = xl_ctrl.generar_resumen_itinerario_xlsx(render, precios_reales=precios_map)
             if xlsx_b:
                 st.download_button(
                     label="📊 Bajar Resumen (Excel XLSX)",
