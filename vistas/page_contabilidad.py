@@ -223,6 +223,9 @@ def estructurador_liquidacion_pro(controller):
                     res_it = controller.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_it_dig).single().execute()
                     if res_it.data:
                         render_data = res_it.data['datos_render']
+                        if isinstance(render_data, str):
+                            import json
+                            render_data = json.loads(render_data)
                         
                         # --- ENRIQUECIMIENTO ---
                         if isinstance(render_data, dict):

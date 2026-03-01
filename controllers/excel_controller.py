@@ -42,6 +42,7 @@ class ExcelController:
             datos_render.get("nombre_pasajero") or 
             datos_render.get("cliente_nombre") or 
             datos_render.get("cliente") or 
+            datos_render.get("Cliente") or 
             datos_render.get("pax_nombre") or "---"
         ).upper()
         ws['B4'] = nombre_pax

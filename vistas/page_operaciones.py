@@ -317,14 +317,20 @@ def dashboard_tablero_diario(controller):
             id_itin_sel = df[df['ID Venta'] == sel_v]['ID Itinerario'].dropna().unique()
             
             if len(id_itin_sel) > 0 and id_itin_sel[0]:
+                res_itin = controller.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin_sel[0]).single().execute()
                 if res_itin.data:
                     render_data = res_itin.data['datos_render']
-                    # Enriquecer con datos de la fila seleccionada
-                    df_row = df[df['ID Venta'] == sel_v].iloc[0]
-                    render_data['adultos'] = df_row.get('adultos', 1)
-                    render_data['ninos'] = df_row.get('ninos', 0)
-                    render_data['nombre_pasajero'] = df_row.get('Cliente', '---')
-                    render_itinerary_simple_download(render_data)
+                    if isinstance(render_data, str):
+                        import json
+                        render_data = json.loads(render_data)
+                    
+                    if isinstance(render_data, dict):
+                        # Enriquecer con datos de la fila seleccionada
+                        df_row = df[df['ID Venta'] == sel_v].iloc[0]
+                        render_data['adultos'] = df_row.get('adultos', 1)
+                        render_data['ninos'] = df_row.get('ninos', 0)
+                        render_data['nombre_pasajero'] = df_row.get('Cliente', '---')
+                        render_itinerary_simple_download(render_data)
             else:
                 st.warning("Esta venta no tiene un itinerario digital vinculado.")
 
@@ -721,14 +727,20 @@ def reporte_operativo(controller):
                 id_itin_audit = df_match['ID Itinerario'].dropna().unique()[0] if not df_match['ID Itinerario'].dropna().empty else None
                 
                 if id_itin_audit:
+                    res = controller.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin_audit).single().execute()
                     if res.data:
                         render_data = res.data['datos_render']
-                        # Enriquecer con datos de la fila de auditoría
-                        dr = ventas_con_itin[ventas_con_itin['ID Venta'] == sel_id_v].iloc[0]
-                        render_data['adultos'] = dr.get('adultos', 1)
-                        render_data['ninos'] = dr.get('ninos', 0)
-                        render_data['nombre_pasajero'] = dr.get('Cliente', '---')
-                        render_itinerary_simple_download(render_data)
+                        if isinstance(render_data, str):
+                            import json
+                            render_data = json.loads(render_data)
+                            
+                        if isinstance(render_data, dict):
+                            # Enriquecer con datos de la fila de auditoría
+                            dr = ventas_con_itin[ventas_con_itin['ID Venta'] == sel_id_v].iloc[0]
+                            render_data['adultos'] = dr.get('adultos', 1)
+                            render_data['ninos'] = dr.get('ninos', 0)
+                            render_data['nombre_pasajero'] = dr.get('Cliente', '---')
+                            render_itinerary_simple_download(render_data)
             else:
                 st.info("Seleccione un servicio con itinerario para ver su detalle.")
 
