@@ -1067,21 +1067,11 @@ def dashboard_simulador_costos(controller):
                         costo_pen = (c_unit * pax) * tc_v
                     
                     l['TOTAL (S/.)'] = costo_pen
-                    
-                    # PRECIO DE VENTA (Añadido por solicitud del usuario)
-                    # Intentar obtener el precio de venta aplicado para esta línea
-                    try:
-                        # Buscar en servicios_v (que viene de venta_tour)
-                        match_s = next((s for s in servicios_v if s['n_linea'] == l.get('n_linea')), {})
-                        p_v_val = float(match_s.get('precio_applied') or 0)
-                        l['VENTA (S/.)'] = p_v_val * tc_v if moneda_v == 'USD' else p_v_val
-                    except:
-                        l['VENTA (S/.)'] = 0
-                        
                     display_data.append(l)
 
                 df_resumen = pd.DataFrame(display_data)
-                cols_show = ['DIA', 'SERVICIO', 'PROVEEDOR', 'PAX', 'VENTA (S/.)', 'COSTO ORIG.', 'moneda', 'TOTAL (S/.)']
+                # Ocultar VENTA (S/.) para enfocarse solo en liquidaciones operativas
+                cols_show = ['DIA', 'SERVICIO', 'PROVEEDOR', 'PAX', 'COSTO ORIG.', 'moneda', 'TOTAL (S/.)']
                 st.dataframe(
                     df_resumen[cols_show],
                     column_config={

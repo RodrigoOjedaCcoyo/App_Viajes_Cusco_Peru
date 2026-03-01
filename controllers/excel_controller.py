@@ -25,7 +25,7 @@ class ExcelController:
         top_al = Alignment(vertical='top', wrap_text=True)
         
         # --- HEADER ---
-        ws.merge_cells('A1:F1')
+        ws.merge_cells('A1:E1')
         titulo_itin = (datos_render.get('titulo') or datos_render.get('paquete_nombre') or 'ITINERARIO').upper()
         ws['A1'] = f"RESUMEN OPERATIVO: {titulo_itin}"
         ws['A1'].font = Font(bold=True, size=14)
@@ -45,7 +45,7 @@ class ExcelController:
 
         # --- TABLA DE DÍAS ---
         current_row = 6
-        headers = ["DÍA", "FECHA", "SERVICIO / TOUR", "PAX", "PRECIO", "INCLUYE / NO INCLUYE"]
+        headers = ["DÍA", "FECHA", "SERVICIO / TOUR", "PAX", "INCLUYE / NO INCLUYE"]
         for c_idx, h in enumerate(headers, 1):
             cell = ws.cell(row=current_row, column=c_idx, value=h)
             cell.font = bold_f
@@ -68,32 +68,8 @@ class ExcelController:
             
             ws.cell(row=current_row, column=4, value=pax_count).alignment = center_al
             
-            # Precio (Prioridad Máxima: Precios Reales desde base de datos)
-            nl = i + 1
-            if precios_reales and nl in precios_reales:
-                p_val = precios_reales[nl]
-            else:
-                # Fallback: Priorizar precio negociado sobre el costo base de la plantilla
-                p_val = (d.get('precio') or d.get('monto') or 
-                         d.get('precio_venta') or d.get('valor') or 
-                         d.get('price') or "---")
-                
-                # Si no hay precio negociado, usar el costo por origen (Base)
-                if p_val == "---":
-                    origen = str(datos_render.get('origen', '')).upper()
-                    if "NAC" in origen or "PERU" in origen:
-                        p_val = d.get('costo_nac')
-                    elif "EXT" in origen or "EXTRANJERO" in origen:
-                        p_val = d.get('costo_ext')
-                    elif "CAN" in origen:
-                        p_val = d.get('costo_can')
-                
-                # Último intento si sigue siendo None o "---"
-                if p_val is None or p_val == "---":
-                    p_val = (d.get('costo_nac') or d.get('costo_ext') or d.get('costo_can') or
-                             d.get('costo') or "---")
-            
-            ws.cell(row=current_row, column=5, value=p_val).alignment = center_al
+            # (Columna PRECIO eliminada por solicitud del usuario para reporte puramente logístico)
+            # ws.cell(row=current_row, column=5, value=p_val).alignment = center_al
             
             # Detalles (Solo Inclusiones/Exclusiones, sin descripción)
             details_txt = []
@@ -133,18 +109,7 @@ class ExcelController:
         ws.column_dimensions['B'].width = 15
         ws.column_dimensions['C'].width = 45
         ws.column_dimensions['D'].width = 8
-        ws.column_dimensions['E'].width = 15
-        ws.column_dimensions['F'].width = 70
-
-        output = BytesIO()
-        wb.save(output)
-        output.seek(0)
-        return output
-
-        output = BytesIO()
-        wb.save(output)
-        output.seek(0)
-        return output
+        ws.column_dimensions['E'].width = 75
 
         output = BytesIO()
         wb.save(output)
