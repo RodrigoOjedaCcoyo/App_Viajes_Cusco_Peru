@@ -91,7 +91,7 @@ class ExcelController:
                     txt = exc.get('texto') if isinstance(exc, dict) else exc
                     if txt: details_txt.append(f"  • {str(txt).upper()}")
             
-            detail_cell = ws.cell(row=current_row, column=6, value="\n".join(details_txt))
+            detail_cell = ws.cell(row=current_row, column=5, value="\n".join(details_txt))
             detail_cell.alignment = top_al
             detail_cell.font = Font(size=9)
             
