@@ -168,12 +168,11 @@ class VentaModel(BaseModel):
                         try: render = json.loads(render)
                         except: render = {}
                     
-                    # --- MOTOR DE EXTRACCIÓN ULTRA-ROBUSTO CON CONVERSIÓN ---
-                    tipos_vistos = set()
-                    # Tipo de Cambio del itinerario
-                    tc_itin = render.get('control_interno', {}).get('tipo_cambio_aplicado', 3.8)
-                    try: tc_itin = float(tc_itin or 3.8)
-                    except: tc_itin = 3.8
+                    # PRIORIDAD: Usar el TC de la VENTA actual si está disponible, 
+                    # si no, usar el tc_itin como fallback.
+                    tc_conversion = venta_data.get('tipo_cambio') or tc_itin
+                    try: tc_conversion = float(tc_conversion)
+                    except: tc_conversion = tc_itin
 
                     # 1. PRIORIDAD MÁXIMA: 'detalle_ingresos'
                     det_ing = render.get('detalle_ingresos', [])
@@ -188,12 +187,12 @@ class VentaModel(BaseModel):
                             c = int(d.get('cantidad', 0))
                             p_raw = float(d.get('precio_unitario', 0))
                             
-                            # Conversión USD -> PEN para el backend
+                            # Conversión USD -> PEN para el backend usando el TC de la Venta
                             p_final = p_raw
                             info_xtra = ""
                             if t in ['EXTRANJERO', 'CAN']:
-                                p_final = p_raw * tc_itin
-                                info_xtra = f" (${p_raw}x{tc_itin})"
+                                p_final = p_raw * tc_conversion
+                                info_xtra = f" (${p_raw}x{tc_conversion})"
 
                             lbl = d.get('descripcion') or f"Pax {t.capitalize()}"
                             if c > 0:
@@ -233,8 +232,8 @@ class VentaModel(BaseModel):
                                     p_u_final = p_u_raw
                                     inf_e = ""
                                     if t_slug in ['EXTRANJERO', 'CAN']:
-                                        p_u_final = p_u_raw * tc_itin
-                                        inf_e = f" (${p_u_raw}x{tc_itin})"
+                                        p_u_final = p_u_raw * tc_conversion
+                                        inf_e = f" (${p_u_raw}x{tc_conversion})"
 
                                     items_ingreso.append({
                                         "descripcion": f"Pax {k.capitalize()}{inf_e}", 
@@ -269,8 +268,8 @@ class VentaModel(BaseModel):
                                 p_f_final = p_f_unit_raw
                                 inf_f = ""
                                 if t_code in ['EXTRANJERO', 'CAN']:
-                                    p_f_final = p_f_unit_raw * tc_itin
-                                    inf_f = f" (${p_f_unit_raw:.2f}x{tc_itin})"
+                                    p_f_final = p_f_unit_raw * tc_conversion
+                                    inf_f = f" (${p_f_unit_raw:.2f}x{tc_conversion})"
 
                                 items_ingreso.append({
                                     "descripcion": f"Pax {t_code.capitalize()}{inf_f}", 

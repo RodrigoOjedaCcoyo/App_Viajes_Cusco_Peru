@@ -322,13 +322,19 @@ def registro_ventas_directa():
                     try: p_sug_val = float(p_sug_raw)
                     except: p_sug_val = 0.0
                     
+                    m_itin = str(render.get('moneda', 'PEN')).upper()
+                    t_final = "EXTRANJERO" if m_itin == "USD" or m_itin == "$" else "NACIONAL"
+                    
                     num_pax_val = int(pax_gen) if int(pax_gen) > 0 else 1
+                    p_u_raw = p_sug_val / num_pax_val
+                    p_u_soles = p_u_raw * tc_itin if t_final == "EXTRANJERO" else p_u_raw
+
                     items_extraidos.append({
                         "descripcion": "Pax (Itinerario)", 
                         "cantidad": num_pax_val, 
-                        "precio_unitario": p_sug_val / num_pax_val,
-                        "tipo": "NACIONAL", 
-                        "p_raw": p_sug_val / num_pax_val # CORRECCIÓN: Debe ser precio UNITARIO
+                        "precio_unitario": p_u_soles,
+                        "tipo": t_final, 
+                        "p_raw": p_u_raw
                     })
 
             # Cálculo de Total Final en Soles (Usando TC del Itinerario inicialmente para el Label de Carga)
@@ -537,17 +543,19 @@ def registro_ventas_directa():
             cached_items = st.session_state.get(f"items_itin_{id_itinerario_dig}", [])
             if cached_items:
                 for it in cached_items:
+                    # RECALCULAR PRECIO UNITARIO con el TC actual del formulario para evitar discrepancias
+                    p_unit_final = it['p_raw'] * tipo_cambio if it['tipo'] in ['EXTRANJERO', 'CAN'] else it['p_raw']
+                    
                     desc = it['descripcion']
                     if it['tipo'] in ['EXTRANJERO', 'CAN']:
-                        # Usar tc_itin que ya está en el render dentro del cached_items o sacarlo de nuevo
-                        desc += f" (Ref: ${it['p_raw']:.2f} x {tc_itin})"
+                        desc += f" (Ref: ${it['p_raw']:.2f} x {tipo_cambio})"
                     
                     items_ingreso.append({
                         "descripcion": desc,
                         "cantidad": it['cantidad'],
-                        "precio_unitario": it['precio_unitario']
+                        "precio_unitario": p_unit_final
                     })
-                    st.info(f"✨ **{desc}**: Se han cargado **{it['cantidad']}** pax a **S/ {it['precio_unitario']:,.2f}** c/u.")
+                    st.info(f"✨ **{desc}**: Se han cargado **{it['cantidad']}** pax a **S/ {p_unit_final:,.2f}** c/u.")
             else:
                 st.warning("⚠️ No se encontró desglose en este itinerario.")
         else:
