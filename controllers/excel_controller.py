@@ -292,9 +292,10 @@ class ExcelController:
             ws3.cell(row=r_idx, column=4, value=l.get('moneda'))
             
             c_unit = float(l.get('costo_unitario') or 0)
+            pax_count = int(l.get('cantidad_pax') or v.get('num_pasajeros', 1))
             ws3.cell(row=r_idx, column=5, value=c_unit).number_format = '#,##0.00'
-            ws3.cell(row=r_idx, column=6, value=v.get('num_pasajeros', 1))
-            ws3.cell(row=r_idx, column=7, value=c_unit).number_format = '#,##0.00' # Por ahora costo unitario es el total del item
+            ws3.cell(row=r_idx, column=6, value=pax_count)
+            ws3.cell(row=r_idx, column=7, value=c_unit * pax_count).number_format = '#,##0.00'
             
             for c in range(1, 8): ws3.cell(row=r_idx, column=c).border = thin_border
 

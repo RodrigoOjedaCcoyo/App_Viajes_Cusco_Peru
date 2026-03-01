@@ -802,9 +802,31 @@
   -- 3.2. Sincronizar costo_total
   CREATE OR REPLACE FUNCTION sync_costo_venta_total()
   RETURNS TRIGGER AS $$
+  DECLARE
+      v_moneda_v VARCHAR(10);
+      v_tc DECIMAL(8,4);
+      v_id_venta INTEGER;
   BEGIN
-      UPDATE venta SET costo_total = (SELECT COALESCE(SUM(costo_unitario * cantidad_pax), 0) FROM venta_servicio_proveedor WHERE id_venta = COALESCE(NEW.id_venta, OLD.id_venta))
-      WHERE id_venta = COALESCE(NEW.id_venta, OLD.id_venta);
+      v_id_venta := COALESCE(NEW.id_venta, OLD.id_venta);
+      SELECT moneda, tipo_cambio INTO v_moneda_v, v_tc FROM venta WHERE id_venta = v_id_venta;
+      IF v_tc IS NULL OR v_tc = 0 THEN v_tc := 1; END IF;
+
+      -- Actualizar Venta: Normalizar Costo Total a la moneda de la venta
+      UPDATE venta SET 
+          costo_total = (
+              SELECT COALESCE(SUM(
+                  CASE 
+                      WHEN s.moneda = v_moneda_v THEN (s.costo_unitario * s.cantidad_pax)
+                      WHEN v_moneda_v = 'USD' AND s.moneda = 'PEN' THEN (s.costo_unitario * s.cantidad_pax) / v_tc
+                      WHEN v_moneda_v = 'PEN' AND s.moneda = 'USD' THEN (s.costo_unitario * s.cantidad_pax) * v_tc
+                      ELSE (s.costo_unitario * s.cantidad_pax)
+                  END
+              ), 0)
+              FROM venta_servicio_proveedor s
+              WHERE s.id_venta = v_id_venta
+          )
+      WHERE id_venta = v_id_venta;
+      
       RETURN NULL;
   END;
   $$ language 'plpgsql';

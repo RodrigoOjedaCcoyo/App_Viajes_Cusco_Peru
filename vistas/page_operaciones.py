@@ -1012,7 +1012,12 @@ def dashboard_simulador_costos(controller):
         st.markdown("### 📋 Resumen de Liquidaciones (Costos)")
         try:
             id_actual = st.session_state.get('last_loaded_id_venta')
-            # 1. Obtener Itinerario base (Días)
+            # 1. Obtener Itinerario base (Días) y Moneda/TC de la Venta
+            res_v = controller.client.table('venta').select('moneda, tipo_cambio').eq('id_venta', id_actual).single().execute()
+            v_meta = res_v.data or {"moneda": "USD", "tipo_cambio": 3.8}
+            moneda_v = v_meta.get('moneda', 'USD')
+            tc_v = float(v_meta.get('tipo_cambio') or 3.8)
+
             servicios_v = vc.obtener_detalles_itinerario_venta(id_actual)
             mapa_nombres_serv = {s['n_linea']: s['observacion'] for s in servicios_v}
             
@@ -1020,31 +1025,36 @@ def dashboard_simulador_costos(controller):
             liq_data = controller.get_liquidaciones_venta(id_actual)
             
             if liq_data:
-                # Enriquecer con nombre de servicio del itinerario
-                for l in liq_data:
-                    l['DIA'] = l.get('n_linea')
-                    l['SERVICIO'] = mapa_nombres_serv.get(l.get('n_linea'), "---")
-                    l['PROVEEDOR'] = l.get('proveedor', {}).get('nombre_comercial') if l.get('proveedor') else "---"
-                    l['COSTO'] = l.get('costo_unitario', 0)
-                
                 # Adaptar los datos para mostrar el cálculo visualmente en la tabla
                 display_data = []
                 for l in liq_data:
                     c_unit = float(l.get('costo_unitario', 0))
-                    pax = float(l.get('cantidad_items', 1)) # Asumimos 1 por defecto (fallback visual)
-                    # Nota: la data real viene de la DB, que actualmente solo tiene 'costo_unitario' y pronto tendrá la DB unida.
-                    # Para la tabla de resumen visual (post-carga), mostramos el costo registrado en DB que YA es el Total.
+                    pax = float(l.get('cantidad_pax') or l.get('cantidad_items') or 1)
+                    moneda_l = l.get('moneda', 'USD')
+                    
+                    l['DIA'] = l.get('n_linea')
+                    l['SERVICIO'] = mapa_nombres_serv.get(l.get('n_linea'), "---")
+                    l['PROVEEDOR'] = l.get('proveedor', {}).get('nombre_comercial') if l.get('proveedor') else "---"
+                    l['PAX'] = int(pax)
+                    l['COSTO ORIG.'] = c_unit * pax
+                    
+                    # CÁLCULO DE CONVERSIÓN A PEN (Maestro Contable)
+                    costo_pen = c_unit * pax
+                    if moneda_l == 'USD':
+                        costo_pen = (c_unit * pax) * tc_v
+                    
+                    l['TOTAL (S/.)'] = costo_pen
                     display_data.append(l)
 
                 df_resumen = pd.DataFrame(display_data)
-                cols_show = ['DIA', 'SERVICIO', 'tipo_servicio', 'PROVEEDOR', 'COSTO', 'moneda']
+                cols_show = ['DIA', 'SERVICIO', 'PROVEEDOR', 'PAX', 'COSTO ORIG.', 'moneda', 'TOTAL (S/.)']
                 st.dataframe(
                     df_resumen[cols_show],
                     column_config={
                         "DIA": st.column_config.NumberColumn("Día", format="%d", width="small"),
-                        "tipo_servicio": "Tipo",
-                        "COSTO": st.column_config.NumberColumn("Total Pagado", format="%.2f"),
-                        "moneda": "Moneda"
+                        "COSTO ORIG.": st.column_config.NumberColumn("Monto Excel", format="%.2f"),
+                        "TOTAL (S/.)": st.column_config.NumberColumn("Total Soles 🇵🇪", format="S/. %.2f", width="medium"),
+                        "moneda": "Divisa"
                     },
                     hide_index=True,
                     use_container_width=True
