@@ -65,8 +65,19 @@ class VentaModel(BaseModel):
         else:
             raise Exception("Supabase no devolvió el ID del cliente creado")
 
+    def _clean_float(self, value) -> float:
+        """Convierte un valor (str o num) a float de forma robusta, manejando comas de miles."""
+        if value is None: return 0.0
+        if isinstance(value, (int, float)): return float(value)
+        try:
+            # Eliminar comas de miles y espacios, luego convertir
+            clean_val = str(value).replace(',', '').replace(' ', '').strip()
+            return float(clean_val)
+        except:
+            return 0.0
+
     # --- MÉTODO PRINCIPAL DE CREACIÓN DE VENTA ---
-    def create_venta(self, venta_data: Dict[str, Any]) -> Dict[str, Any]:
+    def create_venta(self, venta_data: Dict[str, Any]) -> int:
         """
         Orquesta la creación de la Venta Relacional según esquema SQL:
         """
@@ -184,8 +195,8 @@ class VentaModel(BaseModel):
                             elif t in ['NAC', 'NACIONAL']: t = 'NACIONAL'
                             elif t in ['CAN']: t = 'CAN'
 
-                            c = int(d.get('cantidad', 0))
-                            p_raw = float(d.get('precio_unitario', 0))
+                            c = int(self._clean_float(d.get('cantidad', 0)))
+                            p_raw = self._clean_float(d.get('precio_unitario', 0))
                             
                             # Conversión USD -> PEN para el backend usando el TC de la Venta
                             p_final = p_raw
@@ -226,8 +237,7 @@ class VentaModel(BaseModel):
                                         if isinstance(p_obj, dict): p_u_raw = p_obj.get('total') or p_obj.get('monto')
                                         else: p_u_raw = p_obj
                                     
-                                    try: p_u_raw = float(p_u_raw or 0)
-                                    except: p_u_raw = 0.0
+                                    p_u_raw = self._clean_float(p_u_raw)
                                     
                                     p_u_final = p_u_raw
                                     inf_e = ""
@@ -258,8 +268,7 @@ class VentaModel(BaseModel):
                             if c_f > 0:
                                 p_f_total_raw = 0.0
                                 for pk in p_keys:
-                                    try: p_f_total_raw = float(render.get(pk, 0) or 0)
-                                    except: p_f_total_raw = 0.0
+                                    p_f_total_raw = self._clean_float(render.get(pk, 0))
                                     if p_f_total_raw > 0: break
                                 
                                 # Calcular precio unitario si es que lo que viene es un total
@@ -279,8 +288,18 @@ class VentaModel(BaseModel):
             except Exception as e:
                 print(f"Error extrayendo items del itinerario (Backend): {e}")
 
-        # Guardar items en la tabla nueva
+        # Guardar items en la tabla nueva (con corrección de redondeo)
         if items_ingreso:
+            # Calcular diferencia de redondeo para equilibrar con el total de la venta
+            total_items = sum(it.get('cantidad', 1) * it.get('precio_unitario', 0) for it in items_ingreso)
+            monto_total_venta = self._clean_float(venta_data.get("monto_total", 0))
+            dif_redondeo = monto_total_venta - total_items
+            
+            # Si la diferencia es pequeña (ajuste de céntimos), la aplicamos al último item
+            if 0 < abs(dif_redondeo) < 1.0 and items_ingreso:
+                # Ajustar el precio unitario del último item para absorber la diferencia
+                items_ingreso[-1]['precio_unitario'] += dif_redondeo / items_ingreso[-1].get('cantidad', 1)
+
             for item in items_ingreso:
                 item["id_venta"] = nuevo_id_venta
                 self.client.table('venta_item_ingreso').insert(item).execute()
@@ -310,7 +329,7 @@ class VentaModel(BaseModel):
                     pago_data = {
                         "id_venta": nuevo_id_venta,
                         "fecha_pago": datetime.now().strftime("%Y-%m-%d"),
-                        "monto_pagado": float(monto_dep), # Asegurar float
+                        "monto_pagado": self._clean_float(monto_dep), # Asegurar float limpio
                         "moneda": venta_data.get("moneda", "USD"),
                         "metodo_pago": venta_data.get("metodo_pago", "OTRO"),
                         "tipo_pago": "ADELANTO" if monto_dep < venta_data.get("monto_total", 0) else "TOTAL",

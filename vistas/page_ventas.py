@@ -265,8 +265,11 @@ def registro_ventas_directa():
                     t = str(d.get('tipo', '')).upper()
                     if t in ['EXT', 'INT', 'EXTRANJERO']: t = 'EXTRANJERO'
                     elif t in ['NAC', 'NACIONAL']: t = 'NACIONAL'
-                    c = int(d.get('cantidad', 0))
-                    p_raw = float(d.get('precio_unitario', 0))
+                    
+                    c = int(d.get('cantidad', 1) or 1)
+                    p_u_str = str(d.get('precio_unitario', '0')).replace(',', '')
+                    try: p_raw = float(p_u_str)
+                    except: p_raw = 0.0
                     
                     p_soles = p_raw * tc_itin if t in ['EXTRANJERO', 'CAN'] else p_raw
                     items_extraidos.append({"descripcion": d.get('descripcion') or f"Pax {t.capitalize()}", "cantidad": c, "precio_unitario": p_soles, "tipo": t, "p_raw": p_raw})
@@ -337,8 +340,28 @@ def registro_ventas_directa():
                         "p_raw": p_u_raw
                     })
 
-            # Cálculo de Total Final en Soles (Usando TC del Itinerario inicialmente para el Label de Carga)
+            # Cálculo de Total Final (Priorizando total declarado si existe)
+            total_declarado = render.get('total_final_calculado') or render.get('subtotal')
+            if not total_declarado:
+                # Buscar en precios_cierre si existe
+                pc = render.get('precios_cierre', [])
+                if isinstance(pc, list) and pc:
+                    total_declarado = pc[0].get('monto_total')
+            
+            p_decl_val = 0.0
+            if total_declarado:
+                try: p_decl_val = float(str(total_declarado).replace(',', ''))
+                except: p_decl_val = 0.0
+
             total_soles_label = sum(it['cantidad'] * it['precio_unitario'] for it in items_extraidos)
+            
+            # Si el total declarado existe y es PEN, y difiere ligeramente de la suma, ajustamos para que coincida con el PDF
+            moneda_itin_raw = str(render.get('simbolo_moneda', render.get('moneda', ''))).upper()
+            es_pen_itin = 'S/' in moneda_itin_raw or 'PEN' in moneda_itin_raw
+            
+            if es_pen_itin and p_decl_val > 0 and abs(p_decl_val - total_soles_label) < 0.5:
+                # Ajuste de céntimos para que coincida con lo que el cliente ve
+                total_soles_label = p_decl_val
 
             if id_itinerario_dig:
                 # Actualizar siempre los items en sesión para evitar que el formulario se quede vacío
