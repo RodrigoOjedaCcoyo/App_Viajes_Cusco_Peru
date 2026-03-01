@@ -253,19 +253,24 @@ class VentaModel(BaseModel):
                         if t_code not in tipos_vistos:
                             c_f = 0
                             for ck in c_keys:
-                                c_f = int(render.get(ck, 0) or 0)
+                                try: c_f = int(render.get(ck, 0) or 0)
+                                except: c_f = 0
                                 if c_f > 0: break
                             if c_f > 0:
-                                p_f_raw = 0.0
+                                p_f_total_raw = 0.0
                                 for pk in p_keys:
-                                    p_f_raw = float(render.get(pk, 0) or 0)
-                                    if p_f_raw > 0: break
+                                    try: p_f_total_raw = float(render.get(pk, 0) or 0)
+                                    except: p_f_total_raw = 0.0
+                                    if p_f_total_raw > 0: break
                                 
-                                p_f_final = p_f_raw
+                                # Calcular precio unitario si es que lo que viene es un total
+                                p_f_unit_raw = p_f_total_raw / c_f
+                                
+                                p_f_final = p_f_unit_raw
                                 inf_f = ""
                                 if t_code in ['EXTRANJERO', 'CAN']:
-                                    p_f_final = p_f_raw * tc_itin
-                                    inf_f = f" (${p_f_raw}x{tc_itin})"
+                                    p_f_final = p_f_unit_raw * tc_itin
+                                    inf_f = f" (${p_f_unit_raw:.2f}x{tc_itin})"
 
                                 items_ingreso.append({
                                     "descripcion": f"Pax {t_code.capitalize()}{inf_f}", 

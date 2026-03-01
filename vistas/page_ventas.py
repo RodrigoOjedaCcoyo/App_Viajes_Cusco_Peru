@@ -318,28 +318,41 @@ def registro_ventas_directa():
                 
                 if pax_gen:
                     p_sug_raw = render.get('total_final_calculado') or render.get('precio_cierre') or 0
+                    p_sug_val = 0.0
                     try: p_sug_val = float(p_sug_raw)
                     except: p_sug_val = 0.0
+                    
+                    num_pax_val = int(pax_gen) if int(pax_gen) > 0 else 1
                     items_extraidos.append({
                         "descripcion": "Pax (Itinerario)", 
-                        "cantidad": int(pax_gen), 
-                        "precio_unitario": p_sug_val / int(pax_gen) if int(pax_gen) > 0 else 0,
+                        "cantidad": num_pax_val, 
+                        "precio_unitario": p_sug_val / num_pax_val,
                         "tipo": "NACIONAL", 
-                        "p_raw": p_sug_val
+                        "p_raw": p_sug_val / num_pax_val # CORRECCIÓN: Debe ser precio UNITARIO
                     })
 
-            # Cálculo de Total Final en Soles
-            total_soles = sum(it['cantidad'] * it['precio_unitario'] for it in items_extraidos)
+            # Cálculo de Total Final en Soles (Usando TC del Itinerario inicialmente para el Label de Carga)
+            total_soles_label = sum(it['cantidad'] * it['precio_unitario'] for it in items_extraidos)
 
             if id_itinerario_dig:
                 # Actualizar siempre los items en sesión para evitar que el formulario se quede vacío
                 st.session_state[f"items_itin_{id_itinerario_dig}"] = items_extraidos
                 
                 if id_itinerario_dig != st.session_state.get('last_loaded_itin'):
-                    st.session_state['m_total'] = total_soles
+                    # Forzar el recalculo inmediato con el TC actual del formulario (o el default)
+                    current_tc_form = st.session_state.get('tipo_cambio_ref_ui', ExchangeService.get_current_tc())
+                    
+                    nuevo_calc_total = 0.0
+                    for it in items_extraidos:
+                        if it['tipo'] in ['EXTRANJERO', 'CAN']:
+                            nuevo_calc_total += it['cantidad'] * it['p_raw'] * current_tc_form
+                        else:
+                            nuevo_calc_total += it['cantidad'] * it['p_raw']
+                            
+                    st.session_state['m_total'] = round(nuevo_calc_total, 2)
                     st.session_state['moneda_auto'] = 'PEN'
                     st.session_state['last_loaded_itin'] = id_itinerario_dig
-                    st.success(f"✅ Itinerario cargado: **{tour_nombre_cloud}** (Total calculado: S/ {total_soles:,.2f})")
+                    st.success(f"✅ Itinerario cargado: **{tour_nombre_cloud}** (Total hoy: S/ {nuevo_calc_total:,.2f})")
                 else:
                     st.success(f"✅ Itinerario cargado: **{tour_nombre_cloud}**")
 
@@ -366,7 +379,16 @@ def registro_ventas_directa():
     
     # TC: Tipo de Cambio "Foto Congelada" - Se intenta jalar automático
     default_tc = ExchangeService.get_current_tc()
-    tipo_cambio = c_m1.number_input("Tipo de Cambio (Foto)", min_value=0.0, value=default_tc, format="%.3f", help="A cuánto está el dólar hoy para esta venta")
+    tipo_cambio = c_m1.number_input(
+        "Tipo de Cambio (Foto)", 
+        min_value=0.0, 
+        value=default_tc, 
+        format="%.3f", 
+        help="A cuánto está el dólar hoy para esta venta",
+        key="tc_ref_manual_form"
+    )
+    # Guardar en session para el cargado de itinerarios posterior
+    st.session_state['tipo_cambio_ref_ui'] = tipo_cambio
 
     # --- RECÁLCULO DINÁMICO: Usar el TC del usuario para actualizar el total ---
     if id_itinerario_dig and tipo_cambio > 0:
