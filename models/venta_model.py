@@ -389,13 +389,17 @@ class VentaModel(BaseModel):
                         except:
                             pass # Fallback al cálculo secuencial
                 
+                # Calcular precio proporcional por día para evitar ceros en reportes
+                monto_total_v = self._clean_float(venta_data.get("monto_total", 0))
+                precio_dia = monto_total_v / num_dias if num_dias > 0 else monto_total_v
+
                 detalle_tour = {
                     "id_venta": nuevo_id_venta,
                     "n_linea": i + 1,
                     "id_tour": id_tour_catalogo if i == 0 else None,
                     "fecha_servicio": f_servicio.isoformat(),
-                    "precio_applied": venta_data.get("monto_total") if i == 0 else 0,
-                    "precio_vendedor": venta_data.get("monto_total") if i == 0 else 0,
+                    "precio_applied": precio_dia,
+                    "precio_vendedor": precio_dia,
                     "costo_applied": 0,
                     "cantidad": num_pax_final,
                     "observacion": nombre_servicio_dia,
