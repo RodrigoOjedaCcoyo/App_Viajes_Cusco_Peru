@@ -156,7 +156,9 @@ class OperacionesController:
                     'Tipo': tipo_venta,
                     'Día Itin.': s.get('id_itinerario_dia_index', 1),
                     'ID Itinerario': v.get('id_itinerario_digital'),
-                    'URL Cloud': v.get('url_itinerario') or ""
+                    'URL Cloud': v.get('url_itinerario') or "",
+                    'adultos': v.get('adultos', 1),
+                    'ninos': v.get('ninos', 0)
                 })
             return resultado
         except Exception as e:

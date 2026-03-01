@@ -317,9 +317,14 @@ def dashboard_tablero_diario(controller):
             id_itin_sel = df[df['ID Venta'] == sel_v]['ID Itinerario'].dropna().unique()
             
             if len(id_itin_sel) > 0 and id_itin_sel[0]:
-                res_itin = controller.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin_sel[0]).single().execute()
                 if res_itin.data:
-                    render_itinerary_simple_download(res_itin.data['datos_render'])
+                    render_data = res_itin.data['datos_render']
+                    # Enriquecer con datos de la fila seleccionada
+                    df_row = df[df['ID Venta'] == sel_v].iloc[0]
+                    render_data['adultos'] = df_row.get('adultos', 1)
+                    render_data['ninos'] = df_row.get('ninos', 0)
+                    render_data['nombre_pasajero'] = df_row.get('Cliente', '---')
+                    render_itinerary_simple_download(render_data)
             else:
                 st.warning("Esta venta no tiene un itinerario digital vinculado.")
 
@@ -716,9 +721,14 @@ def reporte_operativo(controller):
                 id_itin_audit = df_match['ID Itinerario'].dropna().unique()[0] if not df_match['ID Itinerario'].dropna().empty else None
                 
                 if id_itin_audit:
-                    res = controller.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin_audit).single().execute()
                     if res.data:
-                        render_itinerary_simple_download(res.data['datos_render'])
+                        render_data = res.data['datos_render']
+                        # Enriquecer con datos de la fila de auditoría
+                        dr = ventas_con_itin[ventas_con_itin['ID Venta'] == sel_id_v].iloc[0]
+                        render_data['adultos'] = dr.get('adultos', 1)
+                        render_data['ninos'] = dr.get('ninos', 0)
+                        render_data['nombre_pasajero'] = dr.get('Cliente', '---')
+                        render_itinerary_simple_download(render_data)
             else:
                 st.info("Seleccione un servicio con itinerario para ver su detalle.")
 
@@ -872,7 +882,8 @@ def dashboard_simulador_costos(controller):
                         # Usar or {} para evitar fallos si cliente es None
                         cliente_live = v_live.get('cliente') or {}
                         render_data['nombre_pasajero'] = cliente_live.get('nombre') or render_data.get('nombre_pasajero')
-                        render_data['num_adultos'] = v_live.get('num_pasajeros', 1)
+                        render_data['adultos'] = v_live.get('adultos') or v_live.get('num_pasajeros', 1)
+                        render_data['ninos'] = v_live.get('ninos', 0)
                         render_data['fecha_inicio'] = v_live.get('fecha_inicio')
                         render_data['fecha_fin'] = v_live.get('fecha_fin')
                         

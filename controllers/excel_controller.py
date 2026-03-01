@@ -37,9 +37,24 @@ class ExcelController:
         ws['E3'] = datos_render.get("fecha_fin") or "---"
         
         ws['A4'] = "PASAJERO:"
-        ws['B4'] = (datos_render.get("nombre_pasajero") or datos_render.get("cliente_nombre") or "---").upper()
+        # Mapeo robusto de nombre
+        nombre_pax = (
+            datos_render.get("nombre_pasajero") or 
+            datos_render.get("cliente_nombre") or 
+            datos_render.get("cliente") or 
+            datos_render.get("pax_nombre") or "---"
+        ).upper()
+        ws['B4'] = nombre_pax
+
         ws['D4'] = "TOTAL PAX:"
-        pax_count = int(datos_render.get("num_adultos", 1)) + int(datos_render.get("num_ninos", 0))
+        # Mapeo robusto de PAX
+        p_adultos = int(datos_render.get("num_adultos") or datos_render.get("adultos") or 0)
+        p_ninos = int(datos_render.get("num_ninos") or datos_render.get("ninos") or 0)
+        p_total = int(datos_render.get("pax") or datos_render.get("total_pax") or 0)
+        
+        # Si no hay desglose pero hay total, usar el total. Si no hay nada, por defecto 1.
+        pax_count = (p_adultos + p_ninos) if (p_adultos + p_ninos) > 0 else (p_total if p_total > 0 else 1)
+        
         ws['E4'] = f"{pax_count} Personas"
         ws['E4'].font = bold_f
 

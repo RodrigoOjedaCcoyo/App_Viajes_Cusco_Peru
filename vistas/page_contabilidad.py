@@ -229,6 +229,8 @@ def estructurador_liquidacion_pro(controller):
                             render_data['fecha_inicio'] = v_act.get('fecha_inicio') or render_data.get('fecha_inicio')
                             render_data['fecha_fin'] = v_act.get('fecha_fin') or render_data.get('fecha_fin')
                             render_data['nombre_pasajero'] = v_act.get('cliente_nombre') or render_data.get('nombre_pasajero')
+                            render_data['num_adultos'] = v_act.get('adultos') or render_data.get('num_adultos') or 1
+                            render_data['num_ninos'] = v_act.get('ninos') or render_data.get('num_ninos') or 0
                             
                             live_tours = vc.obtener_detalles_itinerario_venta(v_act['id_venta'])
                             if live_tours:
