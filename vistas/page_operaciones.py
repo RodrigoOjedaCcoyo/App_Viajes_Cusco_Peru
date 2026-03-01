@@ -893,13 +893,14 @@ def dashboard_simulador_costos(controller):
                             
                             render_data['itinerario_detalles'] = itin_list
                     
-                    # Renderizar los botones de descarga (Solo si render_data es válido)
+                    # Renderizar los botones de descarga
                     if render_data:
-                        pass # El Informe Maestro (abajo) es suficiente
+                        with st.expander("📄 Ver Resumen de Itinerario (Simplificado)", expanded=False):
+                            render_itinerary_simple_download(render_data)
         except Exception as e:
             st.warning(f"Nota: No se pudo cargar el resumen del itinerario PDF/Simple. ({e})")
         
-        # NUEVO: Botón Maestro Operativo (Independiente del Itinerario Digital)
+        # Botón Maestro Operativo (Independiente del Itinerario Digital)
         # Se pone fuera del bloque anterior para que funcione aunque no haya Itinerario JSON
         st.markdown("---")
         render_operational_master_download(controller, id_venta_act)
