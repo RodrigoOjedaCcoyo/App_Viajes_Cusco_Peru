@@ -37,24 +37,34 @@ class ExcelController:
         ws['E3'] = datos_render.get("fecha_fin") or "---"
         
         ws['A4'] = "PASAJERO:"
-        # Mapeo robusto de nombre
-        nombre_pax = (
-            datos_render.get("nombre_pasajero") or 
-            datos_render.get("cliente_nombre") or 
-            datos_render.get("cliente") or 
-            datos_render.get("Cliente") or 
-            datos_render.get("pax_nombre") or "---"
-        ).upper()
+        # Mapeo robusto de nombre (ignorar guiones placeholder)
+        posibles_nombres = [
+            datos_render.get("nombre_pasajero"),
+            datos_render.get("cliente_nombre"),
+            datos_render.get("Cliente"),
+            datos_render.get("cliente"),
+            datos_render.get("pax_nombre")
+        ]
+        nombre_pax = "---"
+        for n in posibles_nombres:
+            if n and str(n).strip() not in ["", "---", "None", "Desconocido"]:
+                nombre_pax = str(n).upper()
+                break
         ws['B4'] = nombre_pax
 
         ws['D4'] = "TOTAL PAX:"
-        # Mapeo robusto de PAX
+        # Mapeo robusto de PAX (priorizar num_pasajeros que es el campo real)
+        p_total_db = int(datos_render.get("num_pasajeros") or 0)
         p_adultos = int(datos_render.get("num_adultos") or datos_render.get("adultos") or 0)
         p_ninos = int(datos_render.get("num_ninos") or datos_render.get("ninos") or 0)
-        p_total = int(datos_render.get("pax") or datos_render.get("total_pax") or 0)
+        p_pax_fallback = int(datos_render.get("pax") or datos_render.get("total_pax") or 0)
         
-        # Si no hay desglose pero hay total, usar el total. Si no hay nada, por defecto 1.
-        pax_count = (p_adultos + p_ninos) if (p_adultos + p_ninos) > 0 else (p_total if p_total > 0 else 1)
+        # Lógica de prioridad: 
+        # 1. num_pasajeros (de la DB)
+        # 2. Suma de adultos y niños
+        # 3. Campo 'pax' o 'total_pax'
+        # 4. Fallback a 1
+        pax_count = p_total_db if p_total_db > 0 else ((p_adultos + p_ninos) if (p_adultos + p_ninos) > 0 else (p_pax_fallback if p_pax_fallback > 0 else 1))
         
         ws['E4'] = f"{pax_count} Personas"
         ws['E4'].font = bold_f

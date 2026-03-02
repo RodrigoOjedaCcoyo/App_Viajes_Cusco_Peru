@@ -327,9 +327,9 @@ def dashboard_tablero_diario(controller):
                     if isinstance(render_data, dict):
                         # Enriquecer con datos de la fila seleccionada
                         df_row = df[df['ID Venta'] == sel_v].iloc[0]
-                        render_data['adultos'] = df_row.get('adultos', 1)
+                        render_data['num_pasajeros'] = df_row.get('num_pasajeros') or df_row.get('Pax', 1)
                         render_data['ninos'] = df_row.get('ninos', 0)
-                        render_data['nombre_pasajero'] = df_row.get('Cliente', '---')
+                        render_data['nombre_pasajero'] = df_row.get('Cliente')
                         render_itinerary_simple_download(render_data)
             else:
                 st.warning("Esta venta no tiene un itinerario digital vinculado.")
@@ -737,9 +737,9 @@ def reporte_operativo(controller):
                         if isinstance(render_data, dict):
                             # Enriquecer con datos de la fila de auditoría
                             dr = ventas_con_itin[ventas_con_itin['ID Venta'] == sel_id_v].iloc[0]
-                            render_data['adultos'] = dr.get('adultos', 1)
+                            render_data['num_pasajeros'] = dr.get('num_pasajeros') or dr.get('Pax', 1)
                             render_data['ninos'] = dr.get('ninos', 0)
-                            render_data['nombre_pasajero'] = dr.get('Cliente', '---')
+                            render_data['nombre_pasajero'] = dr.get('Cliente')
                             render_itinerary_simple_download(render_data)
             else:
                 st.info("Seleccione un servicio con itinerario para ver su detalle.")
@@ -894,7 +894,7 @@ def dashboard_simulador_costos(controller):
                         # Usar or {} para evitar fallos si cliente es None
                         cliente_live = v_live.get('cliente') or {}
                         render_data['nombre_pasajero'] = cliente_live.get('nombre') or render_data.get('nombre_pasajero')
-                        render_data['adultos'] = v_live.get('adultos') or v_live.get('num_pasajeros', 1)
+                        render_data['num_pasajeros'] = v_live.get('num_pasajeros', 1)
                         render_data['ninos'] = v_live.get('ninos', 0)
                         render_data['fecha_inicio'] = v_live.get('fecha_inicio')
                         render_data['fecha_fin'] = v_live.get('fecha_fin')
