@@ -7,7 +7,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 class ExcelController:
     """Controlador para la generación de documentos Excel a partir de datos del itinerario."""
 
-    def generar_resumen_itinerario_xlsx(self, datos_render: dict, precios_reales: dict = None) -> BytesIO:
+    def generar_resumen_itinerario_xlsx(self, datos_render: dict, precios_reales: dict = None, nombre_cliente: str = None, num_pax: int = None) -> BytesIO:
         """
         Genera un archivo XLSX resumido para operaciones basado estrictamente en el itinerario.
         Permite inyectar 'precios_reales' (mapa {n_linea: precio}) desde la base de datos.
@@ -37,9 +37,10 @@ class ExcelController:
         ws['E3'] = datos_render.get("fecha_fin") or "---"
         
         ws['A4'] = "PASAJERO:"
-        # Mapeo robusto de nombre (ignorar guiones placeholder)
+        # Mapeo robusto de nombre: PRIORIDAD PARÁMETRO > POSIBLES_NOMBRES > PLACEHOLDER
         control_int = datos_render.get("control_interno") or {}
         posibles_nombres = [
+            nombre_cliente, # Parámetro directo (Máxima prioridad)
             datos_render.get("nombre_pasajero"),
             datos_render.get("cliente_nombre"),
             datos_render.get("Cliente"),
@@ -47,7 +48,7 @@ class ExcelController:
             datos_render.get("pax_nombre"),
             control_int.get("cliente"),
             control_int.get("nombre_pasajero"),
-            datos_render.get("titulo") # Último recurso: título del itinerario
+            datos_render.get("titulo")
         ]
         nombre_pax = "---"
         for n in posibles_nombres:
@@ -57,18 +58,20 @@ class ExcelController:
         ws['B4'] = nombre_pax
 
         ws['D4'] = "TOTAL PAX:"
-        # Mapeo robusto de PAX (priorizar num_pasajeros que es el campo real)
+        # Mapeo robusto de PAX: PRIORIDAD PARÁMETRO > DB > CALCULADO
+        p_total_param = int(num_pax or 0)
         p_total_db = int(datos_render.get("num_pasajeros") or 0)
         p_adultos = int(datos_render.get("num_adultos") or datos_render.get("adultos") or 0)
         p_ninos = int(datos_render.get("num_ninos") or datos_render.get("ninos") or 0)
         p_pax_fallback = int(datos_render.get("pax") or datos_render.get("total_pax") or 0)
         
         # Lógica de prioridad: 
-        # 1. num_pasajeros (de la DB)
-        # 2. Suma de adultos y niños
-        # 3. Campo 'pax' o 'total_pax'
-        # 4. Fallback a 1
-        pax_count = p_total_db if p_total_db > 0 else ((p_adultos + p_ninos) if (p_adultos + p_ninos) > 0 else (p_pax_fallback if p_pax_fallback > 0 else 1))
+        if p_total_param > 0:
+            pax_count = p_total_param
+        elif p_total_db > 0:
+            pax_count = p_total_db
+        else:
+            pax_count = (p_adultos + p_ninos) if (p_adultos + p_ninos) > 0 else (p_pax_fallback if p_pax_fallback > 0 else 1)
         
         ws['E4'] = f"{pax_count} Personas"
         ws['E4'].font = bold_f

@@ -39,8 +39,12 @@ def render_itinerary_details_visual(render):
                 )
         
         with c_xlsx:
-            # Generar el Excel en memoria (Reporte Logístico Unificado)
-            xlsx_b = xl_ctrl.generar_resumen_itinerario_xlsx(render)
+            # Extraer parámetros de enriquecimiento
+            nombre_pax = render.get('nombre_pasajero')
+            total_pax = render.get('num_pasajeros')
+            
+            # Generar el Excel en memoria con parámetros forzados
+            xlsx_b = xl_ctrl.generar_resumen_itinerario_xlsx(render, nombre_cliente=nombre_pax, num_pax=total_pax)
             if xlsx_b:
                 st.download_button(
                     label="📊 Bajar Resumen (Excel XLSX)",

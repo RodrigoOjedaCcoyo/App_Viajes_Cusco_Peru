@@ -97,6 +97,10 @@ def render_itinerary_simple_download(render):
     from controllers.excel_controller import ExcelController
     xl_ctrl = ExcelController()
     
+    # Extraer parámetros de enriquecimiento si existen
+    nombre_pax = render.get('nombre_pasajero')
+    total_pax = render.get('num_pasajeros')
+    
     with st.container(border=True):
         st.markdown(f"#### 📄 Resumen de Viaje: {render.get('titulo', 'Sin Título')}")
         st.info("Este documento es una versión simplificada (Ink Saver) ideal para imprimir y para el personal operativo.")
@@ -115,8 +119,8 @@ def render_itinerary_simple_download(render):
                 )
         
         with c2:
-            # Generar el Excel en memoria (Reporte Logístico Unificado)
-            xlsx_buffer = xl_ctrl.generar_resumen_itinerario_xlsx(render)
+            # Generar el Excel en memoria con parámetros forzados
+            xlsx_buffer = xl_ctrl.generar_resumen_itinerario_xlsx(render, nombre_cliente=nombre_pax, num_pax=total_pax)
             if xlsx_buffer:
                 st.download_button(
                     label="📊 Bajar Resumen (Excel XLSX)",
