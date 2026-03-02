@@ -884,8 +884,8 @@ def dashboard_simulador_costos(controller):
 
     # --- NUEVO: RECUPERAR DATOS DEL ITINERARIO PARA DESCARGA ---
     try:
-        # Recuperar Venta Live para sincronizar datos
-        res_v_live = controller.client.table('venta').select('*, cliente(nombre)').eq('id_venta', id_venta_act).single().execute()
+        # Recuperar Venta Live con nombre del cliente (usando alias correcto de Supabase)
+        res_v_live = controller.client.table('venta').select('*, cliente(nombre_cliente:nombre)').eq('id_venta', id_venta_act).single().execute()
         v_live = res_v_live.data or {}
         
         id_itin_dig = v_live.get('id_itinerario_digital')
@@ -901,9 +901,12 @@ def dashboard_simulador_costos(controller):
                     
                     # --- ENRIQUECER CON DATOS LIVE (CON SEGURIDAD) ---
                     if isinstance(render_data, dict):
-                        # Usar or {} para evitar fallos si cliente es None
-                        cliente_live = v_live.get('cliente') or {}
-                        render_data['nombre_pasajero'] = cliente_live.get('nombre') or render_data.get('nombre_pasajero')
+                        # Rescate de nombre infalible desde la relación de cliente
+                        cliente_obj = v_live.get('cliente') or {}
+                        # Prioridad: 1. DB Live, 2. Itinerario previo
+                        nombre_final = cliente_obj.get('nombre_cliente') or render_data.get('nombre_pasajero') or "CLIENTE"
+                        
+                        render_data['nombre_pasajero'] = nombre_final.upper()
                         render_data['num_pasajeros'] = v_live.get('num_pasajeros', 1)
                         render_data['ninos'] = v_live.get('ninos', 0)
                         render_data['fecha_inicio'] = v_live.get('fecha_inicio')
