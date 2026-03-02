@@ -884,8 +884,8 @@ def dashboard_simulador_costos(controller):
 
     # --- NUEVO: RECUPERAR DATOS DEL ITINERARIO PARA DESCARGA ---
     try:
-        # Recuperar Venta Live con nombre del cliente (usando alias correcto de Supabase)
-        res_v_live = controller.client.table('venta').select('*, cliente(nombre_cliente:nombre)').eq('id_venta', id_venta_act).single().execute()
+        # Recuperar Venta Live de forma estándar (sin alias complejos para evitar fallos de PostgREST)
+        res_v_live = controller.client.table('venta').select('*, cliente(nombre)').eq('id_venta', id_venta_act).single().execute()
         v_live = res_v_live.data or {}
         
         id_itin_dig = v_live.get('id_itinerario_digital')
@@ -899,14 +899,24 @@ def dashboard_simulador_costos(controller):
                         import json
                         render_data = json.loads(render_data)
                     
-                    # --- ENRIQUECER CON DATOS LIVE (CON SEGURIDAD) ---
                     if isinstance(render_data, dict):
-                        # Rescate de nombre infalible desde la relación de cliente
+                        # Rescate de nombre infalible
                         cliente_obj = v_live.get('cliente') or {}
-                        # Prioridad: 1. DB Live, 2. Itinerario previo
-                        nombre_final = cliente_obj.get('nombre_cliente') or render_data.get('nombre_pasajero') or "CLIENTE"
+                        # PostgREST a veces devuelve el objeto directo o en una lista de 1 elemento
+                        nombre_raw = "CLIENTE"
+                        if isinstance(cliente_obj, dict):
+                            nombre_raw = cliente_obj.get('nombre')
+                        elif isinstance(cliente_obj, list) and len(cliente_obj) > 0:
+                            nombre_raw = cliente_obj[0].get('nombre')
                         
-                        render_data['nombre_pasajero'] = nombre_final.upper()
+                        # Si sigue sin haber nombre, usar el del itinerario o un fallback genérico
+                        nombre_final = nombre_raw or render_data.get('nombre_pasajero') or "CLIENTE"
+                        
+                        # Limpieza final: si es "---" o similar, forzar a "CLIENTE"
+                        if str(nombre_final).strip() in ["", "---", "None", "Desconocido"]:
+                            nombre_final = "CLIENTE"
+                            
+                        render_data['nombre_pasajero'] = str(nombre_final).upper()
                         render_data['num_pasajeros'] = v_live.get('num_pasajeros', 1)
                         render_data['ninos'] = v_live.get('ninos', 0)
                         render_data['fecha_inicio'] = v_live.get('fecha_inicio')
