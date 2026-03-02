@@ -329,7 +329,12 @@ def dashboard_tablero_diario(controller):
                         df_row = df[df['ID Venta'] == sel_v].iloc[0]
                         render_data['num_pasajeros'] = df_row.get('num_pasajeros') or df_row.get('Pax', 1)
                         render_data['ninos'] = df_row.get('ninos', 0)
-                        render_data['nombre_pasajero'] = df_row.get('Cliente')
+                        
+                        # Rescate de nombre seguro
+                        new_name = df_row.get('Cliente')
+                        if new_name and str(new_name).strip() not in ["", "---", "None", "Desconocido"]:
+                            render_data['nombre_pasajero'] = new_name
+                        
                         render_itinerary_simple_download(render_data)
             else:
                 st.warning("Esta venta no tiene un itinerario digital vinculado.")
@@ -739,7 +744,12 @@ def reporte_operativo(controller):
                             dr = ventas_con_itin[ventas_con_itin['ID Venta'] == sel_id_v].iloc[0]
                             render_data['num_pasajeros'] = dr.get('num_pasajeros') or dr.get('Pax', 1)
                             render_data['ninos'] = dr.get('ninos', 0)
-                            render_data['nombre_pasajero'] = dr.get('Cliente')
+                            
+                            # Rescate de nombre seguro
+                            new_name = dr.get('Cliente')
+                            if new_name and str(new_name).strip() not in ["", "---", "None", "Desconocido"]:
+                                render_data['nombre_pasajero'] = new_name
+                                
                             render_itinerary_simple_download(render_data)
             else:
                 st.info("Seleccione un servicio con itinerario para ver su detalle.")

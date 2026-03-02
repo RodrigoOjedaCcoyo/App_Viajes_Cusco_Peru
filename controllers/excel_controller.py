@@ -38,16 +38,20 @@ class ExcelController:
         
         ws['A4'] = "PASAJERO:"
         # Mapeo robusto de nombre (ignorar guiones placeholder)
+        control_int = datos_render.get("control_interno") or {}
         posibles_nombres = [
             datos_render.get("nombre_pasajero"),
             datos_render.get("cliente_nombre"),
             datos_render.get("Cliente"),
             datos_render.get("cliente"),
-            datos_render.get("pax_nombre")
+            datos_render.get("pax_nombre"),
+            control_int.get("cliente"),
+            control_int.get("nombre_pasajero"),
+            datos_render.get("titulo") # Último recurso: título del itinerario
         ]
         nombre_pax = "---"
         for n in posibles_nombres:
-            if n and str(n).strip() not in ["", "---", "None", "Desconocido"]:
+            if n and str(n).strip() not in ["", "---", "None", "Desconocido", "Sin Título"]:
                 nombre_pax = str(n).upper()
                 break
         ws['B4'] = nombre_pax
