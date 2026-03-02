@@ -210,7 +210,9 @@ def estructurador_liquidacion_pro(controller):
                 if detalles:
                     st.session_state['simulador_contable_adv_data'] = [{
                         "FECHA": date.fromisoformat(d['fecha_servicio']),
+                        "HORA": d.get('hora_inicio', '08:00 AM'),
                         "SERVICIO": d.get('observacion') or "Servicio",
+                        "PAX": d.get('cantidad', 1),
                         "MONEDA": d.get('moneda_costo', 'USD'),
                         # Usar el costo real liquidado, si no hay, usar el applied (para no romper nada)
                         "TOTAL": mapa_costos_reales.get(d['n_linea'], float(d.get('costo_applied') or 0.0)),
@@ -267,12 +269,15 @@ def estructurador_liquidacion_pro(controller):
         lista_prov += [f"{p['nombre']} ({p['tipo_servicio']})" for p in res_prov_data]
     except: pass
 
-    # VISTA DE SOLO LECTURA
+    # VISTA DE SOLO LECTURA (Lógica similar a Operaciones pero con costos)
     st.dataframe(
         df, 
+        column_order=("FECHA", "HORA", "SERVICIO", "PAX", "MONEDA", "TOTAL"),
         column_config={
             "FECHA": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY"),
+            "HORA": st.column_config.TextColumn("Hora", width="small"),
             "SERVICIO": st.column_config.TextColumn("Servicio", width="large"),
+            "PAX": st.column_config.NumberColumn("Pax", format="%d"),
             "MONEDA": "💵",
             "TOTAL": st.column_config.NumberColumn("Costo", format="%.2f")
         },
