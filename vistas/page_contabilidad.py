@@ -155,21 +155,9 @@ def estructurador_liquidacion_pro(controller):
     from datetime import date
     st.subheader("📊 Estructurador de Liquidación Profesional", divider='rainbow')
 
+    # Inicializar estado si no existe (sin esquemas viejos que limpiar)
     if 'simulador_contable_adv_data' not in st.session_state:
         st.session_state['simulador_contable_adv_data'] = []
-    else:
-        # Guard de compatibilidad: limpiar si datos tienen esquema viejo o intermedio
-        datos_act = st.session_state['simulador_contable_adv_data']
-        if datos_act:
-            primera = datos_act[0]
-            esquema_viejo = ('MONEDA' in primera and 'TOTAL_PEN' not in primera)
-            # Esquema intermedio: MONEDA_ORIG era solo 'PEN'/'USD' (no 'USD→PEN (...)')
-            esquema_intermedio = ('MONEDA_ORIG' in primera and primera.get('MONEDA_ORIG') in ('PEN', 'USD'))
-            if esquema_viejo or esquema_intermedio:
-                st.session_state['simulador_contable_adv_data'] = []
-                st.session_state.pop('last_loaded_id_venta_acc', None)
-                st.session_state.pop('tc_venta_acc', None)
-                st.session_state.pop('moneda_venta_acc', None)
 
     st.info("💡 Selecciona la venta para cargar su desglose de servicios e itinerario.")
     
@@ -211,10 +199,18 @@ def estructurador_liquidacion_pro(controller):
                 # Obtener liquidaciones reales para sumar los costos
                 liquidaciones = op_ctrl.get_liquidaciones_venta(v_act['id_venta'])
                 
-                # --- TIPO DE CAMBIO DE LA VENTA (para conversión USD → PEN) ---
-                tc_venta = float(v_act.get('tipo_cambio') or 3.70)
+                # ==============================================================
+                # LÓGICA DE CONVERSIÓN DEFINITIVA
+                # Usamos venta.moneda (no moneda_costo de venta_tour, que siempre
+                # dice 'USD' por el DEFAULT del schema aunque el costo sea en soles)
+                # Regla: venta en USD → costo en USD → multiplicar por TC
+                #        venta en PEN → costo en PEN → dejar sin tocar
+                # ==============================================================
+                moneda_venta = (v_act.get('moneda') or 'PEN').strip().upper()
+                tc_venta     = float(v_act.get('tipo_cambio') or 3.70)
+                es_usd       = (moneda_venta == 'USD')
 
-                # Mapear costos: n_linea -> Suma de costos de liquidación
+                # Mapear costos: n_linea -> suma de costos de liquidación
                 mapa_costos_reales = {}
                 for liq in liquidaciones:
                     nl = liq.get('n_linea')
@@ -224,32 +220,22 @@ def estructurador_liquidacion_pro(controller):
                 if detalles:
                     filas = []
                     for d in detalles:
-                        # Leer moneda_costo de CADA servicio (nivel fila)
-                        moneda_servicio = (d.get('moneda_costo') or 'PEN').strip().upper()
-                        costo_orig = mapa_costos_reales.get(d['n_linea'], float(d.get('costo_applied') or 0.0))
-
-                        # Regla simple: USD → multiplicar por TC; PEN (o cualquier otro) → dejar igual
-                        if moneda_servicio == 'USD':
-                            costo_final = round(costo_orig * tc_venta, 2)
-                            etiqueta_moneda = f"USD→PEN (×{tc_venta})"
-                        else:
-                            costo_final = round(costo_orig, 2)
-                            etiqueta_moneda = "PEN"
+                        costo_orig  = mapa_costos_reales.get(d['n_linea'], float(d.get('costo_applied') or 0.0))
+                        costo_final = round(costo_orig * tc_venta, 2) if es_usd else round(costo_orig, 2)
 
                         filas.append({
-                            "FECHA": date.fromisoformat(d['fecha_servicio']),
-                            "HORA": d.get('hora_inicio', '--:--'),
+                            "FECHA"   : date.fromisoformat(d['fecha_servicio']),
+                            "HORA"    : d.get('hora_inicio', '--:--'),
                             "SERVICIO": d.get('observacion') or "Servicio",
-                            "PAX": d.get('cantidad', 1),
-                            "MONEDA_ORIG": etiqueta_moneda,
-                            "TOTAL_PEN": costo_final,
-                            "id_venta": d['id_venta'],
-                            "n_linea": d['n_linea']
+                            "PAX"     : d.get('cantidad', 1),
+                            "COSTO_PEN": costo_final,
+                            "id_venta" : d['id_venta'],
+                            "n_linea"  : d['n_linea']
                         })
 
                     st.session_state['simulador_contable_adv_data'] = filas
-                    st.session_state['tc_venta_acc'] = tc_venta
-                    st.session_state['moneda_venta_acc'] = v_act.get('moneda', 'PEN')
+                    st.session_state['tc_venta_acc']    = tc_venta
+                    st.session_state['es_usd_acc']      = es_usd
                     st.session_state['last_loaded_id_venta_acc'] = v_act['id_venta']
                     st.rerun()
 
@@ -293,41 +279,40 @@ def estructurador_liquidacion_pro(controller):
         df.sort_values(by='FECHA', inplace=True)
 
     tc_usado = st.session_state.get('tc_venta_acc', 3.70)
-    
-    # Mostrar nota de moneda según la venta
-    moneda_venta_guardada = st.session_state.get('moneda_venta_acc', 'PEN')
-    if 'MONEDA_ORIG' in df.columns:
-        if moneda_venta_guardada == 'USD':
-            st.caption(f"💱 Venta en USD · Tipo de cambio aplicado: **1 USD = S/ {tc_usado:.4f}** · Costos convertidos a Soles.")
-        else:
-            st.caption("🇵🇪 Venta en Soles (PEN) · Los costos se muestran en su moneda original, sin conversión.")
+    es_usd   = st.session_state.get('es_usd_acc', False)
 
-    # Determinar columnas a mostrar según qué existe en el dataframe
-    col_costo = 'TOTAL_PEN' if 'TOTAL_PEN' in df.columns else 'TOTAL'
+    # Nota informativa de moneda
+    if es_usd:
+        st.caption(f"💱 Venta en **USD** · TC aplicado: 1 USD = S/ {tc_usado:.4f} · Costos convertidos a Soles.")
+    elif not df.empty:
+        st.caption("🇵🇪 Venta en **Soles (PEN)** · Los costos se muestran tal cual, sin conversión.")
 
-    # VISTA DE SOLO LECTURA unificada en PEN
+    # Columna de costo según esquema activo
+    col_costo = 'COSTO_PEN' if 'COSTO_PEN' in df.columns else ('TOTAL_PEN' if 'TOTAL_PEN' in df.columns else 'TOTAL')
+
+    # Vista de solo lectura unificada en S/.
     cols_orden = [c for c in ("FECHA", "HORA", "SERVICIO", "PAX", col_costo) if c in df.columns]
     st.dataframe(
-        df, 
+        df,
         column_order=cols_orden,
         column_config={
-            "FECHA": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY"),
-            "HORA": st.column_config.TextColumn("Hora", width="small"),
-            "SERVICIO": st.column_config.TextColumn("Servicio", width="large"),
-            "PAX": st.column_config.NumberColumn("Pax", format="%d"),
+            "FECHA"    : st.column_config.DateColumn("Fecha", format="DD/MM/YYYY"),
+            "HORA"     : st.column_config.TextColumn("Hora", width="small"),
+            "SERVICIO" : st.column_config.TextColumn("Servicio", width="large"),
+            "PAX"      : st.column_config.NumberColumn("Pax", format="%d"),
+            "COSTO_PEN": st.column_config.NumberColumn("Costo (S/.)", format="S/ %.2f"),
             "TOTAL_PEN": st.column_config.NumberColumn("Costo (S/.)", format="S/ %.2f"),
-            "TOTAL": st.column_config.NumberColumn("Costo (S/.)", format="S/ %.2f"),
+            "TOTAL"    : st.column_config.NumberColumn("Costo (S/.)", format="S/ %.2f"),
         },
-        use_container_width=True, 
+        use_container_width=True,
         hide_index=True
     )
 
-    # Totales en PEN
+    # Total en Soles
     t_costos = df[col_costo].sum() if not df.empty and col_costo in df.columns else 0.0
     st.divider()
     st.metric("COSTO TOTAL EN SOLES", f"S/ {t_costos:,.2f}")
-    
-    st.info("💡 Esta vista es de solo consulta (Auditoría). Todos los costos están expresados en Soles (PEN).")
+    st.info("💡 Vista de auditoría — solo lectura. Todos los costos expresados en Soles (S/.).")
 
 from controllers.venta_controller import VentaController
 
