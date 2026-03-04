@@ -200,42 +200,47 @@ def estructurador_liquidacion_pro(controller):
                 liquidaciones = op_ctrl.get_liquidaciones_venta(v_act['id_venta'])
                 
                 # ==============================================================
-                # LÓGICA DE CONVERSIÓN DEFINITIVA
-                # Usamos venta.moneda (no moneda_costo de venta_tour, que siempre
-                # dice 'USD' por el DEFAULT del schema aunque el costo sea en soles)
-                # Regla: venta en USD → costo en USD → multiplicar por TC
-                #        venta en PEN → costo en PEN → dejar sin tocar
+                # LÓGICA DE CONVERSIÓN DEFINITIVA (corregida)
+                # El problema era: 100 USD + 20 USD + 100 PEN = 220 (mezcla incorrecta)
+                # La solución: convertir CADA liquidación a PEN usando su propio
+                # campo moneda_costo (que SÍ está guardado correctamente en
+                # venta_servicio_proveedor) ANTES de sumar por n_linea.
                 # ==============================================================
-                moneda_venta = (v_act.get('moneda') or 'PEN').strip().upper()
-                tc_venta     = float(v_act.get('tipo_cambio') or 3.70)
-                es_usd       = (moneda_venta == 'USD')
+                tc_venta = float(v_act.get('tipo_cambio') or 3.70)
 
-                # Mapear costos: n_linea -> suma de costos de liquidación
-                mapa_costos_reales = {}
+                # Sumar costos por n_linea, convirtiendo cada fila a PEN individualmente
+                mapa_costos_pen = {}
                 for liq in liquidaciones:
                     nl = liq.get('n_linea')
                     if nl is not None:
-                        mapa_costos_reales[nl] = mapa_costos_reales.get(nl, 0.0) + float(liq.get('costo_unitario') or 0.0)
+                        costo_liq    = float(liq.get('costo_unitario') or 0.0)
+                        moneda_liq   = (liq.get('moneda_costo') or 'PEN').strip().upper()
+                        # Convertir a PEN si es USD
+                        costo_en_pen = round(costo_liq * tc_venta, 4) if moneda_liq == 'USD' else costo_liq
+                        mapa_costos_pen[nl] = mapa_costos_pen.get(nl, 0.0) + costo_en_pen
 
                 if detalles:
                     filas = []
                     for d in detalles:
-                        costo_orig  = mapa_costos_reales.get(d['n_linea'], float(d.get('costo_applied') or 0.0))
-                        costo_final = round(costo_orig * tc_venta, 2) if es_usd else round(costo_orig, 2)
-
+                        # El mapa ya tiene todo en PEN → se muestra directamente
+                        costo_pen = round(
+                            mapa_costos_pen.get(d['n_linea'],
+                                               float(d.get('costo_applied') or 0.0)),
+                            2
+                        )
                         filas.append({
-                            "FECHA"   : date.fromisoformat(d['fecha_servicio']),
-                            "HORA"    : d.get('hora_inicio', '--:--'),
-                            "SERVICIO": d.get('observacion') or "Servicio",
-                            "PAX"     : d.get('cantidad', 1),
-                            "COSTO_PEN": costo_final,
+                            "FECHA"    : date.fromisoformat(d['fecha_servicio']),
+                            "HORA"     : d.get('hora_inicio', '--:--'),
+                            "SERVICIO" : d.get('observacion') or "Servicio",
+                            "PAX"      : d.get('cantidad', 1),
+                            "COSTO_PEN": costo_pen,
                             "id_venta" : d['id_venta'],
                             "n_linea"  : d['n_linea']
                         })
 
                     st.session_state['simulador_contable_adv_data'] = filas
-                    st.session_state['tc_venta_acc']    = tc_venta
-                    st.session_state['es_usd_acc']      = es_usd
+                    st.session_state['tc_venta_acc']             = tc_venta
+                    st.session_state['es_usd_acc']               = False  # ya convertido, no re-convertir
                     st.session_state['last_loaded_id_venta_acc'] = v_act['id_venta']
                     st.rerun()
 
