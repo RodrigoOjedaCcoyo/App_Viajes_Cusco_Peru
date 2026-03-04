@@ -206,8 +206,11 @@ def estructurador_liquidacion_pro(controller):
                 # Obtener liquidaciones reales para sumar los costos
                 liquidaciones = op_ctrl.get_liquidaciones_venta(v_act['id_venta'])
                 
-                # --- TIPO DE CAMBIO DE LA VENTA (para convertir USD → PEN) ---
-                tc_venta = float(v_act.get('tipo_cambio') or 3.70)  # fallback seguro si no tiene TC
+                # --- MONEDA Y TIPO DE CAMBIO DE LA VENTA PRINCIPAL ---
+                # La columna moneda_costo de venta_tour tiene DEFAULT 'USD' y no es confiable.
+                # Usamos la moneda de la VENTA para decidir si hay que convertir o no.
+                moneda_venta = v_act.get('moneda', 'PEN')  # PEN por defecto (más común)
+                tc_venta = float(v_act.get('tipo_cambio') or 3.70)
                 
                 # Mapear costos: n_linea -> Suma de costos de liquidación
                 mapa_costos_reales = {}
@@ -219,32 +222,32 @@ def estructurador_liquidacion_pro(controller):
                 if detalles:
                     filas = []
                     for d in detalles:
-                        moneda_orig = d.get('moneda_costo', 'USD')
                         costo_orig = mapa_costos_reales.get(d['n_linea'], float(d.get('costo_applied') or 0.0))
                         
-                        # Convertir a PEN si está en USD
-                        if moneda_orig == 'USD':
-                            costo_pen = costo_orig * tc_venta
-                        elif moneda_orig == 'EUR':
-                            # Por si existiera algún costo en EUR, también convertir
-                            costo_pen = costo_orig * tc_venta * 1.08  # aproximado EUR/USD
+                        # Conversión: solo si la VENTA fue en USD → multiplicar por TC
+                        # Si la venta es en PEN, los costos ya están en soles → no convertir
+                        if moneda_venta == 'USD':
+                            costo_pen = round(costo_orig * tc_venta, 2)
+                            convirtio = True
                         else:
-                            costo_pen = costo_orig  # ya está en PEN
+                            costo_pen = round(costo_orig, 2)  # ya en PEN
+                            convirtio = False
                         
                         filas.append({
                             "FECHA": date.fromisoformat(d['fecha_servicio']),
                             "HORA": d.get('hora_inicio', '--:--'),
                             "SERVICIO": d.get('observacion') or "Servicio",
                             "PAX": d.get('cantidad', 1),
-                            "MONEDA_ORIG": moneda_orig,  # guardado oculto para referencia
-                            "TOTAL_PEN": round(costo_pen, 2),
-                            "TC_USADO": tc_venta if moneda_orig == 'USD' else 1.0,
+                            "MONEDA_ORIG": moneda_venta,
+                            "TOTAL_PEN": costo_pen,
+                            "TC_USADO": tc_venta if convirtio else 1.0,
                             "id_venta": d['id_venta'],
                             "n_linea": d['n_linea']
                         })
                     
                     st.session_state['simulador_contable_adv_data'] = filas
                     st.session_state['tc_venta_acc'] = tc_venta
+                    st.session_state['moneda_venta_acc'] = moneda_venta
                     st.session_state['last_loaded_id_venta_acc'] = v_act['id_venta']
                     st.rerun()
 
@@ -289,11 +292,13 @@ def estructurador_liquidacion_pro(controller):
 
     tc_usado = st.session_state.get('tc_venta_acc', 3.70)
     
-    # Mostrar nota de tipo de cambio si existe
+    # Mostrar nota de moneda según la venta
+    moneda_venta_guardada = st.session_state.get('moneda_venta_acc', 'PEN')
     if 'MONEDA_ORIG' in df.columns:
-        tiene_usd = (df['MONEDA_ORIG'] == 'USD').any()
-        if tiene_usd:
-            st.caption(f"💱 Tipo de cambio aplicado: **1 USD = S/ {tc_usado:.4f}** (según registro de la venta). Todos los costos convertidos a Soles.")
+        if moneda_venta_guardada == 'USD':
+            st.caption(f"💱 Venta en USD · Tipo de cambio aplicado: **1 USD = S/ {tc_usado:.4f}** · Costos convertidos a Soles.")
+        else:
+            st.caption("🇵🇪 Venta en Soles (PEN) · Los costos se muestran en su moneda original, sin conversión.")
 
     # Determinar columnas a mostrar según qué existe en el dataframe
     col_costo = 'TOTAL_PEN' if 'TOTAL_PEN' in df.columns else 'TOTAL'
