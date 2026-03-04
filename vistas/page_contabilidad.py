@@ -155,9 +155,11 @@ def estructurador_liquidacion_pro(controller):
     from datetime import date
     st.subheader("📊 Estructurador de Liquidación Profesional", divider='rainbow')
 
-    # Inicializar estado si no existe (sin esquemas viejos que limpiar)
+    # Forzar recarga siempre: descartar cache de versiones anteriores del código
     if 'simulador_contable_adv_data' not in st.session_state:
         st.session_state['simulador_contable_adv_data'] = []
+    # Borrar el ID cacheado para que al seleccionar la venta recargue con la lógica nueva
+    st.session_state.pop('last_loaded_id_venta_acc', None)
 
     st.info("💡 Selecciona la venta para cargar su desglose de servicios e itinerario.")
     
@@ -214,7 +216,8 @@ def estructurador_liquidacion_pro(controller):
                     nl = liq.get('n_linea')
                     if nl is not None:
                         costo_liq    = float(liq.get('costo_unitario') or 0.0)
-                        moneda_liq   = (liq.get('moneda_costo') or 'PEN').strip().upper()
+                        # CAMPO CORRECTO: en venta_servicio_proveedor la columna es 'moneda' (no 'moneda_costo')
+                        moneda_liq   = (liq.get('moneda') or 'PEN').strip().upper()
                         # Convertir a PEN si es USD
                         costo_en_pen = round(costo_liq * tc_venta, 4) if moneda_liq == 'USD' else costo_liq
                         mapa_costos_pen[nl] = mapa_costos_pen.get(nl, 0.0) + costo_en_pen
