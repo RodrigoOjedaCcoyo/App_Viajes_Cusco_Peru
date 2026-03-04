@@ -158,13 +158,18 @@ def estructurador_liquidacion_pro(controller):
     if 'simulador_contable_adv_data' not in st.session_state:
         st.session_state['simulador_contable_adv_data'] = []
     else:
-        # Guard de compatibilidad: si los datos son del esquema viejo (con 'TOTAL'/'MONEDA'),
-        # limpiar para forzar recarga con el nuevo esquema en Soles
+        # Guard de compatibilidad: limpiar si datos tienen esquema viejo o intermedio
         datos_act = st.session_state['simulador_contable_adv_data']
-        if datos_act and 'MONEDA' in datos_act[0] and 'TOTAL_PEN' not in datos_act[0]:
-            st.session_state['simulador_contable_adv_data'] = []
-            st.session_state.pop('last_loaded_id_venta_acc', None)
-            st.session_state.pop('tc_venta_acc', None)
+        if datos_act:
+            primera = datos_act[0]
+            esquema_viejo = ('MONEDA' in primera and 'TOTAL_PEN' not in primera)
+            # Esquema intermedio: MONEDA_ORIG era solo 'PEN'/'USD' (no 'USD→PEN (...)')
+            esquema_intermedio = ('MONEDA_ORIG' in primera and primera.get('MONEDA_ORIG') in ('PEN', 'USD'))
+            if esquema_viejo or esquema_intermedio:
+                st.session_state['simulador_contable_adv_data'] = []
+                st.session_state.pop('last_loaded_id_venta_acc', None)
+                st.session_state.pop('tc_venta_acc', None)
+                st.session_state.pop('moneda_venta_acc', None)
 
     st.info("💡 Selecciona la venta para cargar su desglose de servicios e itinerario.")
     
@@ -206,12 +211,9 @@ def estructurador_liquidacion_pro(controller):
                 # Obtener liquidaciones reales para sumar los costos
                 liquidaciones = op_ctrl.get_liquidaciones_venta(v_act['id_venta'])
                 
-                # --- MONEDA Y TIPO DE CAMBIO DE LA VENTA PRINCIPAL ---
-                # La columna moneda_costo de venta_tour tiene DEFAULT 'USD' y no es confiable.
-                # Usamos la moneda de la VENTA para decidir si hay que convertir o no.
-                moneda_venta = v_act.get('moneda', 'PEN')  # PEN por defecto (más común)
+                # --- TIPO DE CAMBIO DE LA VENTA (para conversión USD → PEN) ---
                 tc_venta = float(v_act.get('tipo_cambio') or 3.70)
-                
+
                 # Mapear costos: n_linea -> Suma de costos de liquidación
                 mapa_costos_reales = {}
                 for liq in liquidaciones:
@@ -222,32 +224,32 @@ def estructurador_liquidacion_pro(controller):
                 if detalles:
                     filas = []
                     for d in detalles:
+                        # Leer moneda_costo de CADA servicio (nivel fila)
+                        moneda_servicio = (d.get('moneda_costo') or 'PEN').strip().upper()
                         costo_orig = mapa_costos_reales.get(d['n_linea'], float(d.get('costo_applied') or 0.0))
-                        
-                        # Conversión: solo si la VENTA fue en USD → multiplicar por TC
-                        # Si la venta es en PEN, los costos ya están en soles → no convertir
-                        if moneda_venta == 'USD':
-                            costo_pen = round(costo_orig * tc_venta, 2)
-                            convirtio = True
+
+                        # Regla simple: USD → multiplicar por TC; PEN (o cualquier otro) → dejar igual
+                        if moneda_servicio == 'USD':
+                            costo_final = round(costo_orig * tc_venta, 2)
+                            etiqueta_moneda = f"USD→PEN (×{tc_venta})"
                         else:
-                            costo_pen = round(costo_orig, 2)  # ya en PEN
-                            convirtio = False
-                        
+                            costo_final = round(costo_orig, 2)
+                            etiqueta_moneda = "PEN"
+
                         filas.append({
                             "FECHA": date.fromisoformat(d['fecha_servicio']),
                             "HORA": d.get('hora_inicio', '--:--'),
                             "SERVICIO": d.get('observacion') or "Servicio",
                             "PAX": d.get('cantidad', 1),
-                            "MONEDA_ORIG": moneda_venta,
-                            "TOTAL_PEN": costo_pen,
-                            "TC_USADO": tc_venta if convirtio else 1.0,
+                            "MONEDA_ORIG": etiqueta_moneda,
+                            "TOTAL_PEN": costo_final,
                             "id_venta": d['id_venta'],
                             "n_linea": d['n_linea']
                         })
-                    
+
                     st.session_state['simulador_contable_adv_data'] = filas
                     st.session_state['tc_venta_acc'] = tc_venta
-                    st.session_state['moneda_venta_acc'] = moneda_venta
+                    st.session_state['moneda_venta_acc'] = v_act.get('moneda', 'PEN')
                     st.session_state['last_loaded_id_venta_acc'] = v_act['id_venta']
                     st.rerun()
 
