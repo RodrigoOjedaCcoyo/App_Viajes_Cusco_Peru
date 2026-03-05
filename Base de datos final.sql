@@ -4,24 +4,20 @@
   DROP VIEW IF EXISTS vista_ventas_completa CASCADE;
 
   -- Borrar tablas si existen (en orden de dependencia)
-  DROP TABLE IF EXISTS evaluacion_proveedor CASCADE;
+  DROP TABLE IF EXISTS pago_operativo CASCADE;
   DROP TABLE IF EXISTS venta_servicio_proveedor CASCADE;
-  DROP TABLE IF EXISTS documentacion CASCADE; -- Seguridad para versiones viejas
-  DROP TABLE IF EXISTS pasajero CASCADE;      -- Seguridad para versiones viejas
-  DROP TABLE IF EXISTS requerimiento;
   DROP TABLE IF EXISTS pago CASCADE;
   DROP TABLE IF EXISTS venta_item_ingreso CASCADE;
   DROP TABLE IF EXISTS venta_tour CASCADE;
   DROP TABLE IF EXISTS venta CASCADE;
   DROP TABLE IF EXISTS itinerario_digital CASCADE;
-  DROP TABLE IF EXISTS catalogo_tours_imagenes CASCADE;
   DROP TABLE IF EXISTS paquete_tour CASCADE;
   DROP TABLE IF EXISTS paquete CASCADE;
   DROP TABLE IF EXISTS tour_itinerario_item CASCADE;
   DROP TABLE IF EXISTS tour CASCADE;
   DROP TABLE IF EXISTS plantilla_servicio CASCADE;
-  DROP TABLE IF EXISTS proveedor CASCADE; -- AGREGADO AQUÍ
-  DROP TABLE IF EXISTS agencia_aliada CASCeADE;
+  DROP TABLE IF EXISTS proveedor CASCADE;
+  DROP TABLE IF EXISTS agencia_aliada CASCADE;
   DROP TABLE IF EXISTS cliente CASCADE;
   DROP TABLE IF EXISTS lead CASCADE;
   DROP TABLE IF EXISTS vendedor CASCADE;
@@ -214,6 +210,8 @@
       fecha_pago DATE DEFAULT CURRENT_DATE NOT NULL,
       monto_pagado DECIMAL(10,2) NOT NULL CHECK (monto_pagado > 0),
       moneda VARCHAR(10) DEFAULT 'USD' CHECK (moneda IN ('USD', 'PEN', 'EUR')),
+      tasa_cambio DECIMAL(10,4) DEFAULT 1.0,
+      monto_moneda_venta DECIMAL(10,2), -- El monto convertido a la moneda de la venta
       metodo_pago VARCHAR(50) CHECK (metodo_pago IN ('EFECTIVO', 'TRANSFERENCIA', 'TARJETA', 'PAYPAL', 'YAPE', 'PLIN', 'OTRO')),
       tipo_pago VARCHAR(50) CHECK (tipo_pago IN ('ADELANTO', 'SALDO', 'TOTAL', 'PARCIAL', 'REEMBOLSO')),
       tipo_comprobante VARCHAR(50) DEFAULT 'RECIBO' CHECK (tipo_comprobante IN ('BOLETA', 'FACTURA', 'RECIBO', 'RECIBO SIMPLE', 'SIN_COMPROBANTE')),
@@ -287,25 +285,25 @@
       UNIQUE(id_venta, n_linea, tipo_servicio)
   );
 
-  CREATE TABLE evaluacion_proveedor (
-      id SERIAL PRIMARY KEY,
-      id_proveedor INTEGER REFERENCES proveedor(id_proveedor) ON DELETE CASCADE,
-      id_venta INTEGER REFERENCES venta(id_venta) ON DELETE SET NULL,
-      calificacion_general INTEGER CHECK (calificacion_general BETWEEN 1 AND 5),
-      puntualidad INTEGER CHECK (puntualidad BETWEEN 1 AND 5),
-      calidad_servicio INTEGER CHECK (calidad_servicio BETWEEN 1 AND 5),
-      relacion_precio_calidad INTEGER CHECK (relacion_precio_calidad BETWEEN 1 AND 5),
-      comunicacion INTEGER CHECK (comunicacion BETWEEN 1 AND 5),
-      resolveria_contratar BOOLEAN,
-      comentarios TEXT,
-      evaluado_por INTEGER REFERENCES vendedor(id_vendedor),
-      fecha_evaluacion DATE DEFAULT CURRENT_DATE,
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+
+      UNIQUE(id_venta, n_linea, tipo_servicio)
   );
 
-  -- ==============================================================
-  -- SECCIÓN 2: CARGA DE DATOS (SEMILLAS)
-  -- ==============================================================
+  CREATE TABLE pago_operativo (
+      id_pago_op SERIAL PRIMARY KEY,
+      id_proveedor INTEGER REFERENCES proveedor(id_proveedor) ON DELETE CASCADE,
+      id_venta INTEGER REFERENCES venta(id_venta) ON DELETE SET NULL,
+      n_linea INTEGER, -- Para vincular a un servicio específico
+      monto_pagado DECIMAL(10,2) NOT NULL CHECK (monto_pagado > 0),
+      moneda VARCHAR(10) DEFAULT 'USD' CHECK (moneda IN ('USD', 'PEN', 'EUR')),
+      fecha_pago DATE DEFAULT CURRENT_DATE NOT NULL,
+      metodo_pago VARCHAR(50) CHECK (metodo_pago IN ('EFECTIVO', 'TRANSFERENCIA', 'YAPE', 'PLIN', 'TARJETA', 'OTRO')),
+      comprobante_url TEXT, -- Link al voucher/foto
+      observaciones TEXT,
+      id_usuario_registro INTEGER REFERENCES usuarios_app(id),
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (id_venta, n_linea) REFERENCES venta_tour(id_venta, n_linea) ON DELETE SET NULL
+  );
 
   -- 2.1. USUARIOS Y VENDEDORES
   -- Los emails deben coincidir para que el sistema vincule el login con el vendedor asignado.

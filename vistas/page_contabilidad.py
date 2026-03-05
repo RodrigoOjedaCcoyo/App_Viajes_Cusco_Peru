@@ -135,9 +135,10 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, su
     st.markdown("---")
     
     if funcionalidad_seleccionada == "Gestión de Registros":
-        tab1, tab2 = st.tabs([
+        tab1, tab2, tab3 = st.tabs([
             "📊 Estructurador Financiero", 
-            "💰 Cuentas por Cobrar"
+            "💰 Cuentas por Cobrar",
+            "🚐 Pagos Operativos (Proveedores)"
         ])
         
         with tab1:
@@ -145,8 +146,125 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, su
             
         with tab2:
             dashboard_cuentas_por_cobrar_unified(supabase_client)
+            
+        with tab3:
+            dashboard_pagos_operativos(supabase_client)
     else:
         st.info("Utilice el Dashboard Contable para ver reportes.")
+
+def dashboard_pagos_operativos(supabase_client):
+    """Dashboard para controlar desembolsos a guías, transportes y agencias (Proveedores)."""
+    st.subheader("🚐 Control de Pagos Operativos", divider='green')
+    
+    from controllers.pago_operativo_controller import PagoOperativoController
+    po_ctrl = PagoOperativoController(supabase_client)
+    
+    # 1. Resumen de Saldos Pendientes
+    st.write("### 📋 Resumen de Saldos por Proveedor")
+    with st.spinner("Calculando balances con proveedores..."):
+        df_saldos = po_ctrl.obtener_resumen_saldos_proveedores()
+        if not df_saldos.empty:
+            # Resaltar deudas
+            def highlight_saldo(val):
+                color = 'red' if val > 0 else 'green'
+                return f'color: {color}; font-weight: bold'
+            
+            st.dataframe(
+                df_saldos.style.applymap(highlight_saldo, subset=['Saldo Pendiente']),
+                use_container_width=True,
+                hide_index=True
+            )
+            
+            total_deuda_pen = df_saldos[df_saldos['Moneda'] == 'PEN']['Saldo Pendiente'].sum()
+            total_deuda_usd = df_saldos[df_saldos['Moneda'] == 'USD']['Saldo Pendiente'].sum()
+            
+            c1, c2 = st.columns(2)
+            c1.metric("Deuda Total (S/.)", f"S/ {total_deuda_pen:,.2f}")
+            c2.metric("Deuda Total ($)", f"$ {total_deuda_usd:,.2f}")
+        else:
+            st.info("No hay costos operativos registrados o todos están saldados.")
+
+    st.divider()
+
+    # 2. Formulario de Registro de Pago
+    with st.expander("➕ Registrar Nuevo Pago a Proveedor", expanded=True):
+        st.info("Utilice este formulario para descargar deuda con un proveedor específico.")
+        
+        # Obtener lista de proveedores
+        res_prov = supabase_client.table('proveedor').select('id_proveedor, nombre_comercial').eq('activo', True).execute()
+        mapa_prov = {p['nombre_comercial']: p['id_proveedor'] for p in res_prov.data} if res_prov.data else {}
+        
+        col1, col2 = st.columns(2)
+        prov_sel = col1.selectbox("1. Seleccione Proveedor:", ["--- Seleccione ---"] + list(mapa_prov.keys()))
+        
+        if prov_sel != "--- Seleccione ---":
+            id_prov = mapa_prov[prov_sel]
+            
+            # Intentar buscar ventas/servicios pendientes para este proveedor para ayudar a la vinculación
+            res_serv = supabase_client.table('venta_servicio_proveedor')\
+                .select('id_venta, n_linea, tipo_servicio, venta(tour_nombre, nombre_cliente)')\
+                .eq('id_proveedor', id_prov)\
+                .execute()
+            
+            opciones_serv = ["--- Pago General (No vinculado) ---"]
+            mapa_serv = {}
+            if res_serv.data:
+                for s in res_serv.data:
+                    v_info = s.get('venta') or {}
+                    lbl = f"Venta {s['id_venta']} | {v_info.get('nombre_cliente', 'ID '+str(s['id_venta']))} - {s['tipo_servicio']} ({v_info.get('tour_nombre', 'Tour')})"
+                    opciones_serv.append(lbl)
+                    mapa_serv[lbl] = (s['id_venta'], s['n_linea'])
+            
+            serv_sel = col2.selectbox("2. Vincular a Servicio (Opcional):", opciones_serv)
+            
+            st.markdown("---")
+            c3, c4, c5 = st.columns(3)
+            monto = c3.number_input("Monto a Pagar:", min_value=0.01, step=50.0)
+            moneda = c4.selectbox("Moneda:", ["PEN", "USD"])
+            fecha = c5.date_input("Fecha:", date.today())
+            
+            c6, c7 = st.columns(2)
+            metodo = c6.selectbox("Método de Pago:", ["YAPE", "PLIN", "TRANSFERENCIA", "EFECTIVO", "OTRO"])
+            notas = c7.text_input("Observaciones / Nro Operación:", placeholder="Ej: Pago de guiado City Tour")
+            
+            voucher = st.text_input("🔗 Link al Voucher (Opcional):", placeholder="https://supabase-storage...")
+
+            if st.button("🧧 Confirmar y Registrar Desembolso", type="primary", use_container_width=True):
+                id_v, nl = (None, None)
+                if serv_sel != opciones_serv[0]:
+                    id_v, nl = mapa_serv[serv_sel]
+                
+                exito = po_ctrl.registrar_pago_operativo(
+                    id_proveedor=id_prov,
+                    id_venta=id_v,
+                    n_linea=nl,
+                    monto=monto,
+                    moneda=moneda,
+                    fecha=fecha.isoformat(),
+                    metodo=metodo,
+                    voucher_url=voucher,
+                    notas=notas,
+                    id_usuario=None # Podríamos jalar de st.session_state
+                )
+                
+                if exito:
+                    st.success(f"✅ Pago de {moneda} {monto:,.2f} registrado para {prov_sel}.")
+                    st.balloons()
+                    st.rerun()
+                else:
+                    st.error("No se pudo registrar el pago. Verifique los campos.")
+
+    # 3. Historial de Pagos (Recientes)
+    with st.expander("🔎 Historial de Pagos Recientes"):
+        if prov_sel != "--- Seleccione ---":
+            st.write(f"Historial para **{prov_sel}**:")
+            df_hist = po_ctrl.obtener_historial_pagos_proveedor(mapa_prov[prov_sel])
+            if not df_hist.empty:
+                st.dataframe(df_hist, use_container_width=True, hide_index=True)
+            else:
+                st.caption("No se encontraron pagos anteriores para este proveedor.")
+        else:
+            st.caption("Seleccione un proveedor para ver su historial.")
 
 def estructurador_liquidacion_pro(controller):
     """
