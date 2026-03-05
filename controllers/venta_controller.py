@@ -4,6 +4,7 @@ from models.venta_model import VentaModel
 from supabase import Client
 from datetime import date
 from typing import Optional, Any
+import pandas as pd
 
 class VentaController:
     """Controlador para manejar la lógica de Ventas."""
@@ -214,3 +215,43 @@ class VentaController:
         except Exception as e:
             print(f"Error obteniendo ventas B2B globales: {e}")
             return []
+
+    def vincular_pagos_masivos(self, df: Any) -> dict:
+        """Procesa un DataFrame de Excel/CSV para registrar múltiples pagos a la vez."""
+        exitos = 0
+        errores = []
+        
+        # Columnas esperadas: ID Venta, Fecha, Monto, Moneda, Metodo, Tipo, Comprobante
+        for idx, row in df.iterrows():
+            try:
+                id_v = row.get('ID Venta')
+                monto = row.get('Monto')
+                
+                if pd.isna(id_v) or pd.isna(monto):
+                    continue
+                
+                # Formatear datos para la DB
+                pago_data = {
+                    "id_venta": int(id_v),
+                    "fecha_pago": str(row.get('Fecha') or date.today()),
+                    "monto_pagado": float(monto),
+                    "moneda": str(row.get('Moneda') or 'USD').strip().upper(),
+                    "metodo_pago": str(row.get('Metodo') or 'TRANSFERENCIA').strip().upper(),
+                    "tipo_pago": str(row.get('Tipo') or 'ABONO').strip().upper(),
+                    "tipo_comprobante": str(row.get('Comprobante') or 'RECIBO').strip().upper()
+                }
+                
+                # Validaciones de enums según la BD
+                if pago_data['moneda'] not in ['USD', 'PEN', 'EUR']: pago_data['moneda'] = 'USD'
+                if pago_data['metodo_pago'] not in ['EFECTIVO', 'TRANSFERENCIA', 'TARJETA', 'PAYPAL', 'YAPE', 'PLIN', 'OTRO']: pago_data['metodo_pago'] = 'TRANSFERENCIA'
+                if pago_data['tipo_pago'] not in ['ADELANTO', 'SALDO', 'TOTAL', 'PARCIAL', 'REEMBOLSO']: pago_data['tipo_pago'] = 'PARCIAL'
+                if pago_data['tipo_comprobante'] not in ['BOLETA', 'FACTURA', 'RECIBO', 'RECIBO SIMPLE', 'SIN_COMPROBANTE']: pago_data['tipo_comprobante'] = 'RECIBO'
+                
+                # Insertar
+                self.client.table('pago').insert(pago_data).execute()
+                exitos += 1
+                
+            except Exception as e:
+                errores.append(f"Fila {idx+2}: {str(e)}")
+        
+        return {"exitos": exitos, "errores": errores}

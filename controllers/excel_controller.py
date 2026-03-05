@@ -337,3 +337,37 @@ class ExcelController:
         wb.save(output)
         output.seek(0)
         return output
+
+    def generar_reporte_cuentas_cobrar_xlsx(self, df_cuentas: pd.DataFrame) -> BytesIO:
+        """
+        Genera un reporte Excel basado en la data de Cuentas por Cobrar B2B.
+        """
+        import openpyxl
+        from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+        
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Cuentas_por_Cobrar_B2B"
+        
+        # --- Cabecera ---
+        headers = list(df_cuentas.columns)
+        for c_idx, h in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=c_idx, value=h)
+            cell.fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid") # Azul oscuro
+            cell.font = Font(color="FFFFFF", bold=True)
+            cell.alignment = Alignment(horizontal='center')
+        
+        # --- Datos ---
+        for r_idx, row in enumerate(df_cuentas.values, 2):
+            for c_idx, value in enumerate(row, 1):
+                ws.cell(row=r_idx, column=c_idx, value=value)
+        
+        # Ajustar anchos
+        for column_cells in ws.columns:
+            length = max(len(str(cell.value)) for cell in column_cells)
+            ws.column_dimensions[column_cells[0].column_letter].width = length + 2
+
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        return output

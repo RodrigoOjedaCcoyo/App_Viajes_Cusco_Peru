@@ -2,6 +2,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import date
+import io
 from controllers.reporte_controller import ReporteController
 
 # Renderiza el Botón para el PDF del Itinerario Simple.
@@ -380,6 +381,23 @@ def dashboard_cuentas_por_cobrar_b2b(supabase_client):
     c1.metric("Total por Cobrar a Agencias", f"${total_deuda_b2b:,.2f}")
     c2.metric("Agencias con Deuda", len([d for d in data_agencias.values() if d['Por Cobrar'] > 1]))
     
+    # --- NUEVO: BOTÓN DE DESCARGA REPORTE EXCEL ---
+    from controllers.excel_controller import ExcelController
+    exc_ctrl = ExcelController()
+    df_detalle_rep = pd.DataFrame(lista_detalle)
+    if not df_detalle_rep.empty:
+        try:
+            reporte_xlsx = exc_ctrl.generar_reporte_cuentas_cobrar_xlsx(df_detalle_rep)
+            st.download_button(
+                label="📊 Descargar Informe de Cuentas por Cobrar (Excel)",
+                data=reporte_xlsx,
+                file_name=f"reporte_cuentas_b2b_{date.today()}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+        except Exception as e:
+            st.error(f"Error al generar reporte Excel: {e}")
+
     st.divider()
     
     # Visualización 2: Tabla Resumen por Agencia
@@ -451,4 +469,70 @@ def dashboard_cuentas_por_cobrar_b2b(supabase_client):
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error al registrar el pago: {e}")
+
+    # -------------------------------------------------------------
+    # 📥 NUEVO: CARGA MASIVA DE PAGOS (EXCEL)
+    # -------------------------------------------------------------
+    st.divider()
+    with st.expander("📥 Carga Masiva de Pagos (Excel)", expanded=False):
+        st.markdown("""
+        Utilice esta sección para registrar múltiples pagos a la vez. 
+        Descargue la plantilla, complete los datos y suba el archivo. 
+        Asegúrese de que el **ID Venta** sea válido.
+        """)
+        
+        # 1. Crear plantilla en memoria
+        template_df = pd.DataFrame(columns=[
+            "ID Venta", "Fecha", "Monto", "Moneda", "Metodo", "Tipo", "Comprobante"
+        ])
+        
+        output = io.BytesIO()
+        try:
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                template_df.to_excel(writer, index=False, sheet_name='PlantillaPagos')
+            processed_data = output.getvalue()
+            
+            st.download_button(
+                label="📄 Descargar Plantilla Excel",
+                data=processed_data,
+                file_name="plantilla_pagos_masivos.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+        except Exception as e:
+            st.error(f"Error al generar plantilla: {e}")
+        
+        st.divider()
+        
+        uploaded_file = st.file_uploader("Subir Excel de Pagos:", type=["xlsx", "xls", "csv"], key="uploader_pagos_acc")
+        
+        if uploaded_file:
+            try:
+                if uploaded_file.name.endswith('.csv'):
+                    df_upload = pd.read_csv(uploaded_file)
+                else:
+                    df_upload = pd.read_excel(uploaded_file)
+                
+                st.write("### 🔍 Previsualización de Datos:")
+                st.dataframe(df_upload, use_container_width=True, hide_index=True)
+                
+                if st.button("🧧 Procesar y Registrar Todo", type="primary", use_container_width=True):
+                    with st.spinner("Registrando pagos en el sistema..."):
+                        vc = VentaController(supabase_client)
+                        resultado = vc.vincular_pagos_masivos(df_upload)
+                        
+                        if resultado["exitos"] > 0:
+                            st.success(f"✅ Se registraron {resultado['exitos']} pagos exitosamente.")
+                        
+                        if resultado["errores"]:
+                            with st.expander("⚠️ Ver Detalles de Errores"):
+                                for err in resultado["errores"]:
+                                    st.error(err)
+                        
+                        if resultado["exitos"] > 0:
+                            st.balloons()
+                            st.rerun()
+                            
+            except Exception as e:
+                st.error(f"Error al leer/procesar el archivo: {e}")
 
