@@ -216,12 +216,71 @@ class VentaController:
             print(f"Error obteniendo ventas B2B globales: {e}")
             return []
 
+    def obtener_venta_por_id(self, id_venta: int) -> Optional[dict]:
+        """Obtiene los datos básicos de una venta por su ID."""
+        try:
+            res = self.client.table('venta').select('id_venta, moneda, precio_total_cierre, tour_nombre').eq('id_venta', id_venta).single().execute()
+            return res.data
+        except Exception as e:
+            print(f"Error obteniendo venta {id_venta}: {e}")
+            return None
+
+    def registrar_pago(self, 
+                       id_venta: int, 
+                       monto_pagado: float, 
+                       moneda_pago: str, 
+                       tasa_cambio: float, 
+                       fecha_pago: str, 
+                       metodo: str, 
+                       tipo_pago: str, 
+                       comprobante: str = "RECIBO") -> tuple[bool, str]:
+        """Registra un pago individual manejando la conversión de moneda si es necesario."""
+        try:
+            # 1. Obtener la moneda de la venta
+            venta = self.obtener_venta_por_id(id_venta)
+            if not venta:
+                return False, f"No se encontró la venta con ID {id_venta}"
+            
+            moneda_venta = venta.get('moneda', 'USD')
+            
+            # 2. Calcular monto equivalente en moneda de la venta
+            monto_equivalente = monto_pagado
+            if moneda_pago != moneda_venta:
+                if tasa_cambio <= 0:
+                    return False, "El tipo de cambio debe ser mayor a 0 para monedas distintas."
+                monto_equivalente = round(monto_pagado / tasa_cambio, 2)
+            else:
+                tasa_cambio = 1.0
+            
+            # 3. Preparar data
+            pago_data = {
+                "id_venta": id_venta,
+                "fecha_pago": fecha_pago,
+                "monto_pagado": monto_pagado,
+                "moneda": moneda_pago,
+                "metodo_pago": metodo,
+                "tipo_pago": tipo_pago,
+                "tipo_comprobante": comprobante,
+                "tasa_cambio": tasa_cambio,
+                "monto_moneda_venta": monto_equivalente
+            }
+            
+            # 4. Insertar
+            self.client.table('pago').insert(pago_data).execute()
+            
+            return True, f"Pago de {moneda_pago} {monto_pagado:,.2f} registrado exitosamente. Abono a cuenta: {moneda_venta} {monto_equivalente:,.2f}"
+            
+        except Exception as e:
+            return False, f"Error al registrar pago: {e}"
+
     def vincular_pagos_masivos(self, df: Any) -> dict:
-        """Procesa un DataFrame de Excel/CSV para registrar múltiples pagos a la vez."""
+        """Procesa un DataFrame de Excel/CSV para registrar múltiples pagos a la vez con soporte multimoneda."""
         exitos = 0
         errores = []
         
-        # Columnas esperadas: ID Venta, Fecha, Monto, Moneda, Metodo, Tipo, Comprobante
+        # Cache de monedas de venta para evitar consultas repetitivas
+        cache_monedas = {}
+        
         for idx, row in df.iterrows():
             try:
                 id_v = row.get('ID Venta')
@@ -230,24 +289,40 @@ class VentaController:
                 if pd.isna(id_v) or pd.isna(monto):
                     continue
                 
-                # Formatear datos para la DB
+                id_v = int(id_v)
+                monto = float(monto)
+                moneda_pago = str(row.get('Moneda') or 'USD').strip().upper()
+                tc_row = row.get('TC') or row.get('Tipo de Cambio') or 1.0
+                
+                # Obtener moneda de la venta (con cache)
+                if id_v not in cache_monedas:
+                    v = self.obtener_venta_por_id(id_v)
+                    cache_monedas[id_v] = v.get('moneda', 'USD') if v else 'USD'
+                
+                moneda_venta = cache_monedas[id_v]
+                
+                # Conversión
+                tasa_cambio = float(tc_row) if moneda_pago != moneda_venta else 1.0
+                monto_equivalente = round(monto / tasa_cambio, 2) if moneda_pago != moneda_venta else monto
+                
                 pago_data = {
-                    "id_venta": int(id_v),
+                    "id_venta": id_v,
                     "fecha_pago": str(row.get('Fecha') or date.today()),
-                    "monto_pagado": float(monto),
-                    "moneda": str(row.get('Moneda') or 'USD').strip().upper(),
+                    "monto_pagado": monto,
+                    "moneda": moneda_pago,
                     "metodo_pago": str(row.get('Metodo') or 'TRANSFERENCIA').strip().upper(),
                     "tipo_pago": str(row.get('Tipo') or 'ABONO').strip().upper(),
-                    "tipo_comprobante": str(row.get('Comprobante') or 'RECIBO').strip().upper()
+                    "tipo_comprobante": str(row.get('Comprobante') or 'RECIBO').strip().upper(),
+                    "tasa_cambio": tasa_cambio,
+                    "monto_moneda_venta": monto_equivalente
                 }
                 
-                # Validaciones de enums según la BD
+                # Validaciones de enums
                 if pago_data['moneda'] not in ['USD', 'PEN', 'EUR']: pago_data['moneda'] = 'USD'
                 if pago_data['metodo_pago'] not in ['EFECTIVO', 'TRANSFERENCIA', 'TARJETA', 'PAYPAL', 'YAPE', 'PLIN', 'OTRO']: pago_data['metodo_pago'] = 'TRANSFERENCIA'
                 if pago_data['tipo_pago'] not in ['ADELANTO', 'SALDO', 'TOTAL', 'PARCIAL', 'REEMBOLSO']: pago_data['tipo_pago'] = 'PARCIAL'
                 if pago_data['tipo_comprobante'] not in ['BOLETA', 'FACTURA', 'RECIBO', 'RECIBO SIMPLE', 'SIN_COMPROBANTE']: pago_data['tipo_comprobante'] = 'RECIBO'
                 
-                # Insertar
                 self.client.table('pago').insert(pago_data).execute()
                 exitos += 1
                 

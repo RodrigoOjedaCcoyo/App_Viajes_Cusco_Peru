@@ -333,7 +333,9 @@ class VentaModel(BaseModel):
                         "moneda": venta_data.get("moneda", "USD"),
                         "metodo_pago": venta_data.get("metodo_pago", "OTRO"),
                         "tipo_pago": "ADELANTO" if monto_dep < venta_data.get("monto_total", 0) else "TOTAL",
-                        "tipo_comprobante": tipo_c_db
+                        "tipo_comprobante": tipo_c_db,
+                        "tasa_cambio": 1.0, # Al crear la venta, el adelanto es en la misma moneda
+                        "monto_moneda_venta": self._clean_float(monto_dep)
                     }
                     self.client.table('pago').insert(pago_data).execute()
             except Exception as e:

@@ -340,7 +340,7 @@ def herramienta_carga_masiva_pagos(supabase_client, key_suffix=""):
         
         # 1. Crear plantilla en memoria
         template_df = pd.DataFrame(columns=[
-            "ID Venta", "Fecha", "Monto", "Moneda", "Metodo", "Tipo", "Comprobante"
+            "ID Venta", "Fecha", "Monto", "Moneda", "Metodo", "Tipo", "Comprobante", "TC"
         ])
         
         output = io.BytesIO()
@@ -422,24 +422,25 @@ def dashboard_cuentas_por_cobrar_unified(supabase_client):
             return
 
         ids_ventas = [v['id_venta'] for v in ventas]
-        pagos = supabase_client.table('pago').select('id_venta, monto_pagado').in_('id_venta', ids_ventas).execute().data
+        pagos = supabase_client.table('pago').select('id_venta, monto_moneda_venta').in_('id_venta', ids_ventas).execute().data
         
         mapa_pagos = {}
         for p in pagos:
             pid = p['id_venta']
-            mapa_pagos[pid] = mapa_pagos.get(pid, 0) + (p['monto_pagado'] or 0)
+            mapa_pagos[pid] = mapa_pagos.get(pid, 0) + (p['monto_moneda_venta'] or 0)
 
         data_agencias = {}
         lista_detalle = []
         for v in ventas:
             id_agencia = v.get('id_agencia_aliada')
             nombre_agencia = v.get('nombre_agencia', 'Sin Nombre')
+            moneda = v.get('moneda', 'USD')
             monto = float(v.get('precio_total_cierre') or 0)
             pagado = float(mapa_pagos.get(v['id_venta'], 0))
             saldo = monto - pagado
             
             if id_agencia not in data_agencias:
-                data_agencias[id_agencia] = {'Nombre': nombre_agencia, 'Total Ventas': 0.0, 'Cobrado': 0.0, 'Por Cobrar': 0.0, 'Count': 0}
+                data_agencias[id_agencia] = {'Nombre': nombre_agencia, 'Total Ventas': 0.0, 'Cobrado': 0.0, 'Por Cobrar': 0.0, 'Count': 0, 'Moneda': moneda}
             
             data_agencias[id_agencia]['Total Ventas'] += monto
             data_agencias[id_agencia]['Cobrado'] += pagado
@@ -450,9 +451,9 @@ def dashboard_cuentas_por_cobrar_unified(supabase_client):
                 'Agencia': nombre_agencia,
                 'Pasajero': v.get('nombre_cliente'),
                 'Fecha Venta': v.get('fecha_venta'),
-                'Total ($)': monto,
-                'A Cuenta ($)': pagado,
-                'Saldo ($)': saldo,
+                f'Total ({moneda})': monto,
+                f'A Cuenta ({moneda})': pagado,
+                f'Saldo ({moneda})': saldo,
                 'Estado': '✅ PAGADO' if saldo <= 0.1 else '🔴 DEBE'
             })
             
@@ -493,34 +494,43 @@ def dashboard_cuentas_por_cobrar_unified(supabase_client):
             return
 
         ids_ventas = [v['id_venta'] for v in ventas]
-        pagos = supabase_client.table('pago').select('id_venta, monto_pagado').in_('id_venta', ids_ventas).execute().data
+        # Obtener todos los pagos vinculados a estas ventas para calcular el saldo REAL en moneda de la venta
+        pagos = supabase_client.table('pago').select('id_venta, monto_moneda_venta').in_('id_venta', ids_ventas).execute().data
         
         mapa_pagos = {}
         for p in pagos:
             pid = p['id_venta']
-            mapa_pagos[pid] = mapa_pagos.get(pid, 0) + (p['monto_pagado'] or 0)
+            # Usamos monto_moneda_venta para que el saldo siempre sea en la moneda original de la venta
+            mapa_pagos[pid] = mapa_pagos.get(pid, 0) + (p['monto_moneda_venta'] or 0)
 
         lista_detalle = []
         for v in ventas:
             monto = float(v.get('precio_total_cierre') or 0)
             pagado = float(mapa_pagos.get(v['id_venta'], 0))
             saldo = monto - pagado
+            mon = v.get('moneda', '$')
             
             lista_detalle.append({
                 'ID Venta': v['id_venta'],
                 'Cliente': v.get('nombre_cliente'),
                 'Fecha': v.get('fecha_venta'),
-                'Total ($)': monto,
-                'Pagado ($)': pagado,
-                'Saldo ($)': saldo,
+                f'Total ({mon})': monto,
+                f'Pagado ({mon})': pagado,
+                f'Saldo ({mon})': saldo,
                 'Estado': '✅ PAGADO' if saldo <= 0.1 else '🔴 DEBE'
             })
         
         df_b2c = pd.DataFrame(lista_detalle)
-        total_deuda = df_b2c['Saldo ($)'].sum()
+        # Nota: La suma total solo es válida si todas las ventas están en la misma moneda (usualmente USD)
+        total_deuda = 0
+        if not df_b2c.empty:
+            # Buscar la columna de Saldo dinámicamente
+            saldo_col = [c for c in df_b2c.columns if 'Saldo' in c]
+            if saldo_col: total_deuda = df_b2c[saldo_col[0]].sum()
+
         c1, c2 = st.columns(2)
-        c1.metric("Total por Cobrar Directos", f"${total_deuda:,.2f}")
-        c2.metric("Clientes con Deuda", len(df_b2c[df_b2c['Saldo ($)'] > 1]))
+        c1.metric("Total por Cobrar Directos", f"$ {total_deuda:,.2f}")
+        c2.metric("Clientes con Deuda", len(df_b2c[df_b2c.iloc[:, 5] > 1]) if not df_b2c.empty else 0)
 
         # Botón Excel B2C
         if not df_b2c.empty:
@@ -546,46 +556,68 @@ def dashboard_cuentas_por_cobrar_unified(supabase_client):
         st.write("Selecciona una venta con saldo pendiente para registrar un abono.")
         
         todas_v = vc.obtener_todas_ventas_b2b() + vc.obtener_ventas_directas()
-        ids_v = [v['id_venta'] for v in todas_v]
-        p_all = supabase_client.table('pago').select('id_venta, monto_pagado').in_('id_venta', ids_v).execute().data
+        ids_v_all = [v['id_venta'] for v in todas_v]
+        p_all = supabase_client.table('pago').select('id_venta, monto_moneda_venta').in_('id_venta', ids_v_all).execute().data
         m_p = {}
         for p in p_all:
-            m_p[p['id_venta']] = m_p.get(p['id_venta'], 0) + (p['monto_pagado'] or 0)
+            m_p[p['id_venta']] = m_p.get(p['id_venta'], 0) + (p['monto_moneda_venta'] or 0)
 
         v_deuda = [v for v in todas_v if (float(v.get('precio_total_cierre') or 0) - float(m_p.get(v['id_venta'], 0))) > 0.1]
         
         if not v_deuda:
             st.success("No hay deudas pendientes.")
         else:
-            opc = [f"{v['id_venta']} | {v.get('nombre_cliente') or v.get('nombre_agencia')} (Saldo: ${float(v.get('precio_total_cierre') or 0) - float(m_p.get(v['id_venta'], 0)):.2f})" for v in v_deuda]
+            # Crear un mapa para búsqueda rápida de moneda
+            mapa_monedas = {v['id_venta']: v.get('moneda', 'USD') for v in v_deuda}
+            opc = [f"{v['id_venta']} | {v.get('nombre_cliente') or v.get('nombre_agencia')} (Saldo: {v.get('moneda', 'USD')} {float(v.get('precio_total_cierre') or 0) - float(m_p.get(v['id_venta'], 0)):.2f})" for v in v_deuda]
             sel_v = st.selectbox("Seleccione Venta:", opc, key="sel_v_pago_manual_unified")
             
             if sel_v:
                 id_v = int(sel_v.split(" | ")[0])
+                moneda_venta = mapa_monedas.get(id_v, 'USD')
+                
                 c1, c2, c3 = st.columns(3)
-                monto_p = c1.number_input("Monto:", min_value=1.0, step=10.0)
-                moneda_p = c2.selectbox("Moneda:", ["USD", "PEN"])
+                monto_p = c1.number_input("Monto Recibido:", min_value=1.0, step=10.0)
+                moneda_p = c2.selectbox("Moneda del Pago:", ["USD", "PEN", "EUR"], index=0 if moneda_venta == "USD" else 1)
                 fecha_p = c3.date_input("Fecha de Pago:", date.today())
                 
+                # Inteligencia de Tipo de Cambio
+                tasa_cambio = 1.0
+                if moneda_p != moneda_venta:
+                    st.warning(f"⚠️ **Atención**: Estás recibiendo {moneda_p} para una deuda en {moneda_venta}. Se requiere Tipo de Cambio.")
+                    col_tc1, col_tc2 = st.columns(2)
+                    tc_sugerido = 1.0
+                    from services.exchange_service import ExchangeService
+                    if moneda_p == "PEN" and moneda_venta == "USD": 
+                        tc_sugerido = ExchangeService.get_current_tc()
+                    elif moneda_p == "USD" and moneda_venta == "PEN":
+                        tc_sugerido = 1 / ExchangeService.get_current_tc()
+                    
+                    tasa_cambio = col_tc1.number_input(f"TC ({moneda_p} a {moneda_venta}):", min_value=0.01, value=float(tc_sugerido), format="%.4f")
+                    monto_equiv = round(monto_p / tasa_cambio, 2)
+                    col_tc2.metric(f"Equivale en {moneda_venta}:", f"{monto_equiv:,.2f}")
+
                 c4, c5 = st.columns(2)
                 metodo_p = c4.selectbox("Método:", ["TRANSFERENCIA", "EFECTIVO", "YAPE/PLIN", "TARJETA", "DEPÓSITO"])
                 tipo_p = c5.selectbox("Tipo:", ["ABONO", "SALDO TOTAL", "ADELANTO"])
                 
                 if st.button("🚀 Registrar Pago Ahora", type="primary", use_container_width=True, key="btn_reg_pago_unified"):
-                    try:
-                        nuevo = {
-                            "id_venta": id_v,
-                            "fecha_pago": fecha_p.isoformat(),
-                            "monto_pagado": monto_p,
-                            "moneda": moneda_p,
-                            "metodo_pago": metodo_p,
-                            "tipo_pago": tipo_p
-                        }
-                        supabase_client.table('pago').insert(nuevo).execute()
-                        st.success(f"✅ Pago registrado exitosamente.")
+                    exito, msg = vc.registrar_pago(
+                        id_venta=id_v,
+                        monto_pagado=monto_p,
+                        moneda_pago=moneda_p,
+                        tasa_cambio=tasa_cambio,
+                        fecha_pago=fecha_p.isoformat(),
+                        metodo=metodo_p,
+                        tipo_pago=tipo_p
+                    )
+                    
+                    if exito:
+                        st.success(msg)
                         st.balloons()
                         st.rerun()
-                    except Exception as e:
-                        st.error(f"Error: {e}")
+                    else:
+                        st.error(msg)
+
 
 
