@@ -185,7 +185,10 @@ def registro_ventas_directa():
                 try: import json; render_data = json.loads(render_data)
                 except: render_data = {}
 
-            # --- FILTRO B2C/ESTRATEGIA ELIMINADO PARA MÁXIMA VISIBILIDAD ---
+            # --- FILTRO B2C: Solo mostrar itinerarios generados como B2C ---
+            tipo_v = render_data.get('metadata', {}).get('tipo_venta', 'B2C')
+            if tipo_v != 'B2C':
+                continue
 
             # Soportar ambas estructuras
             titulo = render_data.get('titulo', '')

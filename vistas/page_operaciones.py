@@ -388,8 +388,10 @@ def registro_ventas_proveedores(supabase_client):
                 try: render_data = json.loads(render_data)
                 except: render_data = {}
 
-            # --- FILTRO B2B RELAJADO PARA MÁXIMA VISIBILIDAD ---
-            # Se permite ver cualquier itinerario para facilitar la vinculación
+            # --- FILTRO B2B: Solo mostrar itinerarios generados como B2B ---
+            tipo_v = render_data.get('metadata', {}).get('tipo_venta', 'B2C')
+            if tipo_v != 'B2B':
+                continue
 
             titulo = render_data.get('titulo', '')
             if not titulo:
