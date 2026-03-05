@@ -12,15 +12,18 @@ class PagoOperativoController:
         self.model = PagoOperativoModel(supabase_client)
 
     def registrar_pago_operativo(self, id_proveedor: int, id_venta: int, n_linea: int, 
-                                monto: float, moneda: str, fecha: str, metodo: str, 
+                                monto: float, moneda: str, tasa_cambio: float, 
+                                monto_equivalente: float, fecha: str, metodo: str, 
                                 voucher_url: str = None, notas: str = "", id_usuario: int = None):
-        """Prepara y registra un pago a proveedor."""
+        """Prepara y registra un pago a proveedor con inteligencia multimoneda."""
         data = {
             "id_proveedor": id_proveedor,
             "id_venta": id_venta,
             "n_linea": n_linea,
             "monto_pagado": monto,
             "moneda": moneda,
+            "tasa_cambio": tasa_cambio,
+            "monto_en_moneda_costo": monto_equivalente,
             "fecha_pago": fecha,
             "metodo_pago": metodo,
             "comprobante_url": voucher_url,
@@ -39,11 +42,15 @@ class PagoOperativoController:
         flat_data = []
         for p in pagos:
             v_info = p.get('venta') or {}
+            monto_str = f"{p['moneda']} {p['monto_pagado']:,.2f}"
+            if p.get('tasa_cambio', 1.0) != 1.0:
+                monto_str += f" (TC: {p['tasa_cambio']})"
+                
             flat_data.append({
                 "ID": p['id_pago_op'],
                 "Fecha": p['fecha_pago'],
-                "Monto": p['monto_pagado'],
-                "Moneda": p['moneda'],
+                "Monto": monto_str,
+                "Abono a Deuda": p.get('monto_en_moneda_costo', p['monto_pagado']),
                 "Método": p['metodo_pago'],
                 "Tour/Venta": v_info.get('tour_nombre', 'Varios/General'),
                 "Notas": p['observaciones']
@@ -52,8 +59,7 @@ class PagoOperativoController:
 
     def obtener_resumen_saldos_proveedores(self):
         """
-        Lógica compleja: Compara VENTAS_SERVICIO_PROVEEDOR (Costo) 
-        vs PAGO_OPERATIVO (Pagado) para ver cuánto se debe.
+        Calcula balances: COSTOS (Deuda) vs PAGOS (Amortización en moneda de deuda).
         """
         try:
             # 1. Obtener todos los costos registrados (Lo que debemos)
@@ -61,44 +67,61 @@ class PagoOperativoController:
                 .select('id_proveedor, costo_unitario, cantidad_pax, moneda, proveedor(nombre_comercial)')\
                 .execute()
             
-            # 2. Obtener todos los pagos realizados (Lo que pagamos)
+            # 2. Obtener todos los pagos realizados (Lo que amortizamos)
             res_pagos = self.client.table('pago_operativo')\
-                .select('id_proveedor, monto_pagado, moneda')\
+                .select('id_proveedor, monto_en_moneda_costo, moneda, id_venta, n_linea')\
                 .execute()
 
-            # Procesar balances (esto es una versión simplificada, ideal por moneda)
             balances = {}
             
+            # Cargar costos
             for c in res_costos.data:
                 pid = c['id_proveedor']
                 p_nom = c['proveedor']['nombre_comercial'] if c.get('proveedor') else "Desconocido"
-                moneda = c['moneda']
+                moneda_deuda = c['moneda'] # La moneda en la que se pactó el costo
                 total_costo = float(c['costo_unitario'] or 0) * int(c['cantidad_pax'] or 1)
                 
-                key = (pid, p_nom, moneda)
+                key = (pid, p_nom, moneda_deuda)
                 if key not in balances: balances[key] = {"debe": 0.0, "pagado": 0.0}
                 balances[key]["debe"] += total_costo
 
+            # Cargar pagos (amortizaciones en la moneda de la deuda)
             for p in res_pagos.data:
                 pid = p['id_proveedor']
-                # Buscar nombre si no está en costos
-                moneda = p['moneda']
-                monto = float(p['monto_pagado'] or 0)
+                id_v = p.get('id_venta')
+                nl = p.get('n_linea')
+                
+                # Intentar determinar la moneda de la deuda que este pago amortiza
+                # Si está vinculado a un servicio, buscamos la moneda de ese servicio
+                moneda_amortizada = p['moneda'] # Default
+                
+                if id_v and nl:
+                    # Buscar la moneda pactada en ese servicio específico
+                    res_mon_svc = self.client.table('venta_servicio_proveedor')\
+                        .select('moneda')\
+                        .eq('id_venta', id_v)\
+                        .eq('n_linea', nl)\
+                        .limit(1).execute()
+                    if res_mon_svc.data:
+                        moneda_amortizada = res_mon_svc.data[0]['moneda']
+                
+                monto_abono = float(p.get('monto_en_moneda_costo') or p['monto_pagado'] or 0)
                 
                 # Buscar en balances o crear
-                found = False
+                key = None
                 for k in balances.keys():
-                    if k[0] == pid and k[2] == moneda:
-                        balances[k]["pagado"] += monto
-                        found = True
+                    if k[0] == pid and k[2] == moneda_amortizada:
+                        key = k
                         break
                 
-                if not found:
-                    # Pago sin costo previo detectado (adelanto o error)
+                if key:
+                    balances[key]["pagado"] += monto_abono
+                else:
+                    # Pago sin costo previo detectado en esa moneda
                     res_prov = self.client.table('proveedor').select('nombre_comercial').eq('id_proveedor', pid).single().execute()
                     p_nom = res_prov.data['nombre_comercial'] if res_prov.data else "Desconocido"
-                    key = (pid, p_nom, moneda)
-                    balances[key] = {"debe": 0.0, "pagado": monto}
+                    key = (pid, p_nom, moneda_amortizada)
+                    balances[key] = {"debe": 0.0, "pagado": monto_abono}
 
             # Convertir a lista para UI
             reporte = []
@@ -108,7 +131,7 @@ class PagoOperativoController:
                     "Proveedor": p_nom,
                     "Moneda": moneda,
                     "Total Costos": data["debe"],
-                    "Total Pagado": data["pagado"],
+                    "Abonado": data["pagado"],
                     "Saldo Pendiente": saldo
                 })
             
@@ -116,3 +139,4 @@ class PagoOperativoController:
         except Exception as e:
             print(f"Error generando reporte de saldos: {e}")
             return pd.DataFrame()
+

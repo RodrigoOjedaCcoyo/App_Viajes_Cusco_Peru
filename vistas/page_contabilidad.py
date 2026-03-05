@@ -217,12 +217,47 @@ def dashboard_pagos_operativos(supabase_client):
             
             serv_sel = col2.selectbox("2. Vincular a Servicio (Opcional):", opciones_serv)
             
+            # --- Inteligencia de Moneda ---
+            moneda_deuda = "USD" # Default
+            if serv_sel != opciones_serv[0]:
+                # Buscar moneda pactada para este servicio
+                id_v_tmp, nl_tmp = mapa_serv[serv_sel]
+                res_mon = supabase_client.table('venta_servicio_proveedor')\
+                    .select('moneda')\
+                    .eq('id_venta', id_v_tmp)\
+                    .eq('n_linea', nl_tmp)\
+                    .limit(1).execute()
+                if res_mon.data:
+                    moneda_deuda = res_mon.data[0]['moneda']
+            
+            st.markdown(f"Deuda pactada en: **{moneda_deuda}**")
             st.markdown("---")
+            
             c3, c4, c5 = st.columns(3)
-            monto = c3.number_input("Monto a Pagar:", min_value=0.01, step=50.0)
-            moneda = c4.selectbox("Moneda:", ["PEN", "USD"])
+            monto_pago = c3.number_input("Monto a Entregar:", min_value=0.01, step=50.0)
+            moneda_pago = c4.selectbox("Moneda del Pago:", ["PEN", "USD", "EUR"], index=0 if moneda_deuda == "PEN" else 1)
             fecha = c5.date_input("Fecha:", date.today())
             
+            # Cálculo de Equivalencia
+            tasa_cambio = 1.0
+            monto_amortizado = monto_pago
+            
+            if moneda_pago != moneda_deuda:
+                st.warning(f"⚠️ **Conversión Necessaria**: Pagas en {moneda_pago} una deuda en {moneda_deuda}.")
+                col_tc1, col_tc2 = st.columns(2)
+                
+                # Sugerir TC
+                from services.exchange_service import ExchangeService
+                tc_sugerido = 1.0
+                if moneda_pago == "PEN" and moneda_deuda == "USD": tc_sugerido = ExchangeService.get_current_tc()
+                elif moneda_pago == "USD" and moneda_deuda == "PEN": tc_sugerido = 1 / ExchangeService.get_current_tc()
+                
+                tasa_cambio = col_tc1.number_input(f"TC ({moneda_pago} a {moneda_deuda}):", min_value=0.01, value=float(tc_sugerido), format="%.4f")
+                monto_amortizado = round(monto_pago / tasa_cambio, 2)
+                col_tc2.metric(f"Monto que descuenta de la deuda ({moneda_deuda}):", f"{monto_amortizado:,.2f}")
+            else:
+                st.success(f"Monedas coinciden. Se descuentan {moneda_deuda} {monto_pago:,.2f} íntegros.")
+
             c6, c7 = st.columns(2)
             metodo = c6.selectbox("Método de Pago:", ["YAPE", "PLIN", "TRANSFERENCIA", "EFECTIVO", "OTRO"])
             notas = c7.text_input("Observaciones / Nro Operación:", placeholder="Ej: Pago de guiado City Tour")
@@ -238,14 +273,17 @@ def dashboard_pagos_operativos(supabase_client):
                     id_proveedor=id_prov,
                     id_venta=id_v,
                     n_linea=nl,
-                    monto=monto,
-                    moneda=moneda,
+                    monto=monto_pago,
+                    moneda=moneda_pago,
+                    tasa_cambio=tasa_cambio,
+                    monto_equivalente=monto_amortizado,
                     fecha=fecha.isoformat(),
                     metodo=metodo,
                     voucher_url=voucher,
                     notas=notas,
-                    id_usuario=None # Podríamos jalar de st.session_state
+                    id_usuario=None
                 )
+
                 
                 if exito:
                     st.success(f"✅ Pago de {moneda} {monto:,.2f} registrado para {prov_sel}.")

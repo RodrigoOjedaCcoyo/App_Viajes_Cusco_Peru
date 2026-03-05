@@ -296,6 +296,8 @@
       n_linea INTEGER, -- Para vincular a un servicio específico
       monto_pagado DECIMAL(10,2) NOT NULL CHECK (monto_pagado > 0),
       moneda VARCHAR(10) DEFAULT 'USD' CHECK (moneda IN ('USD', 'PEN', 'EUR')),
+      tasa_cambio DECIMAL(10,4) DEFAULT 1.0, -- TC para convertir 'monto_pagado' a moneda de la deuda
+      monto_en_moneda_costo DECIMAL(10,2) NOT NULL, -- Cuánto baja de la deuda original
       fecha_pago DATE DEFAULT CURRENT_DATE NOT NULL,
       metodo_pago VARCHAR(50) CHECK (metodo_pago IN ('EFECTIVO', 'TRANSFERENCIA', 'YAPE', 'PLIN', 'TARJETA', 'OTRO')),
       comprobante_url TEXT, -- Link al voucher/foto
@@ -304,6 +306,7 @@
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (id_venta, n_linea) REFERENCES venta_tour(id_venta, n_linea) ON DELETE SET NULL
   );
+
 
   -- 2.1. USUARIOS Y VENDEDORES
   -- Los emails deben coincidir para que el sistema vincule el login con el vendedor asignado.
