@@ -135,9 +135,10 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, su
     st.markdown("---")
     
     if funcionalidad_seleccionada == "Gestión de Registros":
-        tab1, tab2 = st.tabs([
+        tab1, tab2, tab3 = st.tabs([
             "📊 Estructurador Financiero", 
-            "💎 Cuentas por Cobrar (B2B)"
+            "💎 Cuentas por Cobrar (B2B)",
+            "👤 Cuentas por Cobrar (B2C)"
         ])
         
         with tab1:
@@ -145,6 +146,9 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, su
             
         with tab2:
             dashboard_cuentas_por_cobrar_b2b(supabase_client)
+
+        with tab3:
+            dashboard_cuentas_por_cobrar_b2c(supabase_client)
     else:
         st.info("Utilice el Dashboard Contable para ver reportes.")
 
@@ -325,9 +329,81 @@ def estructurador_liquidacion_pro(controller):
 
 from controllers.venta_controller import VentaController
 
+def herramienta_carga_masiva_pagos(supabase_client, key_suffix=""):
+    """Herramienta compartida para carga masiva de pagos desde Excel."""
+    st.markdown("### 📥 Carga Masiva de Pagos (Excel)")
+    
+    tipo_import = st.selectbox("1️⃣ Tipo:", ["B2B (Agencias)", "B2C (Directas)"], key=f"sel_tipo_import_{key_suffix}")
+    st.info(f"Importando pagos para ventas tipo: **{tipo_import}**")
+
+    with st.expander("📁 Subir Archivo y Plantilla", expanded=True):
+        st.markdown("""
+        Descargue la plantilla, complete los datos y suba el archivo. 
+        Asegúrese de que el **ID Venta** sea válido en el sistema.
+        """)
+        
+        # 1. Crear plantilla en memoria
+        template_df = pd.DataFrame(columns=[
+            "ID Venta", "Fecha", "Monto", "Moneda", "Metodo", "Tipo", "Comprobante"
+        ])
+        
+        output = io.BytesIO()
+        try:
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                template_df.to_excel(writer, index=False, sheet_name='PlantillaPagos')
+            processed_data = output.getvalue()
+            
+            st.download_button(
+                label="📄 Descargar Plantilla Excel",
+                data=processed_data,
+                file_name="plantilla_pagos_masivos.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key=f"dl_btn_{key_suffix}",
+                use_container_width=True
+            )
+        except Exception as e:
+            st.error(f"Error al generar plantilla: {e}")
+        
+        st.divider()
+        
+        uploaded_file = st.file_uploader("Subir Excel de Pagos:", type=["xlsx", "xls", "csv"], key=f"uploader_pagos_{key_suffix}")
+        
+        if uploaded_file:
+            try:
+                if uploaded_file.name.endswith('.csv'):
+                    df_upload = pd.read_csv(uploaded_file)
+                else:
+                    df_upload = pd.read_excel(uploaded_file)
+                
+                st.write("### 🔍 Previsualización de Datos:")
+                st.dataframe(df_upload, use_container_width=True, hide_index=True)
+                
+                if st.button("🧧 Procesar y Registrar Todo", type="primary", use_container_width=True, key=f"btn_proc_{key_suffix}"):
+                    with st.spinner("Registrando pagos en el sistema..."):
+                        vc = VentaController(supabase_client)
+                        resultado = vc.vincular_pagos_masivos(df_upload)
+                        
+                        if resultado["exitos"] > 0:
+                            st.success(f"✅ Se registraron {resultado['exitos']} pagos exitosamente.")
+                        
+                        if resultado["errores"]:
+                            with st.expander("⚠️ Ver Detalles de Errores"):
+                                for err in resultado["errores"]:
+                                    st.error(err)
+                        
+                        if resultado["exitos"] > 0:
+                            st.balloons()
+                            st.rerun()
+                            
+            except Exception as e:
+                st.error(f"Error al leer/procesar el archivo: {e}")
+
 def dashboard_cuentas_por_cobrar_b2b(supabase_client):
     """Dashboard específico para controlar deudas de Agencias (B2B)."""
     st.subheader("💎 Cuentas por Cobrar (B2B)", divider='blue')
+    
+    herramienta_carga_masiva_pagos(supabase_client, "b2b")
+    st.divider()
     
     vc = VentaController(supabase_client)
     ventas = vc.obtener_todas_ventas_b2b()
@@ -470,69 +546,81 @@ def dashboard_cuentas_por_cobrar_b2b(supabase_client):
                     except Exception as e:
                         st.error(f"Error al registrar el pago: {e}")
 
-    # -------------------------------------------------------------
-    # 📥 NUEVO: CARGA MASIVA DE PAGOS (EXCEL)
-    # -------------------------------------------------------------
+def dashboard_cuentas_por_cobrar_b2c(supabase_client):
+    """Dashboard específico para controlar deudas de Clientes Directos (B2C)."""
+    st.subheader("👤 Cuentas por Cobrar (B2C)", divider='green')
+    
+    herramienta_carga_masiva_pagos(supabase_client, "b2c")
     st.divider()
-    with st.expander("📥 Carga Masiva de Pagos (Excel)", expanded=False):
-        st.markdown("""
-        Utilice esta sección para registrar múltiples pagos a la vez. 
-        Descargue la plantilla, complete los datos y suba el archivo. 
-        Asegúrese de que el **ID Venta** sea válido.
-        """)
+    
+    vc = VentaController(supabase_client)
+    ventas = vc.obtener_ventas_directas()
+    
+    if not ventas:
+        st.info("No hay ventas B2C registradas con saldo pendiente.")
+        return
+
+    # Obtener pagos de estas ventas
+    ids_ventas = [v['id_venta'] for v in ventas]
+    pagos = supabase_client.table('pago').select('id_venta, monto_pagado').in_('id_venta', ids_ventas).execute().data
+    
+    mapa_pagos = {}
+    for p in pagos:
+        pid = p['id_venta']
+        mapa_pagos[pid] = mapa_pagos.get(pid, 0) + (p['monto_pagado'] or 0)
+
+    lista_detalle = []
+    for v in ventas:
+        monto = float(v.get('precio_total_cierre') or 0)
+        pagado = float(mapa_pagos.get(v['id_venta'], 0))
+        saldo = monto - pagado
         
-        # 1. Crear plantilla en memoria
-        template_df = pd.DataFrame(columns=[
-            "ID Venta", "Fecha", "Monto", "Moneda", "Metodo", "Tipo", "Comprobante"
-        ])
-        
-        output = io.BytesIO()
+        lista_detalle.append({
+            'ID Venta': v['id_venta'],
+            'Cliente': v.get('nombre_cliente'),
+            'Fecha Venta': v.get('fecha_venta'),
+            'Total ($)': monto,
+            'A Cuenta ($)': pagado,
+            'Saldo ($)': saldo,
+            'Estado': '✅ PAGADO' if saldo <= 0.1 else '🔴 DEBE'
+        })
+    
+    df_b2c = pd.DataFrame(lista_detalle)
+    
+    # Visualización 1: Métricas Globales
+    total_deuda_b2c = df_b2c['Saldo ($)'].sum()
+    c1, c2 = st.columns(2)
+    c1.metric("Total por Cobrar (B2C)", f"${total_deuda_b2c:,.2f}")
+    c2.metric("Clientes con Deuda", len(df_b2c[df_b2c['Saldo ($)'] > 1]))
+
+    # --- BOTÓN DE DESCARGA REPORTE EXCEL B2C ---
+    from controllers.excel_controller import ExcelController
+    exc_ctrl = ExcelController()
+    if not df_b2c.empty:
         try:
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                template_df.to_excel(writer, index=False, sheet_name='PlantillaPagos')
-            processed_data = output.getvalue()
-            
+            reporte_xlsx = exc_ctrl.generar_reporte_cuentas_cobrar_xlsx(df_b2c)
             st.download_button(
-                label="📄 Descargar Plantilla Excel",
-                data=processed_data,
-                file_name="plantilla_pagos_masivos.xlsx",
+                label="📊 Descargar Informe de B2C (Excel)",
+                data=reporte_xlsx,
+                file_name=f"reporte_cuentas_b2c_{date.today()}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
+                use_container_width=True,
+                key="btn_dl_b2c"
             )
         except Exception as e:
-            st.error(f"Error al generar plantilla: {e}")
-        
-        st.divider()
-        
-        uploaded_file = st.file_uploader("Subir Excel de Pagos:", type=["xlsx", "xls", "csv"], key="uploader_pagos_acc")
-        
-        if uploaded_file:
-            try:
-                if uploaded_file.name.endswith('.csv'):
-                    df_upload = pd.read_csv(uploaded_file)
-                else:
-                    df_upload = pd.read_excel(uploaded_file)
-                
-                st.write("### 🔍 Previsualización de Datos:")
-                st.dataframe(df_upload, use_container_width=True, hide_index=True)
-                
-                if st.button("🧧 Procesar y Registrar Todo", type="primary", use_container_width=True):
-                    with st.spinner("Registrando pagos en el sistema..."):
-                        vc = VentaController(supabase_client)
-                        resultado = vc.vincular_pagos_masivos(df_upload)
-                        
-                        if resultado["exitos"] > 0:
-                            st.success(f"✅ Se registraron {resultado['exitos']} pagos exitosamente.")
-                        
-                        if resultado["errores"]:
-                            with st.expander("⚠️ Ver Detalles de Errores"):
-                                for err in resultado["errores"]:
-                                    st.error(err)
-                        
-                        if resultado["exitos"] > 0:
-                            st.balloons()
-                            st.rerun()
-                            
-            except Exception as e:
-                st.error(f"Error al leer/procesar el archivo: {e}")
+            st.error(f"Error al generar reporte Excel: {e}")
+
+    st.divider()
+    st.write("### 📋 Detalle de Saldos B2C")
+    st.dataframe(
+        df_b2c,
+        column_config={
+            "Total ($)": st.column_config.NumberColumn(format="$ %.2f"),
+            "A Cuenta ($)": st.column_config.NumberColumn(format="$ %.2f"),
+            "Saldo ($)": st.column_config.NumberColumn(format="$ %.2f"),
+        },
+        hide_index=True,
+        use_container_width=True
+    )
+
 
