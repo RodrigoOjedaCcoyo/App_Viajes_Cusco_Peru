@@ -383,13 +383,22 @@ def registro_ventas_proveedores(supabase_client):
         conteos = {}
 
         for it in itinerarios_recuperados:
-            render_data = it.get('datos_render', {})
+            render_data = it.get('datos_render') # Supabase py suele devolverlo como dict si es jsonb
             if isinstance(render_data, str):
                 try: render_data = json.loads(render_data)
                 except: render_data = {}
+            
+            # Asegurar que sea un dict
+            if not isinstance(render_data, dict):
+                render_data = {}
 
             # --- FILTRO B2B: Solo mostrar itinerarios generados como B2B ---
-            tipo_v = render_data.get('metadata', {}).get('tipo_venta', 'B2C')
+            # Robustez: Si no hay metadata, por defecto es B2C
+            metadata = render_data.get('metadata')
+            if not isinstance(metadata, dict):
+                metadata = {}
+            
+            tipo_v = metadata.get('tipo_venta', 'B2C')
             if tipo_v != 'B2B':
                 continue
 
@@ -412,6 +421,28 @@ def registro_ventas_proveedores(supabase_client):
             opciones_itinerario.append(label_final)
             mapa_itinerarios[label_final] = it
     
+    def_cant_pax = 1
+
+    if len(opciones_itinerario) == 1:
+        st.warning("⚠️ No se encontraron itinerarios marcados como **B2B**. ¿Olvidaste marcar la casilla 'Venta B2B' al diseñarlo?")
+        if st.checkbox("🔍 Buscar también en itinerarios B2C (Solo para vincular errores)"):
+            # Re-procesar itinerarios sin el filtro B2B
+            for it in itinerarios_recuperados:
+                r_d = it.get('datos_render')
+                if isinstance(r_d, str):
+                    try: r_d = json.loads(r_d)
+                    except: r_d = {}
+                
+                # Obtener título y pax igual que arriba
+                tit = r_d.get('titulo') or f"{r_d.get('title_1','')} {r_d.get('title_2','')}".strip() or 'Sin Título'
+                pax_i = it.get('nombre_pasajero_itinerario') or (r_d.get('pasajero') if isinstance(r_d, dict) else 'Sin Nombre')
+                f_i = it.get('fecha_generacion', '')[:10] if it.get('fecha_generacion') else 'Sin fecha'
+                
+                lab = f"📦 [B2C] {f_i} - {pax_i} - {tit}"
+                if lab not in opciones_itinerario:
+                    opciones_itinerario.append(lab)
+                    mapa_itinerarios[lab] = it
+
     itinerario_seleccionado = st.selectbox(
         "✨ Seleccionar Itinerario Visual (Diseño Cloud)", 
         opciones_itinerario,
