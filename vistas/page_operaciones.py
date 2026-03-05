@@ -388,15 +388,8 @@ def registro_ventas_proveedores(supabase_client):
                 try: render_data = json.loads(render_data)
                 except: render_data = {}
 
-            # --- FILTRO B2B: Solo mostrar itinerarios generados como B2B ---
-            tipo_v = render_data.get('metadata', {}).get('tipo_venta', 'B2C')
-            if tipo_v != 'B2B':
-                continue
-
-            # --- FILTRO ESTRATEGIA: Solo mostrar los que dicen 'General' ---
-            estrategia = it.get('lead', {}).get('estrategia_venta', 'General')
-            if estrategia != 'General':
-                continue
+            # --- FILTRO B2B RELAJADO PARA MÁXIMA VISIBILIDAD ---
+            # Se permite ver cualquier itinerario para facilitar la vinculación
 
             titulo = render_data.get('titulo', '')
             if not titulo:
@@ -470,14 +463,15 @@ def registro_ventas_proveedores(supabase_client):
                     if num_dias_str: def_f_fin = def_f_inicio + timedelta(days=int(num_dias_str) - 1)
                 except: pass
             
-            # Mostrar Pax Count (Búsqueda robusta)
-            def_cant_pax = 1
-            if render.get('control_interno'):
-                def_cant_pax = render['control_interno'].get('total_pasajeros') or render['control_interno'].get('total_pax') or 1
-            elif render.get('detalle_ingresos'):
-                def_cant_pax = sum(int(d.get('cantidad', 0)) for d in render['detalle_ingresos'])
-            else:
-                def_cant_pax = int(render.get('cantidad_pax') or 1)
+            def_cant_pax = int(render.get('cantidad_pax') or 1)
+
+            # --- INICIALIZACIÓN DE VARIABLES PARA AUTO-COMPLETADO ---
+            items_extraidos = []
+            tipos_vistos = set()
+            ci = render.get('control_interno', {})
+            tc_itin = ci.get('tipo_cambio_aplicado', 3.8)
+            try: tc_itin = float(tc_itin or 3.8)
+            except: tc_itin = 3.8
 
             # 3. Fallback: Raíz (num_pax_nac, etc.)
             fallbacks = [

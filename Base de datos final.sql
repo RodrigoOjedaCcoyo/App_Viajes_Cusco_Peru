@@ -6,11 +6,13 @@
   -- Borrar tablas si existen (en orden de dependencia)
   DROP TABLE IF EXISTS pago_operativo CASCADE;
   DROP TABLE IF EXISTS venta_servicio_proveedor CASCADE;
+  DROP TABLE IF EXISTS pasajero CASCADE;
   DROP TABLE IF EXISTS pago CASCADE;
   DROP TABLE IF EXISTS venta_item_ingreso CASCADE;
   DROP TABLE IF EXISTS venta_tour CASCADE;
   DROP TABLE IF EXISTS venta CASCADE;
   DROP TABLE IF EXISTS itinerario_digital CASCADE;
+  DROP TABLE IF EXISTS paquete_personalizado CASCADE;
   DROP TABLE IF EXISTS paquete_tour CASCADE;
   DROP TABLE IF EXISTS paquete CASCADE;
   DROP TABLE IF EXISTS tour_itinerario_item CASCADE;
@@ -285,10 +287,6 @@
       UNIQUE(id_venta, n_linea, tipo_servicio)
   );
 
-
-      UNIQUE(id_venta, n_linea, tipo_servicio)
-  );
-
   CREATE TABLE pago_operativo (
       id_pago_op SERIAL PRIMARY KEY,
       id_proveedor INTEGER REFERENCES proveedor(id_proveedor) ON DELETE CASCADE,
@@ -371,7 +369,7 @@
   ),
   (
     'CITY TOUR CUSCO',
-    4, 1, 32.00, 83.00,
+    4, 1, 31.34, 75.00,
     'CITY TOUR', 'FACIL',
     '{"itinerario": "Iniciamos el ***City Tour por Cusco*** con la visita al ***Qoricancha***, antiguo ***Templo del Sol*** y uno de los centros religiosos más importantes del mundo inca. Luego nos dirigimos a ***Sacsayhuamán***, majestuoso complejo ceremonial que impresiona por sus ***colosales muros de piedra*** y la extraordinaria ***ingeniería ancestral***.\n\nEl recorrido continúa hacia ***Qenqo***, centro de ***rituales ceremoniales***, ***Tambomachay***, santuario dedicado al ***agua sagrada***, y ***Puka Pukara***, fortaleza de ***control estratégico***. Finalizamos cerca de la ***Plaza Mayor***, facilitando el retorno al ***hotel***."}'::jsonb,
     '{"incluye": ["Recojo de Hotel", "Boleto Turístico", "Ticket a Qoricancha", "Guía Profesional", "Transporte Turístico"]}'::jsonb,
@@ -380,7 +378,7 @@
   ),
   (
     'VALLE SAGRADO VIP',
-    8, 1, 44.00, 115.00,
+    8, 1, 43.28, 115.00,
     'FULL DAY', 'MODERADO',
     '{"itinerario": "Después del desayuno, iniciamos una experiencia por el ***Valle Sagrado de los Incas*** visitando ***Chinchero***, donde conoceremos un antiguo ***palacio inca***, su ***iglesia colonial*** y un tradicional ***centro textil***. Continuamos hacia ***Moray***, famoso por sus ***terrazas circulares*** utilizadas como laboratorio agrícola en época inca, y luego descendemos a las impresionantes ***Salineras de Maras***, con miles de pozos de sal aún en uso.\n\nSeguimos el recorrido hacia el valle de ***Urubamba*** para disfrutar de un ***almuerzo buffet***. Posteriormente visitamos ***Ollantaytambo***, conocida como la ***última ciudad inca viviente***, y finalizamos en ***Pisac***, donde exploramos sus ***andenes arqueológicos*** y el colorido ***mercado artesanal***. Retorno a Cusco al finalizar la jornada."}'::jsonb,
     '{"incluye": ["Recojo del Hotel", "Almuerzo Buffett", "Transporte Turístico", "Guía Profesional", "Boleto Turístico", "Ingreso a Salineras"]}'::jsonb,
@@ -389,7 +387,7 @@
   ),
   (
     'MACHU PICCHU FULL DAY',
-    8, 1, 208.00, 562.00,
+    8, 1, 207.28, 561.25,
     'FULL DAY', 'MODERADO',
     '{"itinerario": "Iniciamos la experiencia con el traslado desde Cusco hacia la estación de tren en ***Ollantaytambo***, donde abordamos el ***tren turístico*** con destino al pueblo de ***Aguas Calientes***. A la llegada, nuestro ***guía especializado*** los recibirá para dirigirnos a la estación de buses y ascender hacia el impresionante ***Santuario de Machu Picchu***, una de las ***maravillas del mundo***.\n\nEn la ciudadela, realizamos una ***visita guiada completa*** recorriendo los principales sectores arqueológicos y espacios ceremoniales. Al finalizar, descendemos a ***Aguas Calientes*** para tiempo libre y alimentación. Posteriormente retornamos en tren a ***Ollantaytambo*** y continuamos el traslado hasta su ***hotel en Cusco***."}'::jsonb,
     '{"incluye": ["Recojo del hotel", "Ingreso a Machu Picchu", "Ticket de Tren Turístico", "Transporte Ollanta -Cusco", "Guía Profesional"]}'::jsonb,
@@ -398,7 +396,7 @@
   ),
   (
     'LAGUNA HUMANTAY',
-    12, 1, 23.00, 75.00,
+    12, 1, 22.39, 75.00,
     'NATURALEZA', 'MODERADO',
     '{"itinerario": "Iniciamos la aventura con el traslado desde Cusco hacia el pueblo de ***Mollepata***, donde disfrutamos de un ***desayuno tradicional*** antes de continuar hasta ***Soraypampa***, punto de inicio de la caminata. Desde allí emprendemos el ascenso hacia la impresionante ***Laguna Humantay***, rodeada de paisajes andinos y dominada por la majestuosa ***montaña Humantay***.\n\nDurante la visita, nuestro ***guía especializado*** nos explicará la importancia natural y cultural del lugar, así como las vistas del ***nevado Salkantay***, considerado una ***montaña sagrada***. Tras la exploración, retornamos a Soraypampa para disfrutar de un ***almuerzo reconfortante*** y luego regresamos a ***Cusco***, concluyendo esta inolvidable experiencia de alta montaña."}'::jsonb,
     '{"incluye": ["Recojo del hotel", "Ticket de ingreso a laguna", "Alimentación", "Botiquín de primeros Auxilios", "Guía Profesional", "Transporte Turístico"]}'::jsonb,
@@ -407,7 +405,7 @@
   ),
   (
     'MONTAÑA DE COLORES',
-    14, 1, 24.00, 80.00,
+    14, 1, 23.88, 80.00,
     'AVENTURA', 'DIFICIL',
     '{"itinerario": "Iniciamos la excursión con el traslado desde Cusco hacia las faldas del ***nevado Ausangate***, disfrutando de los espectaculares ***paisajes altoandinos***. Al llegar al punto de inicio, se brinda un ***desayuno ligero*** y una charla introductoria antes de comenzar la caminata rumbo al ***Cerro Colorado – Vinicunca***, atravesando ***caseríos tradicionales*** y zonas de pastoreo de ***alpacas y llamas***.\n\nAl alcanzar la ***Montaña de Colores***, admiramos sus impresionantes ***tonalidades naturales*** y las vistas del majestuoso ***Apu Ausangate***. Luego descendemos para disfrutar de un ***almuerzo reconfortante*** y retornamos a ***Cusco***, concluyendo esta inolvidable experiencia andina."}'::jsonb,
     '{"incluye": ["Recojo del Hotel", "Desayuno | Almuerzo", "Botiquín de Primeros Auxilios", "Guía Profesional", "Transporte Turistico", "Tickets de Ingreso a la montaña", "Bastones de Trekking"]}'::jsonb,
@@ -416,7 +414,7 @@
   ),
   (
     'PALCCOYO',
-    10, 1, 29.00, 95.00,
+    10, 1, 28.39, 95.00,
     'AVENTURA', 'MODERADO',
     '{"itinerario": "Iniciamos la experiencia con el traslado desde Cusco hacia el poblado de ***Cusipata***, donde disfrutamos de un ***desayuno tradicional***. En el trayecto apreciamos el ***puente colonial de Checacupe*** y un criadero de ***camélidos sudamericanos***, antes de continuar hacia el punto de inicio de la caminata en un entorno netamente andino.\n\nLa caminata es ***sencilla y panorámica***, recorriendo el impresionante ***bosque de piedras*** y disfrutando de vistas de majestuosos ***nevados*** como el ***Ausangate***. Visitamos las fascinantes ***Montañas de Colores de Palcoyo***, tres formaciones multicolores únicas. Finalizamos con un ***almuerzo buffet novo-andino*** y retornamos a ***Cusco***."}'::jsonb,
     '{"incluye": ["Transporte Turístico", "Desayuno | Almuerzo", "Botiquín de Primeros Auxilios"]}'::jsonb,
@@ -425,7 +423,7 @@
   ),
   (
     'WAQRAPUKARA',
-    13, 1, 30.00, 100.00,
+    13, 1, 26.87, 100.00,
     'AVENTURA', 'MODERADO',
     '{"itinerario": "Iniciamos la excursión con el traslado desde Cusco hacia el poblado de ***Cusipata***, donde disfrutamos de un ***desayuno tradicional*** antes de continuar el viaje hacia ***Santa Lucía***. Desde este punto comenzamos una caminata rodeada de ***valles andinos***, apreciando la ***flora y fauna local*** y espectaculares paisajes naturales durante el recorrido.\n\nEn el trayecto realizamos una pausa en el punto más alto para disfrutar del entorno y tomar fotografías, antes de llegar a ***Waqrapukara***, antiguo ***santuario inca*** de gran valor ***político y religioso***. Tras la visita guiada, retornamos para disfrutar de un ***almuerzo reconfortante*** y regresamos a ***Cusco***, concluyendo la experiencia."}'::jsonb,
     '{"incluye": ["Transporte Turistico", "Guia", "Asistencia","Desayuno|Almuerzo", "Recojo de Hotel", "Ticket de Ingreso", "Botiquin de Primeros auxilios", "Bastones de Trekking", "Balon de Oxigeno"]}'::jsonb,
@@ -434,7 +432,7 @@
   ),
   (
     'SIETE LAGUNAS AUSANGATE',
-    14, 1, 27.00, 90.00,
+    14, 1, 26.87, 90.00,
     'NATURALEZA', 'MODERADO',
     '{"itinerario": "Iniciamos la aventura con el traslado desde Cusco hacia el pintoresco poblado de ***Pacchanta***, donde disfrutamos de un ***desayuno andino*** antes de comenzar la caminata. Desde allí emprendemos un ascenso gradual visitando las impresionantes ***lagunas altoandinas***, cada una con tonalidades ***azules, turquesas y verdes*** que destacan por su belleza natural y pureza.\n\nDurante el recorrido observamos ***fauna andina*** como alpacas, llamas y aves silvestres, con vistas permanentes del majestuoso ***nevado Ausangate***. Al finalizar la caminata, retornamos a ***Pacchanta*** para disfrutar de un ***almuerzo típico*** y relajarnos en sus ***aguas termales***, antes de emprender el regreso a ***Cusco***."}'::jsonb,
     '{"incluye": ["Transporte Turística", "Desayuno | Almuerzo", "Botiquín de Primeros Auxilios", "Guía Profesional", "Ticket de Ingreso"]}'::jsonb,
@@ -443,7 +441,7 @@
   ),
   (
     'VALLE SUR',
-    6, 1, 33.00, 75.00,
+    6, 1, 32.24, 75.00,
     'CULTURA', 'FACIL',
     '{"itinerario": "Iniciamos el recorrido por la ***zona sur del Cusco*** visitando ***Tipón***, reconocido como el ***Templo del Agua*** por su avanzado sistema hidráulico inca, y continuamos hacia ***Pikillacta***, importante complejo ***arqueológico preinca*** que destaca por su planificación urbana. Luego visitamos la iglesia de ***Andahuaylillas***, conocida como la ***Capilla Sixtina de América*** por su impresionante arte colonial.\n\nLa experiencia se complementa con la ***gastronomía tradicional*** de la región, degustando el famoso ***chicharrón de Saylla***, el delicioso ***cuy al horno*** y el tradicional ***pan chuta de Oropesa***. Finalizamos el tour tras una jornada cultural y culinaria inolvidable."}'::jsonb,
     '{"incluye": ["Recojo del hotel", "Transporte Turístico", "Guía Profesional", "Tickets"]}'::jsonb,
@@ -452,7 +450,7 @@
   ),
   (
     'MORADA DE LOS DIOSES',
-    4, 1, 12.0, 35.00,
+    4, 1, 11.94, 35.00,
     'TURISMO', 'FACIL',
     '{"itinerario": "Iniciamos la experiencia con el traslado desde Cusco hacia el poblado de ***Sencca***, ubicado al norte de la ciudad, desde donde disfrutamos de una ***vista panorámica inicial*** del complejo escultórico. Tras una breve caminata, llegamos a las imponentes ***esculturas contemporáneas*** inspiradas en la ***cosmovisión andina*** y sus principales deidades ancestrales.\n\nDurante la visita interactuamos con representaciones como la ***Pachamama***, el ***Dios Wiracocha***, el ***Portal Inti*** y el ***Puma***, conociendo sus ***mitos y leyendas***. Finalizamos en el ***mirador de la Pachamama***, que ofrece una espectacular ***vista panorámica del Cusco***, antes del retorno a la ciudad."}'::jsonb,
     '{"incluye": ["Recojo del Hotel", "Ticket de Ingreso", "Guia Profesional", "Transporte Turistico"]}'::jsonb,
@@ -461,7 +459,7 @@
   ),
   (
     'RUTA DEL SOL (Cusco - Puno)',
-    10, 1, 54.00, 178.00,
+    10, 1, 53.82, 177.30,
     'TURISMO', 'FACIL',
     '{"itinerario": "Tras el desayuno, iniciamos el viaje desde Cusco recorriendo el ***corredor sur del altiplano*** en una jornada cultural con varias paradas guiadas. Visitamos la iglesia de ***Andahuaylillas***, conocida como la ***Capilla Sixtina de América***, y el impresionante templo inca de ***Raqchi***, uno de los complejos arqueológicos más importantes de la región.\n\nContinuamos hacia ***Sicuani*** para disfrutar de un ***almuerzo buffet*** y luego ascendemos al ***Paso de La Raya***, el punto más alto del recorrido. Finalizamos con la visita al ***Museo Inca Aymara de Pukara*** antes de arribar a ***Puno***, donde realizamos el traslado al ***hotel*** para pasar la noche."}'::jsonb,
     '{"incluye": ["Transporte Turistico", "Boleto Turistico", "Guia Profesional", "Almuerzo"]}'::jsonb,
@@ -470,7 +468,7 @@
   ),
   (
     'RUTA DEL SOL (Puno - Cusco)',
-    10, 1, 54.00, 178.00,
+    10, 1, 53.82, 177.30,
     'TURISMO', 'FACIL',
     '{"itinerario": "Disfrutarán del ***desayuno en el hotel*** antes de iniciar el recorrido turístico en bus desde ***Puno hacia Cusco*** por el corredor sur andino. Durante el trayecto se realizarán paradas culturales, iniciando con la visita al ***Museo de Pukara***, donde se apreciarán ***esculturas líticas y cerámicas preincas***. Luego se visitará el ***Abra de la Raya***, el punto más alto del recorrido, y la ciudad de ***Sicuani***, donde se disfrutará de un ***almuerzo buffet con productos locales***.\n\nContinuando el viaje, se conocerá el impresionante complejo arqueológico de ***Raqchi***, un ***templo inca dedicado al dios Wiracocha***, destacado por su arquitectura en adobe y recintos circulares. Posteriormente se visitará la iglesia colonial de ***Andahuaylillas***, conocida como la ***Capilla Sixtina de América*** por su extraordinaria decoración artística. Finalmente, se arribará a la ciudad del ***Cusco***, donde nuestro personal realizará la ***recepción y traslado al hotel seleccionado***."}'::jsonb,
     '{"incluye": ["Transporte Turistico", "Boleto Turistico", "Guia Profesional"]}'::jsonb,
@@ -479,7 +477,7 @@
   ),
   (
     'SOBREVUELO LINEAS DE NAZCA',
-    1, 1, 108.0, 362.0,
+    1, 1, 107.99, 361.75,
     'TURISMO', 'FACIL',
     '{"itinerario": "Después del desayuno, realizamos el traslado al aeródromo local para disfrutar de un espectacular ***sobrevuelo a las Líneas de Nazca***. Desde el aire observamos los enigmáticos ***geoglifos preincas*** que representan figuras de animales y plantas, como el ***colibrí***, el ***mono*** y la ***araña***, además de líneas geométricas que forman un misterioso paisaje grabado en la pampa.\n\nFinalizada la experiencia aérea, nos dirigimos al terminal terrestre para continuar el viaje hacia ***Arequipa***. A la llegada, nuestro personal los recibe y realiza el traslado al ***hotel seleccionado***, culminando una jornada llena de ***historia, misterio y cultura ancestral***."}'::jsonb,
     '{"incluye": ["Recojo de Hotel", "Transporte Regular", "Tickets", "Guia Profesional"]}'::jsonb,
@@ -502,7 +500,7 @@
   ) VALUES 
   (
     'LIMA - ISLAS BALLESTAS - HUACACHINA',
-    15, 1, 45.0, 150.0,
+    15, 1, 44.78, 150.0,
     'TURISMO', 'FACIL',
     '{"itinerario": "Después del desayuno, nos trasladamos al puerto de ***Paracas*** para iniciar la excursión a las ***Islas Ballestas***, pasando por el enigmático ***Candelabro***, una gigantesca figura trazada en la ladera del desierto. Durante el recorrido marítimo observamos ***lobos marinos***, ***pingüinos*** y diversas ***aves marinas*** en su hábitat natural.\n\nPor la tarde visitamos el ***Oasis de Huacachina***, un hermoso lago rodeado de impresionantes ***dunas de arena***. Aquí disfrutamos del entorno natural y de actividades como el ***sandboarding***. Finalizamos la jornada con el retorno hacia ***Lima***."}'::jsonb,
     '{"incluye": ["Recojo del Hotel en Lima", "Transporte Turistico", "Boleto de Ingreso a todos los atractivos", "Guia Profesional", "Lancha", "Tubular y Sandboarding"]}'::jsonb,
@@ -511,7 +509,7 @@
   ),
   (
     'MARAS, MORAY Y SALINERAS',
-    6, 1, 35.0, 85.00,
+    6, 1, 34.33, 85.00,
     'TURISMO', 'FACIL',
     '{"itinerario": "Iniciamos el recorrido en ***Chinchero***, conocida como la ***Cuna del Arcoíris***, un pintoresco pueblo colonial donde visitamos un ***taller textil tradicional*** para conocer las técnicas ancestrales de tejido y el uso de ***tintes naturales*** obtenidos de plantas y minerales. Luego continuamos hacia ***Moray***, un sorprendente ***laboratorio agrícola inca*** conformado por terrazas circulares que demuestran la avanzada ***ingeniería ancestral***.\n\nEl tour prosigue hacia el pueblo colonial de ***Maras*** y las impresionantes ***Salineras de Maras***, un conjunto de miles de pozas de ***sal rosada*** que forman uno de los paisajes más emblemáticos del ***Valle Sagrado***. Finalizamos con el retorno a ***Cusco***, donde dispondrán de ***tiempo libre*** para actividades personales y compras."}'::jsonb,
     '{"incluye": ["Recojo del Hotel", "Ticket de Ingreso", "Ticket Salineras", "Guia Profesional", "Transporte Turistico"]}'::jsonb,
@@ -520,7 +518,7 @@
   ),
   (
     'CUATRIMOTO HUAYPO Y SALINERAS',
-    5, 1, 33.0, 110.0,
+    5, 1, 32.84, 110.0,
     'TURISMO', 'FACIL',
     '{"itinerario": "Iniciamos la experiencia con el traslado desde Cusco hacia el poblado de ***Cruz Pata***, donde recibimos una breve ***inducción de manejo*** antes de comenzar la aventura en ***cuatrimotos***. El recorrido nos conduce hacia la tranquila ***Laguna de Huaypo***, donde disfrutamos de tiempo libre para apreciar el paisaje natural y el entorno andino.\n\nContinuamos la ruta pasando por el pintoresco pueblo colonial de ***Maras*** y visitamos las emblemáticas ***Salineras de Maras***, reconocidas por sus terrazas de ***sal natural***. Al finalizar, retornamos a la base para el traslado hacia ***Ollantaytambo***, donde abordamos el ***tren turístico*** con destino a ***Aguas Calientes***, lugar donde pasaremos la noche."}'::jsonb,
     '{"incluye": ["Recojo del Hotel", "Botiquin de Primeros Auxilios", "Guia Profesional", "Transporte Turistico", "Cuatrimotos", "Transporte Maras - Ollantaytambo", "Ingreso a Salineras", "Hospedaje en Aguas Calientes"]}'::jsonb,
@@ -529,7 +527,7 @@
   ),
   (
     'CUATRIMOTO MONTAÑA DE COLORES',
-    14, 1, 53.0, 175.0,
+    14, 1, 52.24, 175.0,
     'TURISMO', 'FACIL',
     '{"itinerario": "Iniciamos la experiencia con el traslado desde Cusco hacia las faldas del ***nevado Ausangate***, donde disfrutamos de un ***desayuno andino*** rodeados de espectaculares ***paisajes de alta montaña***. Luego llegamos a ***Japura***, punto de inicio de la aventura, donde recibimos las indicaciones para conducir las ***cuatrimotos*** antes de comenzar el recorrido.\n\nLa ruta en cuatrimotos nos lleva hasta la impresionante ***Montaña de Colores – Vinicunca***, atravesando paisajes andinos con ***llamas y alpacas***. En el ***Cerro Colorado*** apreciamos sus ***tonalidades naturales*** y la vista del majestuoso ***Apu Ausangate***. Tras el recorrido, retornamos a la base y regresamos a ***Cusco***."}'::jsonb,
     '{"incluye": ["Recojo del Hotel", "Ticket de Ingreso a la Montaña", "Desayuno | Almuerzo", "Botiquin de Primeros Auxilios", "Guia Profesional", "Transporte Turistico", "Cuatrimoto"]}'::jsonb,
@@ -544,7 +542,7 @@
   ) VALUES 
   (
     'PALLAY PUNCHU',
-    14, 1, 36.0, 120.0,
+    14, 1, 35.82, 120.0,
     'TURISMO', 'FACIL',
     '{"itinerario": "Iniciamos la experiencia con el traslado desde Cusco hacia el poblado de ***Cusipata***, donde disfrutamos de un ***desayuno tradicional***. En el camino apreciamos el ***puente colonial de Checacupe*** y un criadero de ***camélidos sudamericanos***, antes de continuar hacia el punto de inicio de la caminata en un entorno natural de gran belleza.\n\nLa caminata es ***sencilla y panorámica***, recorriendo el impresionante ***bosque de piedras*** y disfrutando de vistas de majestuosos ***nevados*** como el ***Ausangate***. Visitamos la espectacular ***Montaña Pallay Punchu***, famosa por sus ***formaciones filudas multicolores***. Finalizamos con un ***almuerzo buffet novo-andino*** y retornamos a ***Cusco***."}'::jsonb,
     '{"incluye": ["Recojo del Hotel", "Ticket de Ingreso", "Asistencia"]}'::jsonb,
@@ -553,7 +551,7 @@
   ),
   (
     'CITY TOUR LIMA',
-    4, 1, 23.0, 78.0,
+    4, 1, 23.0, 77.05,
     'CULTURA', 'FACIL',
     '{"itinerario": "Iniciamos el recorrido con una vista panorámica de la ***Huaca Pucllana***, importante ***centro ceremonial prehispánico*** que refleja la herencia ancestral de Lima. Continuamos hacia el ***Centro Histórico*** para apreciar emblemáticos monumentos coloniales como la ***Plaza Mayor***, el ***Palacio de Gobierno***, la ***Catedral*** y otros edificios que marcaron el periodo del ***Virreinato del Perú***.\n\nLa experiencia prosigue con la visita al ***Conjunto Monumental de San Francisco***, destacado por su extraordinario ***arte religioso colonial*** y las famosas ***Catacumbas***. Finalizamos explorando la ***Lima contemporánea*** en zonas residenciales como ***San Isidro***, ***Miraflores*** y el moderno ***Larcomar***, con vistas al océano Pacífico."}'::jsonb,
     '{"incluye": ["Recojo del Hotel ", "Boleto de Ingreso", "Guia Profesional", "Transporte Turistico"]}'::jsonb,
@@ -585,7 +583,7 @@
   ),
   (
     'TOUR MISTICO',
-    3, 1, 19.0, 63.0,
+    3, 1, 18.81, 63.0,
     'MÍSTICO', 'FACIL',
     '{"itinerario": "Iniciamos el recorrido desde el corazón de Cusco rumbo a la ***Morada de los Dioses***, un impresionante conjunto de ***esculturas líticas contemporáneas*** inspiradas en la ***cosmovisión andina*** y la veneración a la ***Pachamama***. Continuamos hacia el ***Valle de los Duendes***, un espacio mágico donde destacan esculturas de piedra integradas a ***formaciones naturales*** y senderos llenos de misticismo.\n\nLa experiencia prosigue en el ***Humedal de Huasao***, un importante ***pulmón verde*** con abundante flora y fauna, y finaliza en el encantador ***Bosque de los Ents***, inspirado en el universo de ***Tolkien***. Retornamos a ***Cusco*** tras una jornada llena de ***arte, naturaleza y energía espiritual***."}'::jsonb,
     '{"incluye": ["Ticket de Ingreso", "Guia Profesional", "Transporte Turistico"]}'::jsonb,
