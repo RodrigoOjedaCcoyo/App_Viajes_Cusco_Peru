@@ -2,6 +2,7 @@ streamlit
 pandas
 supabase
 xhtml2pdf
+reportlab
 Jinja2
 plotly
 matplotlib
