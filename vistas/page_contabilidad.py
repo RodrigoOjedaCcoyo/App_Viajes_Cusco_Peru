@@ -488,7 +488,7 @@ def dashboard_cuentas_por_cobrar_b2b(supabase_client):
         
         output = io.BytesIO()
         try:
-            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 template_df.to_excel(writer, index=False, sheet_name='PlantillaPagos')
             processed_data = output.getvalue()
             

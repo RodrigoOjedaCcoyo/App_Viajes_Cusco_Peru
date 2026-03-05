@@ -14,5 +14,4 @@ httpx
 pydantic
 altair
 openpyxl
-xlsxwriter
 streamlit-autorefresh
