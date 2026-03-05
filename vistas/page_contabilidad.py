@@ -135,20 +135,16 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, su
     st.markdown("---")
     
     if funcionalidad_seleccionada == "Gestión de Registros":
-        tab1, tab2, tab3 = st.tabs([
+        tab1, tab2 = st.tabs([
             "📊 Estructurador Financiero", 
-            "💎 Cuentas por Cobrar (B2B)",
-            "👤 Cuentas por Cobrar (B2C)"
+            "💰 Cuentas por Cobrar"
         ])
         
         with tab1:
             estructurador_liquidacion_pro(st.session_state['reporte_controller'])
             
         with tab2:
-            dashboard_cuentas_por_cobrar_b2b(supabase_client)
-
-        with tab3:
-            dashboard_cuentas_por_cobrar_b2c(supabase_client)
+            dashboard_cuentas_por_cobrar_unified(supabase_client)
     else:
         st.info("Utilice el Dashboard Contable para ver reportes.")
 
@@ -398,229 +394,198 @@ def herramienta_carga_masiva_pagos(supabase_client, key_suffix=""):
             except Exception as e:
                 st.error(f"Error al leer/procesar el archivo: {e}")
 
-def dashboard_cuentas_por_cobrar_b2b(supabase_client):
-    """Dashboard específico para controlar deudas de Agencias (B2B)."""
-    st.subheader("💎 Cuentas por Cobrar (B2B)", divider='blue')
+def dashboard_cuentas_por_cobrar_unified(supabase_client):
+    """Dashboard unificado para controlar deudas (B2B y B2C)."""
+    st.subheader("💰 Cuentas por Cobrar", divider='orange')
     
-    herramienta_carga_masiva_pagos(supabase_client, "b2b")
+    # 1. Herramienta de Carga Masiva (Siempre visible arriba)
+    herramienta_carga_masiva_pagos(supabase_client, "unified")
     st.divider()
-    
+
+    # 2. Selector de Contexto
+    tipo_vista = st.radio(
+        "Seleccione el tipo de cobro a gestionar:",
+        ["💎 B2B (Agencias)", "👤 B2C (Directas)"],
+        horizontal=True,
+        key="sb_tipo_cobro_unified"
+    )
+
     vc = VentaController(supabase_client)
-    ventas = vc.obtener_todas_ventas_b2b()
-    
-    if not ventas:
-        st.info("No hay ventas B2B registradas.")
-        return
-
-    # Obtener pagos de estas ventas para calcular saldo real
-    ids_ventas = [v['id_venta'] for v in ventas]
-    pagos = supabase_client.table('pago').select('id_venta, monto_pagado').in_('id_venta', ids_ventas).execute().data
-    
-    mapa_pagos = {}
-    for p in pagos:
-        pid = p['id_venta']
-        mapa_pagos[pid] = mapa_pagos.get(pid, 0) + (p['monto_pagado'] or 0)
-
-    # Procesar data
-    data_agencias = {}
-    lista_detalle = []
-    
-    for v in ventas:
-        id_agencia = v.get('id_agencia_aliada')
-        nombre_agencia = v.get('nombre_agencia', 'Sin Nombre')
-        monto = float(v.get('precio_total_cierre') or 0)
-        pagado = float(mapa_pagos.get(v['id_venta'], 0))
-        saldo = monto - pagado
-        
-        # Agregado por Agencia
-        if id_agencia not in data_agencias:
-            data_agencias[id_agencia] = {'Nombre': nombre_agencia, 'Total Ventas': 0.0, 'Cobrado': 0.0, 'Por Cobrar': 0.0, 'Count': 0}
-        
-        data_agencias[id_agencia]['Total Ventas'] += monto
-        data_agencias[id_agencia]['Cobrado'] += pagado
-        data_agencias[id_agencia]['Por Cobrar'] += saldo
-        data_agencias[id_agencia]['Count'] += 1
-        
-        lista_detalle.append({
-            'Agencia': nombre_agencia,
-            'Pasajero': v.get('nombre_cliente'),
-            'Fecha Venta': v.get('fecha_venta'),
-            'Total ($)': monto,
-            'A Cuenta ($)': pagado,
-            'Saldo ($)': saldo,
-            'Estado': '✅ PAGADO' if saldo <= 0.1 else '🔴 DEBE'
-        })
-        
-    # Visualización 1: Métricas Globales
-    total_deuda_b2b = sum(d['Por Cobrar'] for d in data_agencias.values())
-    c1, c2 = st.columns(2)
-    c1.metric("Total por Cobrar a Agencias", f"${total_deuda_b2b:,.2f}")
-    c2.metric("Agencias con Deuda", len([d for d in data_agencias.values() if d['Por Cobrar'] > 1]))
-    
-    # --- NUEVO: BOTÓN DE DESCARGA REPORTE EXCEL ---
     from controllers.excel_controller import ExcelController
     exc_ctrl = ExcelController()
-    df_detalle_rep = pd.DataFrame(lista_detalle)
-    if not df_detalle_rep.empty:
-        try:
-            reporte_xlsx = exc_ctrl.generar_reporte_cuentas_cobrar_xlsx(df_detalle_rep)
-            st.download_button(
-                label="📊 Descargar Informe de Cuentas por Cobrar (Excel)",
-                data=reporte_xlsx,
-                file_name=f"reporte_cuentas_b2b_{date.today()}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
-            )
-        except Exception as e:
-            st.error(f"Error al generar reporte Excel: {e}")
 
+    if "B2B" in tipo_vista:
+        # Lógica B2B
+        ventas = vc.obtener_todas_ventas_b2b()
+        if not ventas:
+            st.info("No hay ventas B2B registradas.")
+            return
+
+        ids_ventas = [v['id_venta'] for v in ventas]
+        pagos = supabase_client.table('pago').select('id_venta, monto_pagado').in_('id_venta', ids_ventas).execute().data
+        
+        mapa_pagos = {}
+        for p in pagos:
+            pid = p['id_venta']
+            mapa_pagos[pid] = mapa_pagos.get(pid, 0) + (p['monto_pagado'] or 0)
+
+        data_agencias = {}
+        lista_detalle = []
+        for v in ventas:
+            id_agencia = v.get('id_agencia_aliada')
+            nombre_agencia = v.get('nombre_agencia', 'Sin Nombre')
+            monto = float(v.get('precio_total_cierre') or 0)
+            pagado = float(mapa_pagos.get(v['id_venta'], 0))
+            saldo = monto - pagado
+            
+            if id_agencia not in data_agencias:
+                data_agencias[id_agencia] = {'Nombre': nombre_agencia, 'Total Ventas': 0.0, 'Cobrado': 0.0, 'Por Cobrar': 0.0, 'Count': 0}
+            
+            data_agencias[id_agencia]['Total Ventas'] += monto
+            data_agencias[id_agencia]['Cobrado'] += pagado
+            data_agencias[id_agencia]['Por Cobrar'] += saldo
+            data_agencias[id_agencia]['Count'] += 1
+            
+            lista_detalle.append({
+                'Agencia': nombre_agencia,
+                'Pasajero': v.get('nombre_cliente'),
+                'Fecha Venta': v.get('fecha_venta'),
+                'Total ($)': monto,
+                'A Cuenta ($)': pagado,
+                'Saldo ($)': saldo,
+                'Estado': '✅ PAGADO' if saldo <= 0.1 else '🔴 DEBE'
+            })
+            
+        total_deuda = sum(d['Por Cobrar'] for d in data_agencias.values())
+        c1, c2 = st.columns(2)
+        c1.metric("Total por Cobrar Agencias", f"${total_deuda:,.2f}")
+        c2.metric("Agencias con Deuda", len([d for d in data_agencias.values() if d['Por Cobrar'] > 1]))
+
+        # Botón Excel B2B
+        df_detalle_rep = pd.DataFrame(lista_detalle)
+        if not df_detalle_rep.empty:
+            try:
+                reporte_xlsx = exc_ctrl.generar_reporte_cuentas_cobrar_xlsx(df_detalle_rep)
+                st.download_button(
+                    label="📊 Descargar Informe de Cuentas B2B (Excel)",
+                    data=reporte_xlsx,
+                    file_name=f"reporte_cuentas_b2b_{date.today()}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                    key="btn_dl_b2b_unified"
+                )
+            except Exception as e:
+                st.error(f"Error: {e}")
+
+        st.write("### 🏢 Resumen por Agencia")
+        df_ag = pd.DataFrame(data_agencias.values())
+        if not df_ag.empty:
+            st.dataframe(df_ag, hide_index=True, use_container_width=True)
+
+        with st.expander("🔎 Ver Detalle Individual"):
+            st.dataframe(df_detalle_rep, use_container_width=True, hide_index=True)
+
+    else:
+        # Lógica B2C
+        ventas = vc.obtener_ventas_directas()
+        if not ventas:
+            st.info("No hay ventas B2C con saldo pendiente.")
+            return
+
+        ids_ventas = [v['id_venta'] for v in ventas]
+        pagos = supabase_client.table('pago').select('id_venta, monto_pagado').in_('id_venta', ids_ventas).execute().data
+        
+        mapa_pagos = {}
+        for p in pagos:
+            pid = p['id_venta']
+            mapa_pagos[pid] = mapa_pagos.get(pid, 0) + (p['monto_pagado'] or 0)
+
+        lista_detalle = []
+        for v in ventas:
+            monto = float(v.get('precio_total_cierre') or 0)
+            pagado = float(mapa_pagos.get(v['id_venta'], 0))
+            saldo = monto - pagado
+            
+            lista_detalle.append({
+                'ID Venta': v['id_venta'],
+                'Cliente': v.get('nombre_cliente'),
+                'Fecha': v.get('fecha_venta'),
+                'Total ($)': monto,
+                'Pagado ($)': pagado,
+                'Saldo ($)': saldo,
+                'Estado': '✅ PAGADO' if saldo <= 0.1 else '🔴 DEBE'
+            })
+        
+        df_b2c = pd.DataFrame(lista_detalle)
+        total_deuda = df_b2c['Saldo ($)'].sum()
+        c1, c2 = st.columns(2)
+        c1.metric("Total por Cobrar Directos", f"${total_deuda:,.2f}")
+        c2.metric("Clientes con Deuda", len(df_b2c[df_b2c['Saldo ($)'] > 1]))
+
+        # Botón Excel B2C
+        if not df_b2c.empty:
+            try:
+                reporte_xlsx = exc_ctrl.generar_reporte_cuentas_cobrar_xlsx(df_b2c)
+                st.download_button(
+                    label="📊 Descargar Informe de Cuentas B2C (Excel)",
+                    data=reporte_xlsx,
+                    file_name=f"reporte_cuentas_b2c_{date.today()}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                    key="btn_dl_b2c_unified"
+                )
+            except Exception as e:
+                st.error(f"Error: {e}")
+
+        st.write("### 📋 Detalle de Saldos Directos")
+        st.dataframe(df_b2c, hide_index=True, use_container_width=True)
+
+    # 3. Formulario de Pago Manual (Común al final)
     st.divider()
-    
-    # Visualización 2: Tabla Resumen por Agencia
-    st.write("### 🏢 Resumen por Agencia")
-    df_agencias = pd.DataFrame(data_agencias.values())
-    if not df_agencias.empty:
-        st.dataframe(
-            df_agencias,
-            column_config={
-                "Total Ventas": st.column_config.NumberColumn(format="$ %.2f"),
-                "Cobrado": st.column_config.NumberColumn(format="$ %.2f"),
-                "Por Cobrar": st.column_config.NumberColumn(format="$ %.2f"),
-            },
-            hide_index=True,
-            use_container_width=True
-        )
-
-    # Visualización 3: Detalle Expandible
-    with st.expander("🔎 Ver Detalle de Todas las Ventas B2B"):
-        df_det = pd.DataFrame(lista_detalle, index=None)
-        st.dataframe(df_det, use_container_width=True, hide_index=True)
-
-    st.divider()
-
-    # --- NUEVO: FORMULARIO DE REGISTRO MANUAL DE PAGOS ---
     with st.expander("➕ Registrar Nuevo Abono / Pago Manual", expanded=False):
         st.write("Selecciona una venta con saldo pendiente para registrar un abono.")
         
-        # Solo mostrar ventas con saldo > 0
-        ventas_deuda = [v for v in ventas if (float(v.get('precio_total_cierre') or 0) - float(mapa_pagos.get(v['id_venta'], 0))) > 0.1]
+        todas_v = vc.obtener_todas_ventas_b2b() + vc.obtener_ventas_directas()
+        ids_v = [v['id_venta'] for v in todas_v]
+        p_all = supabase_client.table('pago').select('id_venta, monto_pagado').in_('id_venta', ids_v).execute().data
+        m_p = {}
+        for p in p_all:
+            m_p[p['id_venta']] = m_p.get(p['id_venta'], 0) + (p['monto_pagado'] or 0)
+
+        v_deuda = [v for v in todas_v if (float(v.get('precio_total_cierre') or 0) - float(m_p.get(v['id_venta'], 0))) > 0.1]
         
-        if not ventas_deuda:
-            st.success("No hay ventas con saldo pendiente actualmente.")
+        if not v_deuda:
+            st.success("No hay deudas pendientes.")
         else:
-            opciones_pago = [f"{v['id_venta']} | {v['nombre_cliente']} (Debe: ${float(v.get('precio_total_cierre') or 0) - float(mapa_pagos.get(v['id_venta'], 0)):.2f})" for v in ventas_deuda]
-            v_sel_pago = st.selectbox("Seleccione Venta:", opciones_pago, key="sel_v_pago_manual")
+            opc = [f"{v['id_venta']} | {v.get('nombre_cliente') or v.get('nombre_agencia')} (Saldo: ${float(v.get('precio_total_cierre') or 0) - float(m_p.get(v['id_venta'], 0)):.2f})" for v in v_deuda]
+            sel_v = st.selectbox("Seleccione Venta:", opc, key="sel_v_pago_manual_unified")
             
-            if v_sel_pago:
-                id_v_pago = int(v_sel_pago.split(" | ")[0])
-                v_data_pago = next(v for v in ventas_deuda if v['id_venta'] == id_v_pago)
-                
+            if sel_v:
+                id_v = int(sel_v.split(" | ")[0])
                 c1, c2, c3 = st.columns(3)
-                with c1:
-                    monto_pago = st.number_input("Monto del Abono:", min_value=1.0, step=10.0, format="%.2f")
-                with c2:
-                    moneda_pago = st.selectbox("Moneda:", ["USD", "PEN"], index=0)
-                with c3:
-                    fecha_pago = st.date_input("Fecha de Pago:", date.today())
+                monto_p = c1.number_input("Monto:", min_value=1.0, step=10.0)
+                moneda_p = c2.selectbox("Moneda:", ["USD", "PEN"])
+                fecha_p = c3.date_input("Fecha de Pago:", date.today())
                 
                 c4, c5 = st.columns(2)
-                with c4:
-                    metodo_pago = st.selectbox("Método:", ["TRANSFERENCIA", "EFECTIVO", "YAPE/PLIN", "TARJETA", "DEPÓSITO"])
-                with c5:
-                    tipo_pago = st.selectbox("Tipo de Pago:", ["ABONO", "SALDO TOTAL", "ADELANTO"])
+                metodo_p = c4.selectbox("Método:", ["TRANSFERENCIA", "EFECTIVO", "YAPE/PLIN", "TARJETA", "DEPÓSITO"])
+                tipo_p = c5.selectbox("Tipo:", ["ABONO", "SALDO TOTAL", "ADELANTO"])
                 
-                if st.button("🚀 Registrar Pago Ahora", type="primary", use_container_width=True):
+                if st.button("🚀 Registrar Pago Ahora", type="primary", use_container_width=True, key="btn_reg_pago_unified"):
                     try:
-                        nuevo_pago = {
-                            "id_venta": id_v_pago,
-                            "fecha_pago": fecha_pago.isoformat(),
-                            "monto_pagado": monto_pago,
-                            "moneda": moneda_pago,
-                            "metodo_pago": metodo_pago,
-                            "tipo_pago": tipo_pago
+                        nuevo = {
+                            "id_venta": id_v,
+                            "fecha_pago": fecha_p.isoformat(),
+                            "monto_pagado": monto_p,
+                            "moneda": moneda_p,
+                            "metodo_pago": metodo_p,
+                            "tipo_pago": tipo_p
                         }
-                        supabase_client.table('pago').insert(nuevo_pago).execute()
-                        st.success(f"✅ Pago de ${monto_pago} registrado correctamente para {v_data_pago['nombre_cliente']}.")
+                        supabase_client.table('pago').insert(nuevo).execute()
+                        st.success(f"✅ Pago registrado exitosamente.")
                         st.balloons()
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Error al registrar el pago: {e}")
-
-def dashboard_cuentas_por_cobrar_b2c(supabase_client):
-    """Dashboard específico para controlar deudas de Clientes Directos (B2C)."""
-    st.subheader("👤 Cuentas por Cobrar (B2C)", divider='green')
-    
-    herramienta_carga_masiva_pagos(supabase_client, "b2c")
-    st.divider()
-    
-    vc = VentaController(supabase_client)
-    ventas = vc.obtener_ventas_directas()
-    
-    if not ventas:
-        st.info("No hay ventas B2C registradas con saldo pendiente.")
-        return
-
-    # Obtener pagos de estas ventas
-    ids_ventas = [v['id_venta'] for v in ventas]
-    pagos = supabase_client.table('pago').select('id_venta, monto_pagado').in_('id_venta', ids_ventas).execute().data
-    
-    mapa_pagos = {}
-    for p in pagos:
-        pid = p['id_venta']
-        mapa_pagos[pid] = mapa_pagos.get(pid, 0) + (p['monto_pagado'] or 0)
-
-    lista_detalle = []
-    for v in ventas:
-        monto = float(v.get('precio_total_cierre') or 0)
-        pagado = float(mapa_pagos.get(v['id_venta'], 0))
-        saldo = monto - pagado
-        
-        lista_detalle.append({
-            'ID Venta': v['id_venta'],
-            'Cliente': v.get('nombre_cliente'),
-            'Fecha Venta': v.get('fecha_venta'),
-            'Total ($)': monto,
-            'A Cuenta ($)': pagado,
-            'Saldo ($)': saldo,
-            'Estado': '✅ PAGADO' if saldo <= 0.1 else '🔴 DEBE'
-        })
-    
-    df_b2c = pd.DataFrame(lista_detalle)
-    
-    # Visualización 1: Métricas Globales
-    total_deuda_b2c = df_b2c['Saldo ($)'].sum()
-    c1, c2 = st.columns(2)
-    c1.metric("Total por Cobrar (B2C)", f"${total_deuda_b2c:,.2f}")
-    c2.metric("Clientes con Deuda", len(df_b2c[df_b2c['Saldo ($)'] > 1]))
-
-    # --- BOTÓN DE DESCARGA REPORTE EXCEL B2C ---
-    from controllers.excel_controller import ExcelController
-    exc_ctrl = ExcelController()
-    if not df_b2c.empty:
-        try:
-            reporte_xlsx = exc_ctrl.generar_reporte_cuentas_cobrar_xlsx(df_b2c)
-            st.download_button(
-                label="📊 Descargar Informe de B2C (Excel)",
-                data=reporte_xlsx,
-                file_name=f"reporte_cuentas_b2c_{date.today()}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-                key="btn_dl_b2c"
-            )
-        except Exception as e:
-            st.error(f"Error al generar reporte Excel: {e}")
-
-    st.divider()
-    st.write("### 📋 Detalle de Saldos B2C")
-    st.dataframe(
-        df_b2c,
-        column_config={
-            "Total ($)": st.column_config.NumberColumn(format="$ %.2f"),
-            "A Cuenta ($)": st.column_config.NumberColumn(format="$ %.2f"),
-            "Saldo ($)": st.column_config.NumberColumn(format="$ %.2f"),
-        },
-        hide_index=True,
-        use_container_width=True
-    )
+                        st.error(f"Error: {e}")
 
 
