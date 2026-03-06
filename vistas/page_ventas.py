@@ -762,7 +762,7 @@ def constructor_itinerarios():
         titulo_viaje = col2.text_input("Título del Programa", placeholder="Ej: Cusco Mágico & Machu Picchu")
         duracion = col1.text_input("Duración", placeholder="Ej: 4D-3N")
         fecha_viaje = col2.date_input("Fecha Tentativa")
-        es_b2b = st.checkbox("🚩 Este itinerario es para Venta B2B / Agencia", value=False)
+        # El checkbox B2B se movió abajo, cerca del botón de generar
 
     # 3. Construcción del Itinerario por Días
     st.markdown("---")
@@ -805,6 +805,10 @@ def constructor_itinerarios():
     inc_global = col_g1.text_area("Incluye (Global) - Uno por línea", placeholder="Traslados Aeropuerto\nSeguro de Viaje")
     exc_global = col_g2.text_area("No Incluye (Global) - Uno por línea", placeholder="Vuelos Internacionales\nGastos Personales")
     
+    
+    # Checkbox B2B reubicado para mayor visibilidad
+    es_b2b = st.checkbox("🚩 Este itinerario es para Venta B2B / Agencia", value=False, help="Marque esta casilla si la venta proviene de una agencia aliada.")
+
     # 4. Botón de Generación y Sincronización
     if st.button("🚀 GENERAR ITINERARIO PDF & SINCRONIZAR CLOUD", use_container_width=True):
         if not nombre_pasajero:
