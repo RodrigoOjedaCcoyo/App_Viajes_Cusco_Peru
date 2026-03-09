@@ -401,7 +401,7 @@ def estructurador_liquidacion_pro(controller):
                 st.session_state['tc_venta_acc']             = tc_venta
                 st.session_state['es_usd_acc']               = False  # ya convertido, no re-convertir
                 st.session_state['last_loaded_id_venta_acc'] = v_act['id_venta']
-                st.rerun()
+                # No hacemos st.rerun() aquí porque causa un bucle infinito al renderizar la tabla de corrido
 
             # --- 📥 AUDITORÍA DE ITINERARIO (BOTÓN DE DESCARGA) ---
             id_it_dig = v_act.get('id_itinerario_digital')
