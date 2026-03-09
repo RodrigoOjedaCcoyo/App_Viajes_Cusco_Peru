@@ -754,7 +754,7 @@ def dashboard_cuentas_por_cobrar_unified(supabase_client):
 
                 c4, c5 = st.columns(2)
                 metodo_p = c4.selectbox("Método:", ["TRANSFERENCIA", "EFECTIVO", "YAPE/PLIN", "TARJETA", "DEPÓSITO"])
-                tipo_p = c5.selectbox("Tipo:", ["ABONO", "SALDO TOTAL", "ADELANTO"])
+                tipo_p = c5.selectbox("Tipo:", ["PARCIAL", "SALDO", "TOTAL", "ADELANTO"])
                 
                 if st.button("🚀 Registrar Pago Ahora", type="primary", use_container_width=True, key="btn_reg_pago_unified"):
                     exito, msg = vc.registrar_pago(
