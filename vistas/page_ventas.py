@@ -406,8 +406,8 @@ def registro_ventas_directa():
             
             st.markdown(f"📊 **SUB-TOTALES:** Nac: **S/ {sub_nac:,.2f}** | Ext (CAN): **$ {sub_ext:,.2f}**")
 
-    idx_moneda = monedas_list.index(moneda_auto) if moneda_auto in monedas_list else 0
-    moneda_sel = c_m0.selectbox("Moneda", monedas_list, index=idx_moneda, help="Se auto-detecta del itinerario", disabled=(id_itinerario_dig is not None))
+    # Eliminamos el index calculable y pasamos directamente el key a Streamlit para que recuerde el estado
+    moneda_sel = c_m0.selectbox("Moneda", monedas_list, key="moneda_auto", help="Puede elegir la divisa de cobro manual")
     
     # TC: Tipo de Cambio "Foto Congelada" - Se intenta jalar automático
     default_tc = ExchangeService.get_current_tc()
@@ -422,16 +422,21 @@ def registro_ventas_directa():
     # Guardar en session para el cargado de itinerarios posterior
     st.session_state['tipo_cambio_ref_ui'] = tipo_cambio
 
-    # --- RECÁLCULO DINÁMICO: Usar el TC del usuario para actualizar el total ---
+    # --- RECÁLCULO DINÁMICO: Usar la Moneda para actualizar el total (Suma Cruda) ---
     if id_itinerario_dig and tipo_cambio > 0:
         items_recalc = st.session_state.get(f"items_itin_{id_itinerario_dig}", [])
         if items_recalc:
             nuevo_total = 0.0
+            
+            # El usuario pidió que si selecciona PEN, sume el raw en PEN.
+            # Y si selecciona USD, sume el raw en USD.
+            # Sin cruzar automáticamente (Ej. si hay extranjeros, no forzar USD).
+            # Por lo tanto, simplemente sumaremos las cantidades multiplicadas por el precio base de cada pasajero.
+            
             for it in items_recalc:
-                if it['tipo'] in ['EXTRANJERO', 'CAN']:
-                    nuevo_total += it['cantidad'] * it['p_raw'] * tipo_cambio
-                else:
-                    nuevo_total += it['cantidad'] * it['p_raw']
+                # Suma plana de lo que se definió en el diseñador
+                nuevo_total += it['cantidad'] * it['p_raw']
+                    
             st.session_state['m_total'] = round(nuevo_total, 2)
 
     if 'm_total' not in st.session_state: st.session_state['m_total'] = 0.0
