@@ -379,30 +379,29 @@ def estructurador_liquidacion_pro(controller):
                         costo_en_pen = round(costo_liq * tc_venta, 4) if moneda_liq == 'USD' else costo_liq
                         mapa_costos_pen[nl] = mapa_costos_pen.get(nl, 0.0) + costo_en_pen
 
-                if detalles:
-                    filas = []
-                    for d in detalles:
-                        # El mapa ya tiene todo en PEN → se muestra directamente
-                        costo_pen = round(
-                            mapa_costos_pen.get(d['n_linea'],
-                                               float(d.get('costo_applied') or 0.0)),
-                            2
-                        )
-                        filas.append({
-                            "FECHA"    : date.fromisoformat(d['fecha_servicio']),
-                            "HORA"     : d.get('hora_inicio', '--:--'),
-                            "SERVICIO" : d.get('observacion') or "Servicio",
-                            "PAX"      : d.get('cantidad', 1),
-                            "COSTO_PEN": costo_pen,
-                            "id_venta" : d['id_venta'],
-                            "n_linea"  : d['n_linea']
-                        })
+                filas = []
+                for d in (detalles or []):
+                    # El mapa ya tiene todo en PEN → se muestra directamente
+                    costo_pen = round(
+                        mapa_costos_pen.get(d['n_linea'],
+                                           float(d.get('costo_applied') or 0.0)),
+                        2
+                    )
+                    filas.append({
+                        "FECHA"    : date.fromisoformat(d['fecha_servicio']),
+                        "HORA"     : d.get('hora_inicio', '--:--'),
+                        "SERVICIO" : d.get('observacion') or "Servicio",
+                        "PAX"      : d.get('cantidad', 1),
+                        "COSTO_PEN": costo_pen,
+                        "id_venta" : d['id_venta'],
+                        "n_linea"  : d['n_linea']
+                    })
 
-                    st.session_state['simulador_contable_adv_data'] = filas
-                    st.session_state['tc_venta_acc']             = tc_venta
-                    st.session_state['es_usd_acc']               = False  # ya convertido, no re-convertir
-                    st.session_state['last_loaded_id_venta_acc'] = v_act['id_venta']
-                    st.rerun()
+                st.session_state['simulador_contable_adv_data'] = filas
+                st.session_state['tc_venta_acc']             = tc_venta
+                st.session_state['es_usd_acc']               = False  # ya convertido, no re-convertir
+                st.session_state['last_loaded_id_venta_acc'] = v_act['id_venta']
+                st.rerun()
 
             # --- 📥 AUDITORÍA DE ITINERARIO (BOTÓN DE DESCARGA) ---
             id_it_dig = v_act.get('id_itinerario_digital')
