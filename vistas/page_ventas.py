@@ -422,21 +422,29 @@ def registro_ventas_directa():
     # Guardar en session para el cargado de itinerarios posterior
     st.session_state['tipo_cambio_ref_ui'] = tipo_cambio
 
-    # --- RECÁLCULO DINÁMICO: Usar la Moneda para actualizar el total (Suma Cruda) ---
+    # --- RECÁLCULO DINÁMICO: Usar el TC del usuario y la Moneda para actualizar el total ---
     if id_itinerario_dig and tipo_cambio > 0:
         items_recalc = st.session_state.get(f"items_itin_{id_itinerario_dig}", [])
         if items_recalc:
             nuevo_total = 0.0
             
-            # El usuario pidió que si selecciona PEN, sume el raw en PEN.
-            # Y si selecciona USD, sume el raw en USD.
-            # Sin cruzar automáticamente (Ej. si hay extranjeros, no forzar USD).
-            # Por lo tanto, simplemente sumaremos las cantidades multiplicadas por el precio base de cada pasajero.
-            
+            # Lógica:
+            # Si se elige "USD", todo se cobra en Dólares. Los peruanos (Nacional en PEN) se dividen entre el TC.
+            # Si se elige "PEN", todo se cobra en Soles. Los extranjeros (Tienen tarifa USD) se multiplican por el TC.
             for it in items_recalc:
-                # Suma plana de lo que se definió en el diseñador
-                nuevo_total += it['cantidad'] * it['p_raw']
-                    
+                if moneda_sel == "USD":
+                    # Cobramos en Dólares
+                    if it['tipo'] in ['EXTRANJERO', 'CAN']:
+                        nuevo_total += it['cantidad'] * it['p_raw'] # Ya está en USD
+                    else:
+                        nuevo_total += it['cantidad'] * (it['p_raw'] / tipo_cambio) # PEN a USD
+                else:
+                    # Cobramos en Soles (PEN)
+                    if it['tipo'] in ['EXTRANJERO', 'CAN']:
+                        nuevo_total += it['cantidad'] * (it['p_raw'] * tipo_cambio) # USD a PEN
+                    else:
+                        nuevo_total += it['cantidad'] * it['p_raw'] # Ya está en PEN
+                        
             st.session_state['m_total'] = round(nuevo_total, 2)
 
     if 'm_total' not in st.session_state: st.session_state['m_total'] = 0.0
