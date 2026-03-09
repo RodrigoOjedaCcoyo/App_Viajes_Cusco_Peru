@@ -202,15 +202,31 @@ def dashboard_pagos_operativos(supabase_client):
             
             # Intentar buscar ventas/servicios pendientes para este proveedor para ayudar a la vinculación
             res_serv = supabase_client.table('venta_servicio_proveedor')\
-                .select('id_venta, n_linea, tipo_servicio, venta(tour_nombre, nombre_cliente)')\
+                .select('id_venta, n_linea, tipo_servicio')\
                 .eq('id_proveedor', id_prov)\
                 .execute()
             
             opciones_serv = ["--- Pago General (No vinculado) ---"]
             mapa_serv = {}
             if res_serv.data:
+                # Recuperar info de las ventas asociadas para nombres
+                ids_ventas = list(set([s['id_venta'] for s in res_serv.data if s.get('id_venta')]))
+                mapa_nombres_ventas = {}
+                if ids_ventas:
+                    res_v = supabase_client.table('venta').select('id_venta, tour_nombre, cliente(nombre)').in_('id_venta', ids_ventas).execute()
+                    if res_v.data:
+                        for v in res_v.data:
+                            c_info = v.get('cliente') or {}
+                            n_cliente = c_info.get('nombre') if isinstance(c_info, dict) else c_info
+                            if isinstance(c_info, list) and len(c_info) > 0:
+                                n_cliente = c_info[0].get('nombre')
+                            mapa_nombres_ventas[v['id_venta']] = {
+                                'tour_nombre': v.get('tour_nombre', 'Tour'),
+                                'nombre_cliente': n_cliente or f"ID {v['id_venta']}"
+                            }
+                
                 for s in res_serv.data:
-                    v_info = s.get('venta') or {}
+                    v_info = mapa_nombres_ventas.get(s['id_venta'], {})
                     lbl = f"Venta {s['id_venta']} | {v_info.get('nombre_cliente', 'ID '+str(s['id_venta']))} - {s['tipo_servicio']} ({v_info.get('tour_nombre', 'Tour')})"
                     opciones_serv.append(lbl)
                     mapa_serv[lbl] = (s['id_venta'], s['n_linea'])
