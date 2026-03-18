@@ -126,18 +126,21 @@ def render_sales_dashboard_visual(supabase_client):
     # Las métricas superiores (S/, Leads, Conversión) han sido ocultadas a petición del usuario.
     # Mostrar directamente sólo la gráfica de la "culebrita".
     
-    # Llamar al renderizador de objetivos visuales (Gauge Chart)
-    from vistas.dashboard_analytics import render_sales_dashboard
-    render_sales_dashboard(df_ventas)
+    # --- CREACIÓN DE PESTAÑAS (TABS) ---
+    tab_metricas, tab_calendario = st.tabs(["📊 Métricas Clave", "🗓️ Calendario Operativo"])
+    
+    with tab_metricas:
+        # Llamar al renderizador de objetivos visuales (Gauge Chart)
+        from vistas.dashboard_analytics import render_sales_dashboard
+        render_sales_dashboard(df_ventas)
 
-    st.write("---")
-    
-    # Agregar Calendario de Operaciones al Dashboard Comercial
-    from vistas.page_operaciones import dashboard_tablero_diario
-    from controllers.operaciones_controller import OperacionesController
-    
-    ctrl_ops = OperacionesController(supabase_client)
-    dashboard_tablero_diario(ctrl_ops)
+    with tab_calendario:
+        # Agregar Calendario de Operaciones al Dashboard Comercial
+        from vistas.page_operaciones import dashboard_tablero_diario
+        from controllers.operaciones_controller import OperacionesController
+        
+        ctrl_ops = OperacionesController(supabase_client)
+        dashboard_tablero_diario(ctrl_ops)
 
 def render_ops_dashboard_visual(supabase_client):
     """Vista visual para Operaciones con Tablero Diario."""
