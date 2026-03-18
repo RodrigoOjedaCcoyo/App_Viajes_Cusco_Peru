@@ -434,7 +434,11 @@ def registro_ventas_directa():
                 else:
                     st.success(f"✅ Itinerario cargado: **{tour_nombre_cloud}**")
 
-                with st.expander("👀 Ver Resumen del Itinerario", expanded=False):
+                # Insertar el componente de descarga idéntico al de Operaciones
+                from vistas.page_operaciones import render_itinerary_simple_download
+                render_itinerary_simple_download(render)
+
+                with st.expander("👀 Ver Desglose Día por Día", expanded=False):
                     render_itinerary_details_visual(render)
 
 
