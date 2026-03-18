@@ -134,7 +134,7 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, su
     st.title(f"📝 Gestión Contable")
     st.markdown("---")
     
-    if funcionalidad_seleccionada == "Gestión de Registros":
+    if funcionalidad_seleccionada in ["Gestión de Registros", "Finanzas y Caja"]:
         tab1, tab2, tab3 = st.tabs([
             "📊 Estructurador Financiero", 
             "💰 Cuentas por Cobrar",

@@ -961,6 +961,6 @@ def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual=
     
     st.session_state.user_id = user_id
 
-    if funcionalidad_seleccionada == "Gestión de Registros":
+    if funcionalidad_seleccionada in ["Gestión de Registros", "Registro de Ventas (CRM)"]:
         gestion_registros_multicanal()
 

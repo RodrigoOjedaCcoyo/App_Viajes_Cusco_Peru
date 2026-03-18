@@ -40,8 +40,14 @@ MODULOS_VISIBLES = {
         ("Gestión de Registros", "page_contabilidad")
     ],
     "GERENCIA": [
-        ("Dashboard Ejecutivo", "page_dashboards"),
-        ("Gestión Ejecutiva", "page_gerencia")
+        ("👑 Dashboard Ejecutivo", "page_dashboards"),
+        ("📊 Métricas Comerciales", "page_dashboards"),
+        ("⚙️ Métricas Operativas", "page_dashboards"),
+        ("🏦 Métricas Contables", "page_dashboards"),
+        ("🕵️ Auditoría Ejecutiva", "page_gerencia"),
+        ("📝 Registro de Ventas (CRM)", "page_ventas"),
+        ("🔩 Logística y Proveedores", "page_operaciones"),
+        ("🧾 Finanzas y Caja", "page_contabilidad")
     ]
 }
 
