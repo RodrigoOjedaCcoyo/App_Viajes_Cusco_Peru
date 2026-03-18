@@ -643,8 +643,8 @@ def registro_ventas_proveedores(supabase_client):
         col1.markdown(f"👤 **Vendedor Resp:** {vendedor_log}")
 
         tour_name = col2.text_input("Nombre del Programa B2B", value=def_tour, disabled=is_disabled)
-        tipo_comp = col2.radio("Comprobante para Agencia", ["Boleta", "Factura", "Recibo Simple"], horizontal=True)
-        metodo_pago = col2.selectbox("💳 Método de Pago", ["EFECTIVO", "TRANSFERENCIA", "YAPE", "PLIN", "TARJETA", "PAYPAL", "OTRO"], key="b2b_metodo_pago")
+        tipo_comp = col2.radio("Comprobante para Agencia", ["Boleta", "Factura", "Recibo Simple"], horizontal=True, key="b2b_tipo_comp_v2")
+        metodo_pago = col2.selectbox("💳 Método de Pago", ["EFECTIVO", "TRANSFERENCIA", "YAPE", "PLIN", "TARJETA", "PAYPAL", "OTRO"], key="b2b_metodo_pago_v2")
         
         # --- NUEVO: FECHAS MANUALES SI NO HAY ITINERARIO ---
         if not id_itinerario_dig:
