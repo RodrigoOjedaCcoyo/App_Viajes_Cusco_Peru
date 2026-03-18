@@ -65,6 +65,52 @@ def render_itinerary_details_visual(render):
                     if txt: st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;❌ <small>{str(txt).upper()}</small>", unsafe_allow_html=True)
             st.write("")
 
+        # --- BOTÓN DE DESCARGA EXCEL ---
+        st.divider()
+        if tours:
+            try:
+                import io
+                import pandas as pd
+                
+                excel_data = []
+                for i, t in enumerate(tours):
+                    dia_lbl = f"DIA {i+1}"
+                    if t.get('fecha'): dia_lbl = t['fecha']
+                    elif t.get('numero'): dia_lbl = f"DIA {t['numero']}"
+                    
+                    nom = (t.get('nombre') or t.get('titulo') or "Servicio").upper()
+                    hora = t.get('hora', '')
+                    
+                    inc = t.get('incluye') or t.get('inclusiones', []) or t.get('servicios', [])
+                    inc_str = ", ".join([item.get('texto') if isinstance(item, dict) else str(item) for item in inc])
+                    
+                    exc = t.get('no_incluye') or t.get('exclusiones', []) or t.get('servicios_no', [])
+                    exc_str = ", ".join([item.get('texto') if isinstance(item, dict) else str(item) for item in exc])
+                    
+                    excel_data.append({
+                        "Día / Fecha": dia_lbl,
+                        "Hora": hora,
+                        "Tour / Actividad": nom,
+                        "Incluye": inc_str,
+                        "No Incluye": exc_str
+                    })
+                
+                df_itin = pd.DataFrame(excel_data)
+                buffer = io.BytesIO()
+                with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+                    df_itin.to_excel(writer, index=False, sheet_name='Itinerario')
+                
+                st.download_button(
+                    label="📥 Descargar Resumen en Excel",
+                    data=buffer.getvalue(),
+                    file_name=f"Resumen_Itinerario_{titulo_itin.replace(' ', '_')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+            except Exception as e:
+                pass
+
+
 
 
 def get_vendedor_id():
