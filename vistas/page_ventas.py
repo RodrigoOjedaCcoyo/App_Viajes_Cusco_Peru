@@ -388,6 +388,9 @@ def registro_ventas_directa():
                 else:
                     st.success(f"✅ Itinerario cargado: **{tour_nombre_cloud}**")
 
+                with st.expander("👀 Ver Resumen del Itinerario", expanded=False):
+                    render_itinerary_details_visual(render)
+
 
     # --- 💳 BALANCE Y MONEDA (TIEMPO REAL / INTERACTIVO) ---
     st.markdown("### 💰 Detalles de Pago")
