@@ -40,14 +40,8 @@ MODULOS_VISIBLES = {
         ("Gestión de Registros", "page_contabilidad")
     ],
     "GERENCIA": [
-        ("👑 Dashboard Ejecutivo", "page_dashboards"),
-        ("📊 Métricas Comerciales", "page_dashboards"),
-        ("⚙️ Métricas Operativas", "page_dashboards"),
-        ("🏦 Métricas Contables", "page_dashboards"),
-        ("🕵️ Auditoría Ejecutiva", "page_gerencia"),
-        ("📝 Registro de Ventas (CRM)", "page_ventas"),
-        ("🔩 Logística y Proveedores", "page_operaciones"),
-        ("🧾 Finanzas y Caja", "page_contabilidad")
+        ("Dashboard Ejecutivo", "page_dashboards"),
+        ("Auditoría de Gestión", "page_gerencia")
     ]
 }
 
@@ -144,13 +138,40 @@ def main():
         return
 
     # --- 3. Lógica Principal de Navegación (para autenticados) ---
-    rol = st.session_state['user_role']
+    rol_db = st.session_state['user_role']
+    
+    # Selector de Entorno para Gerencia
+    if rol_db == "GERENCIA":
+        if 'view_as' not in st.session_state:
+            st.session_state['view_as'] = "GERENCIA"
+        
+        st.sidebar.markdown("### 🏢 Selector de Área")
+        col1, col2 = st.sidebar.columns(2)
+        
+        # Botones de cambio de contexto
+        if col1.button("🏛️ Gerencia", use_container_width=True, type="primary" if st.session_state['view_as'] == "GERENCIA" else "secondary"):
+            st.session_state['view_as'] = "GERENCIA"
+            st.rerun()
+        if col2.button("📈 Ventas", use_container_width=True, type="primary" if st.session_state['view_as'] == "VENTAS" else "secondary"):
+            st.session_state['view_as'] = "VENTAS"
+            st.rerun()
+        if col1.button("⚙️ Operac.", use_container_width=True, type="primary" if st.session_state['view_as'] == "OPERACIONES" else "secondary"):
+            st.session_state['view_as'] = "OPERACIONES"
+            st.rerun()
+        if col2.button("🏦 Contab.", use_container_width=True, type="primary" if st.session_state['view_as'] == "CONTABILIDAD" else "secondary"):
+            st.session_state['view_as'] = "CONTABILIDAD"
+            st.rerun()
+            
+        rol_actual = st.session_state['view_as']
+        st.sidebar.markdown(f"👁️ **Visto como:** `{rol_actual}`")
+    else:
+        rol_actual = rol_db
 
-    st.session_state['rol_actual'] = rol
+    st.session_state['rol_actual'] = rol_actual
     st.sidebar.title("Navegación")
-    st.sidebar.write(f"**Rol Actual:** {rol}")
-
-    paginas_permitidas = MODULOS_VISIBLES.get(rol, [])
+    st.sidebar.write(f"**Usuario:** {st.session_state['user_email']}")
+    
+    paginas_permitidas = MODULOS_VISIBLES.get(rol_actual, [])
 
     if paginas_permitidas:
         # Se renombra 'nombres_modulos' a 'nombres_funcionalidades' para claridad
@@ -179,7 +200,8 @@ def main():
 
             if hasattr(modulo, 'mostrar_pagina'):
                 # Pasamos el cliente Supabase para que las vistas puedan hacer consultas seguras
-                modulo.mostrar_pagina(funcionalidad_seleccionada, rol_actual=rol, user_id=st.session_state.get('user_id'), supabase_client=supabase)
+                # IMPORTANTE: Pasamos rol_db tmb para que las páginas sepan que es Gerencia supervisando
+                modulo.mostrar_pagina(funcionalidad_seleccionada, rol_actual=rol_db, user_id=st.session_state.get('user_id'), supabase_client=supabase)
             else:
                  st.error(f"Error: El módulo {pagina_seleccionada_archivo} no tiene la función de entrada esperada.")
  
