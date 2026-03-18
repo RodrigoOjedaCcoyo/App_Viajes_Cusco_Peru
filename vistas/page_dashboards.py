@@ -134,9 +134,9 @@ def render_sales_dashboard_visual(supabase_client):
     
     # Agregar Calendario de Operaciones al Dashboard Comercial
     from vistas.page_operaciones import dashboard_tablero_diario
-    from controllers.pago_operativo_controller import PagoOperativoController
+    from controllers.operaciones_controller import OperacionesController
     
-    ctrl_ops = PagoOperativoController(supabase_client)
+    ctrl_ops = OperacionesController(supabase_client)
     dashboard_tablero_diario(ctrl_ops)
 
 def render_ops_dashboard_visual(supabase_client):
