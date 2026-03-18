@@ -33,11 +33,23 @@ class PDFController:
             print(f"Error renderizando PDF {template_name}: {e}")
             return None
 
+    def _extraer_fecha_viaje_robusta(self, datos_render: dict) -> str:
+        f_inicio = datos_render.get('fecha_viaje') or datos_render.get('fecha_inicio') or datos_render.get('fechaViaje') or datos_render.get('fecha')
+        ci = datos_render.get('control_interno', {})
+        if not f_inicio and ci:
+            f_inicio = ci.get('fecha_inicio') or ci.get('fecha_llegada') or ci.get('fecha_viaje')
+        if not f_inicio:
+            dias_itin = datos_render.get('itinerario') or datos_render.get('days') or datos_render.get('itinerario_detalles')
+            if dias_itin and isinstance(dias_itin, list) and len(dias_itin) > 0 and isinstance(dias_itin[0], dict):
+                f_inicio = dias_itin[0].get('fecha')
+        return str(f_inicio).strip() if f_inicio else ""
+
     def generar_itinerario_pdf(self, datos_render: dict) -> BytesIO:
         """Genera un PDF de itinerario PREMIUM."""
+        fecha_robusta = self._extraer_fecha_viaje_robusta(datos_render)
         context = {
             "cliente_nombre": datos_render.get("nombre_pasajero") or "Pasajero",
-            "fecha_viaje": datos_render.get("fecha_viaje") or "",
+            "fecha_viaje": fecha_robusta,
             "num_adultos": datos_render.get("num_adultos", 1),
             "num_ninos": datos_render.get("num_ninos", 0),
             "itinerario": (datos_render.get("itinerario_detalles") or 
@@ -51,9 +63,10 @@ class PDFController:
 
     def generar_itinerario_simple_pdf(self, datos_render: dict) -> BytesIO:
         """Genera un PDF de itinerario SIMPLE (Ink Saver)."""
+        fecha_robusta = self._extraer_fecha_viaje_robusta(datos_render)
         context = {
             "cliente_nombre": datos_render.get("nombre_pasajero") or "Pasajero",
-            "fecha_viaje": datos_render.get("fecha_viaje") or "Pendiente",
+            "fecha_viaje": fecha_robusta if fecha_robusta else "Pendiente",
             "num_adultos": datos_render.get("num_adultos", 1),
             "num_ninos": datos_render.get("num_ninos", 0),
             "itinerario": (datos_render.get("itinerario_detalles") or 

@@ -32,9 +32,55 @@ class ExcelController:
         ws['A1'].alignment = center_al
         
         ws['A3'] = "FECHA INICIO:"
-        ws['B3'] = datos_render.get("fecha_inicio") or datos_render.get("fecha_viaje") or "---"
+        
+        # --- EXTRACCIÓN ROBUSTA DE FECHA (Misma lógica que Ventas) ---
+        f_inicio = datos_render.get('fecha_viaje') or datos_render.get('fecha_inicio') or datos_render.get('fechaViaje') or datos_render.get('fecha')
+        
+        ci = datos_render.get('control_interno', {})
+        if not f_inicio and ci:
+            f_inicio = ci.get('fecha_inicio') or ci.get('fecha_llegada') or ci.get('fecha_viaje')
+            
+        if not f_inicio:
+            dias_itin = datos_render.get('itinerario') or datos_render.get('days') or datos_render.get('itinerario_detalles')
+            if dias_itin and isinstance(dias_itin, list) and len(dias_itin) > 0 and isinstance(dias_itin[0], dict):
+                f_inicio = dias_itin[0].get('fecha')
+        
+        f_inicio_str = str(f_inicio).strip() if f_inicio else "---"
+        
+        # Extracción de fecha fin robusta
+        f_fin_str = datos_render.get('fecha_fin') or datos_render.get('fechaFin')
+        if not f_fin_str and f_inicio and f_inicio_str != "---":
+            # Calcular base a duración
+            duracion_raw = datos_render.get('duracion')
+            if duracion_raw and isinstance(duracion_raw, str) and 'D' in duracion_raw.upper():
+                try:
+                    num_dias_str = ''.join(filter(str.isdigit, duracion_raw.split('D')[0]))
+                    if num_dias_str:
+                        num_dias = int(num_dias_str)
+                        # Intento de parseo
+                        f_clean = f_inicio_str.replace(" ", "")
+                        obj_f_inicio = None
+                        if '/' in f_clean:
+                            for fmt in ("%d/%m/%Y", "%Y/%m/%d", "%m/%d/%Y"):
+                                try:
+                                    obj_f_inicio = datetime.datetime.strptime(f_clean, fmt).date()
+                                    break
+                                except: pass
+                        elif '-' in f_clean:
+                            obj_f_inicio = datetime.date.fromisoformat(f_clean[:10])
+                        
+                        if obj_f_inicio:
+                            f_fin_obj = obj_f_inicio + datetime.timedelta(days=num_dias - 1)
+                            f_fin_str = f_fin_obj.strftime("%d/%m/%Y")
+                except Exception:
+                    pass
+        
+        if not f_fin_str:
+            f_fin_str = "---"
+
+        ws['B3'] = f_inicio_str
         ws['D3'] = "FECHA FINAL:"
-        ws['E3'] = datos_render.get("fecha_fin") or "---"
+        ws['E3'] = f_fin_str
         
         ws['A4'] = "PASAJERO:"
         # Mapeo robusto de nombre: PRIORIDAD PARÁMETRO > POSIBLES_NOMBRES > PLACEHOLDER
