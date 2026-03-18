@@ -1210,9 +1210,10 @@ def render_directorio_proveedores(supabase_client):
             contacto = c1.text_input("Teléfono de Contacto", placeholder="Ej: +51 987 654 321")
             
             pais = c2.text_input("País origen", value="Perú")
+            opciones_base = ["GUIA", "TRANSPORTE", "ALIMENTACION", "ALOJAMIENTO", "TICKETS", "ENDOSE", "AGENCIA", "OTROS"]
             servicios = c2.multiselect(
                 "Servicios que ofrece",
-                ["GUIA", "TRANSPORTE", "ALIMENTACION", "ALOJAMIENTO", "TICKETS", "ENDOSE", "OTROS"],
+                opciones_base,
                 default=["ENDOSE"]
             )
             
@@ -1265,13 +1266,19 @@ def render_directorio_proveedores(supabase_client):
                 new_nombre = col_e1.text_input("Nombre Comercial", value=p_data['nombre_comercial'])
                 new_contacto = col_e1.text_input("Contacto", value=p_data.get('contacto_telefono', '') or '')
                 
-                # Manejar servicios (lista)
+                # Manejar servicios (lista) y hacer bullet-proof la enumeración
                 servicios_actuales = p_data.get('servicios_ofrecidos', [])
                 if not isinstance(servicios_actuales, list): servicios_actuales = []
                 
+                opciones_edit_base = ["GUIA", "TRANSPORTE", "ALIMENTACION", "ALOJAMIENTO", "TICKETS", "ENDOSE", "AGENCIA", "OTROS"]
+                # Añadir cualquier servicio heredado (legacy) a las opciones disponibles
+                opciones_dinamicas = list(set(opciones_edit_base + servicios_actuales))
+                # Ordenar para que OTROS quede al final (si es posible) o simplemente ordenar alfabéticamente
+                opciones_dinamicas.sort()
+                
                 new_servicios = col_e2.multiselect(
                     "Servicios Actualizados",
-                    ["GUIA", "TRANSPORTE", "ALIMENTACION", "ALOJAMIENTO", "TICKETS", "ENDOSE", "OTROS"],
+                    opciones_dinamicas,
                     default=servicios_actuales
                 )
                 
