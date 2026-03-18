@@ -1,7 +1,7 @@
 # vistas/page_ventas.py
 import streamlit as st
 import pandas as pd
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from controllers.lead_controller import LeadController
 from controllers.venta_controller import VentaController
 from services.exchange_service import ExchangeService
@@ -535,15 +535,30 @@ def registro_ventas_directa():
         
         if id_itinerario_dig:
             render = mapa_itinerarios.get(itinerario_seleccionado, {}).get('datos_render', {})
-            f_viaje = render.get('fecha_viaje')
+            f_viaje = render.get('fecha_viaje') or render.get('fecha_inicio') or render.get('fechaViaje') or render.get('fecha')
+            if not f_viaje and render.get('control_interno'):
+                ci = render.get('control_interno', {})
+                f_viaje = ci.get('fecha_inicio') or ci.get('fecha_llegada') or ci.get('fecha_viaje')
+            if not f_viaje:
+                dias = render.get('itinerario') or render.get('days') or render.get('itinerario_detalles')
+                if dias and isinstance(dias, list) and len(dias) > 0 and isinstance(dias[0], dict):
+                    f_viaje = dias[0].get('fecha')
+                
             if f_viaje:
                 try: 
                     # Limpiar espacios: "23 / 02 / 2026" -> "23/02/2026"
-                    f_clean = f_viaje.replace(" ", "")
+                    f_clean = str(f_viaje).replace(" ", "").strip()
                     if '/' in f_clean:
-                        itin_fecha_inicio = datetime.strptime(f_clean, "%d/%m/%Y").date()
-                    else:
-                        itin_fecha_inicio = date.fromisoformat(f_clean)
+                        try:
+                            itin_fecha_inicio = datetime.strptime(f_clean, "%d/%m/%Y").date()
+                        except ValueError:
+                            try:
+                                itin_fecha_inicio = datetime.strptime(f_clean, "%Y/%m/%d").date()
+                            except ValueError:
+                                # Último intento MM/DD/YYYY
+                                itin_fecha_inicio = datetime.strptime(f_clean, "%m/%d/%Y").date()
+                    elif '-' in f_clean:
+                        itin_fecha_inicio = date.fromisoformat(f_clean[:10])
                 except: pass
             
             # Calcular Fin basado en Duración (ej: "3D")
