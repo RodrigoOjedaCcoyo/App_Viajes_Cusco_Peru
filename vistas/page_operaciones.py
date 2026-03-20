@@ -506,46 +506,89 @@ def registro_ventas_proveedores(supabase_client):
             try: tc_itin = float(tc_itin or 3.8)
             except: tc_itin = 3.8
 
-            # 3. Fallback: Raíz (num_pax_nac, etc.)
-            fallbacks = [
-                ('NACIONAL', ['num_pax_nac', 'pax_nac', 'num_pax_nacional'], ['precio_nacional', 'p_nac']),
-                ('EXTRANJERO', ['num_pax_ext', 'pax_ext', 'num_pax_extranjero'], ['precio_extranjero', 'p_ext']),
-                ('CAN', ['num_pax_can', 'pax_can'], ['precio_can', 'p_can'])
-            ]
-            for t_code, c_keys, p_keys in fallbacks:
-                if t_code not in tipos_vistos:
-                    c_f = 0
-                    for ck in c_keys:
-                        c_f = int(render.get(ck, 0) or 0)
-                        if c_f > 0: break
-                    if c_f > 0:
-                        p_f_raw = 0.0
-                        for pk in p_keys:
-                            p_f_raw = float(render.get(pk, 0) or 0)
-                            if p_f_raw > 0: break
-                        
-                        # Determinar moneda (Nuevo: Check metadata)
-                        precios_meta = render.get('precios', {})
-                        moneda_fix = precios_meta.get(f"moneda_{t_code.lower()}")
-                        
-                        if moneda_fix:
-                            es_usd = (moneda_fix == "USD")
-                        else:
-                            # Fallback legacy: Extranjero/CAN es USD, Nacional es PEN
-                            es_usd = (t_code in ['EXTRANJERO', 'CAN'])
+            # 1. PRIORIDAD: Precios Cierre (Itinerario Automático)
+            precios_cierre = render.get('precios_cierre', [])
+            if precios_cierre and isinstance(precios_cierre, list):
+                for pc in precios_cierre:
+                    label = pc.get('label', '').upper()
+                    monto_total = float(pc.get('monto_total', 0) or 0)
+                    simbolo = pc.get('simbolo', '$')
+                    
+                    t_code = 'NACIONAL' if 'NACIONAL' in label else ('EXTRANJERO' if 'EXTRANJERO' in label else 'CAN')
+                    es_usd = (simbolo == '$')
+                    
+                    # Conteo de pax desde desglose_pasajeros
+                    pax_info = ci.get('desglose_pasajeros', {}).get(t_code.lower(), {})
+                    c_f = sum(int(v or 0) for v in pax_info.values()) if isinstance(pax_info, dict) else 0
+                    if not c_f: c_f = 1 # Fallback a 1 pax para no romper división
+                    
+                    p_f_soles = monto_total * tc_itin if es_usd else monto_total
+                    items_extraidos.append({
+                        "descripcion": f"Pax {t_code.capitalize()} (Auto-Total)", 
+                        "cantidad": int(c_f), 
+                        "precio_unitario": p_f_soles / int(c_f), 
+                        "tipo": t_code, 
+                        "p_raw": monto_total / int(c_f),
+                        "moneda": "USD" if es_usd else "PEN"
+                    })
+                    tipos_vistos.add(t_code)
 
-                        p_f_soles = p_f_raw * tc_itin if es_usd else p_f_raw
-                        items_extraidos.append({
-                            "descripcion": f"Pax {t_code.capitalize()} (Auto)", 
-                            "cantidad": c_f, 
-                            "precio_unitario": p_f_soles, 
-                            "tipo": t_code, 
-                            "p_raw": p_f_raw,
-                            "moneda": "USD" if es_usd else "PEN"
-                        })
+            # 2. SEGUNDA OPCIÓN: Precios Estructurados (Manual Nuevo o Auto-Compacto)
+            precios_meta = render.get('precios', {})
+            if not items_extraidos and precios_meta:
+                # Mapeo de claves posibles
+                mapeo_p = [('NACIONAL', ['nacional', 'nac']), ('EXTRANJERO', ['extranjero', 'ext']), ('CAN', ['can'])]
+                for t_code, keys in mapeo_p:
+                    p_data = None
+                    for k in keys:
+                        p_data = precios_meta.get(k)
+                        if p_data is not None: break
+                    
+                    if p_data is not None:
+                        # Extraer monto
+                        if isinstance(p_data, dict): p_raw = float(p_data.get('total') or p_data.get('monto') or 0)
+                        else: p_raw = float(p_data or 0)
+                        
+                        if p_raw > 0:
+                            # Moneda
+                            moneda_key = f"moneda_{t_code.lower()}"
+                            moneda_fix = precios_meta.get(moneda_key)
+                            es_usd = (moneda_fix == "USD") if moneda_fix else (t_code in ['EXTRANJERO', 'CAN'])
+                            
+                            # Conteo
+                            c_f = int(render.get(f'num_pax_{t_code.lower()[0:3]}', 1) or 1)
+                            
+                            p_f_soles = p_raw * tc_itin if es_usd else p_raw
+                            items_extraidos.append({
+                                "descripcion": f"Pax {t_code.capitalize()} (Precio)", 
+                                "cantidad": c_f, "precio_unitario": p_f_soles, "tipo": t_code, "p_raw": p_raw,
+                                "moneda": "USD" if es_usd else "PEN"
+                            })
+                            tipos_vistos.add(t_code)
 
-            # --- FALLBACK FINAL B2B: SI NO HAY NADA, USAR CONTEO GENÉRICO ---
+            # 3. FALLBACK LEGACY: Raíz (num_pax_nac, etc.)
             if not items_extraidos:
+                fallbacks = [
+                    ('NACIONAL', ['num_pax_nac', 'pax_nac', 'num_pax_nacional'], ['precio_nacional', 'p_nac']),
+                    ('EXTRANJERO', ['num_pax_ext', 'pax_ext', 'num_pax_extranjero'], ['precio_extranjero', 'p_ext']),
+                    ('CAN', ['num_pax_can', 'pax_can'], ['precio_can', 'p_can'])
+                ]
+                for t_code, c_keys, p_keys in fallbacks:
+                    if t_code not in tipos_vistos:
+                        c_f = 0
+                        for ck in c_keys:
+                            c_f = int(render.get(ck, 0) or 0)
+                            if c_f > 0: break
+                        if c_f > 0:
+                            p_f_raw = 0.0
+                            for pk in p_keys:
+                                p_f_raw = float(render.get(pk, 0) or 0)
+                                if p_f_raw > 0: break
+                            p_f_soles = p_f_raw * tc_itin if t_code in ['EXTRANJERO', 'CAN'] else p_f_raw
+                            items_extraidos.append({
+                                "descripcion": f"Pax {t_code.capitalize()} (Legacy)", "cantidad": c_f, "precio_unitario": p_f_soles, "tipo": t_code, "p_raw": p_f_raw,
+                                "moneda": "USD" if t_code in ['EXTRANJERO', 'CAN'] else "PEN"
+                            })
                 pax_gen = render.get('cantidad_pax') or render.get('pax_count') or render.get('num_pax') or 0
                 if not pax_gen and ci: 
                     pax_gen = ci.get('total_pasajeros') or ci.get('total_pax') or 0
