@@ -298,139 +298,120 @@ def registro_ventas_directa():
                 cel_cloud = it_data['lead'].get('numero_celular', '')
             
             st.session_state[f"val_nom_{id_itinerario_dig}"] = nombre_pax_cloud
-            st.session_state[f"val_tour_{id_itinerario_dig}"] = tour_nombre_cloud
-            st.session_state[f"val_cel_{id_itinerario_dig}"] = cel_cloud
-            # --- NUEVA LÓGICA: EXTRACCIÓN Y SUMA INTELIGENTE (TOTAL EN SOLES) ---
+            st.session_state[f"val_tour_{id_itinerario_dig}"] = tour_nombre            # --- NUEVA LÓGICA: EXTRACCIÓN Y SUMA INTELIGENTE (MULTI-FORMATO) ---
             items_extraidos = []
             tipos_vistos = set()
-            tc_itin = render.get('control_interno', {}).get('tipo_cambio_aplicado', 3.8)
+            ci = render.get('control_interno', {})
+            tc_itin = ci.get('tipo_cambio_aplicado', 3.8)
             try: tc_itin = float(tc_itin or 3.8)
             except: tc_itin = 3.8
 
-            # 1. Prioridad: detalle_ingresos (Lista robusta)
-            det_ing = render.get('detalle_ingresos', [])
-            if isinstance(det_ing, list):
-                for d in det_ing:
-                    t = str(d.get('tipo', '')).upper()
-                    if t in ['EXT', 'INT', 'EXTRANJERO']: t = 'EXTRANJERO'
-                    elif t in ['NAC', 'NACIONAL']: t = 'NACIONAL'
+            # 1. PRIORIDAD: Precios Cierre (Itinerario Automático)
+            precios_cierre = render.get('precios_cierre', [])
+            if precios_cierre and isinstance(precios_cierre, list):
+                for pc in precios_cierre:
+                    label = pc.get('label', '').upper()
+                    monto_total = float(pc.get('monto_total', 0) or 0)
+                    simbolo = pc.get('simbolo', '$')
                     
-                    c = int(d.get('cantidad', 1) or 1)
-                    p_u_str = str(d.get('precio_unitario', '0')).replace(',', '')
-                    try: p_raw = float(p_u_str)
-                    except: p_raw = 0.0
+                    t_code = 'NACIONAL' if 'NACIONAL' in label else ('EXTRANJERO' if 'EXTRANJERO' in label else 'CAN')
+                    es_usd = (simbolo == '$')
                     
-                    p_soles = p_raw * tc_itin if t in ['EXTRANJERO', 'CAN'] else p_raw
-                    items_extraidos.append({"descripcion": d.get('descripcion') or f"Pax {t.capitalize()}", "cantidad": c, "precio_unitario": p_soles, "tipo": t, "p_raw": p_raw})
-                    tipos_vistos.add(t)
-
-            # 2. Prioridad: control_interno (Desglose pasajeros)
-            ci = render.get('control_interno', {})
-            desglose = ci.get('desglose_pasajeros', {})
-            if isinstance(desglose, dict):
-                for k, v in desglose.items():
-                    t_slug = k.upper()
-                    if t_slug not in tipos_vistos:
-                        c_total = sum(int(x or 0) for x in v.values()) if isinstance(v, dict) else int(v or 0)
-                        if c_total > 0:
-                            p_raw = 0.0
-                            if t_slug == 'NACIONAL': p_raw = render.get('precio_nacional') or render.get('p_nac') or 0
-                            elif t_slug == 'EXTRANJERO': p_raw = render.get('precio_extranjero') or render.get('p_ext') or 0
-                            elif t_slug == 'CAN': p_raw = render.get('precio_can') or render.get('p_can') or 0
-                            
-                            p_soles = float(p_raw) * tc_itin if t_slug in ['EXTRANJERO', 'CAN'] else float(p_raw)
-                            items_extraidos.append({"descripcion": f"Pax {k.capitalize()} (Auto)", "cantidad": c_total, "precio_unitario": p_soles, "tipo": t_slug, "p_raw": p_raw})
-                            tipos_vistos.add(t_slug)
-
-            # 3. Fallback: Raíz (num_pax_nac, etc.)
-            fallbacks = [
-                ('NACIONAL', ['num_pax_nac', 'pax_nac', 'num_pax_nacional'], ['precio_nacional', 'p_nac']),
-                ('EXTRANJERO', ['num_pax_ext', 'pax_ext', 'num_pax_extranjero'], ['precio_extranjero', 'p_ext']),
-                ('CAN', ['num_pax_can', 'pax_can'], ['precio_can', 'p_can'])
-            ]
-            for t_code, c_keys, p_keys in fallbacks:
-                if t_code not in tipos_vistos:
-                    c_f = 0
-                    for ck in c_keys:
-                        c_f = int(render.get(ck, 0) or 0)
-                        if c_f > 0: break
-                    if c_f > 0:
-                        p_f_raw = 0.0
-                        for pk in p_keys:
-                            p_f_raw = float(render.get(pk, 0) or 0)
-                            if p_f_raw > 0: break
-                        p_f_soles = p_f_raw * tc_itin if t_code in ['EXTRANJERO', 'CAN'] else p_f_raw
-                        items_extraidos.append({"descripcion": f"Pax {t_code.capitalize()} (Legacy)", "cantidad": c_f, "precio_unitario": p_f_soles, "tipo": t_code, "p_raw": p_f_raw})
-
-            # --- FALLBACK FINAL: SI NO HAY NADA, USAR CONTEO GENÉRICO ---
-            if not items_extraidos:
-                pax_gen = render.get('cantidad_pax') or render.get('pax_count') or render.get('num_pax') or 0
-                if not pax_gen and ci: 
-                    pax_gen = ci.get('total_pasajeros') or ci.get('total_pax') or 0
-                
-                if pax_gen:
-                    p_sug_raw = render.get('total_final_calculado') or render.get('precio_cierre') or 0
-                    p_sug_val = 0.0
-                    try: p_sug_val = float(p_sug_raw)
-                    except: p_sug_val = 0.0
+                    pax_info = ci.get('desglose_pasajeros', {}).get(t_code.lower(), {})
+                    c_f = sum(int(v or 0) for v in pax_info.values()) if isinstance(pax_info, dict) else 0
+                    if not c_f: c_f = 1
                     
-                    m_itin = str(render.get('moneda', 'PEN')).upper()
-                    t_final = "EXTRANJERO" if m_itin == "USD" or m_itin == "$" else "NACIONAL"
-                    
-                    num_pax_val = int(pax_gen) if int(pax_gen) > 0 else 1
-                    p_u_raw = p_sug_val / num_pax_val
-                    p_u_soles = p_u_raw * tc_itin if t_final == "EXTRANJERO" else p_u_raw
-
+                    p_f_soles = monto_total * tc_itin if es_usd else monto_total
                     items_extraidos.append({
-                        "descripcion": "Pax (Itinerario)", 
-                        "cantidad": num_pax_val, 
-                        "precio_unitario": p_u_soles,
-                        "tipo": t_final, 
-                        "p_raw": p_u_raw
+                        "descripcion": f"Pax {t_code.capitalize()} (Auto-Total)", 
+                        "cantidad": int(c_f), 
+                        "precio_unitario": p_f_soles / int(c_f), 
+                        "tipo": t_code, 
+                        "p_raw": monto_total / int(c_f),
+                        "moneda": "USD" if es_usd else "PEN"
                     })
+                    tipos_vistos.add(t_code)
 
-            # Cálculo de Total Final (Priorizando total declarado si existe)
-            total_declarado = render.get('total_final_calculado') or render.get('subtotal')
-            if not total_declarado:
-                # Buscar en precios_cierre si existe
-                pc = render.get('precios_cierre', [])
-                if isinstance(pc, list) and pc:
-                    total_declarado = pc[0].get('monto_total')
-            
-            p_decl_val = 0.0
-            if total_declarado:
-                try: p_decl_val = float(str(total_declarado).replace(',', ''))
-                except: p_decl_val = 0.0
+            # 2. SEGUNDA OPCIÓN: Precios Estructurados
+            precios_meta = render.get('precios', {})
+            if not items_extraidos and precios_meta:
+                mapeo_p = [('NACIONAL', ['nacional', 'nac']), ('EXTRANJERO', ['extranjero', 'ext']), ('CAN', ['can'])]
+                for t_code, keys in mapeo_p:
+                    p_data = None
+                    for k in keys:
+                        p_data = precios_meta.get(k)
+                        if p_data is not None: break
+                    
+                    if p_data is not None:
+                        if isinstance(p_data, dict): p_raw = float(p_data.get('total') or p_data.get('monto') or 0)
+                        else: p_raw = float(p_data or 0)
+                        
+                        if p_raw > 0:
+                            moneda_key = f"moneda_{t_code.lower()}"
+                            moneda_fix = precios_meta.get(moneda_key)
+                            es_usd = (moneda_fix == "USD") if moneda_fix else (t_code in ['EXTRANJERO', 'CAN'])
+                            c_f = int(render.get(f'num_pax_{t_code.lower()[0:3]}', 1) or 1)
+                            
+                            p_f_soles = p_raw * tc_itin if es_usd else p_raw
+                            items_extraidos.append({
+                                "descripcion": f"Pax {t_code.capitalize()} (Precio)", 
+                                "cantidad": c_f, "precio_unitario": p_f_soles, "tipo": t_code, "p_raw": p_raw,
+                                "moneda": "USD" if es_usd else "PEN"
+                            })
+                            tipos_vistos.add(t_code)
 
-            total_soles_label = sum(it['cantidad'] * it['precio_unitario'] for it in items_extraidos)
-            
-            # Si el total declarado existe y es PEN, y difiere ligeramente de la suma, ajustamos para que coincida con el PDF
-            moneda_itin_raw = str(render.get('simbolo_moneda', render.get('moneda', ''))).upper()
-            es_pen_itin = 'S/' in moneda_itin_raw or 'PEN' in moneda_itin_raw
-            
-            if es_pen_itin and p_decl_val > 0 and abs(p_decl_val - total_soles_label) < 0.5:
-                # Ajuste de céntimos para que coincida con lo que el cliente ve
-                total_soles_label = p_decl_val
+            # 3. FALLBACK LEGACY
+            if not items_extraidos:
+                # Intento por detalle_ingresos si existe (B2C puede tenerlo)
+                det_ing = render.get('detalle_ingresos', [])
+                if isinstance(det_ing, list) and det_ing:
+                    for d in det_ing:
+                        t = str(d.get('tipo', '')).upper()
+                        if t in ['EXT', 'INT', 'EXTRANJERO']: t = 'EXTRANJERO'
+                        elif t in ['NAC', 'NACIONAL']: t = 'NACIONAL'
+                        c = int(d.get('cantidad', 1) or 1)
+                        p_u_str = str(d.get('precio_unitario', '0')).replace(',', '')
+                        try: p_raw = float(p_u_str)
+                        except: p_raw = 0.0
+                        es_usd = (t in ['EXTRANJERO', 'CAN'])
+                        p_soles = p_raw * tc_itin if es_usd else p_raw
+                        items_extraidos.append({"descripcion": d.get('descripcion') or f"Pax {t.capitalize()}", "cantidad": c, "precio_unitario": p_soles, "tipo": t, "p_raw": p_raw, "moneda": "USD" if es_usd else "PEN"})
+                        tipos_vistos.add(t)
+                
+                # Intento por num_pax_nac en raíz
+                if not items_extraidos:
+                    fallbacks = [('NACIONAL', ['num_pax_nac', 'pax_nac'], ['precio_nacional', 'p_nac']), ('EXTRANJERO', ['num_pax_ext', 'pax_ext'], ['precio_extranjero', 'p_ext'])]
+                    for t_code, c_keys, p_keys in fallbacks:
+                        c_f = 0
+                        for ck in c_keys:
+                            c_f = int(render.get(ck, 0) or 0)
+                            if c_f > 0: break
+                        if c_f > 0:
+                            p_f_raw = 0.0
+                            for pk in p_keys:
+                                p_f_raw = float(render.get(pk, 0) or 0)
+                                if p_f_raw > 0: break
+                            es_usd = (t_code in ['EXTRANJERO', 'CAN'])
+                            p_f_soles = p_f_raw * tc_itin if es_usd else p_f_raw
+                            items_extraidos.append({"descripcion": f"Pax {t_code.capitalize()} (Legacy)", "cantidad": c_f, "precio_unitario": p_f_soles, "tipo": t_code, "p_raw": p_f_raw, "moneda": "USD" if es_usd else "PEN"})
 
             if id_itinerario_dig:
-                # Actualizar siempre los items en sesión para evitar que el formulario se quede vacío
                 st.session_state[f"items_itin_{id_itinerario_dig}"] = items_extraidos
                 
                 if id_itinerario_dig != st.session_state.get('last_loaded_itin'):
-                    # Forzar el recalculo inmediato con el TC actual del formulario (o el default)
-                    current_tc_form = st.session_state.get('tipo_cambio_ref_ui', ExchangeService.get_current_tc())
+                    current_tc_form = st.session_state.get('tc_ref_manual_form', tc_itin)
+                    moneda_final = st.session_state.get('moneda_auto', 'PEN')
                     
-                    nuevo_calc_total = 0.0
+                    nuevo_calc = 0.0
                     for it in items_extraidos:
-                        if it['tipo'] in ['EXTRANJERO', 'CAN']:
-                            nuevo_calc_total += it['cantidad'] * it['p_raw'] * current_tc_form
+                        if moneda_final == "USD":
+                            nuevo_calc += it['cantidad'] * (it['p_raw'] if it['moneda'] == "USD" else it['p_raw'] / current_tc_form)
                         else:
-                            nuevo_calc_total += it['cantidad'] * it['p_raw']
+                            nuevo_calc += it['cantidad'] * (it['p_raw'] * current_tc_form if it['moneda'] == "USD" else it['p_raw'])
                             
-                    st.session_state['m_total'] = round(nuevo_calc_total, 2)
-                    st.session_state['moneda_auto'] = 'PEN'
+                    st.session_state['m_total'] = round(nuevo_calc, 2)
                     st.session_state['last_loaded_itin'] = id_itinerario_dig
-                    st.success(f"✅ Itinerario cargado: **{tour_nombre_cloud}** (Total hoy: S/ {nuevo_calc_total:,.2f})")
+                    st.success(f"✅ Itinerario cargado: **{tour_nombre_cloud}** (Sincronizado: {moneda_final} {nuevo_calc:,.2f})")
                 else:
                     st.success(f"✅ Itinerario cargado: **{tour_nombre_cloud}**")
 
@@ -450,14 +431,14 @@ def registro_ventas_directa():
     monedas_list = ["USD", "PEN"]
     moneda_auto = st.session_state.get('moneda_auto', 'USD')
     
-    # --- MOSTRAR SUB-TOTALES POR NACIONALIDAD (PEDIDO USUARIO) ---
+    # --- MOSTRAR SUB-TOTALES POR MONEDA (PEDIDO USUARIO) ---
     if id_itinerario_dig:
         items_ref = st.session_state.get(f"items_itin_{id_itinerario_dig}", [])
         if items_ref:
-            sub_nac = sum(it['cantidad'] * it['p_raw'] for it in items_ref if it['tipo'] == 'NACIONAL')
-            sub_ext = sum(it['cantidad'] * it['p_raw'] for it in items_ref if it['tipo'] in ['EXTRANJERO', 'CAN'])
+            sub_soles = sum(it['cantidad'] * it['p_raw'] for it in items_ref if it.get('moneda') == 'PEN')
+            sub_dolares = sum(it['cantidad'] * it['p_raw'] for it in items_ref if it.get('moneda') == 'USD')
             
-            st.markdown(f"📊 **SUB-TOTALES:** Nac: **S/ {sub_nac:,.2f}** | Ext (CAN): **$ {sub_ext:,.2f}**")
+            st.markdown(f"📊 **SUB-TOTALES POR MONEDA:** Soles: **S/ {sub_soles:,.2f}** | Dólares: **$ {sub_dolares:,.2f}**")
 
     # Eliminamos el index calculable y pasamos directamente el key a Streamlit para que recuerde el estado
     moneda_sel = c_m0.selectbox("Moneda", monedas_list, key="moneda_auto", help="Puede elegir la divisa de cobro manual")
