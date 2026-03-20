@@ -47,6 +47,10 @@ class PDFController:
     def generar_itinerario_pdf(self, datos_render: dict) -> BytesIO:
         """Genera un PDF de itinerario PREMIUM."""
         fecha_robusta = self._extraer_fecha_viaje_robusta(datos_render)
+        precios = datos_render.get("precios", {})
+        total_val = precios.get("extranjero", 0)
+        moneda_val = precios.get("moneda_extranjero", "USD")
+        
         context = {
             "cliente_nombre": datos_render.get("nombre_pasajero") or "Pasajero",
             "fecha_viaje": fecha_robusta,
@@ -57,13 +61,18 @@ class PDFController:
                            datos_render.get("days") or 
                            datos_render.get("servicios") or 
                            datos_render.get("itinerario") or []),
-            "total": datos_render.get("precios", {}).get("extranjero", 0)
+            "total": total_val,
+            "moneda_total": moneda_val
         }
         return self._render_pdf('itinerario_template.html', context)
 
     def generar_itinerario_simple_pdf(self, datos_render: dict) -> BytesIO:
         """Genera un PDF de itinerario SIMPLE (Ink Saver)."""
         fecha_robusta = self._extraer_fecha_viaje_robusta(datos_render)
+        precios = datos_render.get("precios", {})
+        total_val = precios.get("extranjero", 0)
+        moneda_val = precios.get("moneda_extranjero", "USD")
+
         context = {
             "cliente_nombre": datos_render.get("nombre_pasajero") or "Pasajero",
             "fecha_viaje": fecha_robusta if fecha_robusta else "Pendiente",
@@ -74,7 +83,8 @@ class PDFController:
                            datos_render.get("days") or 
                            datos_render.get("servicios") or 
                            datos_render.get("itinerario") or []),
-            "total": datos_render.get("precios", {}).get("extranjero", 0),
+            "total": total_val,
+            "moneda_total": moneda_val,
             "hoy": datetime.date.today().strftime("%d/%m/%Y")
         }
         return self._render_pdf('itinerario_simple_template.html', context)

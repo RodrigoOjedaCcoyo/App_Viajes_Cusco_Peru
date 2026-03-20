@@ -873,9 +873,14 @@ def constructor_itinerarios():
 
     st.write("📈 **Configuración de Precios**")
     cp1, cp2, cp3 = st.columns(3)
-    p_nac = cp1.number_input("Precio Nacional ($)", min_value=0.0)
-    p_ext = cp2.number_input("Precio Extranjero ($)", min_value=0.0)
-    p_can = cp3.number_input("Precio CAN ($)", min_value=0.0)
+    p_nac = cp1.number_input("Precio Nacional", min_value=0.0)
+    m_nac = cp1.selectbox("Moneda Nacional", ["PEN", "USD"], key="m_nac")
+    
+    p_ext = cp2.number_input("Precio Extranjero", min_value=0.0)
+    m_ext = cp2.selectbox("Moneda Extranjero", ["USD", "PEN"], key="m_ext")
+    
+    p_can = cp3.number_input("Precio CAN", min_value=0.0)
+    m_can = cp3.selectbox("Moneda CAN", ["USD", "PEN"], key="m_can")
 
     # Configuración de la "Culebrita" y Highlights
     st.markdown("---")
@@ -907,7 +912,10 @@ def constructor_itinerarios():
                 "precios": {
                     "nacional": p_nac,
                     "extranjero": p_ext,
-                    "can": p_can
+                    "can": p_can,
+                    "moneda_nacional": m_nac,
+                    "moneda_extranjero": m_ext,
+                    "moneda_can": m_can
                 },
                 "vendedor_id": st.session_state.get('user_id'),
                 "metadata": {

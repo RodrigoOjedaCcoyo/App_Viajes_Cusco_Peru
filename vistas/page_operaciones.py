@@ -523,8 +523,26 @@ def registro_ventas_proveedores(supabase_client):
                         for pk in p_keys:
                             p_f_raw = float(render.get(pk, 0) or 0)
                             if p_f_raw > 0: break
-                        p_f_soles = p_f_raw * tc_itin if t_code in ['EXTRANJERO', 'CAN'] else p_f_raw
-                        items_extraidos.append({"descripcion": f"Pax {t_code.capitalize()} (Legacy)", "cantidad": c_f, "precio_unitario": p_f_soles, "tipo": t_code, "p_raw": p_f_raw})
+                        
+                        # Determinar moneda (Nuevo: Check metadata)
+                        precios_meta = render.get('precios', {})
+                        moneda_fix = precios_meta.get(f"moneda_{t_code.lower()}")
+                        
+                        if moneda_fix:
+                            es_usd = (moneda_fix == "USD")
+                        else:
+                            # Fallback legacy: Extranjero/CAN es USD, Nacional es PEN
+                            es_usd = (t_code in ['EXTRANJERO', 'CAN'])
+
+                        p_f_soles = p_f_raw * tc_itin if es_usd else p_f_raw
+                        items_extraidos.append({
+                            "descripcion": f"Pax {t_code.capitalize()} (Auto)", 
+                            "cantidad": c_f, 
+                            "precio_unitario": p_f_soles, 
+                            "tipo": t_code, 
+                            "p_raw": p_f_raw,
+                            "moneda": "USD" if es_usd else "PEN"
+                        })
 
             # --- FALLBACK FINAL B2B: SI NO HAY NADA, USAR CONTEO GENÉRICO ---
             if not items_extraidos:
@@ -572,10 +590,11 @@ def registro_ventas_proveedores(supabase_client):
     if id_itinerario_dig:
         items_ref_b2b = st.session_state.get(f"b2b_items_{id_itinerario_dig}", [])
         if items_ref_b2b:
-            sub_nac_b2b = sum(it['cantidad'] * it['p_raw'] for it in items_ref_b2b if it['tipo'] == 'NACIONAL')
-            sub_ext_b2b = sum(it['cantidad'] * it['p_raw'] for it in items_ref_b2b if it['tipo'] in ['EXTRANJERO', 'CAN'])
+            # Ahora filtramos por la MONEDA real del item, no solo el tipo
+            sub_soles = sum(it['cantidad'] * it['p_raw'] for it in items_ref_b2b if it.get('moneda') == 'PEN')
+            sub_dolares = sum(it['cantidad'] * it['p_raw'] for it in items_ref_b2b if it.get('moneda') == 'USD')
             
-            st.markdown(f"📊 **SUB-TOTALES B2B:** Nac: **S/ {sub_nac_b2b:,.2f}** | Ext (CAN): **$ {sub_ext_b2b:,.2f}**")
+            st.markdown(f"📊 **SUB-TOTALES POR MONEDA:** Soles: **S/ {sub_soles:,.2f}** | Dólares: **$ {sub_dolares:,.2f}**")
 
     idx_m = monedas_list.index(m_auto) if m_auto in monedas_list else 0
     moneda_sel = c_p0.selectbox("Moneda", monedas_list, index=idx_m, key="b2b_final_moneda", disabled=(id_itinerario_dig is not None))
@@ -589,7 +608,7 @@ def registro_ventas_proveedores(supabase_client):
         if items_recalc_b2b:
             nuevo_total_b2b = 0.0
             for it in items_recalc_b2b:
-                if it['tipo'] in ['EXTRANJERO', 'CAN']:
+                if it.get('moneda') == "USD":
                     nuevo_total_b2b += it['cantidad'] * it['p_raw'] * tipo_cambio
                 else:
                     nuevo_total_b2b += it['cantidad'] * it['p_raw']
