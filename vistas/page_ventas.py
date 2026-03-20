@@ -298,7 +298,9 @@ def registro_ventas_directa():
                 cel_cloud = it_data['lead'].get('numero_celular', '')
             
             st.session_state[f"val_nom_{id_itinerario_dig}"] = nombre_pax_cloud
-            st.session_state[f"val_tour_{id_itinerario_dig}"] = tour_nombre            # --- NUEVA LÓGICA: EXTRACCIÓN Y SUMA INTELIGENTE (MULTI-FORMATO) ---
+            st.session_state[f"val_tour_{id_itinerario_dig}"] = tour_nombre_cloud
+            st.session_state[f"val_cel_{id_itinerario_dig}"] = cel_cloud
+            # --- NUEVA LÓGICA: EXTRACCIÓN Y SUMA INTELIGENTE (MULTI-FORMATO) ---
             items_extraidos = []
             tipos_vistos = set()
             ci = render.get('control_interno', {})
