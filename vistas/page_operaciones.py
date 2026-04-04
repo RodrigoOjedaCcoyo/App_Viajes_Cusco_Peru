@@ -708,13 +708,13 @@ def registro_ventas_proveedores(supabase_client):
         prov_final = col1.selectbox("🏢 Agencia / Partner Responsable", ["--- Seleccione ---"] + nombres_ag)
         
         is_disabled = bool(id_itinerario_dig)
-        pax_name = col1.text_input("Pasajero Principal", value=def_pax, disabled=is_disabled)
+        pax_name = col1.text_input("Pasajero Principal", value=def_pax, disabled=False)
         tel_pax = col1.text_input("Celular Contacto", value=def_cel)
         
         vendedor_log = st.session_state.get('user_id', 'Operaciones')
         col1.markdown(f"👤 **Vendedor Resp:** {vendedor_log}")
 
-        tour_name = col2.text_input("Nombre del Programa B2B", value=def_tour, disabled=is_disabled)
+        tour_name = col2.text_input("Nombre del Programa B2B", value=def_tour, disabled=False)
         tipo_comp = col2.radio("Comprobante para Agencia", ["Boleta", "Factura", "Recibo Simple"], horizontal=True, key="b2b_tipo_comp_v2")
         metodo_pago = col2.selectbox("💳 Método de Pago", ["EFECTIVO", "TRANSFERENCIA", "YAPE", "PLIN", "TARJETA", "PAYPAL", "OTRO"], key="b2b_metodo_pago_v2")
         
