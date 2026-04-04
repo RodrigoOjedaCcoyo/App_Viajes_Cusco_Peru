@@ -511,7 +511,9 @@ def registro_ventas_proveedores(supabase_client):
             if precios_cierre and isinstance(precios_cierre, list):
                 for pc in precios_cierre:
                     label = pc.get('label', '').upper()
-                    monto_total = float(pc.get('monto_total', 0) or 0)
+                    m_raw = pc.get('monto_total', 0) or 0
+                    try: monto_total = float(str(m_raw).replace(',', ''))
+                    except: monto_total = 0.0
                     simbolo = pc.get('simbolo', '$')
                     
                     t_code = 'NACIONAL' if 'NACIONAL' in label else ('EXTRANJERO' if 'EXTRANJERO' in label else 'CAN')
@@ -546,8 +548,14 @@ def registro_ventas_proveedores(supabase_client):
                     
                     if p_data is not None:
                         # Extraer monto
-                        if isinstance(p_data, dict): p_raw = float(p_data.get('total') or p_data.get('monto') or 0)
-                        else: p_raw = float(p_data or 0)
+                        try:
+                            if isinstance(p_data, dict): 
+                                m_raw = p_data.get('total') or p_data.get('monto') or 0
+                                p_raw = float(str(m_raw).replace(',', ''))
+                            else: 
+                                p_raw = float(str(p_data).replace(',', ''))
+                        except:
+                            p_raw = 0.0
                         
                         if p_raw > 0:
                             # Moneda
@@ -582,7 +590,9 @@ def registro_ventas_proveedores(supabase_client):
                         if c_f > 0:
                             p_f_raw = 0.0
                             for pk in p_keys:
-                                p_f_raw = float(render.get(pk, 0) or 0)
+                                val_pk = render.get(pk, 0) or 0
+                                try: p_f_raw = float(str(val_pk).replace(',', ''))
+                                except: p_f_raw = 0.0
                                 if p_f_raw > 0: break
                             p_f_soles = p_f_raw * tc_itin if t_code in ['EXTRANJERO', 'CAN'] else p_f_raw
                             items_extraidos.append({
@@ -595,7 +605,7 @@ def registro_ventas_proveedores(supabase_client):
                 
                 if pax_gen:
                     p_sug_raw = render.get('total_final_calculado') or render.get('precio_cierre') or 0
-                    try: p_sug_val = float(p_sug_raw)
+                    try: p_sug_val = float(str(p_sug_raw).replace(',', ''))
                     except: p_sug_val = 0.0
                     items_extraidos.append({
                         "descripcion": "Pax (Itinerario)", 
