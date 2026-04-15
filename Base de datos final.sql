@@ -376,6 +376,47 @@
     '{"no_incluye": ["Hospedaje", "Gastos Extras"]}'::jsonb,
     'city_tour_cusco', '09:00:00', TRUE
   ),
+  INSERT INTO tour (
+    nombre, duracion_horas, duracion_dias, precio_adulto_extranjero, precio_adulto_nacional,
+    categoria, dificultad, highlights, servicios_incluidos, servicios_no_incluidos,
+    carpeta_img, hora_inicio, activo
+  ) VALUES 
+  (
+    'CUSCO - ABRA MALAGA - HUAMANMARKA - SANTA MARIA - PISPITAYOC',
+    4, 1, 105.00, 362.00,
+    'FULL DAY', 'MODERADO',
+    '{"itinerario": "Nos encontraremos en el ***hotel en Cusco*** . para iniciar el viaje hacia ***Abra Málaga***, a ***4316 m s. n. m.***. Durante el trayecto atravesaremos los pueblos del ***Valle Sagrado***: ***Chinchero, Urubamba y Ollantaytambo***, disfrutando de ***paisajes andinos*** y aire puro. Se recomienda llevar ***agua*** y ***ropa en capas*** para mantenernos cómodos mientras contemplamos las ***montañas*** y el impresionante entorno natural.\n\nEn ***Abra Málaga*** recibiremos ***bicicletas y cascos*** y el guía brindará una ***charla de seguridad*** antes de iniciar el descenso de ***50 km*** por la ***Puna*** y el ***Bosque Nuboso***. Visitaremos las ***ruinas de Huamanmarka*** y aprenderemos sobre la ***historia inca***, finalizando con una caminata hacia ***Pispitayoc***."}'::jsonb,
+    '{"incluye": ["Recojo de Hotel", "Bicicleta y casco de seguridod", "Alojamiento", "Guía Profesional", "Transporte Turístico"]}'::jsonb,
+    '{"no_incluye": ["Propinas", "Gastos Extras", "Alimentacion"]}'::jsonb,
+    'santa_maria', '06:00:00', TRUE
+  ),
+  (
+    'PISPITAYOC - QELLOMAYO - COCALMAYO - SANTA TERESA',
+    4, 1, 105.00, 362.00,
+    'FULL DAY', 'MODERADO',
+    '{"itinerario": "Comenzaremos el día con ***desayuno*** antes de iniciar una caminata desde ***Santa Teresa*** atravesando ***plantaciones de café y coca***. Durante aproximadamente ***tres horas*** recorreremos paisajes de la ***selva andina*** hasta llegar a ***Hidroeléctrica***, donde realizaremos una pausa para ***almorzar y descansar*** mientras disfrutamos del entorno ***andino-amazónico***.\n\nDespués del almuerzo continuaremos la ruta siguiendo las ***vías del tren***, cruzando ***ríos, bosques y pequeños puentes***. Tras otras ***tres horas de caminata*** llegaremos a ***Aguas Calientes***, también conocida como ***Machu Picchu Pueblo***, donde tendremos la ***tarde libre*** para explorar, descansar o realizar ***compras locales***."}'::jsonb,
+    '{"incluye": ["Desayuno", "Cena", "Alojamiento", "Guía Profesional", "Almuerzo"]}'::jsonb,
+    '{"no_incluye": ["Propinas", "Entrada a las aguas termales", "Bebidas o snacks adicionales"]}'::jsonb,
+    'santa_teresa', '06:00:00', TRUE
+  ),
+  (
+    'SANTA TERESA - HIDROELECTRICA - AGUAS CALIENTES',
+    4, 1, 105.00, 362.00,
+    'FULL DAY', 'MODERADO',
+    '{"itinerario": "Comenzaremos el día con ***desayuno*** antes de iniciar una caminata desde ***Santa Teresa*** atravesando ***plantaciones de café y coca***. Durante aproximadamente ***tres horas*** recorreremos paisajes de la ***selva andina*** hasta llegar a ***Hidroeléctrica***, donde realizaremos una pausa para ***almorzar y descansar*** mientras disfrutamos del entorno ***andino-amazónico***.\n\nDespués del almuerzo continuaremos la ruta siguiendo las ***vías del tren***, cruzando ***ríos, bosques y pequeños puentes***. Tras otras ***tres horas de caminata*** llegaremos a ***Aguas Calientes***, también conocida como ***Machu Picchu Pueblo***, donde tendremos la ***tarde libre*** para explorar, descansar o realizar ***compras locales***."}'::jsonb,
+    '{"incluye": ["Desayuno Tradicional", "Alojamiento", "Guía Profesional", "Almuerzo"]}'::jsonb,
+    '{"no_incluye": ["Cena", "Entrada a Machu Picchu", "Bus de Subida y Bajada", "Propinas"]}'::jsonb,
+    'hidroelectrica', '06:00:00', TRUE
+  ),
+  (
+    'AGUAS CALIENTES - MACHU PICCHU - OLLANTAYTAMBO - CUSCO',
+    4, 1, 105.00, 362.00,
+    'FULL DAY', 'MODERADO',
+    '{"itinerario": "Nos levantaremos a las ***4:00 a. m.*** para iniciar la caminata desde ***Aguas Calientes*** hacia la majestuosa ***Machu Picchu***, ubicada a ***2400 m s. n. m.***. Tras aproximadamente ***1 hora y media de ascenso***, realizaremos una ***visita guiada*** por los principales sectores del santuario, donde conoceremos la ***historia, arquitectura y cultura inca***.\n\nLuego tendremos ***tiempo libre*** para explorar y tomar fotografías o subir a ***Huayna Picchu*** si los boletos lo permiten. Posteriormente regresaremos a ***Aguas Calientes*** para recoger nuestras pertenencias y tomar el ***tren a Ollantaytambo***, continuando en ***transporte turístico*** hasta ***Cusco***."}'::jsonb,
+    '{"incluye": ["Tren de Aguas Calientes a Ollantaytambo", "Transporte turístico de Ollantaytambo a Cusco", "Guía Profesional"]}'::jsonb,
+    '{"no_incluye": ["Desayuno", "Entrada a Machu Picchu", "Entrada a Huayna Picchu","Bus de Subida y Bajada","Gastos Personales", "Propinas"]}'::jsonb,
+    'machu_picchu_full_day', '04:00:00', TRUE
+  ),
   (
     'VALLE SAGRADO VIP',
     8, 1, 43.28, 115.00,
@@ -698,6 +739,47 @@
     '{"no_incluye": ["Alimentación", "Gastos Extras"]}'::jsonb,
     'dia_libre_salida', '00:00:00', TRUE
   );
+  INSERT INTO tour (
+    nombre, duracion_horas, duracion_dias, precio_adulto_extranjero, precio_adulto_nacional,
+    categoria, dificultad, highlights, servicios_incluidos, servicios_no_incluidos,
+    carpeta_img, hora_inicio, activo
+  ) VALUES 
+  (
+    'CUSCO - PISCACUCHO (KM 82) - WAYLLABAMBA',
+    4, 1, 105.00, 362.00,
+    'AVENTURA', 'MODERADO',
+    '{"itinerario": "El primer día del ***Camino Inca*** inicia con el ***recojo del hotel en Cusco*** entre las ***5:30 y 6:00 a. m.*** para viajar hasta ***Piscacucho***, punto de inicio de la caminata. Tras cruzar el ***río Urubamba*** ingresaremos al histórico ***Valle Sagrado de los Incas***, caminando entre ***paisajes andinos***, montañas y abundante vegetación.\n\nDurante la ruta visitaremos las ***ruinas incas de Llactapata***, un excelente primer acercamiento a los sitios arqueológicos del camino. Finalmente continuaremos hacia ***Wayllabamba***, donde instalaremos el ***campamento*** para descansar y disfrutar del ***entorno natural*** antes de continuar la aventura al día siguiente."}'::jsonb,
+    '{"incluye": ["Recojo de Hotel", "Almuerzo y Cena", "Noche en Campamento", "Guía Profesional", "Transporte Turístico"]}'::jsonb,
+    '{"no_incluye": ["Propinas", "Gastos Extras"]}'::jsonb,
+    'piscacucho', '05:30:00', TRUE
+  ),
+  (
+    'HUAYLLABAMBA - EL PUNTO MÁS ALTO DEL CAMINO INCA - PACAYMAYO',
+    4, 1, 105.00, 362.00,
+    'AVENTURA', 'DIFICIL',
+    '{"itinerario": "El segundo día del ***Camino Inca*** es considerado el ***más desafiante***, con un ascenso exigente hasta el ***Paso de la Mujer Muerta***, ubicado a ***4,215 m s. n. m.***. Aunque la subida puede ser intensa, las ***vistas panorámicas de los Andes*** recompensan el esfuerzo mientras atravesamos paisajes de ***montañas y bosques nublados***.\n\nTras alcanzar el paso iniciaremos el descenso hacia ***Pacaymayo***, recorriendo senderos rodeados de naturaleza y visitando importantes ***sitios arqueológicos incas*** como ***Runkurakay*** y ***Sayacmarca***. Al final de la tarde llegaremos al ***campamento de Pacaymayo***, donde descansaremos para continuar la aventura al día siguiente."}'::jsonb,
+    '{"incluye": ["Desayuno, Almuerzo y Cena", "Noche en Campamento", "Guía Profesional"]}'::jsonb,
+    '{"no_incluye": ["Propinas", "Gastos Extras"]}'::jsonb,
+    'huayllabamba', '05:30:00', TRUE
+  ),
+  (
+    'PACAYMAYO - PHUYUPATAMARKA - WIÑAYWAYNA',
+    4, 1, 105.00, 362.00,
+    'AVENTURA', 'DIFICIL',
+    '{"itinerario": "El tercer día del ***Camino Inca*** es ligeramente más sencillo, con una caminata mayormente ***cuesta abajo*** hasta ***Wiñay Wayna***. Durante el recorrido visitaremos importantes ***sitios arqueológicos incas*** como ***Phuyupatamarca***, conocido como el ***“Pueblo en las Nubes”***, rodeado de impresionantes ***paisajes andinos***.\n\nA lo largo del sendero también encontraremos ***cascadas, arroyos y bosques nublados***, creando momentos perfectos para ***descansar y disfrutar del entorno natural***. Tras atravesar rutas con ***subidas y descensos*** y pasar por lugares como ***Runkurakay*** y ***Sayacmarca***, llegaremos al ***campamento de Wiñay Wayna*** para pasar la noche."}'::jsonb,
+    '{"incluye": ["Desayuno, Almuerzo y Cena", "Noche en Campamento", "Guía Profesional"]}'::jsonb,
+    '{"no_incluye": ["Propinas", "Gastos Extras"]}'::jsonb,
+    'pacalmayo', '05:30:00', TRUE
+  ),
+  (
+    'WIÑAYHUAYNA - MACHU PICCHU - CUSCO',
+    4, 1, 105.00, 362.00,
+    'AVENTURA', 'DIFICIL',
+    '{"itinerario": "Después del ***desayuno temprano*** iniciaremos la caminata a las ***4:00 a. m.*** con linternas hacia ***Inti Punku*** o ***Puerta del Sol***, ubicado a ***2780 m s. n. m.***. Desde este punto disfrutaremos del ***impresionante amanecer*** sobre ***Machu Picchu*** y ***Huayna Picchu***, uno de los momentos más especiales del ***Camino Inca***.\n\nPosteriormente visitaremos la majestuosa ***ciudadela de Machu Picchu***, donde realizaremos un ***recorrido guiado*** para conocer su ***historia, arquitectura y cultura inca***. Después tendremos ***tiempo libre*** para explorar y tomar fotografías, antes de regresar en ***tren a Ollantaytambo*** y continuar en ***transporte turístico*** hasta ***Cusco***."}'::jsonb,
+    '{"incluye": ["Desayuno, Almuerzo y Cena", "Noche en Campamento", "Guía Profesional"]}'::jsonb,
+    '{"no_incluye": ["Propinas", "Gastos Extras"]}'::jsonb,
+    'machu_picchu_full_day', '05:30:00', TRUE
+  ),
   INSERT INTO proveedor (nombre_comercial, servicios_ofrecidos, contacto_telefono)
   VALUES
   ('LARRY GUIA', '{"GUIA"}', '+51 973 359 213'),
@@ -749,7 +831,40 @@
       SELECT id_tour INTO t_id FROM tour WHERE nombre = 'DIA LIBRE Y SALIDA AL AEROPUERTO' LIMIT 1;
       INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 8, 8);
   END $$;
-
+  DO $$
+DECLARE
+    p_id INTEGER;
+    t_id INTEGER;
+BEGIN
+    -- A. INSERTAR EL PAQUETE (Encabezado)
+    INSERT INTO paquete (
+        nombre, 
+        descripcion, 
+        dias, 
+        noches, 
+        precio_sugerido,
+        temporada,
+        destino_principal
+    )
+    VALUES (
+        'CAMINO INCA 4D/3N',     -- Nombre que aparecerá en el dropdown
+        'Recorre el camino inca que va a Machu Picchu.', -- Descripción
+        4,                                -- Número de días
+        3,                                -- Número de noches
+        0.00,                             -- Precio sugerido (puedes dejarlo en 0)
+        'TODO EL AÑO',
+        'CUSCO'                          -- Destino principal
+    )
+    RETURNING id_paquete INTO p_id;
+      SELECT id_tour INTO t_id FROM tour WHERE nombre = 'CUSCO - PISCACUCHO (KM 82) - WAYLLABAMBA' LIMIT 1;
+      INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 1, 1);
+      SELECT id_tour INTO t_id FROM tour WHERE nombre = 'HUAYLLABAMBA - EL PUNTO MÁS ALTO DEL CAMINO INCA - PACAYMAYO' LIMIT 1;
+      INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 2, 2);
+      SELECT id_tour INTO t_id FROM tour WHERE nombre = 'PACAYMAYO - PHUYUPATAMARKA - WIÑAYWAYNA' LIMIT 1;
+      INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 3, 3);
+      SELECT id_tour INTO t_id FROM tour WHERE nombre = 'WIÑAYHUAYNA - MACHU PICCHU - CUSCO' LIMIT 1;
+      INSERT INTO paquete_tour (id_paquete, id_tour, orden, dia_del_paquete) VALUES (p_id, t_id, 4, 4);
+  END $$;
   DO $$
   DECLARE
       p_id INTEGER;
