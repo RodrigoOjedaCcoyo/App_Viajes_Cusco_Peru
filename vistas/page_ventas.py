@@ -478,18 +478,19 @@ def registro_ventas_directa():
             # Si se elige "USD", todo se cobra en Dólares. Los peruanos (Nacional en PEN) se dividen entre el TC.
             # Si se elige "PEN", todo se cobra en Soles. Los extranjeros (Tienen tarifa USD) se multiplican por el TC.
             for it in items_recalc:
+                item_moneda = it.get('moneda', 'PEN')
                 if moneda_sel == "USD":
                     # Cobramos en Dólares
-                    if it['tipo'] in ['EXTRANJERO', 'CAN']:
-                        nuevo_total += it['cantidad'] * it['p_raw'] # Ya está en USD
+                    if item_moneda == "USD":
+                        nuevo_total += it['cantidad'] * it['p_raw']
                     else:
-                        nuevo_total += it['cantidad'] * (it['p_raw'] / tipo_cambio) # PEN a USD
+                        nuevo_total += it['cantidad'] * (it['p_raw'] / tipo_cambio)
                 else:
                     # Cobramos en Soles (PEN)
-                    if it['tipo'] in ['EXTRANJERO', 'CAN']:
-                        nuevo_total += it['cantidad'] * (it['p_raw'] * tipo_cambio) # USD a PEN
+                    if item_moneda == "USD":
+                        nuevo_total += it['cantidad'] * (it['p_raw'] * tipo_cambio)
                     else:
-                        nuevo_total += it['cantidad'] * it['p_raw'] # Ya está en PEN
+                        nuevo_total += it['cantidad'] * it['p_raw']
                         
             st.session_state['m_total'] = round(nuevo_total, 2)
 
@@ -644,10 +645,11 @@ def registro_ventas_directa():
             if cached_items:
                 for it in cached_items:
                     # RECALCULAR PRECIO UNITARIO con el TC actual del formulario para evitar discrepancias
-                    p_unit_final = it['p_raw'] * tipo_cambio if it['tipo'] in ['EXTRANJERO', 'CAN'] else it['p_raw']
+                    item_moneda = it.get('moneda', 'PEN')
+                    p_unit_final = it['p_raw'] * tipo_cambio if item_moneda == "USD" else it['p_raw']
                     
                     desc = it['descripcion']
-                    if it['tipo'] in ['EXTRANJERO', 'CAN']:
+                    if item_moneda == "USD":
                         desc += f" (Ref: ${it['p_raw']:.2f} x {tipo_cambio})"
                     
                     items_ingreso.append({
