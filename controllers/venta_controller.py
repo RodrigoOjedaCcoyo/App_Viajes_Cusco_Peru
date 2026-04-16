@@ -319,7 +319,8 @@ class VentaController:
                 
                 # Validaciones de enums
                 if pago_data['moneda'] not in ['USD', 'PEN', 'EUR']: pago_data['moneda'] = 'USD'
-                if pago_data['metodo_pago'] not in ['EFECTIVO', 'TRANSFERENCIA', 'TARJETA', 'PAYPAL', 'YAPE', 'PLIN', 'OTRO']: pago_data['metodo_pago'] = 'TRANSFERENCIA'
+                if pago_data['metodo_pago'] not in ["EFECTIVO", "TRANSFERENCIA", "YAPE", "PLIN", "TARJETA", "PAYPAL", "IZIPAY", "VISA", "MASTER CARD", "INTERBANK", "OTRO"]: 
+                    pago_data['metodo_pago'] = 'TRANSFERENCIA'
                 if pago_data['tipo_pago'] not in ['ADELANTO', 'SALDO', 'TOTAL', 'PARCIAL', 'REEMBOLSO']: pago_data['tipo_pago'] = 'PARCIAL'
                 if pago_data['tipo_comprobante'] not in ['BOLETA', 'FACTURA', 'RECIBO', 'RECIBO SIMPLE', 'SIN_COMPROBANTE']: pago_data['tipo_comprobante'] = 'RECIBO'
                 

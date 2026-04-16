@@ -214,7 +214,7 @@
       moneda VARCHAR(10) DEFAULT 'USD' CHECK (moneda IN ('USD', 'PEN', 'EUR')),
       tasa_cambio DECIMAL(10,4) DEFAULT 1.0,
       monto_moneda_venta DECIMAL(10,2), -- El monto convertido a la moneda de la venta
-      metodo_pago VARCHAR(50) CHECK (metodo_pago IN ('EFECTIVO', 'TRANSFERENCIA', 'TARJETA', 'PAYPAL', 'YAPE', 'PLIN', 'OTRO')),
+      metodo_pago VARCHAR(50) CHECK (metodo_pago IN ('EFECTIVO', 'TRANSFERENCIA', 'TARJETA', 'PAYPAL', 'YAPE', 'PLIN', 'IZIPAY', 'VISA', 'MASTER CARD', 'INTERBANK', 'OTRO')),
       tipo_pago VARCHAR(50) CHECK (tipo_pago IN ('ADELANTO', 'SALDO', 'TOTAL', 'PARCIAL', 'REEMBOLSO')),
       tipo_comprobante VARCHAR(50) DEFAULT 'RECIBO' CHECK (tipo_comprobante IN ('BOLETA', 'FACTURA', 'RECIBO', 'RECIBO SIMPLE', 'SIN_COMPROBANTE')),
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -297,7 +297,7 @@
       tasa_cambio DECIMAL(10,4) DEFAULT 1.0, -- TC para convertir 'monto_pagado' a moneda de la deuda
       monto_en_moneda_costo DECIMAL(10,2) NOT NULL, -- Cuánto baja de la deuda original
       fecha_pago DATE DEFAULT CURRENT_DATE NOT NULL,
-      metodo_pago VARCHAR(50) CHECK (metodo_pago IN ('EFECTIVO', 'TRANSFERENCIA', 'YAPE', 'PLIN', 'TARJETA', 'OTRO')),
+      metodo_pago VARCHAR(50) CHECK (metodo_pago IN ('EFECTIVO', 'TRANSFERENCIA', 'YAPE', 'PLIN', 'TARJETA', 'PAYPAL', 'IZIPAY', 'VISA', 'MASTER CARD', 'INTERBANK', 'OTRO')),
       comprobante_url TEXT, -- Link al voucher/foto
       observaciones TEXT,
       id_usuario_registro INTEGER REFERENCES usuarios_app(id),

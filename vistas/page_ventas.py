@@ -572,7 +572,7 @@ def registro_ventas_directa():
         
         cantidad_pax = col1.number_input("Cantidad Pax", min_value=1, value=int(def_pax), disabled=is_disabled)
         
-        tipo_comp = col2.radio("Tipo Comprobante", ["Boleta", "Factura", "Recibo Simple"], horizontal=True)
+        tipo_comp = col2.radio("Tipo Comprobante", ["BOLETA", "FACTURA", "RECIBO SIMPLE"], horizontal=True)
         metodo_pago = col2.selectbox("💳 Método de Pago", ["EFECTIVO", "TRANSFERENCIA", "YAPE", "PLIN", "TARJETA", "PAYPAL", "IZIPAY", "VISA", "MASTER CARD", "INTERBANK", "OTRO"])
 
         
