@@ -43,7 +43,8 @@ def render_operational_master_download(controller, id_venta):
             "vendedor": "---", 
             "moneda": v_raw.get('moneda', 'USD'),
             "monto_total": v_raw.get('precio_total_cierre', 0),
-            "monto_pagado": 0 
+            "monto_pagado": 0,
+            "drive_url": v_raw.get('drive_url')
         }
 
         # 2. Calcular Pagos
