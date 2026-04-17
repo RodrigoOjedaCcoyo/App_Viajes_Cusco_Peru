@@ -585,5 +585,4 @@ class OperacionesController:
             return alertas
         except Exception as e:
             print(f"Error en Alertas Operativas: {e}")
-            return {"rojo": [], "amarillo": [], "verde": [], "machupicchu": [], "sin_asignar": []}
-return {"rojo": [], "amarillo": [], "verde": [], "machupicchu": []}
+            return {"rojo": [], "amarillo": [], "verde": [], "machupicchu": [], "sin_asignar": []}
