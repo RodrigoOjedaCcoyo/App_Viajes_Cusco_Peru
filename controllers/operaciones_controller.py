@@ -498,14 +498,15 @@ class OperacionesController:
 
     def get_alertas_operativas(self):
         """
-        Obtiene alertas basadas en la proximidad de la fecha y el estado 'terminado'.
+        Obtiene alertas operativas desde HOY en adelante.
         Reglas: 
         Rojo: 0-2 días
         Amarillo: 3-5 días
         Verde: 6-10 días
         Machu Picchu: Proveedor 'MINISTERIO' (siempre)
-        Sin Asignar: Servicios en venta_tour sin registro en venta_servicio_proveedor (10 días)
+        Sin Asignar: Servicios desde hoy a 10 días sin registro en venta_servicio_proveedor
         """
+        import pandas as pd
         try:
             hoy = date.today()
             rango_max = hoy + timedelta(days=10)
@@ -518,10 +519,10 @@ class OperacionesController:
                 .execute()
             )
             
-            # --- 2. OBTENER TODOS LOS TOURS PROGRAMADOS (Para detectar huérfanos) ---
+            # --- 2. OBTENER TODOS LOS TOURS PROGRAMADOS DESDE HOY (Para detectar huérfanos) ---
             res_vt = (
                 self.client.table('venta_tour')
-                .select('id_venta, n_linea, fecha_servicio, observacion, venta(nombre_cliente)')
+                .select('id_venta, n_linea, fecha_servicio, observacion, estado_servicio, venta(nombre_cliente)')
                 .gte('fecha_servicio', hoy.isoformat())
                 .lte('fecha_servicio', rango_max.isoformat())
                 .execute()
@@ -543,7 +544,12 @@ class OperacionesController:
                     fecha_str = (tour_info or {}).get('fecha_servicio')
                     if not fecha_str: continue
                     
-                    fecha_serv = date.fromisoformat(fecha_str)
+                    try:
+                        # Uso de pandas para parsear de forma super robusta cualquier formato que devuelva Supabase
+                        fecha_serv = pd.to_datetime(fecha_str).date()
+                    except:
+                        continue
+                        
                     dias_dif = (fecha_serv - hoy).days
                     
                     alerta_item = {
@@ -559,28 +565,41 @@ class OperacionesController:
                     if "MINISTERIO" in prov_nom.upper():
                         alertas["machupicchu"].append(alerta_item)
                     
-                    # Clasificación por colores
+                    # Clasificación por colores (ESTRICTAMENTE DESDE HOY)
                     if 0 <= dias_dif <= 10:
                         if dias_dif <= 2: alertas["rojo"].append(alerta_item)
                         elif dias_dif <= 5: alertas["amarillo"].append(alerta_item)
                         else: alertas["verde"].append(alerta_item)
 
-            # --- 3. DETECTAR SERVICIOS SIN ASIGNAR (Huérfanos en venta_tour) ---
+            # --- 3. DETECTAR SERVICIOS SIN ASIGNAR (Huérfanos en venta_tour desdel HOY) ---
             if res_vt.data:
                 for vt in res_vt.data:
+                    estado = vt.get('estado_servicio', 'PENDIENTE')
+                    if estado in ['COMPLETADO', 'CANCELADO']:
+                        continue
+                        
                     key = f"{vt['id_venta']}-{vt['n_linea']}"
                     if key not in keys_asignadas:
-                        f_serv = date.fromisoformat(vt['fecha_servicio'])
+                        fecha_str2 = vt.get('fecha_servicio')
+                        if not fecha_str2: continue
+                        
+                        try:
+                            f_serv = pd.to_datetime(fecha_str2).date()
+                        except:
+                            continue
+                            
                         diff = (f_serv - hoy).days
-                        alertas["sin_asignar"].append({
-                            "id_venta": vt['id_venta'],
-                            "n_linea": vt['n_linea'],
-                            "fecha": f_serv.strftime("%d/%m/%Y"),
-                            "servicio": vt.get('observacion') or "Tour Desconocido",
-                            "cliente": (vt.get('venta') or {}).get('nombre_cliente', '---'),
-                            "proveedor": "🚨 NO ASIGNADO",
-                            "dias": diff
-                        })
+                        
+                        if 0 <= diff <= 10:
+                            alertas["sin_asignar"].append({
+                                "id_venta": vt['id_venta'],
+                                "n_linea": vt['n_linea'],
+                                "fecha": f_serv.strftime("%d/%m/%Y"),
+                                "servicio": vt.get('observacion') or "Tour Desconocido",
+                                "cliente": (vt.get('venta') or {}).get('nombre_cliente', '---'),
+                                "proveedor": "🚨 NO ASIGNADO",
+                                "dias": diff
+                            })
 
             return alertas
         except Exception as e:
