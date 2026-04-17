@@ -515,7 +515,7 @@ class OperacionesController:
             # Se usa como fuente maestra de fechas
             res_vt = (
                 self.client.table('venta_tour')
-                .select('id_venta, n_linea, fecha_servicio, observacion, estado_servicio, venta(nombre_cliente)')
+                .select('id_venta, n_linea, fecha_servicio, observacion, estado_servicio, venta(cliente(nombre_completo))')
                 .gte('fecha_servicio', hoy.isoformat())
                 .lte('fecha_servicio', rango_max.isoformat())
                 .execute()
@@ -538,6 +538,13 @@ class OperacionesController:
             alertas = {"rojo": [], "amarillo": [], "verde": [], "machupicchu": [], "sin_asignar": []}
             keys_asignadas = set()
             
+            def get_cliente_name(t_dict):
+                v = t_dict.get('venta') or {}
+                if isinstance(v, list): v = v[0] if v else {}
+                c = v.get('cliente') or {}
+                if isinstance(c, list): c = c[0] if c else {}
+                return c.get('nombre_completo', '---')
+                
             # --- 3. PROCESAR ASIGNACIONES EXISTENTES ---
             if res_vsp.data:
                 for item in res_vsp.data:
@@ -546,11 +553,9 @@ class OperacionesController:
                     
                     vt = tours_dict.get(k)
                     if not vt:
-                        # Fuera de rango o no encontrado
                         continue
                         
                     prov_nom = (item.get('proveedor') or {}).get('nombre_comercial', 'Sin Proveedor')
-                    
                     fecha_str = vt.get('fecha_servicio')
                     if not fecha_str: continue
                     
@@ -565,7 +570,7 @@ class OperacionesController:
                         "id": item['id'],
                         "fecha": fecha_serv.strftime("%d/%m/%Y"),
                         "servicio": vt.get('observacion', item.get('tipo_servicio', 'Servicio')),
-                        "cliente": (vt.get('venta') or {}).get('nombre_cliente', '---'),
+                        "cliente": get_cliente_name(vt),
                         "proveedor": prov_nom,
                         "dias": dias_dif
                     }
@@ -603,7 +608,7 @@ class OperacionesController:
                                 "n_linea": vt['n_linea'],
                                 "fecha": f_serv.strftime("%d/%m/%Y"),
                                 "servicio": vt.get('observacion') or "Tour Desconocido",
-                                "cliente": (vt.get('venta') or {}).get('nombre_cliente', '---'),
+                                "cliente": get_cliente_name(vt),
                                 "proveedor": "🚨 NO ASIGNADO",
                                 "dias": diff
                             })
