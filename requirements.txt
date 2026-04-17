@@ -1,18 +1,43 @@
-streamlit
-pandas
-supabase
-xhtml2pdf
-reportlab
-Jinja2
-plotly
-matplotlib
-pillow
-fpdf2
-python-dateutil
-pytz
-requests
-httpx
-pydantic
-altair
-openpyxl
-streamlit-autorefresh
+# ============================================================
+# requirements.txt - App Viajes Cusco Peru
+# Versiones BLOQUEADAS para garantizar estabilidad del entorno.
+# Para actualizar: modifica la version y prueba exhaustivamente.
+# Ultima revision: Abril 2026
+# ============================================================
+
+# --- Core Framework ---
+streamlit==1.56.0
+streamlit-autorefresh==0.0.1
+
+# --- Base de Datos (Supabase) ---
+supabase==2.28.0
+
+# --- Manejo de Datos ---
+pandas==2.3.3
+numpy==2.3.3
+python-dateutil==2.9.0.post0
+pytz==2025.2
+
+# --- Generacion de Reportes Excel ---
+openpyxl==3.1.5
+xlsxwriter==3.2.9
+
+# --- Generacion de PDF ---
+reportlab==4.2.5
+xhtml2pdf==0.2.16
+Jinja2==3.1.6
+pillow==12.0.0
+fpdf2==2.8.1
+
+# --- Graficas y Visualizacion ---
+plotly==6.3.1
+matplotlib==3.10.7
+altair==6.0.0
+
+# --- HTTP y Redes ---
+requests==2.32.5
+httpx==0.28.1
+pydantic==2.12.5
+
+# --- Utilidades ---
+python-dotenv==1.2.1
