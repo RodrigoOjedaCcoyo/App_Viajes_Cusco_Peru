@@ -246,6 +246,7 @@ class ExcelController:
             ["Teléfono", v.get('telefono'), "Fecha Fin"],
             ["Servicio", v.get('tour_nombre'), v.get('fecha_fin')],
             ["Total Pax", f"{v.get('num_pasajeros')} PAX", ""],
+            ["Carpeta Drive", v.get('drive_url') or "No vinculado", ""],
             ["", "", ""],
             ["RESUMEN FINANCIERO", "", ""],
             ["Moneda", v.get('moneda'), "Monto Venta"],
@@ -270,7 +271,11 @@ class ExcelController:
                     if val != "":
                         cell = ws.cell(row=current_row, column=c_idx, value=val)
                         cell.border = thin_border
-                        if c_idx % 2 != 0: 
+                        # Formato especial para links
+                        if row[0] == "Carpeta Drive" and c_idx == 2 and val.startswith("http"):
+                            cell.hyperlink = val
+                            cell.font = Font(color="0000FF", underline="single")
+                        elif c_idx % 2 != 0: 
                             cell.fill = subheader_fill
                             cell.font = bold_font
             current_row += 1
