@@ -175,78 +175,9 @@ def render_ops_dashboard_visual(supabase_client):
         render_tablero_diario_visual(controller)
 
 def render_tablero_diario_visual(controller):
-    """Lógica del calendario adaptada para visualización."""
-    if 'cal_current_date' not in st.session_state:
-        st.session_state['cal_current_date'] = date.today()
-    if 'cal_selected_date' not in st.session_state:
-        st.session_state['cal_selected_date'] = date.today()
-    if 'view_mode' not in st.session_state:
-        st.session_state['view_mode'] = "Mensual"
-
-    v_mode = st.radio("Modo de Vista:", ["Mensual", "Semanal"], horizontal=True, key="dashboard_ops_mode")
-    st.session_state['view_mode'] = v_mode
-
-    current_date = st.session_state['cal_current_date']
-    year, month = current_date.year, current_date.month
-    nombres_meses = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
-                     "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-
-    if st.session_state['view_mode'] == "Mensual":
-        c1, c2, c3 = st.columns([1, 2, 1])
-        with c1:
-            if st.button("◀ Mes Ant", key="btn_prev_m"):
-                m, y = (12, year-1) if month == 1 else (month-1, year)
-                st.session_state['cal_current_date'] = date(y, m, 1)
-                st.rerun()
-        with c2: st.markdown(f"<h3 style='text-align:center;'>{nombres_meses[month]} {year}</h3>", unsafe_allow_html=True)
-        with c3:
-            if st.button("Mes Sig ▶", key="btn_next_m"):
-                m, y = (1, year+1) if month == 12 else (month+1, year)
-                st.session_state['cal_current_date'] = date(y, m, 1)
-                st.rerun()
-
-        cal_grid = calendar.monthcalendar(year, month)
-        fechas_activas = controller.get_fechas_con_servicios(year, month)
-        
-        cols = st.columns(7)
-        for i, h in enumerate(['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']): 
-            cols[i].markdown(f"<center><b>{h}</b></center>", unsafe_allow_html=True)
-            
-        for week in cal_grid:
-            cols = st.columns(7)
-            for i, day in enumerate(week):
-                if day != 0:
-                    d_obj = date(year, month, day)
-                    sel = (d_obj == st.session_state['cal_selected_date'])
-                    act = d_obj in fechas_activas
-                    lbl = f"{day}{' 🟢' if act else ''}"
-                    if cols[i].button(lbl, key=f"dash_d_{d_obj}", use_container_width=True, type="primary" if sel else "secondary"):
-                        st.session_state['cal_selected_date'] = d_obj
-                        st.rerun()
-    else:
-        # Vista Semanal (Lectura)
-        d_sel = st.session_state['cal_selected_date']
-        lunes = d_sel - timedelta(days=d_sel.weekday())
-        domingo = lunes + timedelta(days=6)
-        servicios_w = controller.get_servicios_rango_fechas(lunes, domingo)
-        
-        cols_w = st.columns(7)
-        for i, h in enumerate(['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']):
-            f_dia = lunes + timedelta(days=i)
-            with cols_w[i]:
-                st.markdown(f"<div style='text-align:center;'><b>{h} {f_dia.day}</b></div>", unsafe_allow_html=True)
-                s_dia = [s for s in servicios_w if s['Fecha'] == f_dia.isoformat()]
-                for s in s_dia:
-                    st.caption(f"📍 {s['Servicio']}\n({s['Cliente']})")
-
-    # Detalle Diario (Lectura)
-    f_p = st.session_state['cal_selected_date']
-    st.write(f"### 📋 Servicios: {f_p}")
-    servicios = controller.get_servicios_por_fecha(f_p)
-    if servicios:
-        st.dataframe(pd.DataFrame(servicios)[['Hora', 'Servicio', 'Pax', 'Cliente', 'Proveedor']], hide_index=True, use_container_width=True)
-    else:
-        st.info("Sin operaciones para esta fecha.")
+    """Lógica del calendario centralizada - consume de page_operaciones."""
+    from vistas.page_operaciones import dashboard_tablero_diario
+    dashboard_tablero_diario(controller)
 
 
 def render_contable_dashboard_visual(supabase_client):

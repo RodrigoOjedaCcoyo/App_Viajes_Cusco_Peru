@@ -135,10 +135,11 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, su
     st.markdown("---")
     
     if funcionalidad_seleccionada in ["Gestión de Registros", "Finanzas y Caja"]:
-        tab1, tab2, tab3 = st.tabs([
+        tab1, tab2, tab3, tab4 = st.tabs([
             "📊 Estructurador Financiero", 
             "💰 Cuentas por Cobrar",
-            "🚐 Pagos Operativos (Proveedores)"
+            "🚐 Pagos Operativos (Proveedores)",
+            "📅 Calendario Operativo"
         ])
         
         with tab1:
@@ -149,6 +150,12 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, su
             
         with tab3:
             dashboard_pagos_operativos(supabase_client)
+
+        with tab4:
+            from controllers.operaciones_controller import OperacionesController
+            from vistas.page_operaciones import dashboard_tablero_diario
+            ctrl_ops = OperacionesController(supabase_client)
+            dashboard_tablero_diario(ctrl_ops)
     else:
         st.info("Utilice el Dashboard Contable para ver reportes.")
 
