@@ -324,6 +324,8 @@ class ExcelController:
             cell.border = thin_border
         current_row += 1
 
+        red_font = Font(color="FF0000", bold=True) # Rojo para pendientes
+
         for l in liq:
             ws.cell(row=current_row, column=1, value=l.get('n_linea'))
             prov_name = l.get('proveedor', {}).get('nombre_comercial', '---') if isinstance(l.get('proveedor'), dict) else '---'
@@ -336,7 +338,12 @@ class ExcelController:
             ws.cell(row=current_row, column=5, value=c_unit).number_format = '#,##0.00'
             ws.cell(row=current_row, column=6, value=pax_count)
             ws.cell(row=current_row, column=7, value=c_unit * pax_count).number_format = '#,##0.00'
-            ws.cell(row=current_row, column=8, value="O.K." if l.get('terminado') else "Pte")
+            
+            # Formateo condicional del estado
+            estado_txt = "O.K." if l.get('terminado') else "Pte"
+            cell_est = ws.cell(row=current_row, column=8, value=estado_txt)
+            if estado_txt == "Pte":
+                cell_est.font = red_font
             
             for c in range(1, 9): ws.cell(row=current_row, column=c).border = thin_border
             current_row += 1
