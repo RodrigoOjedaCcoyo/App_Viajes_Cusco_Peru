@@ -512,22 +512,38 @@ class OperacionesController:
             rango_max = hoy + timedelta(days=10)
             
             # --- 1. OBTENER TODOS LOS TOURS PROGRAMADOS DESDE HOY ---
-            # Se usa como fuente maestra de fechas
             res_vt = (
                 self.client.table('venta_tour')
-                .select('id_venta, n_linea, fecha_servicio, observacion, estado_servicio, venta(cliente(nombre_completo))')
+                .select('id_venta, n_linea, fecha_servicio, observacion, estado_servicio')
                 .gte('fecha_servicio', hoy.isoformat())
                 .lte('fecha_servicio', rango_max.isoformat())
                 .execute()
             )
             
             tours_dict = {}
+            id_ventas_unicas = set()
             if res_vt.data:
                 for vt in res_vt.data:
                     k = f"{vt['id_venta']}-{vt['n_linea']}"
                     tours_dict[k] = vt
+                    id_ventas_unicas.add(vt['id_venta'])
             
-            # --- 2. OBTENER SERVICIOS ASIGNADOS (Con proveedores) ---
+            # --- 2. OBTENER NOMBRES DE CLIENTES (Evitando el bug de Supabase JOIN de 3 niveles) ---
+            cliente_nombres = {}
+            if id_ventas_unicas:
+                res_clientes = (
+                    self.client.table('venta')
+                    .select('id_venta, cliente(nombre_completo)')
+                    .in_('id_venta', list(id_ventas_unicas))
+                    .execute()
+                )
+                if res_clientes.data:
+                    for v in res_clientes.data:
+                        c = v.get('cliente') or {}
+                        if isinstance(c, list): c = c[0] if c else {}
+                        cliente_nombres[v['id_venta']] = c.get('nombre_completo', 'Cliente Desconocido')
+            
+            # --- 3. OBTENER SERVICIOS ASIGNADOS (Con proveedores) ---
             res_vsp = (
                 self.client.table('venta_servicio_proveedor')
                 .select('*, proveedor(nombre_comercial)')
@@ -538,14 +554,7 @@ class OperacionesController:
             alertas = {"rojo": [], "amarillo": [], "verde": [], "machupicchu": [], "sin_asignar": []}
             keys_asignadas = set()
             
-            def get_cliente_name(t_dict):
-                v = t_dict.get('venta') or {}
-                if isinstance(v, list): v = v[0] if v else {}
-                c = v.get('cliente') or {}
-                if isinstance(c, list): c = c[0] if c else {}
-                return c.get('nombre_completo', '---')
-                
-            # --- 3. PROCESAR ASIGNACIONES EXISTENTES ---
+            # --- 4. PROCESAR ASIGNACIONES EXISTENTES ---
             if res_vsp.data:
                 for item in res_vsp.data:
                     k = f"{item['id_venta']}-{item['n_linea']}"
@@ -570,7 +579,7 @@ class OperacionesController:
                         "id": item['id'],
                         "fecha": fecha_serv.strftime("%d/%m/%Y"),
                         "servicio": vt.get('observacion', item.get('tipo_servicio', 'Servicio')),
-                        "cliente": get_cliente_name(vt),
+                        "cliente": cliente_nombres.get(vt['id_venta'], '---'),
                         "proveedor": prov_nom,
                         "dias": dias_dif
                     }
@@ -583,7 +592,7 @@ class OperacionesController:
                         elif dias_dif <= 5: alertas["amarillo"].append(alerta_item)
                         else: alertas["verde"].append(alerta_item)
 
-            # --- 4. DETECTAR SERVICIOS SIN ASIGNAR (Huérfanos en venta_tour desdel HOY) ---
+            # --- 5. DETECTAR SERVICIOS SIN ASIGNAR (Huérfanos en venta_tour desde HOY) ---
             if res_vt.data:
                 for vt in res_vt.data:
                     k = f"{vt['id_venta']}-{vt['n_linea']}"
@@ -608,7 +617,7 @@ class OperacionesController:
                                 "n_linea": vt['n_linea'],
                                 "fecha": f_serv.strftime("%d/%m/%Y"),
                                 "servicio": vt.get('observacion') or "Tour Desconocido",
-                                "cliente": get_cliente_name(vt),
+                                "cliente": cliente_nombres.get(vt['id_venta'], '---'),
                                 "proveedor": "🚨 NO ASIGNADO",
                                 "dias": diff
                             })
