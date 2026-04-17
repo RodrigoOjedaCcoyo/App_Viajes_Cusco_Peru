@@ -281,7 +281,7 @@
       costo_unitario DECIMAL(10,2) NOT NULL,
       moneda VARCHAR(10) DEFAULT 'USD',
       cantidad_pax INTEGER DEFAULT 1,
-
+      terminado BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (id_venta, n_linea) REFERENCES venta_tour(id_venta, n_linea) ON DELETE CASCADE,
       UNIQUE(id_venta, n_linea, tipo_servicio)

@@ -97,7 +97,7 @@ class OperacionesController:
             if ids_ventas:
                 res_g = (
                     self.client.table('venta_servicio_proveedor')
-                    .select('id_venta, n_linea, tipo_servicio, proveedor(nombre_comercial)')
+                    .select('id, id_venta, n_linea, tipo_servicio, terminado, proveedor(nombre_comercial)')
                     .in_('id_venta', ids_ventas)
                     .execute()
                 )
@@ -112,9 +112,10 @@ class OperacionesController:
                     if key not in detalles_proveedores_map:
                         detalles_proveedores_map[key] = []
                     detalles_proveedores_map[key].append({
+                        "id": g.get('id'),
                         "tipo": g.get('tipo_servicio'),
                         "nombre": prov_nom,
-                        "estado": 'PENDIENTE'
+                        "terminado": g.get('terminado', False)
                     })
             
             resultado = []
@@ -484,3 +485,13 @@ class OperacionesController:
             "pasajeros": pasajeros,
             "liquidaciones": liquidaciones
         }
+
+    def actualizar_estado_servicio_proveedor(self, id_registro: int, estado_bool: bool):
+        """
+        Actualiza el estado 'terminado' de un registro en venta_servicio_proveedor.
+        """
+        try:
+            self.client.table('venta_servicio_proveedor').update({"terminado": estado_bool}).eq('id', id_registro).execute()
+            return True, "Estado actualizado."
+        except Exception as e:
+            return False, f"Error al actualizar estado: {str(e)}"

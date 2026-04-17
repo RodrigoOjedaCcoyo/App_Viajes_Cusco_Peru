@@ -282,27 +282,20 @@ def dashboard_tablero_diario(controller):
                 if not detalles:
                     st.warning("⚠️ No hay proveedores detallados asignados en el Master Sheet.")
                 else:
-                    # Crear una pequeña tabla visual con HTML para que sea bien compacta
-                    rows_html = ""
+                    # Layout interactivo para proveedores
                     for d in detalles:
                         tipo_icon = "👮" if "GUIA" in d['tipo'] else "🚍" if "TRANS" in d['tipo'] else "🍴" if "ALMUERZO" in d['tipo'] else "🎟️"
-                        color_estado = "#81C784" if d['estado'] == 'PAGADO' else "#FFB74D"
-                        rows_html += f"<tr>" \
-                                     f"<td style='padding:5px; font-size:12px;'>{tipo_icon} <b>{d['tipo']}</b></td>" \
-                                     f"<td style='padding:5px; font-size:12px;'>{d['nombre']}</td>" \
-                                     f"<td style='padding:5px; font-size:10px;'><span style='background:{color_estado}; padding:2px 5px; border-radius:3px; color:black;'>{d['estado']}</span></td>" \
-                                     f"</tr>"
-                    
-                    st.markdown(f"""
-                    <table style='width:100%; border-collapse: collapse; margin-bottom:10px;'>
-                        <tr style='background: rgba(255,255,255,0.05);'>
-                            <th style='text-align:left; padding:5px; font-size:11px;'>ÁREA</th>
-                            <th style='text-align:left; padding:5px; font-size:11px;'>PROVEEDOR / RESPONSABLE</th>
-                            <th style='text-align:left; padding:5px; font-size:11px;'>ESTADO</th>
-                        </tr>
-                        {rows_html}
-                    </table>
-                    """, unsafe_allow_html=True)
+                        c_d1, c_d2, c_d3 = st.columns([1, 1.5, 1])
+                        
+                        c_d1.markdown(f"{tipo_icon} **{d['tipo']}**")
+                        c_d2.caption(d['nombre'])
+                        
+                        is_done = d.get('terminado', False)
+                        btn_label = "🟢 Terminado" if is_done else "🟠 Pendiente"
+                        if c_d3.button(btn_label, key=f"btn_t_{d['id']}", use_container_width=True, type="primary" if is_done else "secondary"):
+                            exito, msg = controller.actualizar_estado_servicio_proveedor(d['id'], not is_done)
+                            if exito: st.rerun()
+                            else: st.error(msg)
                 
                 st.divider()
 
