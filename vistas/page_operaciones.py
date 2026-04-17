@@ -1042,6 +1042,25 @@ def dashboard_simulador_costos(controller):
         except Exception as e:
             st.warning(f"Nota: No se pudo cargar el resumen del itinerario PDF/Simple. ({e})")
         
+        # --- SECCIÓN: EXPEDIENTE DIGITAL (DRIVE) ---
+        st.markdown("### 📂 Expediente Digital")
+        c_drive_1, c_drive_2 = st.columns([4, 1])
+        with c_drive_1:
+            url_actual = v_live.get('drive_url') or ""
+            url_nueva = st.text_input("Link a Carpeta de Google Drive:", value=url_actual, placeholder="Pegue aquí el enlace del Drive del pasajero", key="drive_input")
+        with c_drive_2:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("💾 Guardar Link", use_container_width=True):
+                try:
+                    controller.client.table('venta').update({'drive_url': url_nueva}).eq('id_venta', id_venta_act).execute()
+                    st.toast("✅ Enlace de Drive actualizado!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al guardar link: {e}")
+        
+        if url_actual:
+            st.link_button("👉 Abrir Carpeta de Archivos (Drive)", url_actual, use_container_width=True, type="secondary")
+
         # Botón Maestro Operativo (Independiente del Itinerario Digital)
         # Se pone fuera del bloque anterior para que funcione aunque no haya Itinerario JSON
         st.markdown("---")
