@@ -615,5 +615,7 @@ class OperacionesController:
 
             return alertas
         except Exception as e:
-            print(f"Error en Alertas Operativas: {e}")
-            return {"rojo": [], "amarillo": [], "verde": [], "machupicchu": [], "sin_asignar": []}
+            err_msg = str(e)
+            trace = __import__('traceback').format_exc()
+            print(f"Error en Alertas Operativas: {err_msg}\n{trace}")
+            return {"error": err_msg, "trace": trace, "rojo": [], "amarillo": [], "verde": [], "machupicchu": [], "sin_asignar": []}

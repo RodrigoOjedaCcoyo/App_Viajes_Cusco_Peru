@@ -143,6 +143,12 @@ def render_centro_alertas(controller):
     with st.expander("🔔 CENTRO DE ALERTAS OPERATIVAS (Urgente)", expanded=True):
         alertas = controller.get_alertas_operativas()
         
+        if "error" in alertas and alertas["error"]:
+            st.error(f"Error Técnico en Base de Datos: {alertas['error']}")
+            with st.expander("Ver Detalle Técnico"):
+                st.code(alertas.get('trace', ''))
+            return
+            
         # Pestañas para el semáforo
         # Formatear etiquetas con conteo
         t_mp = f"🏛️ MP Tickets ({len(alertas['machupicchu'])})"
