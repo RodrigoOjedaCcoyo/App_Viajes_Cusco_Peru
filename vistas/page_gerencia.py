@@ -158,6 +158,12 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual, user_id, supabase_cli
     controller = GerenciaController(supabase_client)
     
     st.title("👨‍💼 Gestión Ejecutiva")
+    
+    # --- 🔔 Centro de Alertas Universal ---
+    from controllers.operaciones_controller import OperacionesController
+    from vistas.page_operaciones import render_centro_alertas
+    ctrl_op = OperacionesController(supabase_client)
+    render_centro_alertas(ctrl_op)
 
     if funcionalidad_seleccionada in ["Gestión de Registros", "Gestión Ejecutiva"]:
         auditoria_maestra(controller)

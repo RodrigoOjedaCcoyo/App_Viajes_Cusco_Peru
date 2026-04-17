@@ -235,6 +235,10 @@ def render_exec_dashboard_visual(supabase_client):
 
 def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual='Desconocido', user_id=None):
     """Enrutador interno del archivo de dashboards."""
+    from controllers.operaciones_controller import OperacionesController
+    from vistas.page_operaciones import render_centro_alertas
+    ctrl_op = OperacionesController(supabase_client)
+    render_centro_alertas(ctrl_op)
     if "Comercial" in funcionalidad_seleccionada:
         render_sales_dashboard_visual(supabase_client)
     elif "Operaciones" in funcionalidad_seleccionada:

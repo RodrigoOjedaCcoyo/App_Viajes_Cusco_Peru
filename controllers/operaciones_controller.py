@@ -495,3 +495,66 @@ class OperacionesController:
             return True, "Estado actualizado."
         except Exception as e:
             return False, f"Error al actualizar estado: {str(e)}"
+
+    def get_alertas_operativas(self):
+        """
+        Obtiene alertas basadas en la proximidad de la fecha y el estado 'terminado'.
+        Reglas: 
+        Rojo: 0-2 días
+        Amarillo: 3-5 días
+        Verde: 6-10 días
+        Machu Picchu: Proveedor 'MINISTERIO' (siempre)
+        """
+        try:
+            hoy = date.today()
+            # 1. Consultar todos los servicios pendientes (terminado=False)
+            res = (
+                self.client.table('venta_servicio_proveedor')
+                .select('*, proveedor(nombre_comercial), venta(nombre_cliente), venta_tour!venta_servicio_proveedor_id_venta_n_linea_fkey(fecha_servicio, observacion)')
+                .eq('terminado', False)
+                .execute()
+            )
+            
+            alertas = {"rojo": [], "amarillo": [], "verde": [], "machupicchu": []}
+            if not res.data:
+                return alertas
+            
+            for item in res.data:
+                prov_nom = (item.get('proveedor') or {}).get('nombre_comercial', 'Sin Proveedor')
+                # En Supabase con llaves compuestas, a veces el select devuelve una lista si hay ambigüedad
+                tour_info = item.get('venta_tour')
+                if isinstance(tour_info, list):
+                    tour_info = tour_info[0] if tour_info else {}
+                
+                fecha_str = (tour_info or {}).get('fecha_servicio')
+                if not fecha_str: continue
+                
+                fecha_serv = date.fromisoformat(fecha_str)
+                dias_dif = (fecha_serv - hoy).days
+                
+                alerta_item = {
+                    "id": item['id'],
+                    "fecha": fecha_serv.strftime("%d/%m/%Y"),
+                    "servicio": (tour_info or {}).get('observacion', item.get('tipo_servicio', 'Servicio')),
+                    "cliente": (item.get('venta') or {}).get('nombre_cliente', '---'),
+                    "proveedor": prov_nom,
+                    "dias": dias_dif
+                }
+                
+                # Regla Machu Picchu (MINISTERIO)
+                if "MINISTERIO" in prov_nom.upper():
+                    alertas["machupicchu"].append(alerta_item)
+                
+                # Clasificación por colores (0 a 10 días de adelanto)
+                if 0 <= dias_dif <= 10:
+                    if dias_dif <= 2:
+                        alertas["rojo"].append(alerta_item)
+                    elif dias_dif <= 5:
+                        alertas["amarillo"].append(alerta_item)
+                    else:
+                        alertas["verde"].append(alerta_item)
+            
+            return alertas
+        except Exception as e:
+            print(f"Error en Alertas Operativas: {e}")
+            return {"rojo": [], "amarillo": [], "verde": [], "machupicchu": []}

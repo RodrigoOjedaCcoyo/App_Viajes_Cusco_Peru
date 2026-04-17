@@ -4,6 +4,8 @@ import pandas as pd
 from datetime import date, timedelta, datetime
 from controllers.lead_controller import LeadController
 from controllers.venta_controller import VentaController
+from controllers.operaciones_controller import OperacionesController
+from vistas.page_operaciones import render_centro_alertas
 from services.exchange_service import ExchangeService
 
 def render_itinerary_details_visual(render):
@@ -963,6 +965,12 @@ def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual=
     st.session_state.itinerario_digital_controller = controllers.itinerario_digital_controller.ItinerarioDigitalController(supabase_client)
     
     st.session_state.user_id = user_id
+
+    # --- 🔔 Centro de Alertas Universal ---
+    from controllers.operaciones_controller import OperacionesController
+    from vistas.page_operaciones import render_centro_alertas
+    ctrl_op = OperacionesController(supabase_client)
+    render_centro_alertas(ctrl_op)
 
     if funcionalidad_seleccionada in ["Gestión de Registros", "Registro de Ventas (CRM)"]:
         gestion_registros_multicanal()

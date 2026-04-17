@@ -134,6 +134,66 @@ def render_itinerary_simple_download(render):
         if not pdf_buffer and not xlsx_buffer:
             st.error("No se pudo generar el documento en este momento.")
 
+def render_centro_alertas(controller):
+    """
+    Componente visual que muestra alertas operativas divididas por urgencia (colores).
+    Reglas: 1-2 días Rojo, 3-5 Amarillo, 6-10 Verde.
+    Pestaña especial: Machu Picchu (Tickets MINISTERIO).
+    """
+    with st.expander("🔔 CENTRO DE ALERTAS OPERATIVAS (Urgente)", expanded=True):
+        alertas = controller.get_alertas_operativas()
+        
+        # Pestañas para el semáforo
+        # Formatear etiquetas con conteo
+        t_mp = f"🏛️ MP Tickets ({len(alertas['machupicchu'])})"
+        t_r = f"🔴 Crítico ({len(alertas['rojo'])})"
+        t_a = f"🟡 Atención ({len(alertas['amarillo'])})"
+        t_v = f"🟢 Preventivo ({len(alertas['verde'])})"
+        
+        tabs = st.tabs([t_mp, t_r, t_a, t_v])
+        
+        def mostrar_tabla_alertas(lista_alertas, empty_msg):
+            if not lista_alertas:
+                st.info(empty_msg)
+                return
+            
+            df = pd.DataFrame(lista_alertas)
+            # Ordenar por días
+            df = df.sort_values(by="dias")
+            st.dataframe(
+                df,
+                column_order=["fecha", "servicio", "cliente", "proveedor", "dias"],
+                column_config={
+                    "fecha": "📅 Fecha",
+                    "servicio": "🚙 Servicio / Tour",
+                    "cliente": "👤 Cliente",
+                    "proveedor": "🤝 Proveedor",
+                    "dias": st.column_config.NumberColumn("⏰ Días Falta", format="%d d")
+                },
+                use_container_width=True,
+                hide_index=True
+            )
+
+        with tabs[0]: 
+            st.markdown("### 🏛️ Tickets Machu Picchu (MINISTERIO)")
+            st.caption("Todos los ingresos pendientes asignados al proveedor del estado.")
+            mostrar_tabla_alertas(alertas['machupicchu'], "No hay tickets de MP pendientes.")
+            
+        with tabs[1]:
+            st.markdown("### 🔴 Alertas Críticas (0 a 2 días)")
+            st.caption("Servicios inminentes que no han sido marcados como 'Terminado'.")
+            mostrar_tabla_alertas(alertas['rojo'], "No hay alertas críticas pendientes.")
+            
+        with tabs[2]:
+            st.markdown("### 🟡 Alertas de Atención (3 a 5 días)")
+            st.caption("Servicios próximos que requieren verificación operativa.")
+            mostrar_tabla_alertas(alertas['amarillo'], "No hay alertas de atención pendientes.")
+            
+        with tabs[3]:
+            st.markdown("### 🟢 Alertas Preventivas (6 a 10 días)")
+            st.caption("Servicios programados para la próxima semana.")
+            mostrar_tabla_alertas(alertas['verde'], "No hay alertas preventivas pendientes.")
+
 # Dashboard 2: Tablero con vistas Duplicadas (Mensual/Semanal).
 def dashboard_tablero_diario(controller):
     """Dashboard 2: Tablero con vistas Duplicadas (Mensual/Semanal)."""
@@ -812,6 +872,10 @@ def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
     controller = controllers.operaciones_controller.OperacionesController(supabase_client)
     
     st.title("⚙️ Gestión de Operaciones")
+    
+    # --- 🔔 NUEVO: CENTRO DE ALERTAS ---
+    render_centro_alertas(controller)
+    
     st.markdown("---")
     
     if nombre_modulo in ["Gestión de Registros", "Logística y Proveedores"]:

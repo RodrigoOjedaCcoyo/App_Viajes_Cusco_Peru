@@ -133,6 +133,13 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, su
         st.session_state['reporte_controller'] = ReporteController(supabase_client)
 
     st.title(f"📝 Gestión Contable")
+    
+    # --- 🔔 Centro de Alertas Universal ---
+    from controllers.operaciones_controller import OperacionesController
+    from vistas.page_operaciones import render_centro_alertas
+    ctrl_op = OperacionesController(supabase_client)
+    render_centro_alertas(ctrl_op)
+    
     st.markdown("---")
     
     if funcionalidad_seleccionada in ["Gestión de Registros", "Finanzas y Caja"]:
