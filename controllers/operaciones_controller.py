@@ -504,57 +504,86 @@ class OperacionesController:
         Amarillo: 3-5 días
         Verde: 6-10 días
         Machu Picchu: Proveedor 'MINISTERIO' (siempre)
+        Sin Asignar: Servicios en venta_tour sin registro en venta_servicio_proveedor (10 días)
         """
         try:
             hoy = date.today()
-            # 1. Consultar todos los servicios pendientes (terminado=False)
-            res = (
+            rango_max = hoy + timedelta(days=10)
+            
+            # --- 1. OBTENER SERVICIOS ASIGNADOS (Con proveedores) ---
+            res_vsp = (
                 self.client.table('venta_servicio_proveedor')
                 .select('*, proveedor(nombre_comercial), venta(nombre_cliente), venta_tour!venta_servicio_proveedor_id_venta_n_linea_fkey(fecha_servicio, observacion)')
                 .eq('terminado', False)
                 .execute()
             )
             
-            alertas = {"rojo": [], "amarillo": [], "verde": [], "machupicchu": []}
-            if not res.data:
-                return alertas
+            # --- 2. OBTENER TODOS LOS TOURS PROGRAMADOS (Para detectar huérfanos) ---
+            res_vt = (
+                self.client.table('venta_tour')
+                .select('id_venta, n_linea, fecha_servicio, observacion, venta(nombre_cliente)')
+                .gte('fecha_servicio', hoy.isoformat())
+                .lte('fecha_servicio', rango_max.isoformat())
+                .execute()
+            )
             
-            for item in res.data:
-                prov_nom = (item.get('proveedor') or {}).get('nombre_comercial', 'Sin Proveedor')
-                # En Supabase con llaves compuestas, a veces el select devuelve una lista si hay ambigüedad
-                tour_info = item.get('venta_tour')
-                if isinstance(tour_info, list):
-                    tour_info = tour_info[0] if tour_info else {}
-                
-                fecha_str = (tour_info or {}).get('fecha_servicio')
-                if not fecha_str: continue
-                
-                fecha_serv = date.fromisoformat(fecha_str)
-                dias_dif = (fecha_serv - hoy).days
-                
-                alerta_item = {
-                    "id": item['id'],
-                    "fecha": fecha_serv.strftime("%d/%m/%Y"),
-                    "servicio": (tour_info or {}).get('observacion', item.get('tipo_servicio', 'Servicio')),
-                    "cliente": (item.get('venta') or {}).get('nombre_cliente', '---'),
-                    "proveedor": prov_nom,
-                    "dias": dias_dif
-                }
-                
-                # Regla Machu Picchu (MINISTERIO)
-                if "MINISTERIO" in prov_nom.upper():
-                    alertas["machupicchu"].append(alerta_item)
-                
-                # Clasificación por colores (0 a 10 días de adelanto)
-                if 0 <= dias_dif <= 10:
-                    if dias_dif <= 2:
-                        alertas["rojo"].append(alerta_item)
-                    elif dias_dif <= 5:
-                        alertas["amarillo"].append(alerta_item)
-                    else:
-                        alertas["verde"].append(alerta_item)
+            alertas = {"rojo": [], "amarillo": [], "verde": [], "machupicchu": [], "sin_asignar": []}
             
+            # Mapear asignaciones existentes para búsqueda rápida
+            keys_asignadas = set()
+            if res_vsp.data:
+                for item in res_vsp.data:
+                    key = f"{item['id_venta']}-{item['n_linea']}"
+                    keys_asignadas.add(key)
+                    
+                    prov_nom = (item.get('proveedor') or {}).get('nombre_comercial', 'Sin Proveedor')
+                    tour_info = item.get('venta_tour')
+                    if isinstance(tour_info, list): tour_info = tour_info[0] if tour_info else {}
+                    
+                    fecha_str = (tour_info or {}).get('fecha_servicio')
+                    if not fecha_str: continue
+                    
+                    fecha_serv = date.fromisoformat(fecha_str)
+                    dias_dif = (fecha_serv - hoy).days
+                    
+                    alerta_item = {
+                        "id": item['id'],
+                        "fecha": fecha_serv.strftime("%d/%m/%Y"),
+                        "servicio": (tour_info or {}).get('observacion', item.get('tipo_servicio', 'Servicio')),
+                        "cliente": (item.get('venta') or {}).get('nombre_cliente', '---'),
+                        "proveedor": prov_nom,
+                        "dias": dias_dif
+                    }
+                    
+                    # Regla Machu Picchu (MINISTERIO)
+                    if "MINISTERIO" in prov_nom.upper():
+                        alertas["machupicchu"].append(alerta_item)
+                    
+                    # Clasificación por colores
+                    if 0 <= dias_dif <= 10:
+                        if dias_dif <= 2: alertas["rojo"].append(alerta_item)
+                        elif dias_dif <= 5: alertas["amarillo"].append(alerta_item)
+                        else: alertas["verde"].append(alerta_item)
+
+            # --- 3. DETECTAR SERVICIOS SIN ASIGNAR (Huérfanos en venta_tour) ---
+            if res_vt.data:
+                for vt in res_vt.data:
+                    key = f"{vt['id_venta']}-{vt['n_linea']}"
+                    if key not in keys_asignadas:
+                        f_serv = date.fromisoformat(vt['fecha_servicio'])
+                        diff = (f_serv - hoy).days
+                        alertas["sin_asignar"].append({
+                            "id_venta": vt['id_venta'],
+                            "n_linea": vt['n_linea'],
+                            "fecha": f_serv.strftime("%d/%m/%Y"),
+                            "servicio": vt.get('observacion') or "Tour Desconocido",
+                            "cliente": (vt.get('venta') or {}).get('nombre_cliente', '---'),
+                            "proveedor": "🚨 NO ASIGNADO",
+                            "dias": diff
+                        })
+
             return alertas
         except Exception as e:
             print(f"Error en Alertas Operativas: {e}")
-            return {"rojo": [], "amarillo": [], "verde": [], "machupicchu": []}
+            return {"rojo": [], "amarillo": [], "verde": [], "machupicchu": [], "sin_asignar": []}
+return {"rojo": [], "amarillo": [], "verde": [], "machupicchu": []}

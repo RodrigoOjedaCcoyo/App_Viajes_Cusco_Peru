@@ -147,12 +147,13 @@ def render_centro_alertas(controller):
         # Formatear etiquetas con conteo
         t_mp = f"🏛️ MP Tickets ({len(alertas['machupicchu'])})"
         t_r = f"🔴 Crítico ({len(alertas['rojo'])})"
+        t_sa = f"⚠️ Sin Asignar ({len(alertas['sin_asignar'])})"
         t_a = f"🟡 Atención ({len(alertas['amarillo'])})"
         t_v = f"🟢 Preventivo ({len(alertas['verde'])})"
         
-        tabs = st.tabs([t_mp, t_r, t_a, t_v])
+        tabs = st.tabs([t_mp, t_r, t_sa, t_a, t_v])
         
-        def mostrar_tabla_alertas(lista_alertas, empty_msg):
+        def mostrar_tabla_alertas(lista_alertas, empty_msg, show_proveedor=True):
             if not lista_alertas:
                 st.info(empty_msg)
                 return
@@ -160,9 +161,14 @@ def render_centro_alertas(controller):
             df = pd.DataFrame(lista_alertas)
             # Ordenar por días
             df = df.sort_values(by="dias")
+            
+            cols = ["fecha", "servicio", "cliente", "proveedor", "dias"]
+            if not show_proveedor:
+                cols.remove("proveedor")
+
             st.dataframe(
                 df,
-                column_order=["fecha", "servicio", "cliente", "proveedor", "dias"],
+                column_order=cols,
                 column_config={
                     "fecha": "📅 Fecha",
                     "servicio": "🚙 Servicio / Tour",
@@ -183,13 +189,18 @@ def render_centro_alertas(controller):
             st.markdown("### 🔴 Alertas Críticas (0 a 2 días)")
             st.caption("Servicios inminentes que no han sido marcados como 'Terminado'.")
             mostrar_tabla_alertas(alertas['rojo'], "No hay alertas críticas pendientes.")
-            
+
         with tabs[2]:
+            st.markdown("### ⚠️ Servicios Sin Asignar (Riesgo Alto)")
+            st.error("Estos servicios están en el itinerario pero NO tienen costos ni proveedores registrados. Las alertas de colores NO funcionarán para estos casos si no se completan.")
+            mostrar_tabla_alertas(alertas['sin_asignar'], "Todos los servicios dentro de los próximos 10 días tienen asignaciones.")
+            
+        with tabs[3]:
             st.markdown("### 🟡 Alertas de Atención (3 a 5 días)")
             st.caption("Servicios próximos que requieren verificación operativa.")
             mostrar_tabla_alertas(alertas['amarillo'], "No hay alertas de atención pendientes.")
             
-        with tabs[3]:
+        with tabs[4]:
             st.markdown("### 🟢 Alertas Preventivas (6 a 10 días)")
             st.caption("Servicios programados para la próxima semana.")
             mostrar_tabla_alertas(alertas['verde'], "No hay alertas preventivas pendientes.")
