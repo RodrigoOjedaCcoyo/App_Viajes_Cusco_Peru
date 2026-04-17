@@ -197,28 +197,29 @@ class ExcelController:
 
     def generar_hoja_servicio_maestra_xlsx(self, data_hoja: dict) -> BytesIO:
         """
-        Genera un Excel Maestro Premium para Operaciones y Contabilidad.
+        Genera un Excel Maestro Premium Consolidado en una sola pestaña.
         """
         import openpyxl
         from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
         
         wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "EXPEDIENTE_MAESTRO"
         
         # --- ESTILOS PREMIUM ---
-        header_fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid") # Azul Profundo
-        subheader_fill = PatternFill(start_color="DBEAFE", end_color="DBEAFE", fill_type="solid") # Azul Claro
-        accent_fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid") # Gris suave
+        header_fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
+        subheader_fill = PatternFill(start_color="DBEAFE", end_color="DBEAFE", fill_type="solid")
+        section_fill = PatternFill(start_color="334155", end_color="334155", fill_type="solid")
+        pax_fill = PatternFill(start_color="059669", end_color="059669", fill_type="solid")
         
         white_font = Font(color="FFFFFF", bold=True)
         bold_font = Font(bold=True)
-        
         thin_border = Border(
             left=Side(style='thin', color='CBD5E1'),
             right=Side(style='thin', color='CBD5E1'),
             top=Side(style='thin', color='CBD5E1'),
             bottom=Side(style='thin', color='CBD5E1')
         )
-
         center_al = Alignment(horizontal='center', vertical='center')
         left_al = Alignment(horizontal='left', vertical='center', indent=1)
 
@@ -226,158 +227,153 @@ class ExcelController:
         v = data_hoja.get('venta', {})
         it = data_hoja.get('itinerario', [])
         pax = data_hoja.get('pasajeros', [])
-        liq = data_hoja.get('liquidaciones', []) # Nueva data
+        liq = data_hoja.get('liquidaciones', [])
 
-        # Calcular Costo Total Liquidado
-        costo_total_liq = sum(float(l.get('costo_unitario') or 0) for l in liq)
-        utilidad = float(v.get('monto_total') or 0) - costo_total_liq
+        costo_total_liq = sum(float(l.get('costo_unitario') or 0) * (int(l.get('cantidad_pax') or v.get('num_pasajeros', 1))) for l in liq)
+        monto_venta = float(v.get('monto_total') or 0)
+        utilidad = monto_venta - costo_total_liq
 
-        # --- HOJA 1: PANEL DE CONTROL FINANCIERO ---
-        ws1 = wb.active
-        ws1.title = "1_RESUMEN_FINANCIERO"
-        
-        # Título
-        ws1.merge_cells('A1:C1')
-        ws1['A1'] = "REPORTE MAESTRO DE OPERACIONES Y CIERRE"
-        ws1['A1'].font = Font(bold=True, size=16, color="1E3A8A")
-        ws1['A1'].alignment = center_al
+        # --- SECCIÓN 1: PANEL DE CONTROL FINANCIERO ---
+        ws.merge_cells('A1:H1')
+        ws['A1'] = "REPORTE MAESTRO CONSOLIDADO: OPERACIONES & CONTABILIDAD"
+        ws['A1'].font = Font(bold=True, size=16, color="1E3A8A")
+        ws['A1'].alignment = center_al
 
         datos_v = [
             ["INFORMACIÓN GENERAL", "", ""],
-            ["ID Venta", v.get('id_venta'), ""],
-            ["Cliente Principal", v.get('nombre_cliente'), ""],
-            ["Teléfono Contacto", v.get('telefono'), ""],
-            ["Servicio Contratado", v.get('tour_nombre'), ""],
-            ["Periodo de Viaje", f"{v.get('fecha_inicio')} al {v.get('fecha_fin')}", ""],
-            ["Total Pasajeros", f"{v.get('num_pasajeros')} PAX", ""],
-            ["Vendedor Responsable", v.get('vendedor'), ""],
+            ["ID Venta", v.get('id_venta'), "Fecha Inicio"],
+            ["Cliente Principal", v.get('nombre_cliente'), v.get('fecha_inicio')],
+            ["Teléfono", v.get('telefono'), "Fecha Fin"],
+            ["Servicio", v.get('tour_nombre'), v.get('fecha_fin')],
+            ["Total Pax", f"{v.get('num_pasajeros')} PAX", ""],
             ["", "", ""],
-            ["ESTADO FINANCIERO (RESUMEN)", "", ""],
-            ["Moneda de Operación", v.get('moneda'), ""],
-            ["Monto Total Venta (Cierre)", v.get('monto_total'), "INGRESO"],
-            ["Total Cobrado / Pagado", v.get('monto_pagado'), "RECAUDO"],
-            ["Saldo por Cobrar", float(v.get('monto_total') or 0) - float(v.get('monto_pagado') or 0), "PENDIENTE"],
-            ["", "", ""],
-            ["LIQUIDACIÓN DE COSTOS (OPERACIONES)", "", ""],
-            ["Costo Total de Proveedores", costo_total_liq, "COSTO NETO"],
-            ["UTILIDAD BRUTA ESTIMADA", utilidad, "MARGEN"],
-            ["Rentabilidad (%)", (utilidad / float(v.get('monto_total') or 1)) * 100 if float(v.get('monto_total') or 0) > 0 else 0, "%"]
+            ["RESUMEN FINANCIERO", "", ""],
+            ["Moneda", v.get('moneda'), "Monto Venta"],
+            ["Ingreso Total", monto_venta, "RECAUDADO"],
+            ["Costo Total", costo_total_liq, "COSTO NETO"],
+            ["UTILIDAD ESTIMADA", utilidad, "MARGEN"],
+            ["Rentabilidad", f"{(utilidad / monto_venta * 100):.2f}%" if monto_venta > 0 else "0%", ""],
         ]
         
-        row_start = 3
-        for r_idx, row in enumerate(datos_v, row_start):
-            # Detectar si es una cabecera de sección
-            tipo_seccion = row[0] in ["INFORMACIÓN GENERAL", "ESTADO FINANCIERO (RESUMEN)", "LIQUIDACIÓN DE COSTOS (OPERACIONES)"]
-            
-            if tipo_seccion:
-                # Caso especial: Cabecera fusionada
-                ws1.merge_cells(start_row=r_idx, start_column=1, end_row=r_idx, end_column=3)
-                cell_main = ws1.cell(row=r_idx, column=1, value=row[0])
-                
-                # Estilos para todo el bloque fusionado
-                for c_idx in range(1, 4):
-                    c_node = ws1.cell(row=r_idx, column=c_idx)
-                    c_node.border = thin_border
-                    c_node.fill = header_fill
-                    c_node.font = white_font
-                    c_node.alignment = center_al
-                continue # Saltar al siguiente registro
-            
-            # Caso Normal: Celdas individuales
-            for c_idx, val in enumerate(row, 1):
-                # No intentar escribir a la columna 1 si está vacía en este bloque (ya procesada)
-                cell = ws1.cell(row=r_idx, column=c_idx, value=val)
-                cell.border = thin_border
-                
-                # Formato Etiquetas (Col 1)
-                if c_idx == 1 and val != "":
-                    cell.fill = subheader_fill
-                    cell.font = bold_font
-                
-                # Formato Números (Col 2)
-                elif c_idx == 2 and isinstance(val, (int, float)):
-                    cell.number_format = '#,##0.00'
-                
-                # Formato utilidades especiales (Verde suave)
-                if val == "UTILIDAD BRUTA ESTIMADA":
-                    cell.fill = PatternFill(start_color="DCFCE7", end_color="DCFCE7", fill_type="solid")
+        current_row = 3
+        for row in datos_v:
+            is_header = row[0] in ["INFORMACIÓN GENERAL", "RESUMEN FINANCIERO"]
+            if is_header:
+                ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=3)
+                cell = ws.cell(row=current_row, column=1, value=row[0])
+                for c in range(1, 4):
+                    ws.cell(row=current_row, column=c).fill = header_fill
+                    ws.cell(row=current_row, column=c).font = white_font
+                    ws.cell(row=current_row, column=c).border = thin_border
+            else:
+                for c_idx, val in enumerate(row, 1):
+                    if val != "":
+                        cell = ws.cell(row=current_row, column=c_idx, value=val)
+                        cell.border = thin_border
+                        if c_idx % 2 != 0: 
+                            cell.fill = subheader_fill
+                            cell.font = bold_font
+            current_row += 1
 
-        ws1.column_dimensions['A'].width = 30
-        ws1.column_dimensions['B'].width = 35
-        ws1.column_dimensions['C'].width = 15
+        current_row += 2 # Espacio
 
-        # --- HOJA 2: LOGÍSTICA DIARIA ---
-        ws2 = wb.create_sheet("2_LOGISTICA_PASAJERO")
+        # --- SECCIÓN 2: LOGÍSTICA DIARIA (ITINERARIO) ---
+        ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=8)
+        ws.cell(row=current_row, column=1, value="📅 CRONOGRAMA LOGÍSTICO COMPLETO").font = white_font
+        for c in range(1, 9): 
+            ws.cell(row=current_row, column=c).fill = section_fill
+            ws.cell(row=current_row, column=c).alignment = center_al
+        current_row += 1
+
         headers_it = ["Día", "Fecha", "Hora", "Servicio / Tour", "Proveedor Sugerido", "Pax", "Tipo", "Observaciones"]
         for c_idx, h in enumerate(headers_it, 1):
-            cell = ws2.cell(row=1, column=c_idx, value=h)
-            cell.fill = header_fill
-            cell.font = white_font
+            cell = ws.cell(row=current_row, column=c_idx, value=h)
+            cell.fill = subheader_fill
+            cell.font = bold_font
+            cell.border = thin_border
             cell.alignment = center_al
+        current_row += 1
 
-        for r_idx, s in enumerate(it, 2):
-            ws2.cell(row=r_idx, column=1, value=s.get('Día Itin.'))
-            ws2.cell(row=r_idx, column=2, value=s.get('Fecha'))
-            ws2.cell(row=r_idx, column=3, value=s.get('Hora'))
-            ws2.cell(row=r_idx, column=4, value=s.get('Servicio')).font = bold_font
-            ws2.cell(row=r_idx, column=5, value=s.get('Proveedor'))
-            ws2.cell(row=r_idx, column=6, value=s.get('Pax'))
-            ws2.cell(row=r_idx, column=7, value=s.get('Tipo'))
-            ws2.cell(row=r_idx, column=8, value=s.get('observacion') or "")
-            for c in range(1, 9): ws2.cell(row=r_idx, column=c).border = thin_border
+        for s in it:
+            ws.cell(row=current_row, column=1, value=s.get('Día Itin.'))
+            ws.cell(row=current_row, column=2, value=s.get('Fecha'))
+            ws.cell(row=current_row, column=3, value=s.get('Hora'))
+            ws.cell(row=current_row, column=4, value=s.get('Servicio')).font = bold_font
+            ws.cell(row=current_row, column=5, value=s.get('Proveedor'))
+            ws.cell(row=current_row, column=6, value=s.get('Pax'))
+            ws.cell(row=current_row, column=7, value=s.get('Tipo'))
+            ws.cell(row=current_row, column=8, value=s.get('observacion') or "")
+            for c in range(1, 9): ws.cell(row=current_row, column=c).border = thin_border
+            current_row += 1
 
-        for col, w in zip(['A','B','C','D','E','F','G','H'], [8, 12, 10, 40, 30, 8, 15, 40]):
-            ws2.column_dimensions[col].width = w
+        current_row += 2 # Espacio
 
-        # --- HOJA 3: DETALLE DE PAGOS (LIQUIDACIÓN) ---
-        ws3 = wb.create_sheet("3_LIQUIDACION_DETALLADA")
-        headers_l = ["Día", "Proveedor Real", "Tipo Servicio", "Moneda", "Costo Unitario", "Pax", "Total Línea"]
+        # --- SECCIÓN 3: LIQUIDACIÓN DE COSTOS (DETALLE PROVEEDORES) ---
+        ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=8)
+        ws.cell(row=current_row, column=1, value="💰 DETALLE DE LIQUIDACIÓN Y PAGOS").font = white_font
+        for c in range(1, 9): 
+            ws.cell(row=current_row, column=c).fill = section_fill
+            ws.cell(row=current_row, column=c).alignment = center_al
+        current_row += 1
+
+        headers_l = ["Día", "Proveedor Real", "Tipo Servicio", "Moneda", "Costo Unit.", "Cant/Pax", "Total Línea", "Estado"]
         for c_idx, h in enumerate(headers_l, 1):
-            cell = ws3.cell(row=1, column=c_idx, value=h)
-            cell.fill = PatternFill(start_color="334155", end_color="334155", fill_type="solid") # Slate
-            cell.font = white_font
-            cell.alignment = center_al
+            cell = ws.cell(row=current_row, column=c_idx, value=h)
+            cell.fill = subheader_fill
+            cell.font = bold_font
+            cell.border = thin_border
+        current_row += 1
 
-        for r_idx, l in enumerate(liq, 2):
-            ws3.cell(row=r_idx, column=1, value=l.get('n_linea'))
+        for l in liq:
+            ws.cell(row=current_row, column=1, value=l.get('n_linea'))
             prov_name = l.get('proveedor', {}).get('nombre_comercial', '---') if isinstance(l.get('proveedor'), dict) else '---'
-            ws3.cell(row=r_idx, column=2, value=prov_name).font = bold_font
-            ws3.cell(row=r_idx, column=3, value=l.get('tipo_servicio'))
-            ws3.cell(row=r_idx, column=4, value=l.get('moneda'))
+            ws.cell(row=current_row, column=2, value=prov_name).font = bold_font
+            ws.cell(row=current_row, column=3, value=l.get('tipo_servicio'))
+            ws.cell(row=current_row, column=4, value=l.get('moneda'))
             
             c_unit = float(l.get('costo_unitario') or 0)
             pax_count = int(l.get('cantidad_pax') or v.get('num_pasajeros', 1))
-            ws3.cell(row=r_idx, column=5, value=c_unit).number_format = '#,##0.00'
-            ws3.cell(row=r_idx, column=6, value=pax_count)
-            ws3.cell(row=r_idx, column=7, value=c_unit * pax_count).number_format = '#,##0.00'
+            ws.cell(row=current_row, column=5, value=c_unit).number_format = '#,##0.00'
+            ws.cell(row=current_row, column=6, value=pax_count)
+            ws.cell(row=current_row, column=7, value=c_unit * pax_count).number_format = '#,##0.00'
+            ws.cell(row=current_row, column=8, value="O.K." if l.get('terminado') else "Pte")
             
-            for c in range(1, 8): ws3.cell(row=r_idx, column=c).border = thin_border
+            for c in range(1, 9): ws.cell(row=current_row, column=c).border = thin_border
+            current_row += 1
 
-        ws3.column_dimensions['B'].width = 35
-        ws3.column_dimensions['D'].width = 10
-        ws3.column_dimensions['E'].width = 15
+        current_row += 2 # Espacio
 
-        # --- HOJA 4: ROOMING LIST OFICIAL ---
-        ws4 = wb.create_sheet("4_ROOMING_LIST")
+        # --- SECCIÓN 4: ROOMING LIST ---
+        ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=8)
+        ws.cell(row=current_row, column=1, value="👥 LISTA DE PASAJEROS (ROOMING LIST)").font = white_font
+        for c in range(1, 9): 
+            ws.cell(row=current_row, column=c).fill = pax_fill
+            ws.cell(row=current_row, column=c).alignment = center_al
+        current_row += 1
+
         headers_px = ["Nombre Completo", "Documento", "Tipo Doc", "Nacionalidad", "Fecha Nac", "Género", "Cuidados", "Principal?"]
         for c_idx, h in enumerate(headers_px, 1):
-            cell = ws4.cell(row=1, column=c_idx, value=h)
-            cell.fill = PatternFill(start_color="059669", end_color="059669", fill_type="solid") # Esmeralda
-            cell.font = white_font
+            cell = ws.cell(row=current_row, column=c_idx, value=h)
+            cell.fill = subheader_fill
+            cell.font = bold_font
+            cell.border = thin_border
+        current_row += 1
 
-        for r_idx, p in enumerate(pax, 2):
-            ws4.cell(row=r_idx, column=1, value=p.get('nombre_completo')).font = bold_font
-            ws4.cell(row=r_idx, column=2, value=p.get('numero_documento'))
-            ws4.cell(row=r_idx, column=3, value=p.get('tipo_documento'))
-            ws4.cell(row=r_idx, column=4, value=p.get('nacionalidad'))
-            ws4.cell(row=r_idx, column=5, value=p.get('fecha_nacimiento'))
-            ws4.cell(row=r_idx, column=6, value=p.get('genero'))
-            ws4.cell(row=r_idx, column=7, value=p.get('cuidados_especiales'))
-            ws4.cell(row=r_idx, column=8, value="SÍ" if p.get('es_principal') else "NO")
-            for c in range(1, 9): ws4.cell(row=r_idx, column=c).border = thin_border
+        for p in pax:
+            ws.cell(row=current_row, column=1, value=p.get('nombre_completo')).font = bold_font
+            ws.cell(row=current_row, column=2, value=p.get('numero_documento'))
+            ws.cell(row=current_row, column=3, value=p.get('tipo_documento'))
+            ws.cell(row=current_row, column=4, value=p.get('nacionalidad'))
+            ws.cell(row=current_row, column=5, value=p.get('fecha_nacimiento'))
+            ws.cell(row=current_row, column=6, value=p.get('genero'))
+            ws.cell(row=current_row, column=7, value=p.get('cuidados_especiales'))
+            ws.cell(row=current_row, column=8, value="SÍ" if p.get('es_principal') else "NO")
+            for c in range(1, 9): ws.cell(row=current_row, column=c).border = thin_border
+            current_row += 1
 
-        ws4.column_dimensions['A'].width = 40
-        for col in ['B','C','D','E','F','G','H']: ws4.column_dimensions[col].width = 15
+        # Anchos de columna finales
+        for col, w in zip(['A','B','C','D','E','F','G','H'], [10, 25, 12, 40, 30, 10, 15, 40]):
+            ws.column_dimensions[col].width = w
 
         output = BytesIO()
         wb.save(output)
