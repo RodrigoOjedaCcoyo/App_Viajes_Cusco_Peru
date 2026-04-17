@@ -178,7 +178,7 @@ def dashboard_pagos_operativos(supabase_client):
                 return f'color: {color}; font-weight: bold'
             
             st.dataframe(
-                df_saldos.style.applymap(highlight_saldo, subset=['Saldo Pendiente']),
+                df_saldos.style.map(highlight_saldo, subset=['Saldo Pendiente']),
                 use_container_width=True,
                 hide_index=True
             )
