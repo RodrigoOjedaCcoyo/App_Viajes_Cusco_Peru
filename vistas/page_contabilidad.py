@@ -54,11 +54,12 @@ def render_itinerary_simple_download(render):
         if not pdf_buffer and not xlsx_buffer:
             st.error("No se pudo generar el documento en este momento.")
 
-def render_operational_master_download(controller, id_venta):
-    """Renderiza el GRAN BOTÓN ROJO para el reporte maestro (Excel)."""
-    from controllers.excel_controller import ExcelController
-    from controllers.operaciones_controller import OperacionesController
-    from controllers.venta_controller import VentaController
+def render_operational_master_download_acc(controller, id_venta):
+    """Llamada al componente Maestro unificado."""
+    from vistas.page_operaciones import render_operational_master_download
+    render_operational_master_download(controller, id_venta, label="📊 Generar Informe Maestro", key=f"acc_master_dl_{id_venta}")
+
+def redundat_old_function_to_be_removed(controller, id_venta):
     from datetime import date
     
     xl_ctrl = ExcelController()
@@ -309,7 +310,7 @@ def dashboard_pagos_operativos(supabase_client):
 
                 
                 if exito:
-                    st.success(f"✅ Pago de {moneda} {monto:,.2f} registrado para {prov_sel}.")
+                    st.success(f"✅ Pago de {moneda_pago} {monto_pago:,.2f} registrado con éxito.")
                     st.balloons()
                     st.rerun()
                 else:
@@ -335,11 +336,9 @@ def estructurador_liquidacion_pro(controller):
     from datetime import date
     st.subheader("📊 Estructurador de Liquidación Profesional", divider='rainbow')
 
-    # Forzar recarga siempre: descartar cache de versiones anteriores del código
+    # Inicializar datos en el estado
     if 'simulador_contable_adv_data' not in st.session_state:
         st.session_state['simulador_contable_adv_data'] = []
-    # Borrar el ID cacheado para que al seleccionar la venta recargue con la lógica nueva
-    st.session_state.pop('last_loaded_id_venta_acc', None)
 
     st.info("💡 Selecciona la venta para cargar su desglose de servicios e itinerario.")
     
@@ -456,7 +455,7 @@ def estructurador_liquidacion_pro(controller):
 
                         render_itinerary_simple_download(render_data)
                         st.markdown("---")
-                        render_operational_master_download(controller, v_act['id_venta'])
+                        render_operational_master_download_acc(controller, v_act['id_venta'])
             else:
                 st.caption("Esta venta no tiene un itinerario digital vinculado.")
 
