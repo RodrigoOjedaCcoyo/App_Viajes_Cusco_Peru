@@ -1167,50 +1167,74 @@ def dashboard_simulador_costos(controller):
             liq_data = controller.get_liquidaciones_venta(id_actual)
             
             if liq_data:
-                # Adaptar los datos para mostrar el cálculo visualmente en la tabla
+                # 1. Preparar datos para el editor
                 display_data = []
                 for l in liq_data:
                     c_unit = float(l.get('costo_unitario', 0))
                     pax = float(l.get('cantidad_pax') or l.get('cantidad_items') or 1)
                     moneda_l = l.get('moneda', 'USD')
                     
-                    p_venta_orig = float(l.get('precio_applied', 0)) if l.get('precio_applied') else 0
-                    
-                    # Si no hay precio aplicado en la línea, intentar buscarlo en el mapa del itinerario
-                    if p_venta_orig == 0:
-                        nl_act = l.get('n_linea')
-                        # El mapa_nombres_serv podría extenderse a mapa_precios_serv
-                        # Pero por ahora usamos la data que ya viene de la venta_tour filtrada
-                        
                     l['DIA'] = l.get('n_linea')
                     l['SERVICIO'] = mapa_nombres_serv.get(l.get('n_linea'), "---")
                     l['PROVEEDOR'] = l.get('proveedor', {}).get('nombre_comercial') if l.get('proveedor') else "---"
                     l['PAX'] = int(pax)
                     l['COSTO ORIG.'] = c_unit * pax
                     
-                    # CÁLCULO DE CONVERSIÓN A PEN (Maestro Contable)
+                    # CÁLCULO DE CONVERSIÓN A PEN
                     costo_pen = c_unit * pax
                     if moneda_l == 'USD':
                         costo_pen = (c_unit * pax) * tc_v
                     
-                    l['TOTAL (S/.)'] = costo_pen
+                    l['TOTAL (PEN)'] = costo_pen
+                    # ICONO DE ESTADO
+                    l['Estado'] = "🟢 OK" if l.get('terminado') else "🔴 PENDIENTE"
                     display_data.append(l)
 
-                df_resumen = pd.DataFrame(display_data)
-                # Ocultar VENTA (S/.) para enfocarse solo en liquidaciones operativas
-                cols_show = ['DIA', 'SERVICIO', 'PROVEEDOR', 'PAX', 'COSTO ORIG.', 'moneda', 'TOTAL (S/.)']
-                st.dataframe(
-                    df_resumen[cols_show],
+                df_edit = pd.DataFrame(display_data)
+                
+                # Definir columnas visibles
+                cols_visible = ['Estado', 'terminado', 'DIA', 'SERVICIO', 'PROVEEDOR', 'PAX', 'TOTAL (PEN)']
+                
+                # 2. Renderizar Editor de Datos
+                edited_result = st.data_editor(
+                    df_edit[cols_visible],
                     column_config={
+                        "Estado": st.column_config.TextColumn("Visual", width="small"),
+                        "terminado": st.column_config.CheckboxColumn("Check", help="Marcar como Terminado"),
                         "DIA": st.column_config.NumberColumn("Día", format="%d", width="small"),
-                        "VENTA (S/.)": st.column_config.NumberColumn("Venta (S/.) 🟢", format="S/. %.2f", width="medium"),
-                        "COSTO ORIG.": st.column_config.NumberColumn("Monto Excel", format="%.2f"),
-                        "TOTAL (S/.)": st.column_config.NumberColumn("Costo (S/.) 🔴", format="S/. %.2f", width="medium"),
-                        "moneda": "Divisa"
+                        "PAX": st.column_config.NumberColumn("Pax", width="small"),
+                        "TOTAL (PEN)": st.column_config.NumberColumn("Costo (S/.)", format="S/. %.2f")
                     },
+                    disabled=['Estado', 'DIA', 'SERVICIO', 'PROVEEDOR', 'PAX', 'TOTAL (PEN)'],
                     hide_index=True,
-                    use_container_width=True
+                    use_container_width=True,
+                    key="editor_liq_master"
                 )
+
+                # 3. Procesar cambios mediante botón de confirmación
+                if "editor_liq_master" in st.session_state:
+                    state = st.session_state.editor_liq_master
+                    cambios_pendientes = state.get("edited_rows", {})
+                    
+                    if cambios_pendientes:
+                        st.warning(f"⚠️ Tienes {len(cambios_pendientes)} cambios pendientes de guardar.")
+                        if st.button("💾 Guardar Cambios en Operativa", type="primary", use_container_width=True):
+                            exitos = 0
+                            errores = []
+                            for row_idx, changes in cambios_pendientes.items():
+                                if "terminado" in changes:
+                                    reg_id = df_edit.iloc[row_idx]['id']
+                                    nuevo_estado = changes["terminado"]
+                                    exito, msg = controller.actualizar_estado_servicio_proveedor(reg_id, nuevo_estado)
+                                    if exito: exitos += 1
+                                    else: errores.append(msg)
+                            
+                            if exitos > 0:
+                                st.success(f"✅ Se actualizaron {exitos} servicios.")
+                                # Limpiar el editor forzando un reset (esto es opcional pero recomendado)
+                                st.rerun()
+                            if errores:
+                                for e in errores: st.error(e)
                 
                 with st.expander("🚨 Zona de Peligro: Limpieza de Endoses"):
                     st.warning("Se borrarán todos los costos y proveedores asignados.")
