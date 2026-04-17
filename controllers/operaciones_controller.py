@@ -511,15 +511,8 @@ class OperacionesController:
             hoy = date.today()
             rango_max = hoy + timedelta(days=10)
             
-            # --- 1. OBTENER SERVICIOS ASIGNADOS (Con proveedores) ---
-            res_vsp = (
-                self.client.table('venta_servicio_proveedor')
-                .select('*, proveedor(nombre_comercial), venta(nombre_cliente), venta_tour!venta_servicio_proveedor_id_venta_n_linea_fkey(fecha_servicio, observacion)')
-                .eq('terminado', False)
-                .execute()
-            )
-            
-            # --- 2. OBTENER TODOS LOS TOURS PROGRAMADOS DESDE HOY (Para detectar huérfanos) ---
+            # --- 1. OBTENER TODOS LOS TOURS PROGRAMADOS DESDE HOY ---
+            # Se usa como fuente maestra de fechas
             res_vt = (
                 self.client.table('venta_tour')
                 .select('id_venta, n_linea, fecha_servicio, observacion, estado_servicio, venta(nombre_cliente)')
@@ -528,24 +521,40 @@ class OperacionesController:
                 .execute()
             )
             
-            alertas = {"rojo": [], "amarillo": [], "verde": [], "machupicchu": [], "sin_asignar": []}
+            tours_dict = {}
+            if res_vt.data:
+                for vt in res_vt.data:
+                    k = f"{vt['id_venta']}-{vt['n_linea']}"
+                    tours_dict[k] = vt
             
-            # Mapear asignaciones existentes para búsqueda rápida
+            # --- 2. OBTENER SERVICIOS ASIGNADOS (Con proveedores) ---
+            res_vsp = (
+                self.client.table('venta_servicio_proveedor')
+                .select('*, proveedor(nombre_comercial)')
+                .eq('terminado', False)
+                .execute()
+            )
+            
+            alertas = {"rojo": [], "amarillo": [], "verde": [], "machupicchu": [], "sin_asignar": []}
             keys_asignadas = set()
+            
+            # --- 3. PROCESAR ASIGNACIONES EXISTENTES ---
             if res_vsp.data:
                 for item in res_vsp.data:
-                    key = f"{item['id_venta']}-{item['n_linea']}"
-                    keys_asignadas.add(key)
+                    k = f"{item['id_venta']}-{item['n_linea']}"
+                    keys_asignadas.add(k)
                     
+                    vt = tours_dict.get(k)
+                    if not vt:
+                        # Fuera de rango o no encontrado
+                        continue
+                        
                     prov_nom = (item.get('proveedor') or {}).get('nombre_comercial', 'Sin Proveedor')
-                    tour_info = item.get('venta_tour')
-                    if isinstance(tour_info, list): tour_info = tour_info[0] if tour_info else {}
                     
-                    fecha_str = (tour_info or {}).get('fecha_servicio')
+                    fecha_str = vt.get('fecha_servicio')
                     if not fecha_str: continue
                     
                     try:
-                        # Uso de pandas para parsear de forma super robusta cualquier formato que devuelva Supabase
                         fecha_serv = pd.to_datetime(fecha_str).date()
                     except:
                         continue
@@ -555,31 +564,29 @@ class OperacionesController:
                     alerta_item = {
                         "id": item['id'],
                         "fecha": fecha_serv.strftime("%d/%m/%Y"),
-                        "servicio": (tour_info or {}).get('observacion', item.get('tipo_servicio', 'Servicio')),
-                        "cliente": (item.get('venta') or {}).get('nombre_cliente', '---'),
+                        "servicio": vt.get('observacion', item.get('tipo_servicio', 'Servicio')),
+                        "cliente": (vt.get('venta') or {}).get('nombre_cliente', '---'),
                         "proveedor": prov_nom,
                         "dias": dias_dif
                     }
                     
-                    # Regla Machu Picchu (MINISTERIO)
                     if "MINISTERIO" in prov_nom.upper():
                         alertas["machupicchu"].append(alerta_item)
                     
-                    # Clasificación por colores (ESTRICTAMENTE DESDE HOY)
                     if 0 <= dias_dif <= 10:
                         if dias_dif <= 2: alertas["rojo"].append(alerta_item)
                         elif dias_dif <= 5: alertas["amarillo"].append(alerta_item)
                         else: alertas["verde"].append(alerta_item)
 
-            # --- 3. DETECTAR SERVICIOS SIN ASIGNAR (Huérfanos en venta_tour desdel HOY) ---
+            # --- 4. DETECTAR SERVICIOS SIN ASIGNAR (Huérfanos en venta_tour desdel HOY) ---
             if res_vt.data:
                 for vt in res_vt.data:
-                    estado = vt.get('estado_servicio', 'PENDIENTE')
-                    if estado in ['COMPLETADO', 'CANCELADO']:
-                        continue
-                        
-                    key = f"{vt['id_venta']}-{vt['n_linea']}"
-                    if key not in keys_asignadas:
+                    k = f"{vt['id_venta']}-{vt['n_linea']}"
+                    if k not in keys_asignadas:
+                        estado = vt.get('estado_servicio', 'PENDIENTE')
+                        if estado in ['COMPLETADO', 'CANCELADO']:
+                            continue
+                            
                         fecha_str2 = vt.get('fecha_servicio')
                         if not fecha_str2: continue
                         
