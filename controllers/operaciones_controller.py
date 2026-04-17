@@ -528,12 +528,12 @@ class OperacionesController:
                     tours_dict[k] = vt
                     id_ventas_unicas.add(vt['id_venta'])
             
-            # --- 2. OBTENER NOMBRES DE CLIENTES (Evitando el bug de Supabase JOIN de 3 niveles) ---
+            # --- 2. OBTENER NOMBRES DE CLIENTES (Pidiendo la columna correcta 'nombre') ---
             cliente_nombres = {}
             if id_ventas_unicas:
                 res_clientes = (
                     self.client.table('venta')
-                    .select('id_venta, cliente(nombre_completo)')
+                    .select('id_venta, cliente(nombre)')
                     .in_('id_venta', list(id_ventas_unicas))
                     .execute()
                 )
@@ -541,7 +541,7 @@ class OperacionesController:
                     for v in res_clientes.data:
                         c = v.get('cliente') or {}
                         if isinstance(c, list): c = c[0] if c else {}
-                        cliente_nombres[v['id_venta']] = c.get('nombre_completo', 'Cliente Desconocido')
+                        cliente_nombres[v['id_venta']] = c.get('nombre', 'Cliente Desconocido')
             
             # --- 3. OBTENER SERVICIOS ASIGNADOS (Con proveedores) ---
             res_vsp = (
