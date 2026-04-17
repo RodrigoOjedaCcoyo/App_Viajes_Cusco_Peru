@@ -12,7 +12,7 @@ from controllers.venta_controller import VentaController
 from controllers.excel_controller import ExcelController
 
 # NUEVO: Renderiza el Botón para el Excel Maestro Operativo.
-def render_operational_master_download(controller, id_venta):
+def render_operational_master_download(controller, id_venta, label="📊 Generar Informe Maestro", key=None):
     """
     Recopila toda la información de la operación y ofrece la descarga del Excel Maestro.
     """
@@ -25,7 +25,6 @@ def render_operational_master_download(controller, id_venta):
         # Buscar la venta específica en la base de datos para tener datos frescos
         res_v = controller.client.table('venta').select('*, cliente(nombre, lead(numero_celular))').eq('id_venta', id_venta).single().execute()
         if not res_v.data:
-            st.error("No se pudo recuperar la información de la venta.")
             return
             
         v_raw = res_v.data
@@ -74,11 +73,12 @@ def render_operational_master_download(controller, id_venta):
         
         if master_buffer:
             st.download_button(
-                label="📊 Generar Informe Maestro (Operaciones + Contabilidad)",
+                label=label,
                 data=master_buffer,
                 file_name=f"informe_maestro_{id_venta}_{data_hoja['venta']['nombre_cliente'].replace(' ', '_')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 help="Expediente completo: Resumen Financiero, Logística, Costos Detallados y Pasajeros.",
+                key=key or f"dl_mast_{id_venta}",
                 use_container_width=True,
                 type="primary"
             )
@@ -252,19 +252,36 @@ def dashboard_tablero_diario(controller):
         pax_val = 0
         try: pax_val = sum(int(s.get('Pax') or 0) for s in servicios)
         except: pass
-        st.success(f"Pax totales: {pax_val}")
-        df = pd.DataFrame(servicios)
-        st.dataframe(
-            df,
-            column_order=('Log.', 'Hora', 'Día Itin.', 'Servicio', 'Pax', 'Endoso?', 'Proveedor', 'Estado Pago', 'Cliente', 'URL Cloud'),
-            column_config={
-                "Log.": st.column_config.TextColumn("Log.", width="small"),
-                "Día Itin.": st.column_config.NumberColumn("Día", format="%d", width="small"),
-                "URL Cloud": st.column_config.LinkColumn("PDF 📄"),
-            },
-            hide_index=True, use_container_width=True
-        )
-        st.info("💡 La logística se consulta aquí. Para editarla, usa el Google Sheet Maestro.")
+        # --- TABLAR INTERACTIVA DE SERVICIOS (REDISEÑO) ---
+        c_head = st.columns([0.8, 2.5, 0.6, 2, 1.2])
+        c_head[0].markdown("**Hora**")
+        c_head[1].markdown("**Servicio**")
+        c_head[2].markdown("**Pax**")
+        c_head[3].markdown("**Cliente**")
+        c_head[4].markdown("**📄 Info**")
+        st.markdown("<hr style='margin:0; border:0.5px solid #555;'>", unsafe_allow_html=True)
+
+        for i, s in enumerate(servicios):
+            with st.container():
+                c_row = st.columns([0.8, 2.5, 0.6, 2, 1.2])
+                c_row[0].write(s.get('Hora', '---'))
+                
+                # Nombre del servicio con indicador de endoso
+                serv_name = f"🤝 {s['Servicio']}" if s.get('Endoso?') else s['Servicio']
+                c_row[1].write(f"**{serv_name}**")
+                
+                c_row[2].write(f"**{s.get('Pax', 1)}**")
+                c_row[3].write(s.get('Cliente', '---'))
+                
+                with c_row[4]:
+                    id_v = s.get('ID Venta')
+                    if id_v:
+                        render_operational_master_download(controller, id_v, label="📁 Maestro", key=f"dl_cal_{id_v}_{i}")
+                    else:
+                        st.caption("Sin Venta")
+                st.markdown("<hr style='margin:0; border:0.1px solid #333;'>", unsafe_allow_html=True)
+
+        st.info("💡 Haz clic en '📁 Maestro' para descargar el expediente completo del pasajero.")
 
         # --- 🔍 DESGLOSE DETALLADO DE RESPONSABLES ---
         with st.expander("🕵️ Ver Responsables Detallados (Minuto a Minuto)", expanded=False):
