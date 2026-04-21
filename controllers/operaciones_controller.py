@@ -592,9 +592,21 @@ class OperacionesController:
                         elif dias_dif <= 5: alertas["amarillo"].append(alerta_item)
                         else: alertas["verde"].append(alerta_item)
 
-            # --- 5. DETECTAR SERVICIOS SIN ASIGNAR (Huérfanos en venta_tour desde HOY) ---
+            # --- NUEVO: OBTENER TODAS LAS VENTAS QUE YA TIENEN AL MENOS 1 ASIGNACIÓN ---
+            res_any_vsp = self.client.table('venta_servicio_proveedor').select('id_venta').execute()
+            ventas_con_algo_asignado = set()
+            if res_any_vsp.data:
+                for item in res_any_vsp.data:
+                    ventas_con_algo_asignado.add(item['id_venta'])
+
+            # --- 5. DETECTAR SERVICIOS SIN ASIGNAR 100% VACÍOS (Huérfanos en venta_tour desde HOY) ---
+            ventas_sin_asignar = {}
             if res_vt.data:
                 for vt in res_vt.data:
+                    # Si esta venta ya tiene alguna asignación, la ignoramos por completo para esta alerta
+                    if vt['id_venta'] in ventas_con_algo_asignado:
+                        continue
+                        
                     k = f"{vt['id_venta']}-{vt['n_linea']}"
                     if k not in keys_asignadas:
                         estado = vt.get('estado_servicio', 'PENDIENTE')
@@ -612,15 +624,40 @@ class OperacionesController:
                         diff = (f_serv - hoy).days
                         
                         if 0 <= diff <= 10:
-                            alertas["sin_asignar"].append({
-                                "id_venta": vt['id_venta'],
-                                "n_linea": vt['n_linea'],
-                                "fecha": f_serv.strftime("%d/%m/%Y"),
-                                "servicio": vt.get('observacion') or "Tour Desconocido",
-                                "cliente": cliente_nombres.get(vt['id_venta'], '---'),
-                                "proveedor": "🚨 NO ASIGNADO",
-                                "dias": diff
-                            })
+                            id_v = vt['id_venta']
+                            if id_v not in ventas_sin_asignar:
+                                ventas_sin_asignar[id_v] = {
+                                    "id_venta": id_v,
+                                    "n_linea": vt['n_linea'],
+                                    "f_serv_minima": f_serv,
+                                    "diff_minima": diff,
+                                    "servicios": [vt.get('observacion') or "Tour Desconocido"],
+                                    "cliente": cliente_nombres.get(id_v, '---')
+                                }
+                            else:
+                                ventas_sin_asignar[id_v]["servicios"].append(vt.get('observacion') or "Tour Desconocido")
+                                # Quedarnos con la fecha más próxima (menor diferencia de días)
+                                if diff < ventas_sin_asignar[id_v]["diff_minima"]:
+                                    ventas_sin_asignar[id_v]["diff_minima"] = diff
+                                    ventas_sin_asignar[id_v]["f_serv_minima"] = f_serv
+            
+            # Formatear el diccionario agrupado a la lista final
+            for v_data in ventas_sin_asignar.values():
+                cantidad = len(v_data["servicios"])
+                if cantidad == 1:
+                    serv_text = v_data["servicios"][0]
+                else:
+                    serv_text = f"⚠️ {cantidad} servicios del itinerario sin costo/proveedor"
+                    
+                alertas["sin_asignar"].append({
+                    "id_venta": v_data["id_venta"],
+                    "n_linea": v_data["n_linea"],
+                    "fecha": v_data["f_serv_minima"].strftime("%d/%m/%Y"),
+                    "servicio": serv_text,
+                    "cliente": v_data["cliente"],
+                    "proveedor": "🚨 PENDIENTE CARGAR DATA",
+                    "dias": v_data["diff_minima"]
+                })
 
             return alertas
         except Exception as e:
