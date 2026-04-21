@@ -142,31 +142,13 @@ class PagoOperativoController:
                 if abs(data["debe"]) > 0.01 or abs(data["pagado"]) > 0.01:
                     reporte.append({
                         "Proveedor": p_nom,
-                        "Moneda": moneda,
-                        "Total Costos": data["debe"],
-                        "Abonado": data["pagado"],
-                        "Saldo Pendiente": saldo
+                        "Moneda": moneda if moneda and str(moneda) != 'nan' else 'PEN',
+                        "Total Costos": round(data["debe"], 2),
+                        "Abonado": round(data["pagado"], 2),
+                        "Saldo Pendiente": round(saldo, 2)
                     })
-            
-            return pd.DataFrame(reporte)
-        except Exception as e:
-            print(f"Error generando reporte de saldos optimizado: {e}")
-            return pd.DataFrame()
-
-            # Convertir a lista para UI
-            reporte = []
-            for (pid, p_nom, moneda), data in balances.items():
-                saldo = data["debe"] - data["pagado"]
-                reporte.append({
-                    "Proveedor": p_nom,
-                    "Moneda": moneda,
-                    "Total Costos": data["debe"],
-                    "Abonado": data["pagado"],
-                    "Saldo Pendiente": saldo
-                })
             
             return pd.DataFrame(reporte)
         except Exception as e:
             print(f"Error generando reporte de saldos: {e}")
             return pd.DataFrame()
-

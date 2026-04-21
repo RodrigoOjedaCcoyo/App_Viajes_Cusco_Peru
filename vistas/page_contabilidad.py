@@ -186,6 +186,11 @@ def dashboard_pagos_operativos(supabase_client):
             
             st.dataframe(
                 df_saldos.style.map(highlight_saldo, subset=['Saldo Pendiente']),
+                column_config={
+                    "Total Costos": st.column_config.NumberColumn("Total Costos", format="%.2f"),
+                    "Abonado": st.column_config.NumberColumn("Abonado", format="%.2f"),
+                    "Saldo Pendiente": st.column_config.NumberColumn("Saldo Pendiente", format="%.2f"),
+                },
                 use_container_width=True,
                 hide_index=True
             )
