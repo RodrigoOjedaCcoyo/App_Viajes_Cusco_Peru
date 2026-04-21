@@ -262,9 +262,16 @@
   CREATE TABLE proveedor (
       id_proveedor SERIAL PRIMARY KEY,
       nombre_comercial VARCHAR(255) NOT NULL,
-      servicios_ofrecidos TEXT[], 
+      ruc VARCHAR(20),
+      email VARCHAR(255),
+      persona_contacto VARCHAR(255),
+      url_drive TEXT,
+      servicios_ofrecidos TEXT[], -- Ej: ['TRANSPORTE', 'GUIA']
       contacto_telefono VARCHAR(20),
       pais VARCHAR(100) DEFAULT 'Perú',
+      cuentas_bancarias JSONB DEFAULT '[]', -- Lista de cuentas bancarias
+      puntos_operacion JSONB DEFAULT '[]', -- Zonas donde opera
+      detalles_categoria JSONB DEFAULT '{}', -- Datos específicos (estrellas hotel, idiomas guía, etc)
       activo BOOLEAN DEFAULT TRUE,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

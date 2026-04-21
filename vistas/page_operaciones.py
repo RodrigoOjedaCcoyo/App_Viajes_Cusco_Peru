@@ -1299,140 +1299,225 @@ def dashboard_simulador_costos(controller):
         st.markdown("### 👥 Resumen de Pasajeros (Rooming)")
         try:
             pax_data = controller.pasajero_model.get_by_venta_id(id_actual)
-            if pax_data:
-                df_pax_res = pd.DataFrame(pax_data)
-                cols_pax = ['nombre_completo', 'nacionalidad', 'numero_documento', 'es_principal']
-                st.table(df_pax_res[cols_pax])
+         def render_directorio_proveedores(supabase_client):
+    """Módulo profesional para la gestión de proveedores con soporte JSONB dinámico."""
+    from controllers.proveedor_controller import ProveedorController
+    import json
+    prov_ctrl = ProveedorController(supabase_client)
 
-                with st.expander("🚨 Zona de Peligro: Limpieza de Pasajeros"):
-                    st.warning("Se borrarán todos los pasajeros de esta venta.")
-                    confirm_pax = st.checkbox("Confirmar borrado de pasajeros", key="reset_pax_confirm")
-                    if st.button("🗑️ Borrar Lista de Pasajeros", type="primary", disabled=not confirm_pax, use_container_width=True):
-                        exito_p, msg_p = controller.borrar_pasajeros_venta(id_actual)
-                        if exito_p: st.success(msg_p); st.rerun()
-                        else: st.error(msg_p)
+    st.subheader("🏢 Gestión de Socios Estratégicos (Proveedores)", divider="red")
+    
+    # ═══════════════════════════════════════════════════════════════
+    # 1. GESTIÓN DE ESTADO (Draft)
+    # ═══════════════════════════════════════════════════════════════
+    if 'prov_edit_id' not in st.session_state:
+        st.session_state.prov_edit_id = None
+    if 'prov_draft' not in st.session_state:
+        st.session_state.prov_draft = {}
+
+    # ═══════════════════════════════════════════════════════════════
+    # 2. SELECTOR DE PROVEEDOR
+    # ═══════════════════════════════════════════════════════════════
+    listado_prov = prov_ctrl.obtener_proveedores()
+    mapa_nombres = {p['nombre_comercial']: p for p in listado_prov}
+    
+    col_sel1, col_sel2 = st.columns([2, 1])
+    prov_sel = col_sel1.selectbox(
+        "🔍 Buscar o Seleccionar Proveedor:", 
+        ["--- Nuevo Proveedor ---"] + list(mapa_nombres.keys()),
+        index=0 if st.session_state.prov_edit_id is None else (list(mapa_nombres.keys()).index(next(k for k, v in mapa_nombres.items() if v['id_proveedor'] == st.session_state.prov_edit_id)) + 1 if st.session_state.prov_edit_id in [p['id_proveedor'] for p in listado_prov] else 0)
+    )
+
+    # Cargar datos al cambiar selección
+    if prov_sel == "--- Nuevo Proveedor ---":
+        if st.session_state.prov_edit_id is not None:
+            st.session_state.prov_edit_id = None
+            st.session_state.prov_draft = {
+                "nombre_comercial": "", "ruc": "", "email": "", "persona_contacto": "",
+                "contacto_telefono": "", "pais": "Perú", "url_drive": "",
+                "servicios_ofrecidos": ["GUIADO"], "cuentas_bancarias": [],
+                "puntos_operacion": [], "detalles_categoria": {}, "activo": True
+            }
+            st.rerun()
+    else:
+        p_data = mapa_nombres[prov_sel]
+        if st.session_state.prov_edit_id != p_data['id_proveedor']:
+            st.session_state.prov_edit_id = p_data['id_proveedor']
+            # Cargar todo el objeto a memoria (Draft)
+            st.session_state.prov_draft = p_data.copy()
+            # Asegurar que los JSON no sean None
+            for key in ['cuentas_bancarias', 'puntos_operacion']:
+                if not st.session_state.prov_draft.get(key): st.session_state.prov_draft[key] = []
+            if not st.session_state.prov_draft.get('detalles_categoria'): 
+                st.session_state.prov_draft['detalles_categoria'] = {}
+            st.rerun()
+
+    # Si no hay draft inicializado (caso primer carga), inicializarlo vacío
+    if not st.session_state.prov_draft:
+        st.session_state.prov_draft = {
+            "nombre_comercial": "", "ruc": "", "email": "", "persona_contacto": "",
+            "contacto_telefono": "", "pais": "Perú", "url_drive": "",
+            "servicios_ofrecidos": ["GUIADO"], "cuentas_bancarias": [],
+            "puntos_operacion": [], "detalles_categoria": {}, "activo": True
+        }
+
+    draft = st.session_state.prov_draft
+
+    # ═══════════════════════════════════════════════════════════════
+    # 3. FORMULARIO DINÁMICO
+    # ═══════════════════════════════════════════════════════════════
+    st.write("---")
+    
+    # --- BLOQUE A: INFORMACIÓN BÁSICA ---
+    with st.expander("👤 Información General y Contacto", expanded=True):
+        c1, c2, c3 = st.columns([2, 1, 1])
+        draft['nombre_comercial'] = c1.text_input("Nombre / Razón Social*", value=draft.get('nombre_comercial', ''))
+        draft['ruc'] = c2.text_input("RUC / Tax ID", value=draft.get('ruc', ''))
+        draft['persona_contacto'] = c3.text_input("Contacto Principal", value=draft.get('persona_contacto', ''))
+        
+        ca, cb, cc = st.columns(3)
+        draft['contacto_telefono'] = ca.text_input("Teléfono / WhatsApp", value=draft.get('contacto_telefono', ''))
+        draft['email'] = cb.text_input("Email de Reservas", value=draft.get('email', ''))
+        draft['url_drive'] = cc.text_input("🔗 Link Drive (Tarifarios/Docs)", value=draft.get('url_drive', ''))
+
+        serv_base = ["GUIA", "TRANSPORTE", "ALOJAMIENTO", "ALIMENTACION", "TICKETS", "AGENCIA", "OPERADOR", "OTROS"]
+        draft['servicios_ofrecidos'] = st.multiselect(
+            "Servicios que brinda*", 
+            options=list(set(serv_base + (draft.get('servicios_ofrecidos') or []))),
+            default=draft.get('servicios_ofrecidos', ["GUIA"])
+        )
+
+    # --- BLOQUE B: CUENTAS BANCARIAS (DINÁMICO) ---
+    with st.expander(f"💳 Información de Pagos ({len(draft['cuentas_bancarias'])} cuentas)", expanded=False):
+        for idx, cuenta in enumerate(draft['cuentas_bancarias']):
+            colb1, colb2, colb3, colb_del = st.columns([1.5, 1.5, 2, 0.5])
+            cuenta['banco'] = colb1.text_input(f"Banco", value=cuenta.get('banco', ''), key=f"bnk_{idx}")
+            cuenta['moneda'] = colb2.selectbox(f"Moneda", ["PEN", "USD"], index=0 if cuenta.get('moneda')=="PEN" else 1, key=f"mon_{idx}")
+            cuenta['nro'] = colb3.text_input(f"Cuenta / CCI", value=cuenta.get('nro', ''), key=f"nro_{idx}")
+            if colb_del.button("❌", key=f"del_bnk_{idx}"):
+                draft['cuentas_bancarias'].pop(idx)
+                st.rerun()
+        
+        if st.button("➕ Agregar Cuenta Bancaria", use_container_width=True):
+            draft['cuentas_bancarias'].append({"banco": "", "moneda": "PEN", "nro": ""})
+            st.rerun()
+
+    # --- BLOQUE C: LOGÍSTICA Y OPERACIÓN ---
+    with st.expander("📍 Zonas de Operación y Logística", expanded=False):
+        c_zonas_1, c_zonas_2 = st.columns([3, 1])
+        nueva_zona = c_zonas_1.text_input("Agregar zona de operación:", placeholder="Ej: Cusco Centro, Ollantaytambo, Lima...")
+        if c_zonas_2.button("➕ Añadir", use_container_width=True) and nueva_zona:
+            if nueva_zona not in draft['puntos_operacion']:
+                draft['puntos_operacion'].append(nueva_zona)
+                st.rerun()
+        
+        if draft['puntos_operacion']:
+            st.write("Zonas registradas:")
+            cols_z = st.columns(4)
+            for z_idx, z_val in enumerate(draft['puntos_operacion']):
+                with cols_z[z_idx % 4]:
+                    if st.button(f"{z_val} ❌", key=f"z_{z_idx}"):
+                        draft['puntos_operacion'].pop(z_idx)
+                        st.rerun()
+
+    # --- BLOQUE D: CAMPOS INTELIGENTES POR CATEGORÍA ---
+    # Detectar categoría principal para mostrar campos específicos
+    servs = draft.get('servicios_ofrecidos', [])
+    detalles = draft['detalles_categoria']
+    
+    if any(s in servs for s in ["GUIA", "GUIADO"]):
+        with st.expander("🎓 Detalles Especializados: GUÍA", expanded=True):
+            cg1, cg2 = st.columns(2)
+            detalles['idiomas'] = cg1.text_input("Idiomas que habla", value=detalles.get('idiomas', 'Español, Inglés'))
+            detalles['nro_carnet'] = cg2.text_input("N° Carnet GRL / Oficial", value=detalles.get('nro_carnet', ''))
+            detalles['especialidad'] = st.text_input("Especialidad (Aventura, Cultural, etc)", value=detalles.get('especialidad', ''))
+
+    if any(s in servs for s in ["ALOJAMIENTO", "HOTEL"]):
+        with st.expander("🏨 Detalles Especializados: HOTEL", expanded=True):
+            ch1, ch2, ch3 = st.columns(3)
+            detalles['estrellas'] = ch1.selectbox("Categoría", ["1*", "2*", "3*", "4*", "5*", "Boutique", "Hostal"], index=2)
+            detalles['check_in'] = ch2.text_input("Hora Check-In", value=detalles.get('check_in', '12:00 PM'))
+            detalles['desayuno'] = ch3.toggle("¿Incluye Desayuno?", value=detalles.get('desayuno', True))
+
+    if any(s in servs for s in ["TRANSPORTE"]):
+        with st.expander("🚐 Detalles Especializados: TRANSPORTE", expanded=True):
+            ct1, ct2, ct3 = st.columns(3)
+            detalles['vehiculo'] = ct1.text_input("Marca/Modelo", value=detalles.get('vehiculo', ''))
+            detalles['placa'] = ct2.text_input("Placa", value=detalles.get('placa', ''))
+            detalles['capacidad'] = ct3.number_input("Capacidad Pax", value=detalles.get('capacidad', 1), min_value=1)
+
+    # ═══════════════════════════════════════════════════════════════
+    # 4. ACCIONES DE GUARDADO
+    # ═══════════════════════════════════════════════════════════════
+    st.write("---")
+    draft['activo'] = st.toggle("Proveedor Activo", value=draft.get('activo', True))
+    
+    col_acc1, col_acc2 = st.columns(2)
+    
+    if col_acc1.button("💾 GUARDAR CAMBIOS", type="primary", use_container_width=True):
+        if not draft['nombre_comercial']:
+            st.error("Error: El nombre es obligatorio.")
+        else:
+            if st.session_state.prov_edit_id:
+                # MODO EDICION
+                exito, msg = prov_ctrl.actualizar_proveedor(
+                    st.session_state.prov_edit_id,
+                    draft['nombre_comercial'], draft['servicios_ofrecidos'],
+                    draft['contacto_telefono'], draft.get('pais', 'Perú'),
+                    draft['activo'], draft['ruc'], draft['email'],
+                    draft['persona_contacto'], draft['url_drive'],
+                    draft['cuentas_bancarias'], draft['puntos_operacion'],
+                    draft['detalles_categoria']
+                )
             else:
-                st.info("Sin pasajeros registrados.")
-        except Exception as e:
-            st.error(f"Error cargando pasajeros: {e}")
-
-    # Botón de envío a contabilidad
-    st.divider()
-    if st.session_state.get('last_loaded_id_venta'):
-        id_actual = st.session_state['last_loaded_id_venta']
-        if st.button("🚀 Enviar Reportes a Contabilidad", type="primary", use_container_width=True):
-            exito, msg = controller.finalizar_liquidacion_venta(id_actual)
+                # MODO REGISTRO
+                exito, msg = prov_ctrl.registrar_proveedor(
+                    draft['nombre_comercial'], draft['servicios_ofrecidos'],
+                    draft['contacto_telefono'], draft.get('pais', 'Perú'),
+                    draft['ruc'], draft['email'], draft['persona_contacto'],
+                    draft['url_drive'], draft['cuentas_bancarias'],
+                    draft['puntos_operacion'], draft['detalles_categoria']
+                )
+            
             if exito:
-                st.balloons()
                 st.success(msg)
+                st.balloons()
+                # Limpiar estado
+                st.session_state.prov_edit_id = None
+                st.session_state.prov_draft = {}
+                st.rerun()
             else:
                 st.error(msg)
 
-def render_directorio_proveedores(supabase_client):
-    """Módulo para el registro y gestión de proveedores logísticos."""
-    from controllers.proveedor_controller import ProveedorController
-    prov_ctrl = ProveedorController(supabase_client)
+    if col_acc2.button("🧹 LIMPIAR / CANCELAR", use_container_width=True):
+        st.session_state.prov_edit_id = None
+        st.session_state.prov_draft = {}
+        st.rerun()
 
-    st.subheader("🏢 Directorio de Proveedores Logísticos", divider="gray")
-    
     # ═══════════════════════════════════════════════════════════════
-    # 1. FORMULARIO DE REGISTRO
+    # 5. LISTADO GENERAL
     # ═══════════════════════════════════════════════════════════════
-    with st.expander("➕ Registrar Nuevo Proveedor", expanded=False):
-        with st.form("form_nuevo_proveedor"):
-            c1, c2 = st.columns(2)
-            
-            nombre = c1.text_input("Nombre Comercial / Razón Social*", placeholder="Ej: Transportes Cóndor")
-            contacto = c1.text_input("Teléfono de Contacto", placeholder="Ej: +51 987 654 321")
-            
-            pais = c2.text_input("País origen", value="Perú")
-            opciones_base = ["GUIA", "TRANSPORTE", "ALIMENTACION", "ALOJAMIENTO", "TICKETS", "ENDOSE", "AGENCIA", "OTROS"]
-            servicios = c2.multiselect(
-                "Servicios que ofrece",
-                opciones_base,
-                default=["ENDOSE"]
+    with st.expander("📜 Ver Directorio General Completo", expanded=False):
+        if not listado_prov:
+            st.info("Sin proveedores registrados.")
+        else:
+            df_view = pd.DataFrame(listado_prov)
+            # Limpiar servicios para vista
+            df_view['Servicios'] = df_view['servicios_ofrecidos'].apply(lambda x: ", ".join(x) if isinstance(x, list) else x)
+            st.dataframe(
+                df_view,
+                column_order=["nombre_comercial", "Servicios", "contacto_telefono", "ruc", "email", "activo"],
+                column_config={
+                    "nombre_comercial": "Proveedor",
+                    "contacto_telefono": "Teléfono",
+                    "ruc": "RUC",
+                    "email": "Email",
+                    "activo": st.column_config.CheckboxColumn("Activo")
+                },
+                use_container_width=True,
+                hide_index=True
             )
-            
-            st.caption("* Campos obligatorios")
-            
-            # --- NUEVO: OPCIÓN PARA CATEGORÍAS PERSONALIZADAS ---
-            custom_services = []
-            if "OTROS" in servicios:
-                otros_texto = c2.text_input("Especifique otros servicios (separados por coma)", placeholder="Ej: Vuelos, Entradas Especiales")
-                if otros_texto:
-                    custom_services = [s.strip().upper() for s in otros_texto.split(",") if s.strip()]
-
-            submit_prov = st.form_submit_button("🔨 Registrar Proveedor", use_container_width=True, type="primary")
-            
-            if submit_prov:
-                if not nombre:
-                    st.error("El nombre del proveedor es obligatorio.")
-                else:
-                    # Limpiar lista de servicios: quitar 'OTROS' y añadir personalizados
-                    servicios_finales = [s for s in servicios if s != "OTROS"]
-                    servicios_finales.extend(custom_services)
-                    # Quitar duplicados
-                    servicios_finales = list(set(servicios_finales))
-                    
-                    exito, msg = prov_ctrl.registrar_proveedor(nombre, servicios_finales, contacto, pais)
-                    if exito:
-                        st.success(msg)
-                        st.balloons()
-                        st.rerun()
-                    else:
-                        st.error(msg)
-
-    # ═══════════════════════════════════════════════════════════════
-    # 2. EDITOR DE PROVEEDORES (NUEVO)
-    # ═══════════════════════════════════════════════════════════════
-    st.write("### 🖋️ Editor / Actualización de Datos")
-    listado_prov = prov_ctrl.obtener_proveedores()
-    
-    if listado_prov:
-        mapa_nombres = {p['nombre_comercial']: p for p in listado_prov}
-        prov_sel_edit = st.selectbox("Seleccione el proveedor que desea modificar:", ["--- Seleccione ---"] + list(mapa_nombres.keys()))
-        
-        if prov_sel_edit != "--- Seleccione ---":
-            p_data = mapa_nombres[prov_sel_edit]
-            
-            with st.form("form_editar_proveedor"):
-                st.info(f"Editando: **{p_data['nombre_comercial']}** (ID: {p_data['id_proveedor']})")
-                col_e1, col_e2 = st.columns(2)
-                
-                new_nombre = col_e1.text_input("Nombre Comercial", value=p_data['nombre_comercial'])
-                new_contacto = col_e1.text_input("Contacto", value=p_data.get('contacto_telefono', '') or '')
-                
-                # Manejar servicios (lista) y hacer bullet-proof la enumeración
-                servicios_actuales = p_data.get('servicios_ofrecidos', [])
-                if not isinstance(servicios_actuales, list): servicios_actuales = []
-                
-                opciones_edit_base = ["GUIA", "TRANSPORTE", "ALIMENTACION", "ALOJAMIENTO", "TICKETS", "ENDOSE", "AGENCIA", "OTROS"]
-                # Añadir cualquier servicio heredado (legacy) a las opciones disponibles
-                opciones_dinamicas = list(set(opciones_edit_base + servicios_actuales))
-                # Ordenar para que OTROS quede al final (si es posible) o simplemente ordenar alfabéticamente
-                opciones_dinamicas.sort()
-                
-                new_servicios = col_e2.multiselect(
-                    "Servicios Actualizados",
-                    opciones_dinamicas,
-                    default=servicios_actuales
-                )
-                
-                new_pais = col_e2.text_input("País", value=p_data.get('pais', 'Perú'))
-                new_activo = col_e2.toggle("Proveedor Activo", value=p_data.get('activo', True), help="Desactiva esto para ocultar al proveedor en las listas de selección.")
-                
-                # --- NUEVO EN EDITOR: CATEGORÍAS PERSONALIZADAS ---
-                custom_services_edit = []
-                if "OTROS" in new_servicios:
-                    otros_texto_edit = col_e2.text_input("Especifique nuevos servicios (separados por coma)", key="edit_otros")
-                    if otros_texto_edit:
-                        custom_services_edit = [s.strip().upper() for s in otros_texto_edit.split(",") if s.strip()]
-
-                submit_edit = st.form_submit_button("✅ Guardar Cambios", use_container_width=True)
-                
-                if submit_edit:
-                    # Mezclar servicios
-                    servicios_finales_edit = [s for s in new_servicios if s != "OTROS"]
+s for s in new_servicios if s != "OTROS"]
                     servicios_finales_edit.extend(custom_services_edit)
                     servicios_finales_edit = list(set(servicios_finales_edit))
 
