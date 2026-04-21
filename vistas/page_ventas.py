@@ -940,11 +940,46 @@ def constructor_itinerarios():
                 else:
                     st.error(msg)
 
-def gestion_registros_multicanal():
-    st.subheader("📝 Registro de Nuevos Clientes")
-    registro_ventas_directa()
+def seguimiento_ventas_vendedor():
+    venta_controller = st.session_state.get('venta_controller')
+    if not venta_controller: st.error("Error de inicialización."); return
+    
+    st.subheader("📋 Mis Ventas y Seguimiento de Itinerarios")
+    st.info("Desde aquí puedes sincronizar cambios si modificaste el itinerario en el constructor.")
+    
+    # 1. Obtener ventas (Simplificado para el vendedor)
+    ventas = venta_controller.obtener_ventas_directas()
+    if not ventas:
+        st.info("No tienes ventas registradas para gestionar.")
+        return
+        
+    for v in ventas[:10]: # Mostrar las 10 más recientes
+        with st.container(border=True):
+            col1, col2, col3 = st.columns([3, 2, 2])
+            col1.markdown(f"👤 **{v['nombre_cliente']}**")
+            col1.caption(f"📅 {v['fecha_inicio']} | ID: {v['id_venta']}")
+            
+            # Botón de Sincronización
+            if col2.button("🔄 Sincronizar Itinerario", key=f"sync_v_{v['id_venta']}", help="Aplica los cambios realizados en el constructor a esta venta."):
+                exito, msg = venta_controller.sincronizar_venta_con_itinerario(v['id_venta'])
+                if exito: st.success(msg)
+                else: st.error(msg)
+            
+            # Link al itinerario digital si existe
+            if v.get('id_itinerario_digital'):
+                col3.link_button("🔗 Ver Diseño Cloud", f"https://itinerary-vcp.streamlit.app/?id={v['id_itinerario_digital']}", use_container_width=True)
 
-from controllers.itinerario_digital_controller import ItinerarioDigitalController
+def gestion_registros_multicanal():
+    tabs = st.tabs(["💰 Registrar Nueva Venta", "📋 Mis Ventas Activas", "📝 Registro de Leads"])
+    
+    with tabs[0]:
+        registro_ventas_directa()
+    
+    with tabs[1]:
+        seguimiento_ventas_vendedor()
+        
+    with tabs[2]:
+        formulario_registro_leads()
 
 def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual='Desconocido', user_id=None): 
     import controllers.lead_controller
@@ -953,13 +988,12 @@ def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual=
     import models.venta_model
     import importlib
     
-    # Forzar recarga de módulos para captar cambios en clases (Modelos y Controladores)
+    # Forzar recarga de módulos
     importlib.reload(models.venta_model)
     importlib.reload(controllers.lead_controller)
     importlib.reload(controllers.venta_controller)
     importlib.reload(controllers.itinerario_digital_controller)
     
-    # Re-instanciar para asegurar que tengan los nuevos métodos
     st.session_state.lead_controller = controllers.lead_controller.LeadController(supabase_client)
     st.session_state.venta_controller = controllers.venta_controller.VentaController(supabase_client)
     st.session_state.itinerario_digital_controller = controllers.itinerario_digital_controller.ItinerarioDigitalController(supabase_client)
@@ -974,4 +1008,7 @@ def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual=
 
     if funcionalidad_seleccionada in ["Gestión de Registros", "Registro de Ventas (CRM)"]:
         gestion_registros_multicanal()
+    elif funcionalidad_seleccionada == "Constructor Itinerarios":
+        constructor_itinerarios()
+
 

@@ -1316,6 +1316,24 @@ def dashboard_simulador_costos(controller):
         except Exception as e:
             st.error(f"Error cargando pasajeros: {e}")
 
+    # Botón de sincronización con Itinerario Digital
+    st.divider()
+    if st.session_state.get('last_loaded_id_venta'):
+        id_actual = st.session_state['last_loaded_id_venta']
+        
+        c_sync1, c_sync2, c_sync3 = st.columns([1, 2, 1])
+        with c_sync2:
+            st.warning("⚠️ **Sincronización:** Si el vendedor cambió el itinerario, presione este botón para actualizar la logística.")
+            if st.button("🔄 Sincronizar Logística con Itinerario Cloud", use_container_width=True, help="Refresca los días y nombres de tours basándose en el diseño más reciente del vendedor."):
+                # Necesitamos llamar al método desde venta_controller
+                vc_temp = VentaController(supabase_client)
+                exito_s, msg_s = vc_temp.sincronizar_venta_con_itinerario(id_actual)
+                if exito_s:
+                    st.success(msg_s)
+                    st.rerun()
+                else:
+                    st.error(msg_s)
+
     # Botón de envío a contabilidad (Liquidación Final)
     st.divider()
     if st.session_state.get('last_loaded_id_venta'):
