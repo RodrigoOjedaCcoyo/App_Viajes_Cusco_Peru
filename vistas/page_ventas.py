@@ -965,12 +965,19 @@ def seguimiento_ventas_vendedor():
                 if exito: st.success(msg)
                 else: st.error(msg)
             
-            # Link al itinerario digital si existe (Abrir PDF directamente)
-            res_it = venta_controller.client.table('itinerario_digital').select('url_pdf').eq('id_itinerario_digital', v['id_itinerario_digital']).single().execute()
-            if res_it.data and res_it.data.get('url_pdf'):
-                col3.link_button("📄 Ver PDF Cloud", res_it.data.get('url_pdf'), use_container_width=True)
+            # Link al itinerario digital si existe (Carga robusta para evitar error de columna inexistente)
+            res_it = venta_controller.client.table('itinerario_digital').select('*').eq('id_itinerario_digital', v['id_itinerario_digital']).single().execute()
+            if res_it.data:
+                # Prioridad 1: Columna real (si existiera en el futuro)
+                # Prioridad 2: Dentro de datos_render (donde suele guardarse el backup)
+                pdf_link = res_it.data.get('url_pdf') or res_it.data.get('datos_render', {}).get('url_pdf')
+                
+                if pdf_link:
+                    col3.link_button("📄 Ver PDF Cloud", pdf_link, use_container_width=True)
+                else:
+                    col3.caption("🚫 Sin PDF")
             else:
-                col3.caption("🚫 Sin PDF")
+                col3.caption("🚫 No encontrado")
 
 def gestion_registros_multicanal():
     tabs = st.tabs(["💰 Registrar Nueva Venta", "📋 Mis Ventas Activas"])
