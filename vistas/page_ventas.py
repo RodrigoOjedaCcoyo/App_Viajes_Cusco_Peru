@@ -965,21 +965,21 @@ def seguimiento_ventas_vendedor():
                 if exito: st.success(msg)
                 else: st.error(msg)
             
-            # Link al itinerario digital si existe
-            if v.get('id_itinerario_digital'):
-                col3.link_button("🔗 Ver Diseño Cloud", f"https://itinerary-vcp.streamlit.app/?id={v['id_itinerario_digital']}", use_container_width=True)
+            # Link al itinerario digital si existe (Abrir PDF directamente)
+            res_it = venta_controller.client.table('itinerario_digital').select('url_pdf').eq('id_itinerario_digital', v['id_itinerario_digital']).single().execute()
+            if res_it.data and res_it.data.get('url_pdf'):
+                col3.link_button("📄 Ver PDF Cloud", res_it.data.get('url_pdf'), use_container_width=True)
+            else:
+                col3.caption("🚫 Sin PDF")
 
 def gestion_registros_multicanal():
-    tabs = st.tabs(["💰 Registrar Nueva Venta", "📋 Mis Ventas Activas", "📝 Registro de Leads"])
+    tabs = st.tabs(["💰 Registrar Nueva Venta", "📋 Mis Ventas Activas"])
     
     with tabs[0]:
         registro_ventas_directa()
     
     with tabs[1]:
         seguimiento_ventas_vendedor()
-        
-    with tabs[2]:
-        formulario_registro_leads()
 
 def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual='Desconocido', user_id=None): 
     import controllers.lead_controller
