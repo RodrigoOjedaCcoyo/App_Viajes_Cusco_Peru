@@ -1316,6 +1316,60 @@ def dashboard_simulador_costos(controller):
         except Exception as e:
             st.error(f"Error cargando pasajeros: {e}")
 
+    # --- NUEVO: EDITOR DE LOGÍSTICA DIRECTO (MODO MANUAL) ---
+    st.divider()
+    with st.expander("🛠️ Edición Manual de Itinerario (Añadir/Quitar Días)", expanded=False):
+        st.markdown("### ➕ Añadir Servicio Manual")
+        c_add1, c_add2, c_add3 = st.columns([2, 1, 1])
+        
+        # Obtener catálogo de tours
+        res_tours = controller.client.table('tour').select('id_tour, nombre').order('nombre').execute()
+        mapa_tours = {t['nombre']: t['id_tour'] for t in (res_tours.data or [])}
+        tour_nom_sel = c_add1.selectbox("Seleccione Tour del Catálogo:", list(mapa_tours.keys()), key="tm_sel")
+        
+        # Fecha por defecto basada en la venta
+        id_actual = st.session_state.get('last_loaded_id_venta')
+        res_v_f = controller.client.table('venta').select('fecha_inicio').eq('id_venta', id_actual).single().execute()
+        f_def = pd.to_datetime(res_v_f.data.get('fecha_inicio')).date() if res_v_f.data else date.today()
+        
+        f_serv_manual = c_add2.date_input("Fecha:", value=f_def, key="fm_sel")
+        cant_manual = c_add3.number_input("Cant. Pax:", min_value=1, value=1, key="cm_sel")
+        
+        obs_manual = st.text_input("Observación / Nombre Personalizado:", value=tour_nom_sel, key="om_sel")
+        
+        if st.button("🚀 Añadir a la Logística", use_container_width=True, type="secondary"):
+            vc_temp = VentaController(supabase_client)
+            exito_a, msg_a = vc_temp.agregar_servicio_operativo(
+                id_venta=id_actual,
+                id_tour=mapa_tours[tour_nom_sel],
+                fecha=f_serv_manual.isoformat(),
+                observacion=obs_manual,
+                cantidad=cant_manual
+            )
+            if exito_a:
+                st.success(msg_a)
+                st.rerun()
+            else:
+                st.error(msg_a)
+
+        st.markdown("---")
+        st.markdown("### 🗑️ Gestión de Días Existentes")
+        servicios_v = vc.obtener_detalles_itinerario_venta(id_actual)
+        if servicios_v:
+            for s in servicios_v:
+                col_i, col_d = st.columns([5, 1])
+                col_i.markdown(f"**Día {s['n_linea']}:** {s['observacion']} ({s['fecha_servicio']})")
+                if col_d.button("🗑️", key=f"del_s_{s['n_linea']}", help="Borrar este día de la logística"):
+                    vc_temp = VentaController(supabase_client)
+                    exito_d, msg_d = vc_temp.eliminar_servicio_operativo(id_actual, s['n_linea'])
+                    if exito_d:
+                        st.toast(msg_d)
+                        st.rerun()
+                    else:
+                        st.error(msg_d)
+        else:
+            st.info("No hay servicios registrados en la logística actual.")
+
     # Botón de sincronización con Itinerario Digital
     st.divider()
     if st.session_state.get('last_loaded_id_venta'):

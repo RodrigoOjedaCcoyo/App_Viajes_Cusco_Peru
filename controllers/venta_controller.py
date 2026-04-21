@@ -215,8 +215,8 @@ class VentaController:
         import json
         from datetime import datetime, timedelta
         try:
-            # 1. Obtener datos de la Venta actual
-            res_v = self.client.table('venta').select('id_itinerario_digital, monto_total, num_pasajeros, fecha_inicio, tour_nombre, id_paquete').eq('id_venta', id_venta).single().execute()
+            # 1. Obtener datos de la Venta actual (CORRECCIÓN: precio_total_cierre en lugar de monto_total)
+            res_v = self.client.table('venta').select('id_itinerario_digital, precio_total_cierre, num_pasajeros, fecha_inicio, tour_nombre, id_paquete').eq('id_venta', id_venta).single().execute()
             venta = res_v.data
             if not venta or not venta.get('id_itinerario_digital'):
                 return False, "Esta venta no tiene un itinerario digital vinculado."
@@ -239,7 +239,7 @@ class VentaController:
             # 3. Datos base para los servicios
             f_inicio = datetime.strptime(venta['fecha_inicio'], "%Y-%m-%d").date() if isinstance(venta['fecha_inicio'], str) else venta['fecha_inicio']
             num_pax = venta.get('num_pasajeros') or 1
-            monto_total_v = float(venta.get('monto_total') or 0)
+            monto_total_v = float(venta.get('precio_total_cierre') or 0)
             precio_dia = monto_total_v / len(itin_detalles) if len(itin_detalles) > 0 else 0
 
             # 4. Obtener registros existentes en venta_tour
@@ -283,7 +283,6 @@ class VentaController:
                     self.client.table('venta_tour').insert(payload).execute()
 
             # 6. ELIMINAR líneas excedentes (si el nuevo itinerario es más corto)
-            # Esto disparará el ON DELETE CASCADE en venta_servicio_proveedor
             lineas_a_borrar = lineas_actuales - lineas_procesadas
             if lineas_a_borrar:
                 self.client.table('venta_tour').delete().eq('id_venta', id_venta).in_('n_linea', list(lineas_a_borrar)).execute()
@@ -292,6 +291,40 @@ class VentaController:
             
         except Exception as e:
             return False, f"Error durante la sincronización: {str(e)}"
+
+    def agregar_servicio_operativo(self, id_venta: int, id_tour: int, fecha: str, observacion: str, cantidad: int = 1) -> tuple[bool, str]:
+        """Añade un servicio manualmente a la logística de una venta."""
+        try:
+            # 1. Calcular n_linea (el máximo + 1)
+            res_max = self.client.table('venta_tour').select('n_linea').eq('id_venta', id_venta).order('n_linea', desc=True).limit(1).execute()
+            next_line = (res_max.data[0]['n_linea'] + 1) if res_max.data else 1
+            
+            # 2. Preparar datos
+            payload = {
+                "id_venta": id_venta,
+                "n_linea": next_line,
+                "id_tour": id_tour,
+                "fecha_servicio": fecha,
+                "observacion": observacion,
+                "cantidad": cantidad,
+                "precio_applied": 0, # Se puede ajustar luego
+                "precio_vendedor": 0
+            }
+            
+            # 3. Insertar
+            self.client.table('venta_tour').insert(payload).execute()
+            return True, f"Servicio '{observacion}' añadido correctamente al Día {next_line}."
+            
+        except Exception as e:
+            return False, f"Error al añadir servicio: {e}"
+
+    def eliminar_servicio_operativo(self, id_venta: int, n_linea: int) -> tuple[bool, str]:
+        """Elimina un servicio específico de la logística."""
+        try:
+            res = self.client.table('venta_tour').delete().eq('id_venta', id_venta).eq('n_linea', n_linea).execute()
+            return True, f"Día {n_linea} eliminado de la logística."
+        except Exception as e:
+            return False, f"Error al eliminar servicio: {e}"
 
 
     def obtener_todas_ventas_b2b(self) -> list:
