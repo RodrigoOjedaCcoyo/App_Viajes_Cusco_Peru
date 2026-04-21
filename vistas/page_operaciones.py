@@ -1419,10 +1419,11 @@ def render_directorio_proveedores(supabase_client):
     # --- BLOQUE B: CUENTAS BANCARIAS (DINÁMICO) ---
     with st.expander(f"💳 Información de Pagos ({len(draft['cuentas_bancarias'])} cuentas)", expanded=False):
         for idx, cuenta in enumerate(draft['cuentas_bancarias']):
-            colb1, colb2, colb3, colb_del = st.columns([1.5, 1.5, 2, 0.5])
+            colb1, colb2, colb3, colb4, colb_del = st.columns([1, 1, 1.5, 2, 0.5])
             cuenta['banco'] = colb1.text_input(f"Banco", value=cuenta.get('banco', ''), key=f"bnk_{idx}")
             cuenta['moneda'] = colb2.selectbox(f"Moneda", ["PEN", "USD"], index=0 if cuenta.get('moneda')=="PEN" else 1, key=f"mon_{idx}")
-            cuenta['nro'] = colb3.text_input(f"Cuenta / CCI", value=cuenta.get('nro', ''), key=f"nro_{idx}")
+            cuenta['nro'] = colb3.text_input(f"N° Cuenta", value=cuenta.get('nro', ''), key=f"nro_{idx}")
+            cuenta['cci'] = colb4.text_input(f"CCI (20 dígitos)", value=cuenta.get('cci', ''), key=f"cci_{idx}")
             if colb_del.button("❌", key=f"del_bnk_{idx}"):
                 draft['cuentas_bancarias'].pop(idx)
                 st.rerun()
