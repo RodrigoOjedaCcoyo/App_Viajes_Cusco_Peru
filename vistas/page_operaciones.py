@@ -1546,25 +1546,7 @@ def render_directorio_proveedores(supabase_client):
                 use_container_width=True,
                 hide_index=True
             )
-s for s in new_servicios if s != "OTROS"]
-                    servicios_finales_edit.extend(custom_services_edit)
-                    servicios_finales_edit = list(set(servicios_finales_edit))
 
-                    exito_e, msg_e = prov_ctrl.actualizar_proveedor(
-                        p_data['id_proveedor'], 
-                        new_nombre, 
-                        servicios_finales_edit, 
-                        new_contacto, 
-                        new_pais, 
-                        new_activo
-                    )
-                    if exito_e:
-                        st.success(msg_e)
-                        st.rerun()
-                    else:
-                        st.error(msg_e)
-
-    st.divider()
 
     # ═══════════════════════════════════════════════════════════════
     # 3. TABLA DE PROVEEDORES EXISTENTES
