@@ -1299,7 +1299,36 @@ def dashboard_simulador_costos(controller):
         st.markdown("### 👥 Resumen de Pasajeros (Rooming)")
         try:
             pax_data = controller.pasajero_model.get_by_venta_id(id_actual)
-         def render_directorio_proveedores(supabase_client):
+            if pax_data:
+                df_pax_res = pd.DataFrame(pax_data)
+                cols_pax = ['nombre_completo', 'nacionalidad', 'numero_documento', 'es_principal']
+                st.table(df_pax_res[cols_pax])
+
+                with st.expander("🚨 Zona de Peligro: Limpieza de Pasajeros"):
+                    st.warning("Se borrarán todos los pasajeros de esta venta.")
+                    confirm_pax = st.checkbox("Confirmar borrado de pasajeros", key="reset_pax_confirm")
+                    if st.button("🗑️ Borrar Lista de Pasajeros", type="primary", disabled=not confirm_pax, use_container_width=True):
+                        exito_p, msg_p = controller.borrar_pasajeros_venta(id_actual)
+                        if exito_p: st.success(msg_p); st.rerun()
+                        else: st.error(msg_p)
+            else:
+                st.info("Sin pasajeros registrados.")
+        except Exception as e:
+            st.error(f"Error cargando pasajeros: {e}")
+
+    # Botón de envío a contabilidad
+    st.divider()
+    if st.session_state.get('last_loaded_id_venta'):
+        id_actual = st.session_state['last_loaded_id_venta']
+        if st.button("🚀 Enviar Reportes a Contabilidad", type="primary", use_container_width=True):
+            exito, msg = controller.finalizar_liquidacion_venta(id_actual)
+            if exito:
+                st.balloons()
+                st.success(msg)
+            else:
+                st.error(msg)
+
+def render_directorio_proveedores(supabase_client):
     """Módulo profesional para la gestión de proveedores con soporte JSONB dinámico."""
     from controllers.proveedor_controller import ProveedorController
     import json
