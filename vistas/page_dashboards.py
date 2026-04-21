@@ -127,7 +127,7 @@ def render_sales_dashboard_visual(supabase_client):
     # Mostrar directamente sólo la gráfica de la "culebrita".
     
     # --- CREACIÓN DE PESTAÑAS (TABS) ---
-    tab_metricas, tab_calendario = st.tabs(["📊 Métricas Clave", "🗓️ Calendario Operativo"])
+    tab_metricas, tab_calendario, tab_ventas = st.tabs(["📊 Métricas Clave", "🗓️ Calendario Operativo", "📋 Historial de Ventas"])
     
     with tab_metricas:
         # Llamar al renderizador de objetivos visuales (Gauge Chart)
@@ -141,6 +141,55 @@ def render_sales_dashboard_visual(supabase_client):
         
         ctrl_ops = OperacionesController(supabase_client)
         dashboard_tablero_diario(ctrl_ops)
+
+    with tab_ventas:
+        st.write("### 📜 Registro Consolidado de Ventas")
+        st.caption("Visualización de las ventas más recientes (B2C y B2B).")
+        
+        # 1. Obtener Ventas B2C
+        ventas_b2c = venta_ctrl.obtener_ventas_directas() or []
+        # 2. Obtener Ventas B2B
+        ventas_b2b = venta_ctrl.obtener_todas_ventas_b2b() or []
+        
+        # 3. Consolidar
+        all_ventas = []
+        for v in ventas_b2c:
+            v['tipo'] = '🏠 DIRECTA (B2C)'
+            v['entidad'] = v.get('nombre_cliente', 'Desconocido')
+            all_ventas.append(v)
+            
+        for v in ventas_b2b:
+            v['tipo'] = '🤝 AGENCIA (B2B)'
+            v['entidad'] = f"{v.get('nombre_agencia', '---')} / Pax: {v.get('nombre_cliente', '---')}"
+            all_ventas.append(v)
+            
+        if not all_ventas:
+            st.info("No hay ventas registradas para mostrar.")
+        else:
+            df_all = pd.DataFrame(all_ventas)
+            # Ordenar por fecha_venta descendente
+            if 'fecha_venta' in df_all.columns:
+                df_all['fecha_venta'] = pd.to_datetime(df_all['fecha_venta'])
+                df_all = df_all.sort_values(by='fecha_venta', ascending=False)
+            
+            # Limpieza de columnas para visualización
+            cols_show = ['fecha_venta', 'tipo', 'entidad', 'tour_nombre', 'precio_total_cierre', 'moneda', 'estado_pago']
+            
+            st.dataframe(
+                df_all,
+                column_order=cols_show,
+                column_config={
+                    "fecha_venta": st.column_config.DateColumn("🗓️ Fecha"),
+                    "tipo": "🏷️ Tipo",
+                    "entidad": "👤 Cliente / Agencia",
+                    "tour_nombre": "🚙 Tour / Paquete",
+                    "precio_total_cierre": st.column_config.NumberColumn("💰 Total", format="%.2f"),
+                    "moneda": "💱",
+                    "estado_pago": "🏦 Estado"
+                },
+                use_container_width=True,
+                hide_index=True
+            )
 
 def render_ops_dashboard_visual(supabase_client):
     """Vista visual para Operaciones con Tablero Diario."""
