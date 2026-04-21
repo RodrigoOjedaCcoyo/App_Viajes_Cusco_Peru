@@ -1316,17 +1316,24 @@ def dashboard_simulador_costos(controller):
         except Exception as e:
             st.error(f"Error cargando pasajeros: {e}")
 
-    # Botón de envío a contabilidad
+    # Botón de envío a contabilidad (Liquidación Final)
     st.divider()
     if st.session_state.get('last_loaded_id_venta'):
         id_actual = st.session_state['last_loaded_id_venta']
-        if st.button("🚀 Enviar Reportes a Contabilidad", type="primary", use_container_width=True):
-            exito, msg = controller.finalizar_liquidacion_venta(id_actual)
-            if exito:
-                st.balloons()
-                st.success(msg)
-            else:
-                st.error(msg)
+        
+        c_arch_btn1, c_arch_btn2, c_arch_btn3 = st.columns([1, 2, 1])
+        with c_arch_btn2:
+            if st.button("📥 Liquidar y Archivar Expediente", type="primary", use_container_width=True, help="Finaliza el viaje, confirma todos los costos y oculta al pasajero de las listas activas."):
+                exito, msg = controller.finalizar_liquidacion_venta(id_actual)
+                if exito:
+                    st.balloons()
+                    st.success("✅ ¡Expediente Cerrado! El pasajero ha sido movido al historial y contabilidad.")
+                    # Limpiar sesión para forzar refresco a una vista limpia
+                    st.session_state['last_loaded_id_venta'] = None
+                    st.session_state['simulador_adv_data'] = []
+                    st.rerun()
+                else:
+                    st.error(msg)
 
 def render_directorio_proveedores(supabase_client):
     """Módulo profesional para la gestión de proveedores con soporte JSONB dinámico."""

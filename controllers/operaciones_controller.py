@@ -121,6 +121,10 @@ class OperacionesController:
             resultado = []
             for s in servicios_data:
                 v = ventas_map.get(s['id_venta'], {})
+                # NUEVO: Ignorar servicios de ventas ya archivadas/finalizadas
+                if v.get('estado_venta') == 'FINALIZADO':
+                    continue
+                
                 id_cliente = v.get('id_cliente')
                 nombre_cliente = clientes_map.get(id_cliente, "Desconocido")
                 
@@ -202,6 +206,10 @@ class OperacionesController:
             for s in servicios_data:
                 try:
                     v = ventas_map.get(s['id_venta'], {})
+                    # NUEVO: Ignorar servicios de ventas ya archivadas/finalizadas
+                    if v.get('estado_venta') == 'FINALIZADO':
+                        continue
+                        
                     id_cliente = v.get('id_cliente')
                     nombre_cliente = clientes_map.get(id_cliente, "Desconocido")
                     nombre_tour = s.get('observacion') or v.get('tour_nombre') or "Tour Desconocido"
@@ -404,15 +412,26 @@ class OperacionesController:
 
     def finalizar_liquidacion_venta(self, id_venta: int):
         """
-        Marca la liquidación de la venta como FINALIZADA en la DB.
+        Cierra definitivamente la venta:
+        1. Marca la liquidación como FINALIZADA.
+        2. Archiva la venta (estado_venta = FINALIZADO).
+        3. Confirma todos los servicios operativos (terminado = True).
         """
         try:
-            res = self.client.table('venta').update({"estado_liquidacion": "FINALIZADO"}).eq('id_venta', id_venta).execute()
-            if res.data:
-                return True, "Liquidación enviada a Contabilidad correctamente."
-            return False, "No se pudo actualizar el estado de la venta."
+            # 1. Actualizar estados de la Venta
+            self.client.table('venta').update({
+                "estado_liquidacion": "FINALIZADO",
+                "estado_venta": "FINALIZADO"
+            }).eq('id_venta', id_venta).execute()
+
+            # 2. Confirmar todos los servicios operativos (Auto-Check OK)
+            self.client.table('venta_servicio_proveedor').update({
+                "terminado": True
+            }).eq('id_venta', id_venta).execute()
+
+            return True, "Expediente liquidado y archivado correctamente."
         except Exception as e:
-            return False, f"Error al finalizar liquidación: {e}"
+            return False, f"Error al procesar el cierre del expediente: {e}"
 
     def get_liquidaciones_venta(self, id_venta: int):
         """
@@ -533,15 +552,22 @@ class OperacionesController:
             if id_ventas_unicas:
                 res_clientes = (
                     self.client.table('venta')
-                    .select('id_venta, cliente(nombre)')
+                    .select('id_venta, estado_venta, cliente(nombre)')
                     .in_('id_venta', list(id_ventas_unicas))
+                    .neq('estado_venta', 'FINALIZADO')
                     .execute()
                 )
                 if res_clientes.data:
+                    ids_activas = set()
                     for v in res_clientes.data:
+                        ids_activas.add(v['id_venta'])
                         c = v.get('cliente') or {}
                         if isinstance(c, list): c = c[0] if c else {}
                         cliente_nombres[v['id_venta']] = c.get('nombre', 'Cliente Desconocido')
+                    
+                    # Filtrar tours_dict para que solo queden las activas
+                    tours_dict = {k: v for k, v in tours_dict.items() if v['id_venta'] in ids_activas}
+                    id_ventas_unicas = ids_activas
             
             # --- 3. OBTENER SERVICIOS ASIGNADOS (Con proveedores) ---
             res_vsp = (

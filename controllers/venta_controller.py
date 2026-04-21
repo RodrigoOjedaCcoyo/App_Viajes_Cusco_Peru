@@ -166,7 +166,10 @@ class VentaController:
         """Obtiene las ventas vinculadas a una agencia aliada específica con nombre de cliente."""
         try:
             # Join con cliente para obtener el nombre - Excluir finalizadas
-            res = self.client.table('venta').select('*, cliente(nombre)').eq('id_agencia_aliada', id_agencia).order('fecha_venta', desc=True).execute()
+            res = self.client.table('venta').select('*, cliente(nombre)')\
+                .eq('id_agencia_aliada', id_agencia)\
+                .neq('estado_venta', 'FINALIZADO')\
+                .order('fecha_venta', desc=True).execute()
             
             # Aplanar el resultado para que 'nombre_cliente' esté al primer nivel
             data = []
@@ -182,7 +185,10 @@ class VentaController:
         """Obtiene las ventas directas (B2C) que NO tienen agencia aliada."""
         try:
             # Join con cliente - Excluir finalizadas
-            res = self.client.table('venta').select('*, cliente(nombre)').is_('id_agencia_aliada', 'null').order('fecha_venta', desc=True).execute()
+            res = self.client.table('venta').select('*, cliente(nombre)')\
+                .is_('id_agencia_aliada', 'null')\
+                .neq('estado_venta', 'FINALIZADO')\
+                .order('fecha_venta', desc=True).execute()
             
             data = []
             for v in (res.data or []):

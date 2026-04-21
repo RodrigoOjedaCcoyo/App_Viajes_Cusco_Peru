@@ -411,19 +411,26 @@ def estructurador_liquidacion_pro(controller):
                         moneda_liq   = (liq.get('moneda') or 'PEN').strip().upper()
                         # Convertir a PEN si es USD
                         costo_en_pen = round(costo_liq * tc_venta, 4) if moneda_liq == 'USD' else costo_liq
-                        mapa_costos_pen[nl] = mapa_costos_pen.get(nl, 0.0) + costo_en_pen
+                        
+                        # NUEVO: Guardar taveitn de estado para la vista
+                        if nl not in mapa_costos_pen:
+                            mapa_costos_pen[nl] = {"total": 0.0, "confirmados": 0.0, "vistos": 0}
+                        
+                        mapa_costos_pen[nl]["total"] += costo_en_pen
+                        if liq.get('terminado'):
+                            mapa_costos_pen[nl]["confirmados"] += costo_en_pen
+                        mapa_costos_pen[nl]["vistos"] += 1
 
                 filas = []
                 for d in (detalles or []):
-                    # El mapa ya tiene todo en PEN → se muestra directamente
-                    costo_pen = round(
-                        mapa_costos_pen.get(d['n_linea'],
-                                           float(d.get('costo_applied') or 0.0)),
-                        2
-                    )
+                    info_nl = mapa_costos_pen.get(d['n_linea'], {"total": 0.0, "confirmados": 0.0, "vistos": 0})
+                    costo_pen = round(info_nl["total"], 2)
+                    estado_op = "✅ OK" if info_nl["confirmados"] >= info_nl["total"] and info_nl["vistos"] > 0 else "🔴 PEND"
+                    
                     filas.append({
                         "FECHA"    : date.fromisoformat(d['fecha_servicio']),
                         "HORA"     : d.get('hora_inicio', '--:--'),
+                        "ESTADO"   : estado_op,
                         "SERVICIO" : d.get('observacion') or "Servicio",
                         "PAX"      : d.get('cantidad', 1),
                         "COSTO_PEN": costo_pen,
@@ -489,13 +496,14 @@ def estructurador_liquidacion_pro(controller):
     col_costo = 'COSTO_PEN' if 'COSTO_PEN' in df.columns else ('TOTAL_PEN' if 'TOTAL_PEN' in df.columns else 'TOTAL')
 
     # Vista de solo lectura unificada en S/.
-    cols_orden = [c for c in ("FECHA", "HORA", "SERVICIO", "PAX", col_costo) if c in df.columns]
+    cols_orden = [c for c in ("FECHA", "HORA", "ESTADO", "SERVICIO", "PAX", col_costo) if c in df.columns]
     st.dataframe(
         df,
         column_order=cols_orden,
         column_config={
             "FECHA"    : st.column_config.DateColumn("Fecha", format="DD/MM/YYYY"),
             "HORA"     : st.column_config.TextColumn("Hora", width="small"),
+            "ESTADO"   : st.column_config.TextColumn("Conf. Op", width="small"),
             "SERVICIO" : st.column_config.TextColumn("Servicio", width="large"),
             "PAX"      : st.column_config.NumberColumn("Pax", format="%d"),
             "COSTO_PEN": st.column_config.NumberColumn("Costo (S/.)", format="S/ %.2f"),

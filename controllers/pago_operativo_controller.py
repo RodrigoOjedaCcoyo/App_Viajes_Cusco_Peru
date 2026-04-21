@@ -67,6 +67,7 @@ class PagoOperativoController:
             # Incluimos id_venta y n_linea para usarlos de llave en la vinculación de pagos
             res_costos = self.client.table('venta_servicio_proveedor')\
                 .select('id_venta, n_linea, id_proveedor, costo_unitario, cantidad_pax, moneda, proveedor(nombre_comercial)')\
+                .eq('terminado', True)\
                 .execute()
             
             # 2. Obtener todos los pagos realizados (Lo que amortizamos)
