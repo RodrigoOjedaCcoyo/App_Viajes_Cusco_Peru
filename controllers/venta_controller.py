@@ -326,6 +326,14 @@ class VentaController:
         except Exception as e:
             return False, f"Error al eliminar servicio: {e}"
 
+    def actualizar_servicio_operativo(self, id_venta: int, n_linea: int, update_data: dict) -> tuple[bool, str]:
+        """Actualiza los datos de un servicio existente."""
+        try:
+            res = self.client.table('venta_tour').update(update_data).eq('id_venta', id_venta).eq('n_linea', n_linea).execute()
+            return True, f"Día {n_linea} actualizado correctamente."
+        except Exception as e:
+            return False, f"Error al actualizar servicio: {e}"
+
 
     def obtener_todas_ventas_b2b(self) -> list:
         """Obtiene todas las ventas registradas vía agencias aliadas para el dashboard global."""

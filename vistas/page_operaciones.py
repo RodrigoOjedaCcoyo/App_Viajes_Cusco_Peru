@@ -1353,20 +1353,39 @@ def dashboard_simulador_costos(controller):
                 st.error(msg_a)
 
         st.markdown("---")
-        st.markdown("### 🗑️ Gestión de Días Existentes")
+        st.markdown("### 📝 Gestión y Edición de Días")
         servicios_v = vc.obtener_detalles_itinerario_venta(id_actual)
         if servicios_v:
             for s in servicios_v:
-                col_i, col_d = st.columns([5, 1])
-                col_i.markdown(f"**Día {s['n_linea']}:** {s['observacion']} ({s['fecha_servicio']})")
-                if col_d.button("🗑️", key=f"del_s_{s['n_linea']}", help="Borrar este día de la logística"):
-                    vc_temp = VentaController(supabase_client)
-                    exito_d, msg_d = vc_temp.eliminar_servicio_operativo(id_actual, s['n_linea'])
-                    if exito_d:
-                        st.toast(msg_d)
-                        st.rerun()
-                    else:
-                        st.error(msg_d)
+                with st.expander(f"Día {s['n_linea']}: {s['observacion']} ({s['fecha_servicio']})", expanded=False):
+                    c_ed1, c_ed2 = st.columns([3, 1])
+                    
+                    # Formulario de edición para este día específico
+                    new_obs = c_ed1.text_input("Cambiar Nombre:", value=s['observacion'], key=f"obs_ed_{s['n_linea']}")
+                    new_fecha = c_ed2.date_input("Cambiar Fecha:", value=pd.to_datetime(s['fecha_servicio']).date(), key=f"f_ed_{s['n_linea']}")
+                    
+                    c_btn1, c_btn2, c_btn3 = st.columns([1, 1, 1])
+                    if c_btn1.button("💾 Guardar Cambios", key=f"save_ed_{s['n_linea']}", use_container_width=True, type="primary"):
+                        vc_temp = VentaController(supabase_client)
+                        exito_e, msg_e = vc_temp.actualizar_servicio_operativo(
+                            id_venta=id_actual, 
+                            n_linea=s['n_linea'],
+                            update_data={"observacion": new_obs, "fecha_servicio": new_fecha.isoformat()}
+                        )
+                        if exito_e:
+                            st.success(msg_e)
+                            st.rerun()
+                        else:
+                            st.error(msg_e)
+                            
+                    if c_btn3.button("🗑️ Eliminar Día", key=f"del_s_{s['n_linea']}", use_container_width=True):
+                        vc_temp = VentaController(supabase_client)
+                        exito_d, msg_d = vc_temp.eliminar_servicio_operativo(id_actual, s['n_linea'])
+                        if exito_d:
+                            st.success(msg_d)
+                            st.rerun()
+                        else:
+                            st.error(msg_d)
         else:
             st.info("No hay servicios registrados en la logística actual.")
 
