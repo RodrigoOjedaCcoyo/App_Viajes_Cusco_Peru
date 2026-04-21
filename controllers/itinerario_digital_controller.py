@@ -90,7 +90,7 @@ class ItinerarioDigitalController:
         """Retorna lista de itinerarios del lead."""
         return self.itinerario_model.obtener_todos_por_lead(id_lead)
 
-    def obtener_todos_recientes(self, limit: int = 50) -> list:
+    def obtener_todos_recientes(self, limit: int = 200) -> list:
         """Retorna los últimos N itinerarios generados con info de contacto del lead."""
         try:
             res = self.client.table('itinerario_digital').select('id_itinerario_digital, id_lead, nombre_pasajero_itinerario, fecha_generacion, datos_render, lead(numero_celular, estrategia_venta)').order('fecha_generacion', desc=True).limit(limit).execute()

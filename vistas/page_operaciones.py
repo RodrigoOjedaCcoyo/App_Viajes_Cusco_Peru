@@ -386,8 +386,12 @@ def registro_ventas_proveedores(supabase_client):
     # ═══════════════════════════════════════════════════════════════
     # 1️⃣ SELECTOR DE ITINERARIO (Diseño Cloud)
     # ═══════════════════════════════════════════════════════════════
+    # Aumentamos límite para B2B y añadimos buscador local
+    c_it_1, c_it_2 = st.columns([2, 1])
+    search_itin = c_it_2.text_input("🔍 Buscar por Nombre de Pasajero:", placeholder="Escriba para filtrar...", key="search_itin_b2b").strip().lower()
+    
     # Mostrar itinerarios recientes de forma global para B2B
-    itinerarios_recuperados = it_controller.obtener_todos_recientes(limit=50)
+    itinerarios_recuperados = it_controller.obtener_todos_recientes(limit=200)
     
     opciones_itinerario = ["--- Sin Itinerario ---"]
     mapa_itinerarios = {}
@@ -400,7 +404,7 @@ def registro_ventas_proveedores(supabase_client):
         conteos = {}
 
         for it in itinerarios_recuperados:
-            render_data = it.get('datos_render') # Supabase py suele devolverlo como dict si es jsonb
+            render_data = it.get('datos_render')
             if isinstance(render_data, str):
                 try: render_data = json.loads(render_data)
                 except: render_data = {}
@@ -410,21 +414,23 @@ def registro_ventas_proveedores(supabase_client):
                 render_data = {}
 
             # --- FILTRO B2B: Solo mostrar itinerarios generados como B2B ---
-            # Robustez: Si no hay metadata, por defecto es B2C
-            metadata = render_data.get('metadata')
-            if not isinstance(metadata, dict):
-                metadata = {}
-            
+            metadata = render_data.get('metadata', {})
             tipo_v = metadata.get('tipo_venta', 'B2C')
             if tipo_v != 'B2B':
                 continue
 
             titulo = render_data.get('titulo', '')
             if not titulo:
-                t1, t2 = render_data.get('title_1', ''), render_data.get('title_2', '')
+                t1 = render_data.get('title_1', '')
+                t2 = render_data.get('title_2', '')
                 titulo = f"{t1} {t2}".strip() or 'Sin título'
             
-            pax_itin = it.get('nombre_pasajero_itinerario') or render_data.get('pasajero', 'Sin Nombre')
+            pax_itin = it.get('nombre_pasajero_itinerario', '') or render_data.get('pasajero', 'Sin Nombre')
+            
+            # --- NUEVO: FILTRO LOCAL POR BÚSQUEDA ---
+            if search_itin and search_itin not in pax_itin.lower() and search_itin not in titulo.lower():
+                continue
+
             fecha = it.get('fecha_generacion', '')[:10] if it.get('fecha_generacion') else 'Sin fecha'
             
             # Label descriptivo base
