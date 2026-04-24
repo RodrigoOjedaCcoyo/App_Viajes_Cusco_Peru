@@ -169,7 +169,16 @@
       fecha_cancelacion TIMESTAMP WITH TIME ZONE,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-      drive_url TEXT
+      drive_url TEXT,
+      -- Datos del Tour Conductor (NUEVO)
+      tc_nombre VARCHAR(255),
+      tc_pasaporte VARCHAR(50),
+      tc_nacimiento DATE,
+      tc_caducidad_pas DATE,
+      tc_contacto_emergencia VARCHAR(255),
+      tc_tel_emergencia VARCHAR(50),
+      tc_vuelo_inter VARCHAR(50),
+      tc_correo VARCHAR(255)
   );
 
   CREATE TABLE venta_tour (
@@ -256,6 +265,12 @@
       genero VARCHAR(20),
       cuidados_especiales TEXT,
       es_principal BOOLEAN DEFAULT FALSE,
+      -- Nuevos campos logísticos (Ficha de Control)
+      vuelo_llegada VARCHAR(50),
+      vuelo_salida VARCHAR(50),
+      dieta TEXT,
+      acomodacion VARCHAR(50),
+      telefono VARCHAR(50),
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
   );
 

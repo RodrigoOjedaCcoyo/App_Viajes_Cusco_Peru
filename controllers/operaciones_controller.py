@@ -378,12 +378,20 @@ class OperacionesController:
                     resultados["errores"].append(f"Fila {idx+1}: Nombre vacío.")
                     continue
                 
-                doc = str(row.get('Documento', '')).strip()
+                doc = str(row.get('Documento', row.get('PASAPORTE', ''))).strip()
                 tipo_doc = str(row.get('Tipo Doc', 'PASAPORTE')).strip().upper()
-                nac = str(row.get('Nacionalidad', '')).strip()
-                f_nac = row.get('Fecha Nacimiento')
-                genero = str(row.get('Genero', '')).strip()
-                cuidados = str(row.get('Cuidados', '')).strip()
+                nac = str(row.get('Nacionalidad', row.get('NACIONALIDAD', ''))).strip()
+                f_nac = row.get('Fecha Nacimiento', row.get('FECHA NAC.', ''))
+                genero = str(row.get('Genero', row.get('SEXO', ''))).strip()
+                cuidados = str(row.get('Cuidados', row.get('DIETA', ''))).strip()
+                
+                # Nuevos campos logísticos
+                v_llegada = str(row.get('Vuelo Llegada', row.get('VUELO LLEGADA', ''))).strip()
+                v_salida = str(row.get('Vuelo Salida', row.get('VUELO SALIDA', ''))).strip()
+                dieta = str(row.get('Dieta', row.get('DIETA', ''))).strip()
+                habitacion = str(row.get('Habitación', row.get('TIPO DE ACOMODACIÓN', ''))).strip()
+                telefono = str(row.get('Teléfono', row.get('TELEFONO', ''))).strip()
+
                 # Lógica robusta para 'Es Principal'
                 es_p_raw = str(row.get('Es Principal', '')).strip().upper()
                 es_p = es_p_raw in ['SI', 'SÍ', 'TRUE', '1', 'VERDADERO']
@@ -400,6 +408,11 @@ class OperacionesController:
                     "fecha_nacimiento": str(f_nac) if pd.notnull(f_nac) else None,
                     "genero": genero if genero else None,
                     "cuidados_especiales": cuidados if cuidados else None,
+                    "vuelo_llegada": v_llegada if v_llegada else None,
+                    "vuelo_salida": v_salida if v_salida else None,
+                    "dieta": dieta if dieta else (cuidados if cuidados else None),
+                    "acomodacion": habitacion if habitacion else None,
+                    "telefono": telefono if telefono else None,
                     "es_principal": es_p
                 }
                 

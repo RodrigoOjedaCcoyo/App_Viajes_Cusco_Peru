@@ -30,7 +30,8 @@ class VentaController:
                                 id_lead: Optional[int] = None,
                                 items_ingreso: Optional[list] = None,
                                 metodo_pago: str = "OTRO",
-                                cantidad_pax: int = 1
+                                cantidad_pax: int = 1,
+                                tc_data: Optional[dict] = None
                                 ) -> tuple[bool, str]:
         """Registra una venta con todos los detalles extendidos."""
         
@@ -64,6 +65,19 @@ class VentaController:
             "cantidad": cantidad_pax
         }
         
+        # 3. Datos del Tour Conductor (Si existen)
+        if tc_data:
+            venta_data.update({
+                "tc_nombre": tc_data.get('nombre'),
+                "tc_pasaporte": tc_data.get('pasaporte'),
+                "tc_nacimiento": tc_data.get('nacimiento'),
+                "tc_caducidad_pas": tc_data.get('caducidad'),
+                "tc_contacto_emergencia": tc_data.get('contacto'),
+                "tc_tel_emergencia": tc_data.get('telefono'),
+                "tc_vuelo_inter": tc_data.get('vuelo'),
+                "tc_correo": tc_data.get('correo')
+            })
+        
         # Corregir typo detectado
         venta_data["estado_pago"] = estado_pago
         
@@ -95,7 +109,8 @@ class VentaController:
                                   tipo_comprobante: str = "RECIBO",
                                   tipo_cambio: Optional[float] = None,
                                   items_ingreso: Optional[list] = None,
-                                  metodo_pago: str = "OTRO"
+                                  metodo_pago: str = "OTRO",
+                                  tc_data: Optional[dict] = None
                                   ) -> tuple[bool, str]:
         """Registra una venta proveniente de una agencia externa (B2B)."""
         try:
@@ -123,6 +138,19 @@ class VentaController:
                 "items_ingreso": items_ingreso,
                 "metodo_pago": metodo_pago
             }
+            
+            # Datos del Tour Conductor (B2B)
+            if tc_data:
+                venta_data.update({
+                    "tc_nombre": tc_data.get('nombre'),
+                    "tc_pasaporte": tc_data.get('pasaporte'),
+                    "tc_nacimiento": tc_data.get('nacimiento'),
+                    "tc_caducidad_pas": tc_data.get('caducidad'),
+                    "tc_contacto_emergencia": tc_data.get('contacto'),
+                    "tc_tel_emergencia": tc_data.get('telefono'),
+                    "tc_vuelo_inter": tc_data.get('vuelo'),
+                    "tc_correo": tc_data.get('correo')
+                })
             
             res_id = self.model.create_venta(venta_data)
             

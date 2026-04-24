@@ -83,6 +83,19 @@ def render_operational_master_download(controller, id_venta, label="📊 Generar
                 type="primary"
             )
             
+            # --- NUEVO: Botón para Ficha de Control (Replica de Plantilla) ---
+            ficha_buffer = xl_ctrl.generar_ficha_control_grupos_xlsx(data_hoja)
+            if ficha_buffer:
+                st.download_button(
+                    label="📋 Ficha de Control (Grupos)",
+                    data=ficha_buffer,
+                    file_name=f"ficha_control_{id_venta}_{data_hoja['venta']['nombre_cliente'].replace(' ', '_')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    help="Réplica exacta de la plantilla de control de grupos (Rooming List / Manifiesto).",
+                    key=f"dl_ficha_{id_venta}_{key if key else ''}",
+                    use_container_width=True
+                )
+            
     except Exception as e:
         st.error(f"Error generando Hoja de Servicio: {e}")
 
