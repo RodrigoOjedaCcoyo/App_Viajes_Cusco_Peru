@@ -500,7 +500,7 @@ class ExcelController:
         ws.merge_cells('G4:I4')
         ws['J4'] = "CORREO"
         ws['K4'] = tc_correo
-        ws.merge_cells('K3:L4') # Corregido merge para correo
+        ws.merge_cells('K4:L4') 
 
         # Fila 5: Emergencia y Drive
         ws['A5'] = "CONTACTO EMER."

@@ -10,6 +10,14 @@ import urllib.parse
 from controllers.operaciones_controller import OperacionesController
 from controllers.venta_controller import VentaController
 from controllers.excel_controller import ExcelController
+import importlib
+
+# Asegurar que los controladores se recarguen si hay cambios (Entorno de desarrollo)
+try:
+    import controllers.excel_controller
+    importlib.reload(controllers.excel_controller)
+except:
+    pass
 
 # NUEVO: Renderiza el Botón para el Excel Maestro Operativo.
 def render_operational_master_download(controller, id_venta, label="📊 Generar Informe Maestro", key=None):
