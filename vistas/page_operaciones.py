@@ -789,6 +789,30 @@ def registro_ventas_proveedores(supabase_client):
         else:
             st.caption("No hay itinerario vinculado. El desglose se generará automáticamente por el total.")
 
+        # --- NUEVO: DATOS DEL TOUR CONDUCTOR (TC) B2B ---
+        tc_data_b2b = None
+        with st.expander("🚌 Datos del Tour Conductor (Opcional)", expanded=False):
+            st.info("Complete estos datos si la agencia envía un Tour Conductor con el grupo.")
+            c_tc1, c_tc2 = st.columns(2)
+            tc_nom = c_tc1.text_input("Nombre del TC", key="tc_nom_b2b")
+            tc_pas = c_tc1.text_input("Nº Pasaporte", key="tc_pas_b2b")
+            tc_nac = c_tc2.date_input("Fecha Nacimiento", value=None, key="tc_nac_b2b")
+            tc_cad = c_tc2.date_input("Caducidad Pasaporte", value=None, key="tc_cad_b2b")
+            
+            c_tc3, c_tc4 = st.columns(2)
+            tc_con = c_tc3.text_input("Contacto Emergencia", key="tc_con_b2b")
+            tc_tel = c_tc3.text_input("Teléfono Emergencia", key="tc_tel_b2b")
+            tc_vue = c_tc4.text_input("Nº Vuelo Inter.", key="tc_vue_b2b")
+            tc_cor = c_tc4.text_input("Correo TC", key="tc_cor_b2b")
+            
+            if tc_nom:
+                tc_data_b2b = {
+                    "nombre": tc_nom, "pasaporte": tc_pas, 
+                    "nacimiento": tc_nac.isoformat() if tc_nac else None,
+                    "caducidad": tc_cad.isoformat() if tc_cad else None,
+                    "contacto": tc_con, "telefono": tc_tel, "vuelo": tc_vue, "correo": tc_cor
+                }
+
 
         st.divider()
         submitted = st.form_submit_button("✅ REGISTRAR VENTA B2B Y NOTIFICAR", use_container_width=True, type="primary")
@@ -819,7 +843,8 @@ def registro_ventas_proveedores(supabase_client):
                     tipo_comprobante=tipo_comp,
                     tipo_cambio=tipo_cambio,
                     items_ingreso=items_ingreso if items_ingreso else None,
-                    metodo_pago=metodo_pago
+                    metodo_pago=metodo_pago,
+                    tc_data=tc_data_b2b
                 )
                 
                 if exito:
@@ -1328,8 +1353,61 @@ def dashboard_simulador_costos(controller):
             pax_data = controller.pasajero_model.get_by_venta_id(id_actual)
             if pax_data:
                 df_pax_res = pd.DataFrame(pax_data)
-                cols_pax = ['nombre_completo', 'nacionalidad', 'numero_documento', 'es_principal']
-                st.table(df_pax_res[cols_pax])
+                
+                # Definir columnas visibles y editables para logística
+                # Mapeamos nombres internos a nombres amigables para el usuario
+                cols_logistica = {
+                    'nombre_completo': 'Pasajero',
+                    'nacionalidad': 'Nac.',
+                    'numero_documento': 'Doc',
+                    'vuelo_llegada': '✈️ Llegada',
+                    'vuelo_salida': '✈️ Salida',
+                    'dieta': '🍽️ Dieta',
+                    'acomodacion': '🛏️ Habitación',
+                    'telefono': '📞 Teléfono',
+                    'es_principal': 'P'
+                }
+                
+                # Filtrar solo columnas que existan en el DF
+                df_display = df_pax_res[[c for c in cols_logistica.keys() if c in df_pax_res.columns]]
+                df_display.rename(columns=cols_logistica, inplace=True)
+
+                st.info("💡 Puedes editar los vuelos, dietas y habitaciones directamente en la tabla y luego presionar 'Guardar Logística'.")
+                
+                edited_pax = st.data_editor(
+                    df_display,
+                    use_container_width=True,
+                    hide_index=True,
+                    key=f"editor_pax_log_{id_actual}",
+                    column_config={
+                        "P": st.column_config.CheckboxColumn("P", width="small")
+                    }
+                )
+
+                # Lógica de guardado para el editor de pasajeros
+                if st.session_state.get(f"editor_pax_log_{id_actual}"):
+                    changes = st.session_state[f"editor_pax_log_{id_actual}"].get("edited_rows", {})
+                    if changes:
+                        st.warning(f"⚠️ Tienes {len(changes)} cambios de pasajeros pendientes.")
+                        if st.button("💾 Guardar Cambios Logísticos", type="primary", use_container_width=True):
+                            exitos = 0
+                            for idx, row_changes in changes.items():
+                                # Obtener el ID real del pasajero
+                                real_pax_id = df_pax_res.iloc[idx]['id_pasajero']
+                                
+                                # Mapear nombres de vuelta
+                                reverse_map = {v: k for k, v in cols_logistica.items()}
+                                db_changes = {reverse_map[col]: val for col, val in row_changes.items()}
+                                
+                                try:
+                                    controller.client.table('pasajero').update(db_changes).eq('id_pasajero', real_pax_id).execute()
+                                    exitos += 1
+                                except Exception as e:
+                                    st.error(f"Error guardando pasajero {idx}: {e}")
+                            
+                            if exitos > 0:
+                                st.success(f"✅ Se actualizaron {exitos} pasajeros con éxito.")
+                                st.rerun()
 
                 with st.expander("🚨 Zona de Peligro: Limpieza de Pasajeros"):
                     st.warning("Se borrarán todos los pasajeros de esta venta.")
