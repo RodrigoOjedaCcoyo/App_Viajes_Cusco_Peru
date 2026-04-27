@@ -102,7 +102,7 @@
     {% for tour in itinerario %}
     <div class="day-box">
         <div class="day-title">DÍA 0{{ loop.index }}: {{ tour.nombre or tour.titulo }}</div>
-        <div class="desc">{{ tour.descripcion[:200] }}...</div>
+        <div class="desc">{{ tour.descripcion }}</div>
         
         <table>
             <tr>
