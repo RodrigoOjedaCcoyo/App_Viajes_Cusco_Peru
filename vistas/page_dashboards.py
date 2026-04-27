@@ -175,21 +175,59 @@ def render_sales_dashboard_visual(supabase_client):
             # Limpieza de columnas para visualización
             cols_show = ['fecha_venta', 'tipo', 'entidad', 'tour_nombre', 'precio_total_cierre', 'moneda', 'estado_pago']
             
-            st.dataframe(
-                df_all,
-                column_order=cols_show,
-                column_config={
-                    "fecha_venta": st.column_config.DateColumn("🗓️ Fecha"),
-                    "tipo": "🏷️ Tipo",
-                    "entidad": "👤 Cliente / Agencia",
-                    "tour_nombre": "🚙 Tour / Paquete",
-                    "precio_total_cierre": st.column_config.NumberColumn("💰 Total", format="%.2f"),
-                    "moneda": "💱",
-                    "estado_pago": "🏦 Estado"
-                },
-                use_container_width=True,
-                hide_index=True
-            )
+            # --- NUEVO: TABLA CON TACHITO (ELIMINAR) ---
+            st.markdown("""
+                <style>
+                .stButton > button {
+                    padding: 0px;
+                    height: 1.5em;
+                    width: 1.5em;
+                }
+                </style>
+            """, unsafe_allow_html=True)
+
+            # Encabezado de la tabla manual
+            h1, h2, h3, h4, h5, h6 = st.columns([1.2, 1.5, 2.5, 2.5, 1.2, 0.8])
+            h1.markdown("**🗓️ Fecha**")
+            h2.markdown("**🏷️ Tipo**")
+            h3.markdown("**👤 Cliente / Agencia**")
+            h4.markdown("**🚙 Tour / Paquete**")
+            h5.markdown("**💰 Total**")
+            h6.markdown("**🗑️**")
+            st.divider()
+
+            for idx, row in df_all.head(15).iterrows():
+                c1, c2, c3, c4, c5, c6 = st.columns([1.2, 1.5, 2.5, 2.5, 1.2, 0.8])
+                
+                f_v = row['fecha_venta'].strftime('%Y-%m-%d') if hasattr(row['fecha_venta'], 'strftime') else str(row['fecha_venta'])
+                c1.caption(f_v)
+                c2.caption(row['tipo'])
+                c3.markdown(f"<small>{row['entidad']}</small>", unsafe_allow_html=True)
+                c4.markdown(f"<small>{row['tour_nombre']}</small>", unsafe_allow_html=True)
+                c5.caption(f"{row['moneda']} {row['precio_total_cierre']:.2f}")
+                
+                # Botón de eliminar con confirmación simple
+                if c6.button("🗑️", key=f"btn_del_{row['id_venta']}", help=f"Eliminar venta {row['id_venta']}"):
+                    st.session_state[f"confirm_del_{row['id_venta']}"] = True
+
+                if st.session_state.get(f"confirm_del_{row['id_venta']}"):
+                    st.warning(f"¿Eliminar venta de {row['entidad']}?")
+                    col_si, col_no = st.columns(2)
+                    if col_si.button("SÍ, ELIMINAR", key=f"si_{row['id_venta']}"):
+                        exito, msg = venta_ctrl.eliminar_venta(row['id_venta'])
+                        if exito:
+                            st.success(msg)
+                            st.session_state[f"confirm_del_{row['id_venta']}"] = False
+                            st.rerun()
+                        else:
+                            st.error(msg)
+                    if col_no.button("CANCELAR", key=f"no_{row['id_venta']}"):
+                        st.session_state[f"confirm_del_{row['id_venta']}"] = False
+                        st.rerun()
+                st.divider()
+
+            if len(all_ventas) > 15:
+                st.info("💡 Se muestran las 15 ventas más recientes. Para ver el historial completo, use el módulo de Reportes.")
 
 def render_ops_dashboard_visual(supabase_client):
     """Vista visual para Operaciones con Tablero Diario."""

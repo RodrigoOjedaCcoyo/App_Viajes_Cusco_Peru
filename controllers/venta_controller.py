@@ -504,3 +504,19 @@ class VentaController:
                 errores.append(f"Fila {idx+2}: {str(e)}")
         
         return {"exitos": exitos, "errores": errores}
+
+    def eliminar_venta(self, id_venta: int) -> tuple[bool, str]:
+        """Elimina una venta y sus registros asociados (dependiendo de FK cascades)."""
+        try:
+            # 1. Eliminar pagos asociados (por si no hay cascade en DB)
+            self.client.table('pago').delete().eq('id_venta', id_venta).execute()
+            # 2. Eliminar logística asociada
+            self.client.table('venta_tour').delete().eq('id_venta', id_venta).execute()
+            # 3. Eliminar la venta principal
+            exito = self.model.delete_by_id(id_venta)
+            
+            if exito:
+                return True, f"Venta {id_venta} eliminada correctamente."
+            return False, "No se encontró la venta o no pudo ser eliminada."
+        except Exception as e:
+            return False, f"Error al eliminar la venta: {e}"

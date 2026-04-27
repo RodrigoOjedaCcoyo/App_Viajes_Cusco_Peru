@@ -48,3 +48,12 @@ class BaseModel:
         except Exception as e:
             print(f"Error al actualizar PK {item_id} en {self.table_name}: {e}")
             return False
+
+    def delete_by_id(self, item_id: Any) -> bool:
+        """Elimina un registro filtrando por su PK."""
+        try:
+            response = self.client.table(self.table_name).delete().eq(self.primary_key, item_id).execute()
+            return len(response.data) > 0
+        except Exception as e:
+            print(f"Error al eliminar PK {item_id} en {self.table_name}: {e}")
+            return False
