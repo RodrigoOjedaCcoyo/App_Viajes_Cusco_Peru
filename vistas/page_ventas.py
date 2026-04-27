@@ -913,6 +913,7 @@ def constructor_itinerarios():
     inc_global = col_g1.text_area("Incluye (Global) - Uno por línea", placeholder="Traslados Aeropuerto\nSeguro de Viaje")
     exc_global = col_g2.text_area("No Incluye (Global) - Uno por línea", placeholder="Vuelos Internacionales\nGastos Personales")
     
+    comentarios_generales = st.text_area("🗒️ Comentarios Generales (Para Operaciones)", placeholder="Ej: Pasajero es alérgico al maní. Requiere habitación en primer piso.")
     
     # Checkbox B2B reubicado para mayor visibilidad
     es_b2b = st.checkbox("🚩 Este itinerario es para Venta B2B / Agencia", value=False, help="Marque esta casilla si la venta proviene de una agencia aliada.")
@@ -930,6 +931,7 @@ def constructor_itinerarios():
                 "highlights": [h.strip() for h in highlights.split(",")],
                 "inclusiones_globales": [h.strip() for h in inc_global.split("\n") if h.strip()],
                 "exclusiones_globales": [h.strip() for h in exc_global.split("\n") if h.strip()],
+                "comentarios_generales": comentarios_generales,
                 "itinerario_detalles": tours_detalles, # Enviamos la lista de tours con nombre corregido
                 "precios": {
                     "nacional": p_nac,

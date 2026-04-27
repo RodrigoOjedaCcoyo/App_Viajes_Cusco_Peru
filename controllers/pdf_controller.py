@@ -118,6 +118,7 @@ class PDFController:
             "num_adultos": int(num_adultos),
             "num_ninos": int(num_ninos),
             "itinerario": itinerario_procesado,
+            "comentarios_generales": datos_render.get("comentarios_generales", ""),
             "total": total_val,
             "moneda_total": moneda_val,
             "hoy": datetime.date.today().strftime("%d/%m/%Y")
