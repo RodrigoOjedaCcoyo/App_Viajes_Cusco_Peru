@@ -176,18 +176,9 @@ def render_sales_dashboard_visual(supabase_client):
             cols_show = ['fecha_venta', 'tipo', 'entidad', 'tour_nombre', 'precio_total_cierre', 'moneda', 'estado_pago']
             
             # --- NUEVO: TABLA CON TACHITO (ELIMINAR) ---
-            st.markdown("""
-                <style>
-                .stButton > button {
-                    padding: 0px;
-                    height: 1.5em;
-                    width: 1.5em;
-                }
-                </style>
-            """, unsafe_allow_html=True)
 
             # Encabezado de la tabla manual
-            h1, h2, h3, h4, h5, h6 = st.columns([1.2, 1.5, 2.5, 2.5, 1.2, 0.8])
+            h1, h2, h3, h4, h5, h6 = st.columns([1.2, 1.2, 2.5, 3.0, 1.0, 0.5])
             h1.markdown("**🗓️ Fecha**")
             h2.markdown("**🏷️ Tipo**")
             h3.markdown("**👤 Cliente / Agencia**")
@@ -197,14 +188,14 @@ def render_sales_dashboard_visual(supabase_client):
             st.divider()
 
             for idx, row in df_all.head(15).iterrows():
-                c1, c2, c3, c4, c5, c6 = st.columns([1.2, 1.5, 2.5, 2.5, 1.2, 0.8])
+                c1, c2, c3, c4, c5, c6 = st.columns([1.2, 1.2, 2.5, 3.0, 1.0, 0.5])
                 
                 f_v = row['fecha_venta'].strftime('%Y-%m-%d') if hasattr(row['fecha_venta'], 'strftime') else str(row['fecha_venta'])
-                c1.caption(f_v)
-                c2.caption(row['tipo'])
+                c1.markdown(f"<small>{f_v}</small>", unsafe_allow_html=True)
+                c2.markdown(f"<small>{row['tipo']}</small>", unsafe_allow_html=True)
                 c3.markdown(f"<small>{row['entidad']}</small>", unsafe_allow_html=True)
                 c4.markdown(f"<small>{row['tour_nombre']}</small>", unsafe_allow_html=True)
-                c5.caption(f"{row['moneda']} {row['precio_total_cierre']:.2f}")
+                c5.markdown(f"<small>{row['moneda']} {row['precio_total_cierre']:,.2f}</small>", unsafe_allow_html=True)
                 
                 # Botón de eliminar con confirmación simple
                 if c6.button("🗑️", key=f"btn_del_{row['id_venta']}", help=f"Eliminar venta {row['id_venta']}"):
