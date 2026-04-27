@@ -84,22 +84,35 @@ class PDFController:
                           datos_render.get("servicios") or 
                           datos_render.get("itinerario") or [])
         
-        # Procesar negritas (*** -> <b>)
+        # Procesar datos (Negritas y Listas de Inclusiones)
         itinerario_procesado = []
         for item in itinerario_raw:
             it_copy = item.copy()
+            
+            # 1. Procesar negritas (*** -> <b>)
             desc = it_copy.get('descripcion', '')
             if desc:
-                # Reemplazo simple de pares de *** por <b> y </b>
-                # Buscamos el primero y lo cambiamos por <b>, el segundo por </b>, etc.
                 parts = desc.split('***')
                 new_desc = ""
                 for i, part in enumerate(parts):
-                    if i % 2 == 0:
-                        new_desc += part
-                    else:
-                        new_desc += f"<b>{part}</b>"
+                    if i % 2 == 0: new_desc += part
+                    else: new_desc += f"<b>{part}</b>"
                 it_copy['descripcion'] = new_desc
+            
+            # 2. Consolidar INCLUSIONES (Buscar en todas las llaves posibles)
+            it_copy['incluye_final'] = (
+                item.get('incluye') or 
+                item.get('inclusiones') or 
+                item.get('servicios') or []
+            )
+            
+            # 3. Consolidar EXCLUSIONES
+            it_copy['no_incluye_final'] = (
+                item.get('no_incluye') or 
+                item.get('exclusiones') or 
+                item.get('servicios_no') or []
+            )
+            
             itinerario_procesado.append(it_copy)
 
         context = {

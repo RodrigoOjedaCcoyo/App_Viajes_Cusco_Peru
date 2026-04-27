@@ -104,9 +104,9 @@
             <tr>
                 <td class="incl">
                     <div class="list-header">INCLUYE:</div>
-                    {% if tour.incluye %}
-                        {% for inc in tour.incluye %}
-                            <div class="item">✓ {{ inc.texto if inc is mapping else inc }}</div>
+                    {% if tour.incluye_final %}
+                        {% for inc in tour.incluye_final %}
+                            <div class="item">✓ {{ (inc.texto if inc is mapping else inc)|upper }}</div>
                         {% endfor %}
                     {% else %}
                         <div class="item">✓ Transporte / Guía / Tickets</div>
@@ -114,9 +114,9 @@
                 </td>
                 <td class="excl">
                     <div class="list-header">NO INCLUYE:</div>
-                    {% if tour.no_incluye %}
-                        {% for exc in tour.no_incluye %}
-                            <div class="item">✗ {{ exc.texto if exc is mapping else exc }}</div>
+                    {% if tour.no_incluye_final %}
+                        {% for exc in tour.no_incluye_final %}
+                            <div class="item">✗ {{ (exc.texto if exc is mapping else exc)|upper }}</div>
                         {% endfor %}
                     {% else %}
                         <div class="item">✗ Alimentación / Gastos extras</div>
