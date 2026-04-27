@@ -393,7 +393,7 @@ class OperacionesController:
                 v_llegada = str(row.get('Vuelo Llegada', row.get('VUELO LLEGADA', ''))).strip()
                 v_salida = str(row.get('Vuelo Salida', row.get('VUELO SALIDA', ''))).strip()
                 dieta = str(row.get('Dieta', row.get('DIETA', ''))).strip()
-                habitacion = str(row.get('Habitación', row.get('TIPO DE ACOMODACIÓN', ''))).strip()
+                habitacion = str(row.get('Tipo Habitacion', row.get('Habitación', row.get('TIPO DE ACOMODACIÓN', '')))).strip()
                 telefono = str(row.get('Teléfono', row.get('TELEFONO', ''))).strip()
 
                 # Lógica robusta para 'Es Principal'
