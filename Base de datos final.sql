@@ -169,16 +169,7 @@
       fecha_cancelacion TIMESTAMP WITH TIME ZONE,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-      drive_url TEXT,
-      -- Datos del Tour Conductor (NUEVO)
-      tc_nombre VARCHAR(255),
-      tc_pasaporte VARCHAR(50),
-      tc_nacimiento DATE,
-      tc_caducidad_pas DATE,
-      tc_contacto_emergencia VARCHAR(255),
-      tc_tel_emergencia VARCHAR(50),
-      tc_vuelo_inter VARCHAR(50),
-      tc_correo VARCHAR(255)
+      drive_url TEXT
   );
 
   CREATE TABLE venta_tour (

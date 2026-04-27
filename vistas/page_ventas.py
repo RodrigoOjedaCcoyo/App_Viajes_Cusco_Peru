@@ -667,29 +667,7 @@ def registro_ventas_directa():
         
         comentarios_op = st.text_area("🗒️ Comentarios para Operaciones", placeholder="Ej: Pasajero alérgico, requiere recojo puntual, etc.", key="coment_op_b2c")
 
-        # --- NUEVO: DATOS DEL TOUR CONDUCTOR (TC) ---
-        tc_data = None
-        with st.expander("🚌 Datos del Tour Conductor (Opcional)", expanded=False):
-            st.info("Complete estos datos si la venta corresponde a un grupo con coordinador.")
-            c_tc1, c_tc2 = st.columns(2)
-            tc_nom = c_tc1.text_input("Nombre del TC", key="tc_nom_b2c")
-            tc_pas = c_tc1.text_input("Nº Pasaporte", key="tc_pas_b2c")
-            tc_nac = c_tc2.date_input("Fecha Nacimiento", value=None, key="tc_nac_b2c")
-            tc_cad = c_tc2.date_input("Caducidad Pasaporte", value=None, key="tc_cad_b2c")
-            
-            c_tc3, c_tc4 = st.columns(2)
-            tc_con = c_tc3.text_input("Contacto Emergencia", key="tc_con_b2c")
-            tc_tel = c_tc3.text_input("Teléfono Emergencia", key="tc_tel_b2c")
-            tc_vue = c_tc4.text_input("Nº Vuelo Inter.", key="tc_vue_b2c")
-            tc_cor = c_tc4.text_input("Correo TC", key="tc_cor_b2c")
-            
-            if tc_nom:
-                tc_data = {
-                    "nombre": tc_nom, "pasaporte": tc_pas, 
-                    "nacimiento": tc_nac.isoformat() if tc_nac else None,
-                    "caducidad": tc_cad.isoformat() if tc_cad else None,
-                    "contacto": tc_con, "telefono": tc_tel, "vuelo": tc_vue, "correo": tc_cor
-                }
+
 
         submitted = st.form_submit_button("🚀 REGISTRAR VENTA Y NOTIFICAR", use_container_width=True)
 
@@ -724,7 +702,6 @@ def registro_ventas_directa():
                     items_ingreso=items_ingreso if items_ingreso else None,
                     metodo_pago=metodo_pago,
                     cantidad_pax=int(cantidad_pax),
-                    tc_data=tc_data,
                     comentarios=comentarios_op
                 )
                 
