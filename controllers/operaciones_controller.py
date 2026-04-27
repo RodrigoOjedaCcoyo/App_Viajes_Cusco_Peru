@@ -390,11 +390,7 @@ class OperacionesController:
                 cuidados = str(row.get('Cuidados', row.get('DIETA', ''))).strip()
                 
                 # Nuevos campos logísticos
-                v_llegada = str(row.get('Vuelo Llegada', row.get('VUELO LLEGADA', ''))).strip()
-                v_salida = str(row.get('Vuelo Salida', row.get('VUELO SALIDA', ''))).strip()
-                dieta = str(row.get('Dieta', row.get('DIETA', ''))).strip()
                 habitacion = str(row.get('Tipo Habitacion', row.get('Habitación', row.get('TIPO DE ACOMODACIÓN', '')))).strip()
-                telefono = str(row.get('Teléfono', row.get('TELEFONO', ''))).strip()
 
                 # Lógica robusta para 'Es Principal'
                 es_p_raw = str(row.get('Es Principal', '')).strip().upper()
@@ -414,11 +410,7 @@ class OperacionesController:
                     "edad": int(edad) if pd.notnull(edad) else None,
                     "genero": genero if genero else None,
                     "cuidados_especiales": cuidados if cuidados else None,
-                    "vuelo_llegada": v_llegada if v_llegada else None,
-                    "vuelo_salida": v_salida if v_salida else None,
-                    "dieta": dieta if dieta else (cuidados if cuidados else None),
                     "acomodacion": habitacion if habitacion else None,
-                    "telefono": telefono if telefono else None,
                     "es_principal": es_p
                 }
                 

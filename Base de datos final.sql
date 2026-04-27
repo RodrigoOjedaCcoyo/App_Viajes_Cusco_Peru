@@ -260,11 +260,7 @@
       cuidados_especiales TEXT,
       es_principal BOOLEAN DEFAULT FALSE,
       -- Nuevos campos logísticos (Ficha de Control)
-      vuelo_llegada VARCHAR(50),
-      vuelo_salida VARCHAR(50),
-      dieta TEXT,
       acomodacion VARCHAR(50),
-      telefono VARCHAR(50),
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
   );
 
