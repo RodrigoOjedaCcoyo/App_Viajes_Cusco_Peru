@@ -73,6 +73,13 @@ class PDFController:
         total_val = precios.get("extranjero", 0)
         moneda_val = precios.get("moneda_extranjero", "USD")
 
+        # --- Extracción de PAX Robusta ---
+        num_adultos = datos_render.get("num_adultos") or datos_render.get("num_pasajeros") or datos_render.get("pax") or datos_render.get("total_pax") or 1
+        num_ninos = datos_render.get("num_ninos") or 0
+        ci = datos_render.get('control_interno', {})
+        if ci and not datos_render.get("num_adultos"):
+            num_adultos = ci.get('total_pasajeros') or ci.get('total_pax') or num_adultos
+
         itinerario_raw = (datos_render.get("itinerario_detalles") or 
                           datos_render.get("itinerario_detales") or 
                           datos_render.get("days") or 
@@ -96,27 +103,20 @@ class PDFController:
                     else: new_desc += f"<b>{part}</b>"
                 it_copy['descripcion'] = new_desc
             
-            # 2. Consolidar INCLUSIONES (Buscar en todas las llaves posibles)
-            it_copy['incluye_final'] = (
-                item.get('incluye') or 
-                item.get('inclusiones') or 
-                item.get('servicios') or []
-            )
+            # 2. Consolidar INCLUSIONES
+            it_copy['incluye_final'] = (item.get('incluye') or item.get('inclusiones') or item.get('servicios') or [])
+            it_copy['no_incluye_final'] = (item.get('no_incluye') or item.get('exclusiones') or item.get('servicios_no') or [])
             
-            # 3. Consolidar EXCLUSIONES
-            it_copy['no_incluye_final'] = (
-                item.get('no_incluye') or 
-                item.get('exclusiones') or 
-                item.get('servicios_no') or []
-            )
+            # 3. Extraer HORA Robusta
+            it_copy['hora'] = item.get('hora') or item.get('time') or item.get('hora_inicio') or ""
             
             itinerario_procesado.append(it_copy)
 
         context = {
             "cliente_nombre": datos_render.get("nombre_pasajero") or "Pasajero",
             "fecha_viaje": fecha_robusta if fecha_robusta else "Pendiente",
-            "num_adultos": datos_render.get("num_adultos", 1),
-            "num_ninos": datos_render.get("num_ninos", 0),
+            "num_adultos": int(num_adultos),
+            "num_ninos": int(num_ninos),
             "itinerario": itinerario_procesado,
             "total": total_val,
             "moneda_total": moneda_val,
