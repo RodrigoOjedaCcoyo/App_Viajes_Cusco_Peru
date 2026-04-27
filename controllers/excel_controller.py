@@ -363,7 +363,7 @@ class ExcelController:
             ws.cell(row=current_row, column=c).alignment = center_al
         current_row += 1
 
-        headers_px = ["Nombre Completo", "Documento", "Tipo Doc", "Nacionalidad", "Fecha Nac", "Género", "Cuidados", "Principal?"]
+        headers_px = ["Nombre", "Apellidos", "Documento", "Tipo Doc", "Fecha Caducidad", "Nacionalidad", "Fecha Nac", "Edad", "Género", "Cuidados", "Principal?"]
         for c_idx, h in enumerate(headers_px, 1):
             cell = ws.cell(row=current_row, column=c_idx, value=h)
             cell.fill = subheader_fill
@@ -372,19 +372,24 @@ class ExcelController:
         current_row += 1
 
         for p in pax:
-            ws.cell(row=current_row, column=1, value=p.get('nombre_completo')).font = bold_font
-            ws.cell(row=current_row, column=2, value=p.get('numero_documento'))
-            ws.cell(row=current_row, column=3, value=p.get('tipo_documento'))
-            ws.cell(row=current_row, column=4, value=p.get('nacionalidad'))
-            ws.cell(row=current_row, column=5, value=p.get('fecha_nacimiento'))
-            ws.cell(row=current_row, column=6, value=p.get('genero'))
-            ws.cell(row=current_row, column=7, value=p.get('cuidados_especiales'))
-            ws.cell(row=current_row, column=8, value="SÍ" if p.get('es_principal') else "NO")
-            for c in range(1, 9): ws.cell(row=current_row, column=c).border = thin_border
+            nombre_full = p.get('nombre_completo', '')
+            partes = nombre_full.rsplit(' ', 1) if nombre_full else ['', '']
+            ws.cell(row=current_row, column=1, value=partes[0]).font = bold_font
+            ws.cell(row=current_row, column=2, value=partes[1] if len(partes) > 1 else '')
+            ws.cell(row=current_row, column=3, value=p.get('numero_documento'))
+            ws.cell(row=current_row, column=4, value=p.get('tipo_documento'))
+            ws.cell(row=current_row, column=5, value=p.get('fecha_caducidad_doc'))
+            ws.cell(row=current_row, column=6, value=p.get('nacionalidad'))
+            ws.cell(row=current_row, column=7, value=p.get('fecha_nacimiento'))
+            ws.cell(row=current_row, column=8, value=p.get('edad'))
+            ws.cell(row=current_row, column=9, value=p.get('genero'))
+            ws.cell(row=current_row, column=10, value=p.get('cuidados_especiales'))
+            ws.cell(row=current_row, column=11, value="SÍ" if p.get('es_principal') else "NO")
+            for c in range(1, 12): ws.cell(row=current_row, column=c).border = thin_border
             current_row += 1
 
         # Anchos de columna finales
-        for col, w in zip(['A','B','C','D','E','F','G','H'], [10, 25, 12, 40, 30, 10, 15, 40]):
+        for col, w in zip(['A','B','C','D','E','F','G','H','I','J','K'], [18, 18, 14, 12, 14, 18, 14, 8, 10, 20, 10]):
             ws.column_dimensions[col].width = w
 
         output = BytesIO()

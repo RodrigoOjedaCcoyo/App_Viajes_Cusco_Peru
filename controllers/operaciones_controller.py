@@ -373,8 +373,10 @@ class OperacionesController:
         
         for idx, row in df_pax.iterrows():
             try:
-                nombre = str(row.get('Nombre Completo', '')).strip()
-                if not nombre:
+                nombre = str(row.get('Nombre', row.get('Nombre Completo', ''))).strip()
+                apellidos = str(row.get('Apellidos', '')).strip()
+                nombre_completo = f"{nombre} {apellidos}".strip() if apellidos else nombre
+                if not nombre_completo:
                     resultados["errores"].append(f"Fila {idx+1}: Nombre vacío.")
                     continue
                 
@@ -382,6 +384,8 @@ class OperacionesController:
                 tipo_doc = str(row.get('Tipo Doc', 'PASAPORTE')).strip().upper()
                 nac = str(row.get('Nacionalidad', row.get('NACIONALIDAD', ''))).strip()
                 f_nac = row.get('Fecha Nacimiento', row.get('FECHA NAC.', ''))
+                f_cad = row.get('Fecha Caducidad', row.get('CADUCIDAD', ''))
+                edad = row.get('Edad', None)
                 genero = str(row.get('Genero', row.get('SEXO', ''))).strip()
                 cuidados = str(row.get('Cuidados', row.get('DIETA', ''))).strip()
                 
@@ -401,11 +405,13 @@ class OperacionesController:
 
                 data_ins = {
                     "id_venta": id_venta,
-                    "nombre_completo": nombre,
+                    "nombre_completo": nombre_completo,
                     "numero_documento": doc if doc else None,
                     "tipo_documento": tipo_doc,
                     "nacionalidad": nac if nac else None,
                     "fecha_nacimiento": str(f_nac) if pd.notnull(f_nac) else None,
+                    "fecha_caducidad_doc": str(f_cad) if pd.notnull(f_cad) else None,
+                    "edad": int(edad) if pd.notnull(edad) else None,
                     "genero": genero if genero else None,
                     "cuidados_especiales": cuidados if cuidados else None,
                     "vuelo_llegada": v_llegada if v_llegada else None,

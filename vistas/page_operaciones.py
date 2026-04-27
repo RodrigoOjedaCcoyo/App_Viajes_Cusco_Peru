@@ -1209,7 +1209,7 @@ def dashboard_simulador_costos(controller):
     with c_arch2:
         st.subheader("👥 Pasajeros")
         # Botón de Plantilla Pax
-        pax_template_df = pd.DataFrame(columns=['Nombre Completo', 'Documento', 'Tipo Doc', 'Nacionalidad', 'Fecha Nacimiento', 'Genero', 'Cuidados', 'Es Principal'])
+        pax_template_df = pd.DataFrame(columns=['Nombre', 'Apellidos', 'Documento', 'Tipo Doc', 'Fecha Caducidad', 'Nacionalidad', 'Fecha Nacimiento', 'Edad', 'Genero', 'Cuidados', 'Es Principal'])
         pax_buffer = io.BytesIO()
         with pd.ExcelWriter(pax_buffer, engine='openpyxl') as writer:
             pax_template_df.to_excel(writer, index=False, sheet_name='Rooming')
