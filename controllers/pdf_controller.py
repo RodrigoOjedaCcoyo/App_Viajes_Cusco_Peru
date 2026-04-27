@@ -73,11 +73,6 @@ class PDFController:
         total_val = precios.get("extranjero", 0)
         moneda_val = precios.get("moneda_extranjero", "USD")
 
-        context = {
-            "cliente_nombre": datos_render.get("nombre_pasajero") or "Pasajero",
-            "fecha_viaje": fecha_robusta if fecha_robusta else "Pendiente",
-            "num_adultos": datos_render.get("num_adultos", 1),
-            "num_ninos": datos_render.get("num_ninos", 0),
         itinerario_raw = (datos_render.get("itinerario_detalles") or 
                           datos_render.get("itinerario_detales") or 
                           datos_render.get("days") or 
@@ -87,6 +82,8 @@ class PDFController:
         # Procesar datos (Negritas y Listas de Inclusiones)
         itinerario_procesado = []
         for item in itinerario_raw:
+            if not isinstance(item, dict):
+                continue
             it_copy = item.copy()
             
             # 1. Procesar negritas (*** -> <b>)
