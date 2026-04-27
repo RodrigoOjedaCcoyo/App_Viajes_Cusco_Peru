@@ -31,13 +31,25 @@ class VentaController:
                                 items_ingreso: Optional[list] = None,
                                 metodo_pago: str = "OTRO",
                                 cantidad_pax: int = 1,
-                                tc_data: Optional[dict] = None
+                                tc_data: Optional[dict] = None,
+                                comentarios: Optional[str] = None
                                 ) -> tuple[bool, str]:
         """Registra una venta con todos los detalles extendidos."""
         
         # 1. Validaciones Básicas
         if not nombre_cliente or not telefono or not tour or monto_total <= 0:
              return False, "Campos obligatorios faltantes (Nombre, Teléfono, Tour o Monto)."
+
+        # 1.5 Actualizar Comentarios en el Itinerario Digital si existe
+        if id_itinerario_digital and comentarios:
+            try:
+                res_it = self.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itinerario_digital).single().execute()
+                if res_it.data:
+                    render = res_it.data.get('datos_render', {})
+                    render['comentarios_generales'] = comentarios
+                    self.client.table('itinerario_digital').update({"datos_render": render}).eq('id_itinerario_digital', id_itinerario_digital).execute()
+            except Exception as e:
+                print(f"Error actualizando comentarios en itinerario: {e}")
 
         # 2. Preparar datos
         saldo = monto_total - monto_depositado

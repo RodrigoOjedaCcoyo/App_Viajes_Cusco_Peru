@@ -665,6 +665,8 @@ def registro_ventas_directa():
         else:
             st.caption("No hay itinerario vinculado. El desglose se generará automáticamente por el total.")
         
+        comentarios_op = st.text_area("🗒️ Comentarios para Operaciones", placeholder="Ej: Pasajero alérgico, requiere recojo puntual, etc.", key="coment_op_b2c")
+
         # --- NUEVO: DATOS DEL TOUR CONDUCTOR (TC) ---
         tc_data = None
         with st.expander("🚌 Datos del Tour Conductor (Opcional)", expanded=False):
@@ -722,7 +724,8 @@ def registro_ventas_directa():
                     items_ingreso=items_ingreso if items_ingreso else None,
                     metodo_pago=metodo_pago,
                     cantidad_pax=int(cantidad_pax),
-                    tc_data=tc_data
+                    tc_data=tc_data,
+                    comentarios=comentarios_op
                 )
                 
                 if exito:
