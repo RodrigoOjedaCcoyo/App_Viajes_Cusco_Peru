@@ -78,11 +78,36 @@ class PDFController:
             "fecha_viaje": fecha_robusta if fecha_robusta else "Pendiente",
             "num_adultos": datos_render.get("num_adultos", 1),
             "num_ninos": datos_render.get("num_ninos", 0),
-            "itinerario": (datos_render.get("itinerario_detalles") or 
-                           datos_render.get("itinerario_detales") or 
-                           datos_render.get("days") or 
-                           datos_render.get("servicios") or 
-                           datos_render.get("itinerario") or []),
+        itinerario_raw = (datos_render.get("itinerario_detalles") or 
+                          datos_render.get("itinerario_detales") or 
+                          datos_render.get("days") or 
+                          datos_render.get("servicios") or 
+                          datos_render.get("itinerario") or [])
+        
+        # Procesar negritas (*** -> <b>)
+        itinerario_procesado = []
+        for item in itinerario_raw:
+            it_copy = item.copy()
+            desc = it_copy.get('descripcion', '')
+            if desc:
+                # Reemplazo simple de pares de *** por <b> y </b>
+                # Buscamos el primero y lo cambiamos por <b>, el segundo por </b>, etc.
+                parts = desc.split('***')
+                new_desc = ""
+                for i, part in enumerate(parts):
+                    if i % 2 == 0:
+                        new_desc += part
+                    else:
+                        new_desc += f"<b>{part}</b>"
+                it_copy['descripcion'] = new_desc
+            itinerario_procesado.append(it_copy)
+
+        context = {
+            "cliente_nombre": datos_render.get("nombre_pasajero") or "Pasajero",
+            "fecha_viaje": fecha_robusta if fecha_robusta else "Pendiente",
+            "num_adultos": datos_render.get("num_adultos", 1),
+            "num_ninos": datos_render.get("num_ninos", 0),
+            "itinerario": itinerario_procesado,
             "total": total_val,
             "moneda_total": moneda_val,
             "hoy": datetime.date.today().strftime("%d/%m/%Y")

@@ -5,129 +5,130 @@
     <style>
         @page {
             size: A4;
-            margin: 1.5cm;
+            margin: 0.8cm;
             @frame footer_frame {
                 -pdf-frame-content: footer_content;
-                left: 1.5cm;
-                width: 18cm;
-                bottom: 1cm;
-                height: 1cm;
+                left: 0.8cm;
+                width: 19.4cm;
+                bottom: 0.5cm;
+                height: 0.8cm;
             }
         }
         body {
             font-family: Arial, sans-serif;
             color: #000;
-            line-height: 1.2;
-            font-size: 10pt;
+            line-height: 1.1;
+            font-size: 9pt;
         }
         h1 {
-            font-size: 18pt;
-            text-align: center;
-            border-bottom: 2px solid #000;
-            margin-bottom: 10pt;
-            padding-bottom: 5pt;
-        }
-        h2 {
             font-size: 14pt;
-            margin-top: 15pt;
+            text-align: center;
+            border-bottom: 1.5px solid #000;
             margin-bottom: 5pt;
-            border-bottom: 1px solid #ccc;
+            padding-bottom: 2pt;
+            text-transform: uppercase;
         }
         .header-info {
-            margin-bottom: 20pt;
+            margin-bottom: 10pt;
+            border-bottom: 0.5px solid #eee;
+            padding-bottom: 5pt;
         }
         .header-info p {
-            margin: 2pt 0;
+            margin: 1pt 0;
+            display: inline-block;
+            margin-right: 15pt;
         }
         .day-box {
-            margin-bottom: 12pt;
+            margin-bottom: 8pt;
+            border-bottom: 0.2px solid #f0f0f0;
+            padding-bottom: 4pt;
         }
         .day-title {
             font-weight: bold;
-            font-size: 11pt;
+            font-size: 10pt;
             text-transform: uppercase;
+            background-color: #f9f9f9;
+            padding: 2pt;
         }
         .desc {
-            margin: 3pt 0 5pt 15pt;
-            font-style: italic;
-            color: #333;
+            margin: 2pt 0 4pt 10pt;
+            font-size: 9pt;
+            text-align: justify;
         }
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-left: 15pt;
+            margin-left: 10pt;
         }
         td {
             vertical-align: top;
-            padding: 2pt;
+            padding: 1pt;
         }
-        .incl {
-            width: 50%;
-        }
-        .excl {
+        .incl, .excl {
             width: 50%;
         }
         .list-header {
             font-weight: bold;
             font-size: 8pt;
-            margin-bottom: 2pt;
+            margin-bottom: 1pt;
+            text-decoration: underline;
         }
         .item {
-            font-size: 9pt;
-        }
-        .total-box {
-            margin-top: 30pt;
-            text-align: right;
-            font-size: 12pt;
-            font-weight: bold;
-            border-top: 1px solid #000;
-            padding-top: 5pt;
+            font-size: 8.5pt;
+            margin-left: 5pt;
         }
         #footer_content {
             text-align: center;
-            font-size: 8pt;
-            color: #666;
+            font-size: 7pt;
+            color: #777;
+            border-top: 0.5px solid #ccc;
+            padding-top: 2pt;
         }
     </style>
 </head>
 <body>
-    <h1>RESUMEN DE ITINERARIO</h1>
+    <h1>RESUMEN DE ITINERARIO OPERATIVO</h1>
     
     <div class="header-info">
         <p><strong>Pasajero:</strong> {{ cliente_nombre }}</p>
-        <p><strong>Fecha de Viaje:</strong> {{ fecha_viaje }}</p>
-        <p><strong>Pax:</strong> {{ num_adultos }} Adultos / {{ num_ninos }} Niños</p>
+        <p><strong>Fecha Viaje:</strong> {{ fecha_viaje }}</p>
+        <p><strong>Pax:</strong> {{ num_adultos + num_ninos }}</p>
     </div>
 
     {% for tour in itinerario %}
     <div class="day-box">
         <div class="day-title">DÍA 0{{ loop.index }}: {{ tour.nombre or tour.titulo }}</div>
-        <div class="desc">{{ tour.descripcion }}</div>
+        <div class="desc">{{ tour.descripcion|safe }}</div>
         
         <table>
             <tr>
                 <td class="incl">
                     <div class="list-header">INCLUYE:</div>
-                    <div class="item">✓ Transporte</div>
-                    <div class="item">✓ Guía</div>
-                    <div class="item">✓ Tickets</div>
+                    {% if tour.incluye %}
+                        {% for inc in tour.incluye %}
+                            <div class="item">✓ {{ inc.texto if inc is mapping else inc }}</div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="item">✓ Transporte / Guía / Tickets</div>
+                    {% endif %}
                 </td>
                 <td class="excl">
                     <div class="list-header">NO INCLUYE:</div>
-                    <div class="item">✗ Alimentación</div>
-                    <div class="item">✗ Gastos extras</div>
+                    {% if tour.no_incluye %}
+                        {% for exc in tour.no_incluye %}
+                            <div class="item">✗ {{ exc.texto if exc is mapping else exc }}</div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="item">✗ Alimentación / Gastos extras</div>
+                    {% endif %}
                 </td>
             </tr>
         </table>
     </div>
     {% endfor %}
 
-    <div class="total-box">
-        PRECIO TOTAL: {{ moneda_total }} {{ total|round(2) }}
-    </div>
-
     <div id="footer_content">
-        Viajes Cusco Perú | www.viajescuscoperu.com | Impreso el {{ hoy }}
+        Viajes Cusco Perú | Operaciones | Impreso el {{ hoy }}
     </div>
 </body>
 </html>
