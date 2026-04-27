@@ -101,7 +101,9 @@
 
     {% for tour in itinerario %}
     <div class="day-box">
-        <div class="day-title">DÍA 0{{ loop.index }}: {{ tour.nombre or tour.titulo }}</div>
+        <div class="day-title">
+            DÍA 0{{ loop.index }}{% if tour.fecha %} - {{ tour.fecha }}{% endif %}: {{ (tour.nombre or tour.titulo)|upper }}
+        </div>
         <div class="desc">{{ tour.descripcion|safe }}</div>
         
         <table>
