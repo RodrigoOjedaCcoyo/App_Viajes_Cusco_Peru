@@ -51,7 +51,11 @@ def render_operational_master_download(controller, id_venta, label="📊 Generar
             "moneda": v_raw.get('moneda', 'USD'),
             "monto_total": v_raw.get('precio_total_cierre', 0),
             "monto_pagado": 0,
-            "drive_url": v_raw.get('drive_url')
+            "drive_url": v_raw.get('drive_url'),
+            "nro_vuelo_internacional": v_raw.get('nro_vuelo_internacional'),
+            "correo_cliente": v_raw.get('correo_cliente'),
+            "nombre_contacto_emergencia": v_raw.get('nombre_contacto_emergencia'),
+            "telefono_contacto_emergencia": v_raw.get('telefono_contacto_emergencia')
         }
 
         # 2. Calcular Pagos

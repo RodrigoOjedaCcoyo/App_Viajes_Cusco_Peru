@@ -475,15 +475,15 @@ class ExcelController:
         ws['A2'].alignment = center_al
         ws['A2'].border = border_style
 
-        # Mapeo de datos TC (usando fallbacks si no existen las columnas nuevas aún)
-        tc_nombre = v.get('tc_nombre') or "---"
-        tc_pax = v.get('tc_pasaporte') or "---"
-        tc_fecha_nac = v.get('tc_nacimiento') or "---"
-        tc_caducidad = v.get('tc_caducidad_pas') or "---"
-        tc_contacto = v.get('tc_contacto_emergencia') or "---"
-        tc_tel_em = v.get('tc_tel_emergencia') or "---"
-        tc_vuelo = v.get('tc_vuelo_inter') or "---"
-        tc_correo = v.get('tc_correo') or "---"
+        # Mapeo de datos TC / Pasajero Principal (Campos nuevos)
+        tc_nombre = v.get('nombre_cliente') or "---"
+        tc_pax = "---" # Pasaporte se saca de la lista de pasajeros
+        tc_fecha_nac = "---"
+        tc_caducidad = "---"
+        tc_contacto = v.get('nombre_contacto_emergencia') or "---"
+        tc_tel_em = v.get('telefono_contacto_emergencia') or "---"
+        tc_vuelo = v.get('nro_vuelo_internacional') or "---"
+        tc_correo = v.get('correo_cliente') or "---"
 
         # Fila 3: Nombre y Pasaporte
         ws['A3'] = "NOMBRE / APELLIDO"
