@@ -57,7 +57,10 @@ def render_itinerary_simple_download(render):
 def render_operational_master_download_acc(controller, id_venta):
     """Llamada al componente Maestro unificado."""
     from vistas.page_operaciones import render_operational_master_download
-    render_operational_master_download(controller, id_venta, label="📊 Generar Informe Maestro", key=f"acc_master_dl_{id_venta}")
+    from controllers.operaciones_controller import OperacionesController
+    # Necesitamos un OperacionesController para esta función específica
+    op_ctrl = OperacionesController(controller.client)
+    render_operational_master_download(op_ctrl, id_venta, label="📊 Generar Informe Maestro", key=f"acc_master_dl_{id_venta}")
 
 def redundat_old_function_to_be_removed(controller, id_venta):
     from datetime import date
@@ -459,6 +462,7 @@ def estructurador_liquidacion_pro(controller):
                         if isinstance(render_data, dict):
                             render_data['fecha_inicio'] = v_act.get('fecha_inicio') or render_data.get('fecha_inicio')
                             render_data['fecha_fin'] = v_act.get('fecha_fin') or render_data.get('fecha_fin')
+                            render_data['titulo'] = v_act.get('tour_nombre') or render_data.get('titulo')
                             render_data['nombre_pasajero'] = v_act.get('cliente_nombre') or render_data.get('nombre_pasajero')
                             render_data['cliente_telefono'] = v_act.get('telefono') or ""
                             render_data['num_pasajeros'] = v_act.get('num_pasajeros') or v_act.get('adultos', 1)
