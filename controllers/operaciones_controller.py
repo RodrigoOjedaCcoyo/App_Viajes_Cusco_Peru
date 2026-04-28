@@ -536,15 +536,25 @@ class OperacionesController:
             "liquidaciones": liquidaciones
         }
 
-    def actualizar_estado_servicio_proveedor(self, id_registro: int, estado_bool: bool):
+    def actualizar_campos_liquidacion(self, id_registro: int, campos: dict):
         """
-        Actualiza el estado 'terminado' de un registro en venta_servicio_proveedor.
+        Actualiza campos de un registro en venta_servicio_proveedor y sincroniza con venta_tour si es costo/pax.
         """
         try:
-            self.client.table('venta_servicio_proveedor').update({"terminado": estado_bool}).eq('id', id_registro).execute()
-            return True, "Estado actualizado."
+            res = self.client.table('venta_servicio_proveedor').update(campos).eq('id', id_registro).execute()
+            
+            # Sincronización de costo total en venta_tour
+            if "costo_unitario" in campos or "cantidad_pax" in campos:
+                if res.data:
+                    d = res.data[0]
+                    c_u = float(d.get('costo_unitario', 0))
+                    p = float(d.get('cantidad_pax', 1))
+                    self.client.table('venta_tour').update({"costo_unitario": c_u * p})\
+                        .eq('id_venta', d['id_venta']).eq('n_linea', d['n_linea']).execute()
+                        
+            return True, "Cambios guardados."
         except Exception as e:
-            return False, f"Error al actualizar estado: {str(e)}"
+            return False, f"Error al guardar: {str(e)}"
 
     def get_alertas_operativas(self):
         """

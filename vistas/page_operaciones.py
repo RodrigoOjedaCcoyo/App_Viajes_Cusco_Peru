@@ -1344,12 +1344,15 @@ def dashboard_simulador_costos(controller):
                             exitos = 0
                             errores = []
                             for row_idx, changes in cambios_pendientes.items():
-                                if "terminado" in changes:
-                                    reg_id = df_edit.iloc[row_idx]['id']
-                                    nuevo_estado = changes["terminado"]
-                                    exito, msg = controller.actualizar_estado_servicio_proveedor(reg_id, nuevo_estado)
+                                reg_id = df_edit.iloc[row_idx]['id']
+                                # Renombrar campos internos a nombres de DB si es necesario
+                                mapping = {"moneda": "moneda", "costo_unitario": "costo_unitario", "PAX": "cantidad_pax", "terminado": "terminado"}
+                                db_changes = {mapping[k]: v for k, v in changes.items() if k in mapping}
+                                
+                                if db_changes:
+                                    exito, msg = controller.actualizar_campos_liquidacion(reg_id, db_changes)
                                     if exito: exitos += 1
-                                    else: errores.append(msg)
+                                    else: errores.append(f"Error en fila {row_idx+1}: {msg}")
                             
                             if exitos > 0:
                                 st.success(f"✅ Se actualizaron {exitos} servicios.")

@@ -3,6 +3,8 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from controllers.gerencia_controller import GerenciaController
+from controllers.operaciones_controller import OperacionesController
+from controllers.venta_controller import VentaController
 from datetime import date
 
 def dashboard_ejecutivo(controller):
@@ -154,6 +156,92 @@ def auditoria_maestra(controller):
             if not df_leads_origen.empty:
                 st.plotly_chart(px.bar(df_leads_origen, x='Origen', y='Cantidad', title="Leads por Origen (Canal Social)"), use_container_width=True)
 
+def render_control_financiero_liquidaciones(supabase_client):
+    """Interfaz para que Gerencia complete costos y monedas de las liquidaciones."""
+    st.subheader("💰 Control Financiero de Liquidaciones", divider='green')
+    
+    op_ctrl = OperacionesController(supabase_client)
+    vc = VentaController(supabase_client)
+    
+    # 1. Selección de Venta
+    res_v = supabase_client.table('venta').select('id_venta, tour_nombre, cliente(nombre)').order('created_at', desc=True).limit(50).execute()
+    opciones = {f"Venta #{v['id_venta']} - {v.get('tour_nombre','')} ({v['cliente']['nombre']})": v['id_venta'] for v in res_v.data}
+    
+    sel_v = st.selectbox("Seleccione una Venta para Liquidar:", options=list(opciones.keys()), key="ger_sel_v_liq")
+    id_venta = opciones[sel_v]
+    
+    if id_venta:
+        st.markdown(f"#### 📋 Panel de Control: Venta #{id_venta}")
+        
+        try:
+            # Reutilizamos la lógica del Panel de Control de Operaciones
+            res_v_meta = supabase_client.table('venta').select('moneda, tipo_cambio').eq('id_venta', id_venta).single().execute()
+            v_meta = res_v_meta.data or {"moneda": "USD", "tipo_cambio": 3.8}
+            tc_v = float(v_meta.get('tipo_cambio') or 3.8)
+            
+            liq_data = op_ctrl.get_liquidaciones_venta(id_venta)
+            
+            if liq_data:
+                display_data = []
+                for l in liq_data:
+                    l['Dia'] = l.get('n_linea')
+                    l['Hora'] = l.get('hora_servicio') or "---"
+                    l['Tipo de Servicio'] = l.get('tipo_servicio', '---')
+                    l['Proveedor'] = l.get('proveedor', {}).get('nombre_comercial') if l.get('proveedor') else "---"
+                    l['Fecha de Contratacion'] = l.get('fecha_servicio', '---')
+                    l['Observacion'] = l.get('observacion', '---')
+                    
+                    c_u = float(l.get('costo_unitario', 0))
+                    p = float(l.get('cantidad_pax') or 1)
+                    l['moneda'] = l.get('moneda', 'USD')
+                    l['costo_unitario'] = c_u
+                    l['PAX'] = int(p)
+                    l['TOTAL (PEN)'] = (c_u * p) * tc_v if l['moneda'] == 'USD' else (c_u * p)
+                    l['Estado'] = "🟢 OK" if l.get('terminado') else "🔴 PENDIENTE"
+                    display_data.append(l)
+
+                df_edit = pd.DataFrame(display_data)
+                cols_visible = ['Estado', 'terminado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Fecha de Contratacion', 'Observacion', 'moneda', 'costo_unitario', 'PAX', 'TOTAL (PEN)']
+                
+                edited_result = st.data_editor(
+                    df_edit[cols_visible],
+                    column_config={
+                        "Estado": st.column_config.TextColumn("Status", width="small"),
+                        "terminado": st.column_config.CheckboxColumn("OK", help="Cerrar Servicio"),
+                        "Dia": st.column_config.NumberColumn("Día", format="%d"),
+                        "moneda": st.column_config.SelectboxColumn("Moneda", options=["USD", "PEN", "EUR"]),
+                        "costo_unitario": st.column_config.NumberColumn("Costo Unit.", format="%.2f"),
+                        "PAX": st.column_config.NumberColumn("Pax"),
+                        "TOTAL (PEN)": st.column_config.NumberColumn("Total (S/.)", format="S/. %.2f")
+                    },
+                    disabled=['Estado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Fecha de Contratacion', 'Observacion', 'TOTAL (PEN)'],
+                    hide_index=True,
+                    use_container_width=True,
+                    key="editor_liq_gerencia"
+                )
+
+                if "editor_liq_gerencia" in st.session_state:
+                    state = st.session_state.editor_liq_gerencia
+                    cambios = state.get("edited_rows", {})
+                    if cambios:
+                        st.warning(f"⚠️ {len(cambios)} cambios pendientes.")
+                        if st.button("💾 Guardar Liquidaciones", type="primary"):
+                            exitos = 0
+                            for row_idx, changes in cambios.items():
+                                reg_id = df_edit.iloc[row_idx]['id']
+                                mapping = {"moneda": "moneda", "costo_unitario": "costo_unitario", "PAX": "cantidad_pax", "terminado": "terminado"}
+                                db_changes = {mapping[k]: v for k, v in changes.items() if k in mapping}
+                                if db_changes:
+                                    res_up, _ = op_ctrl.actualizar_campos_liquidacion(reg_id, db_changes)
+                                    if res_up: exitos += 1
+                            if exitos > 0:
+                                st.success(f"✅ Se actualizaron {exitos} registros.")
+                                st.rerun()
+            else:
+                st.info("No hay servicios cargados para liquidar en esta venta. Operaciones debe subir el Excel primero.")
+        except Exception as e:
+            st.error(f"Error en panel financiero: {e}")
+
 def mostrar_pagina(funcionalidad_seleccionada, rol_actual, user_id, supabase_client):
     controller = GerenciaController(supabase_client)
     
@@ -165,7 +253,9 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual, user_id, supabase_cli
     ctrl_op = OperacionesController(supabase_client)
     render_centro_alertas(ctrl_op)
 
-    if funcionalidad_seleccionada in ["Gestión de Registros", "Gestión Ejecutiva"]:
+    if funcionalidad_seleccionada in ["Control de Liquidaciones"]:
+        render_control_financiero_liquidaciones(supabase_client)
+    elif funcionalidad_seleccionada in ["Gestión de Registros", "Gestión Ejecutiva"]:
         auditoria_maestra(controller)
     else:
         st.info("Utilice el Dashboard Ejecutivo para ver métricas de alto nivel.")
