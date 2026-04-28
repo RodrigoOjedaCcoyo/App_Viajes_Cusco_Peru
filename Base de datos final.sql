@@ -169,7 +169,11 @@
       fecha_cancelacion TIMESTAMP WITH TIME ZONE,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-      drive_url TEXT
+      drive_url TEXT,
+      nro_vuelo_internacional TEXT,
+      correo_cliente TEXT,
+      nombre_contacto_emergencia TEXT,
+      telefono_contacto_emergencia TEXT
   );
 
   CREATE TABLE venta_tour (

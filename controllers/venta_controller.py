@@ -31,7 +31,11 @@ class VentaController:
                                 items_ingreso: Optional[list] = None,
                                 metodo_pago: str = "OTRO",
                                 cantidad_pax: int = 1,
-                                comentarios: Optional[str] = None
+                                comentarios: Optional[str] = None,
+                                vuelo_internacional: Optional[str] = None,
+                                correo: Optional[str] = None,
+                                contacto_emergencia_nombre: Optional[str] = None,
+                                contacto_emergencia_tel: Optional[str] = None
                                 ) -> tuple[bool, str]:
         """Registra una venta con todos los detalles extendidos."""
         
@@ -73,7 +77,11 @@ class VentaController:
             "id_lead": id_lead,
             "items_ingreso": items_ingreso,
             "metodo_pago": metodo_pago,
-            "cantidad": cantidad_pax
+            "cantidad": cantidad_pax,
+            "nro_vuelo_internacional": vuelo_internacional,
+            "correo_cliente": correo,
+            "nombre_contacto_emergencia": contacto_emergencia_nombre,
+            "telefono_contacto_emergencia": contacto_emergencia_tel
         }
         
         # Corregir typo detectado
@@ -108,6 +116,10 @@ class VentaController:
                                   tipo_cambio: Optional[float] = None,
                                   items_ingreso: Optional[list] = None,
                                   metodo_pago: str = "OTRO",
+                                  vuelo_internacional: Optional[str] = None,
+                                  correo: Optional[str] = None,
+                                  contacto_emergencia_nombre: Optional[str] = None,
+                                  contacto_emergencia_tel: Optional[str] = None
                                   ) -> tuple[bool, str]:
         """Registra una venta proveniente de una agencia externa (B2B)."""
         try:

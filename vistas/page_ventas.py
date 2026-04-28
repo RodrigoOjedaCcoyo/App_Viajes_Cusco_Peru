@@ -668,6 +668,14 @@ def registro_ventas_directa():
         else:
             st.caption("No hay itinerario vinculado. El desglose se generará automáticamente por el total.")
         
+        st.markdown("##### 🛡️ Información de Emergencia y Logística")
+        col_log1, col_log2 = st.columns(2)
+        vuelo_int = col_log1.text_input("Nro de Vuelo Internacional", placeholder="Ej: AA947 / LA2345")
+        correo_cli = col_log2.text_input("Correo Electrónico", placeholder="ejemplo@correo.com")
+        
+        cont_nom = col_log1.text_input("Nombre del Contacto de Emergencia", placeholder="Ej: María García (Hermana)")
+        cont_tel = col_log2.text_input("Teléfono del Contacto de Emergencia", placeholder="+51 999 888 777")
+
         comentarios_op = st.text_area("🗒️ Comentarios para Operaciones", placeholder="Ej: Pasajero alérgico, requiere recojo puntual, etc.", key="coment_op_b2c")
 
 
@@ -705,7 +713,11 @@ def registro_ventas_directa():
                     items_ingreso=items_ingreso if items_ingreso else None,
                     metodo_pago=metodo_pago,
                     cantidad_pax=int(cantidad_pax),
-                    comentarios=comentarios_op
+                    comentarios=comentarios_op,
+                    vuelo_internacional=vuelo_int,
+                    correo=correo_cli,
+                    contacto_emergencia_nombre=cont_nom,
+                    contacto_emergencia_tel=cont_tel
                 )
                 
                 if exito:

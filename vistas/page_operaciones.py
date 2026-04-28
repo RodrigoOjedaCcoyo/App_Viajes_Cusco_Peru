@@ -788,6 +788,14 @@ def registro_ventas_proveedores(supabase_client):
                 st.warning("⚠️ No se pudo procesar el desglose B2B automático.")
         else:
             st.caption("No hay itinerario vinculado. El desglose se generará automáticamente por el total.")
+        
+        st.markdown("##### 🛡️ Logística y Emergencia (Pasajero Principal)")
+        col_b2b_log1, col_b2b_log2 = st.columns(2)
+        vuelo_b2b = col_b2b_log1.text_input("Nro de Vuelo Internacional (Pasajero)", placeholder="Ej: LA2451")
+        correo_b2b = col_log2_correo = col_b2b_log2.text_input("Correo del Pasajero", placeholder="pasajero@mail.com")
+        
+        cont_nom_b2b = col_b2b_log1.text_input("Contacto Emergencia (Nombre)", placeholder="Ej: John Doe")
+        cont_tel_b2b = col_b2b_log2.text_input("Contacto Emergencia (Teléfono)", placeholder="+1 555 1234")
 
         # --- NUEVO: DATOS DEL TOUR CONDUCTOR (TC) B2B ---
         tc_data_b2b = None
@@ -844,6 +852,10 @@ def registro_ventas_proveedores(supabase_client):
                     tipo_cambio=tipo_cambio,
                     items_ingreso=items_ingreso if items_ingreso else None,
                     metodo_pago=metodo_pago,
+                    vuelo_internacional=vuelo_b2b,
+                    correo=correo_b2b,
+                    contacto_emergencia_nombre=cont_nom_b2b,
+                    contacto_emergencia_tel=cont_tel_b2b,
                     tc_data=tc_data_b2b
                 )
                 
