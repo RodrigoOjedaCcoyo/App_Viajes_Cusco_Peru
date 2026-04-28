@@ -1171,7 +1171,7 @@ def dashboard_simulador_costos(controller):
 
     # NUEVO: Botón de Plantilla
     import io
-    template_df = pd.DataFrame(columns=["Dia", "Tipo_Servicio", "Proveedor", "Moneda", "Costo Unitario", "Pax"])
+    template_df = pd.DataFrame(columns=["Dia", "Hora", "Tipo de Servicio", "Proveedor", "Fecha de Contratacion", "Observacion", "Moneda", "Costo Unitario", "Pax"])
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
         template_df.to_excel(writer, index=False, sheet_name='Plantilla')
@@ -1201,8 +1201,8 @@ def dashboard_simulador_costos(controller):
                 st.write("**Previsualización de datos a cargar:**")
                 st.dataframe(df_preview, use_container_width=True, hide_index=True)
                 
-                # Validar columnas
-                cols_req = ["Dia", "Tipo_Servicio", "Proveedor", "Moneda", "Costo Unitario", "Pax"]
+                # Validar columnas (ahora más flexible para permitir las nuevas del Panel de Control)
+                cols_req = ["Dia", "Tipo de Servicio", "Proveedor", "Moneda", "Costo Unitario", "Pax"]
                 if all(c in df_preview.columns for c in cols_req):
                     if st.button("📦 Procesar y Guardar Endoses en DB", type="primary", use_container_width=True):
                         # Llamar al controlador (estamos en dashboard_simulador_costos(controller))
@@ -1287,14 +1287,13 @@ def dashboard_simulador_costos(controller):
                 display_data = []
                 for l in liq_data:
                     n_lin = l.get('n_linea')
-                    s_info = mapa_servicios.get(n_lin, {})
                     
                     l['Dia'] = n_lin
-                    l['Hora'] = s_info.get('hora_inicio') or "08:00 AM"
+                    l['Hora'] = l.get('hora_servicio') or "08:00 AM"
                     l['Tipo de Servicio'] = l.get('tipo_servicio', '---')
                     l['Proveedor'] = l.get('proveedor', {}).get('nombre_comercial') if l.get('proveedor') else "---"
-                    l['Fecha de Contratacion'] = s_info.get('fecha_servicio', '---')
-                    l['Observacion'] = s_info.get('observacion', '---')
+                    l['Fecha de Contratacion'] = l.get('fecha_servicio', '---')
+                    l['Observacion'] = l.get('observacion', '---')
                     
                     # Mantener cálculos internos por si se usan luego (pueden estar ocultos)
                     c_unit = float(l.get('costo_unitario', 0))

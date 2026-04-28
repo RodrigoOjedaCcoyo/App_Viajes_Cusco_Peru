@@ -1,7 +1,7 @@
 # controllers/operaciones_controller.py
 from models.operaciones_model import PasajeroModel
 from models.venta_model import VentaModel
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from supabase import Client
 import pandas as pd
 
@@ -268,7 +268,7 @@ class OperacionesController:
     def vincular_endoses_masivos(self, id_venta: str, df_liq: pd.DataFrame):
         """
         Vincula masivamente costos y proveedores a una venta basándose en el 'Dia'.
-        df_liq debe tener: ['Dia', 'Tipo_Servicio', 'Proveedor', 'Moneda', 'Costo Unitario', 'Pax']
+        df_liq debe tener: ['Dia', 'Tipo de Servicio', 'Proveedor', 'Moneda', 'Costo Unitario', 'Pax']
         """
         resultados = {"exitos": 0, "errores": []}
         
@@ -317,7 +317,7 @@ class OperacionesController:
                 costo_unit = float(row.get('Costo Unitario', 0))
                 # Cast to float first to handle string decimals ("7.0"), then to int for Postgres
                 pax = int(float(row.get('Pax', 1))) 
-                tipo = str(row.get('Tipo_Servicio', 'ENDOSE')).strip().upper()
+                tipo = str(row.get('Tipo de Servicio', 'ENDOSE')).strip().upper()
                 moneda = str(row.get('Moneda', 'USD')).strip().upper()
 
                 id_prov = mapa_prov.get(prov_nombre)
@@ -333,6 +333,11 @@ class OperacionesController:
                 # Consumir la PRIMERA línea (n_linea) asociada a este día como "Ancla"
                 # Múltiples servicios del mismo día compartirán esta misma n_linea (permitido por UNIQUE constraint)
                 nl = n_lineas_disponibles[0]
+                
+                # Extraer campos adicionales para actualizar la base de datos maestra (venta_tour)
+                hora_excel = row.get('Hora')
+                fecha_excel = row.get('Fecha de Contratacion')
+                obs_excel = row.get('Observacion')
 
                 try:
                     data_ins = {
@@ -342,12 +347,30 @@ class OperacionesController:
                         "tipo_servicio": tipo,
                         "costo_unitario": costo_unit,
                         "moneda": moneda,
-                        "cantidad_pax": pax
+                        "cantidad_pax": pax,
+                        "hora_servicio": str(hora_excel).strip() if not pd.isna(hora_excel) else None,
+                        "observacion": str(obs_excel).strip() if not pd.isna(obs_excel) else None
                     }
+
+                    # Intentar parsear la fecha si viene en el Excel
+                    if not pd.isna(fecha_excel) and str(fecha_excel).strip():
+                        try:
+                            if isinstance(fecha_excel, (datetime, pd.Timestamp)):
+                                data_ins["fecha_servicio"] = fecha_excel.strftime("%Y-%m-%d")
+                            else:
+                                f_str = str(fecha_excel).strip()
+                                for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%Y-%m-%d %H:%M:%S"]:
+                                    try:
+                                        data_ins["fecha_servicio"] = datetime.strptime(f_str, fmt).strftime("%Y-%m-%d")
+                                        break
+                                    except: continue
+                        except: pass
+
                     self.client.table('venta_servicio_proveedor').upsert(data_ins).execute()
                     
-                    # Actualiza referencialmente venta_tour (para sincronización heredada)
+                    # --- ACTUALIZACIÓN DE VENTA_TOUR (SOLO COSTOS) ---
                     update_data = {"costo_unitario": (costo_unit * float(pax))}
+                    
                     if tipo == "ENDOSE":
                         update_data["es_endoso"] = True
                     
