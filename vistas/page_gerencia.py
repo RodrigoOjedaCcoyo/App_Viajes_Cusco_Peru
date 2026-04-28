@@ -208,7 +208,7 @@ def render_control_financiero_liquidaciones(supabase_client):
                     render_operational_master_download(op_ctrl, id_venta, label="📊 Informe Maestro & Ficha de Control")
                 
                 # Recuperar render_data para los itinerarios
-                res_v_full = supabase_client.table('venta').select('*, itinerario_digital(datos_render, url_pdf)').eq('id_venta', id_venta).single().execute()
+                res_v_full = supabase_client.table('venta').select('*, itinerario_digital(datos_render)').eq('id_venta', id_venta).single().execute()
                 v_full = res_v_full.data or {}
                 it_dig = v_full.get('itinerario_digital')
                 render_data = None
@@ -223,7 +223,8 @@ def render_control_financiero_liquidaciones(supabase_client):
                 with c2:
                     if render_data:
                         render_itinerary_simple_download(render_data)
-                        url_cloud = it_dig.get('url_pdf')
+                        # El PDF detallado (Cloud) suele guardarse dentro de datos_render o como metadato
+                        url_cloud = render_data.get('url_pdf') or (it_dig.get('url_pdf') if isinstance(it_dig, dict) else None)
                         if url_cloud:
                             st.link_button("🌐 Ver Itinerario Cloud (Detallado)", url_cloud, use_container_width=True, type="secondary")
                     else:
