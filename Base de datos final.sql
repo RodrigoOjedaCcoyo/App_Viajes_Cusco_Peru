@@ -297,6 +297,8 @@
       hora_servicio TEXT,
       fecha_servicio DATE,
       observacion TEXT,
+      nombre_guia TEXT,
+      fecha_confirmacion DATE,
       terminado BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (id_venta, n_linea) REFERENCES venta_tour(id_venta, n_linea) ON DELETE CASCADE,

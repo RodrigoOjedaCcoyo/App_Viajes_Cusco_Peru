@@ -321,6 +321,8 @@ class OperacionesController:
                 hora_excel = row.get('Hora')
                 fecha_excel = row.get('Fecha de Contratacion')
                 obs_excel = row.get('Observacion')
+                guia_excel = row.get('Nombre del Guia')
+                f_conf_excel = row.get('Fecha de Confirmacion')
 
                 try:
                     data_ins = {
@@ -332,10 +334,11 @@ class OperacionesController:
                         "moneda": moneda,
                         "cantidad_pax": pax,
                         "hora_servicio": str(hora_excel).strip() if not pd.isna(hora_excel) else None,
-                        "observacion": str(obs_excel).strip() if not pd.isna(obs_excel) else None
+                        "observacion": str(obs_excel).strip() if not pd.isna(obs_excel) else None,
+                        "nombre_guia": str(guia_excel).strip() if not pd.isna(guia_excel) else None
                     }
 
-                    # Intentar parsear la fecha si viene en el Excel
+                    # Parsear Fecha de Servicio
                     if not pd.isna(fecha_excel) and str(fecha_excel).strip():
                         try:
                             if isinstance(fecha_excel, (datetime, pd.Timestamp)):
@@ -345,6 +348,20 @@ class OperacionesController:
                                 for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%Y-%m-%d %H:%M:%S"]:
                                     try:
                                         data_ins["fecha_servicio"] = datetime.strptime(f_str, fmt).strftime("%Y-%m-%d")
+                                        break
+                                    except: continue
+                        except: pass
+                    
+                    # Parsear Fecha de Confirmación
+                    if not pd.isna(f_conf_excel) and str(f_conf_excel).strip():
+                        try:
+                            if isinstance(f_conf_excel, (datetime, pd.Timestamp)):
+                                data_ins["fecha_confirmacion"] = f_conf_excel.strftime("%Y-%m-%d")
+                            else:
+                                f_str = str(f_conf_excel).strip()
+                                for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%Y-%m-%d %H:%M:%S"]:
+                                    try:
+                                        data_ins["fecha_confirmacion"] = datetime.strptime(f_str, fmt).strftime("%Y-%m-%d")
                                         break
                                     except: continue
                         except: pass

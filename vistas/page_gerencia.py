@@ -246,7 +246,9 @@ def render_control_financiero_liquidaciones(supabase_client):
                     l['Hora'] = l.get('hora_servicio') or "---"
                     l['Tipo de Servicio'] = l.get('tipo_servicio', '---')
                     l['Proveedor'] = l.get('proveedor', {}).get('nombre_comercial') if l.get('proveedor') else "---"
+                    l['Guía'] = l.get('nombre_guia', '---')
                     l['Fecha de Contratacion'] = l.get('fecha_servicio', '---')
+                    l['F. Confirmación'] = l.get('fecha_confirmacion', '---')
                     l['Observacion'] = l.get('observacion', '---')
                     
                     c_u = float(l.get('costo_unitario', 0))
@@ -259,19 +261,20 @@ def render_control_financiero_liquidaciones(supabase_client):
                     display_data.append(l)
 
                 df_edit = pd.DataFrame(display_data)
-                cols_visible = ['Estado', 'terminado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Fecha de Contratacion', 'Observacion', 'moneda', 'costo_unitario', 'PAX', 'TOTAL (PEN)']
+                cols_visible = ['Estado', 'terminado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'Fecha de Contratacion', 'F. Confirmación', 'Observacion', 'moneda', 'costo_unitario', 'PAX', 'TOTAL (PEN)']
                 
                 edited_result = st.data_editor(
                     df_edit[cols_visible],
                     column_config={
                         "Estado": st.column_config.TextColumn("Status", width="small"),
                         "terminado": st.column_config.CheckboxColumn("OK", help="Cerrar Servicio"),
+                        "Guía": st.column_config.TextColumn("Guía"),
                         "moneda": st.column_config.SelectboxColumn("Moneda", options=["USD", "PEN", "EUR"]),
                         "costo_unitario": st.column_config.NumberColumn("Costo Unit.", format="%.2f"),
                         "PAX": st.column_config.NumberColumn("Pax"),
                         "TOTAL (PEN)": st.column_config.NumberColumn("Total (S/.)", format="S/. %.2f")
                     },
-                    disabled=['Estado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Fecha de Contratacion', 'Observacion', 'TOTAL (PEN)'],
+                    disabled=['Estado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'Fecha de Contratacion', 'F. Confirmación', 'Observacion', 'TOTAL (PEN)'],
                     hide_index=True,
                     use_container_width=True,
                     key="editor_liq_gerencia"

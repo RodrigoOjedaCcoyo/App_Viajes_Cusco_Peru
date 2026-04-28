@@ -1171,7 +1171,7 @@ def dashboard_simulador_costos(controller):
 
     # NUEVO: Botón de Plantilla
     import io
-    template_df = pd.DataFrame(columns=["Dia", "Hora", "Tipo de Servicio", "Proveedor", "Fecha de Contratacion", "Observacion", "Moneda", "Costo Unitario", "Pax"])
+    template_df = pd.DataFrame(columns=["Dia", "Hora", "Tipo de Servicio", "Proveedor", "Nombre del Guia", "Fecha de Contratacion", "Fecha de Confirmacion", "Observacion", "Moneda", "Costo Unitario", "Pax"])
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
         template_df.to_excel(writer, index=False, sheet_name='Plantilla')
@@ -1292,7 +1292,9 @@ def dashboard_simulador_costos(controller):
                     l['Hora'] = l.get('hora_servicio') or "08:00 AM"
                     l['Tipo de Servicio'] = l.get('tipo_servicio', '---')
                     l['Proveedor'] = l.get('proveedor', {}).get('nombre_comercial') if l.get('proveedor') else "---"
+                    l['Guía'] = l.get('nombre_guia', '---')
                     l['Fecha de Contratacion'] = l.get('fecha_servicio', '---')
+                    l['F. Confirmación'] = l.get('fecha_confirmacion', '---')
                     l['Observacion'] = l.get('observacion', '---')
                     
                     # Mantener cálculos internos por si se usan luego (pueden estar ocultos)
@@ -1307,8 +1309,8 @@ def dashboard_simulador_costos(controller):
 
                 df_edit = pd.DataFrame(display_data)
                 
-                # Definir columnas visibles: Logística + Finanzas (para que otra persona los llene)
-                cols_visible = ['Estado', 'terminado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Fecha de Contratacion', 'Observacion', 'moneda', 'costo_unitario', 'PAX', 'TOTAL (PEN)']
+                # Definir columnas visibles: Logística + Finanzas
+                cols_visible = ['Estado', 'terminado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'Fecha de Contratacion', 'F. Confirmación', 'Observacion', 'moneda', 'costo_unitario', 'PAX', 'TOTAL (PEN)']
                 
                 # 2. Renderizar Editor de Datos
                 edited_result = st.data_editor(
@@ -1320,14 +1322,16 @@ def dashboard_simulador_costos(controller):
                         "Hora": st.column_config.TextColumn("Hora", width="small"),
                         "Tipo de Servicio": st.column_config.TextColumn("Tipo de Servicio", width="medium"),
                         "Proveedor": st.column_config.TextColumn("Proveedor", width="medium"),
+                        "Guía": st.column_config.TextColumn("Guía", width="medium"),
                         "Fecha de Contratacion": st.column_config.TextColumn("Fecha", width="small"),
+                        "F. Confirmación": st.column_config.TextColumn("Confirmación", width="small"),
                         "Observacion": st.column_config.TextColumn("Observación", width="large"),
                         "moneda": st.column_config.SelectboxColumn("Moneda", options=["USD", "PEN", "EUR"], width="small"),
                         "costo_unitario": st.column_config.NumberColumn("Costo Unit.", format="%.2f"),
                         "PAX": st.column_config.NumberColumn("Pax", width="small"),
                         "TOTAL (PEN)": st.column_config.NumberColumn("Costo Total (S/.)", format="S/. %.2f")
                     },
-                    disabled=['Estado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Fecha de Contratacion', 'Observacion', 'TOTAL (PEN)'],
+                    disabled=['Estado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'Fecha de Contratacion', 'F. Confirmación', 'Observacion', 'TOTAL (PEN)'],
                     hide_index=True,
                     use_container_width=True,
                     key="editor_liq_master"
