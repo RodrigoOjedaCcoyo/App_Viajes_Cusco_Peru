@@ -477,13 +477,20 @@ class ExcelController:
 
         # Mapeo de datos TC / Pasajero Principal (Campos nuevos)
         tc_nombre = v.get('nombre_cliente') or "---"
-        tc_pax = "---" # Pasaporte se saca de la lista de pasajeros
+        tc_pax = "---"
         tc_fecha_nac = "---"
         tc_caducidad = "---"
         tc_contacto = v.get('nombre_contacto_emergencia') or "---"
         tc_tel_em = v.get('telefono_contacto_emergencia') or "---"
         tc_vuelo = v.get('nro_vuelo_internacional') or "---"
         tc_correo = v.get('correo_cliente') or "---"
+
+        # INTELIGENCIA: Si hay un pasajero marcado como Principal (P), extraemos sus datos para la cabecera
+        principal = next((p for p in pax if p.get('es_principal')), None)
+        if principal:
+            tc_pax = principal.get('numero_documento') or tc_pax
+            tc_fecha_nac = str(principal.get('fecha_nacimiento') or tc_fecha_nac)[:10]
+            tc_caducidad = str(principal.get('fecha_caducidad_doc') or tc_caducidad)[:10]
 
         # Fila 3: Nombre y Pasaporte
         ws['A3'] = "NOMBRE / APELLIDO"
