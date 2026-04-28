@@ -983,7 +983,7 @@ def dashboard_simulador_costos(controller):
     Herramienta avanzada para estructurar liquidaciones de grupos/B2B.
     Basado en estructura de Excel (Unitario x Pax = Total).
     """
-    st.subheader("📊 Estructurador de Liquidación Profesional", divider='rainbow')
+    st.subheader("📊 Panel de Control Profesional", divider='rainbow')
 
     # Pre-cargar proveedores para evitar errores de scope
     prov_items = []
@@ -1185,7 +1185,7 @@ def dashboard_simulador_costos(controller):
     
     c_arch1, c_arch2 = st.columns(2)
     with c_arch1:
-        st.subheader("📊 Liquidación")
+        st.subheader("📊 Panel de Control")
         f_liq = st.file_uploader("Cierre de Operaciones (Excel/CSV):", type=['xlsx', 'xls', 'csv'], key="up_liqrar_final")
         
         # PROCESAMIENTO DE ENDOSES
@@ -1267,7 +1267,7 @@ def dashboard_simulador_costos(controller):
     c_res1, c_res2 = st.columns(2)
     
     with c_res1:
-        st.markdown("### 📋 Resumen de Liquidaciones (Costos)")
+        st.markdown("### 📋 Panel de Control")
         try:
             id_actual = st.session_state.get('last_loaded_id_venta')
             # 1. Obtener Itinerario base (Días) y Moneda/TC de la Venta
@@ -1277,7 +1277,7 @@ def dashboard_simulador_costos(controller):
             tc_v = float(v_meta.get('tipo_cambio') or 3.8)
 
             servicios_v = vc.obtener_detalles_itinerario_venta(id_actual)
-            mapa_nombres_serv = {s['n_linea']: s['observacion'] for s in servicios_v}
+            mapa_servicios = {s['n_linea']: s for s in servicios_v}
             
             # 2. Obtener Liquidaciones Reales (Lo que se subió por Excel)
             liq_data = controller.get_liquidaciones_venta(id_actual)
@@ -1286,30 +1286,30 @@ def dashboard_simulador_costos(controller):
                 # 1. Preparar datos para el editor
                 display_data = []
                 for l in liq_data:
+                    n_lin = l.get('n_linea')
+                    s_info = mapa_servicios.get(n_lin, {})
+                    
+                    l['Dia'] = n_lin
+                    l['Hora'] = s_info.get('hora_inicio') or "08:00 AM"
+                    l['Tipo de Servicio'] = l.get('tipo_servicio', '---')
+                    l['Proveedor'] = l.get('proveedor', {}).get('nombre_comercial') if l.get('proveedor') else "---"
+                    l['Fecha de Contratacion'] = s_info.get('fecha_servicio', '---')
+                    l['Observacion'] = s_info.get('observacion', '---')
+                    
+                    # Mantener cálculos internos por si se usan luego (pueden estar ocultos)
                     c_unit = float(l.get('costo_unitario', 0))
                     pax = float(l.get('cantidad_pax') or l.get('cantidad_items') or 1)
-                    moneda_l = l.get('moneda', 'USD')
-                    
-                    l['DIA'] = l.get('n_linea')
-                    l['SERVICIO'] = mapa_nombres_serv.get(l.get('n_linea'), "---")
-                    l['PROVEEDOR'] = l.get('proveedor', {}).get('nombre_comercial') if l.get('proveedor') else "---"
                     l['PAX'] = int(pax)
-                    l['COSTO ORIG.'] = c_unit * pax
+                    l['TOTAL (PEN)'] = (c_unit * pax) * tc_v if l.get('moneda') == 'USD' else (c_unit * pax)
                     
-                    # CÁLCULO DE CONVERSIÓN A PEN
-                    costo_pen = c_unit * pax
-                    if moneda_l == 'USD':
-                        costo_pen = (c_unit * pax) * tc_v
-                    
-                    l['TOTAL (PEN)'] = costo_pen
                     # ICONO DE ESTADO
                     l['Estado'] = "🟢 OK" if l.get('terminado') else "🔴 PENDIENTE"
                     display_data.append(l)
 
                 df_edit = pd.DataFrame(display_data)
                 
-                # Definir columnas visibles
-                cols_visible = ['Estado', 'terminado', 'DIA', 'SERVICIO', 'PROVEEDOR', 'PAX', 'TOTAL (PEN)']
+                # Definir columnas visibles según solicitud: Dia, Hora, Tipo de Servicio, Proveedor, Fecha de Contratacion, Observacion
+                cols_visible = ['Estado', 'terminado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Fecha de Contratacion', 'Observacion']
                 
                 # 2. Renderizar Editor de Datos
                 edited_result = st.data_editor(
@@ -1317,11 +1317,14 @@ def dashboard_simulador_costos(controller):
                     column_config={
                         "Estado": st.column_config.TextColumn("Visual", width="small"),
                         "terminado": st.column_config.CheckboxColumn("Check", help="Marcar como Terminado"),
-                        "DIA": st.column_config.NumberColumn("Día", format="%d", width="small"),
-                        "PAX": st.column_config.NumberColumn("Pax", width="small"),
-                        "TOTAL (PEN)": st.column_config.NumberColumn("Costo (S/.)", format="S/. %.2f")
+                        "Dia": st.column_config.NumberColumn("Día", format="%d", width="small"),
+                        "Hora": st.column_config.TextColumn("Hora", width="small"),
+                        "Tipo de Servicio": st.column_config.TextColumn("Tipo de Servicio", width="medium"),
+                        "Proveedor": st.column_config.TextColumn("Proveedor", width="medium"),
+                        "Fecha de Contratacion": st.column_config.TextColumn("Fecha", width="small"),
+                        "Observacion": st.column_config.TextColumn("Observación", width="large")
                     },
-                    disabled=['Estado', 'DIA', 'SERVICIO', 'PROVEEDOR', 'PAX', 'TOTAL (PEN)'],
+                    disabled=['Estado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Fecha de Contratacion', 'Observacion'],
                     hide_index=True,
                     use_container_width=True,
                     key="editor_liq_master"
