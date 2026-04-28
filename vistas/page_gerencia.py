@@ -163,18 +163,75 @@ def render_control_financiero_liquidaciones(supabase_client):
     op_ctrl = OperacionesController(supabase_client)
     vc = VentaController(supabase_client)
     
-    # 1. Selección de Venta
-    res_v = supabase_client.table('venta').select('id_venta, tour_nombre, cliente(nombre)').order('created_at', desc=True).limit(50).execute()
-    opciones = {f"Venta #{v['id_venta']} - {v.get('tour_nombre','')} ({v['cliente']['nombre']})": v['id_venta'] for v in res_v.data}
+    # --- 1. SELECTOR DE VENTA (ESTILO OPERACIONES) ---
+    c_tipo, c_filtro, c_pax = st.columns([1, 2, 2])
     
-    sel_v = st.selectbox("Seleccione una Venta para Liquidar:", options=list(opciones.keys()), key="ger_sel_v_liq")
-    id_venta = opciones[sel_v]
+    with c_tipo:
+        tipo_venta = st.selectbox("1️⃣ Tipo de Venta:", ["--- Seleccione ---", "🏢 B2B (Agencias)", "👤 B2C (Directas)"], key="ger_sel_tipo_v")
     
+    ventas_filtradas = []
+    
+    if tipo_venta == "🏢 B2B (Agencias)":
+        agencias = vc.obtener_agencias_aliadas()
+        nombres_agencias = [a['nombre'] for a in agencias]
+        mapa_agencias = {a['nombre']: a['id_agencia'] for a in agencias}
+        with c_filtro:
+            ag_sel = st.selectbox("2️⃣ Seleccione Agencia:", ["--- Seleccione ---"] + nombres_agencias, key="ger_sel_ag_b2b")
+        if ag_sel != "--- Seleccione ---":
+            ventas_filtradas = vc.obtener_ventas_agencia(mapa_agencias[ag_sel])
+    
+    elif tipo_venta == "👤 B2C (Directas)":
+        with c_filtro:
+            st.info("📋 Mostrando todas las ventas directas")
+        ventas_filtradas = vc.obtener_ventas_directas()
+    
+    id_venta = None
+    if ventas_filtradas:
+        opciones_v = [f"{v['nombre_cliente']} | {v.get('tour_nombre', 'Sin Tour')} ({v['id_venta']})" for v in ventas_filtradas]
+        mapa_v = {f"{v['nombre_cliente']} | {v.get('tour_nombre', 'Sin Tour')} ({v['id_venta']})": v for v in ventas_filtradas}
+        with c_pax:
+            v_sel = st.selectbox("3️⃣ Cargar Venta:", ["--- Seleccione ---"] + opciones_v, key="ger_sel_v_act")
+        if v_sel != "--- Seleccione ---":
+            id_venta = mapa_v[v_sel]['id_venta']
+
     if id_venta:
-        st.markdown(f"#### 📋 Panel de Control: Venta #{id_venta}")
+        st.markdown(f"#### 📋 Panel de Liquidación: Venta #{id_venta}")
         
         try:
-            # Reutilizamos la lógica del Panel de Control de Operaciones
+            # Reutilizamos componentes de descarga (los mismos que Operaciones)
+            from vistas.page_operaciones import render_operational_master_download, render_itinerary_simple_download
+            
+            # --- SECCIÓN DE DESCARGAS ---
+            with st.expander("📥 Descargas y Reportes (Informe Maestro, Ficha, Itinerarios)", expanded=False):
+                c1, c2 = st.columns(2)
+                with c1:
+                    render_operational_master_download(op_ctrl, id_venta, label="📊 Informe Maestro & Ficha de Control")
+                
+                # Recuperar render_data para los itinerarios
+                res_v_full = supabase_client.table('venta').select('*, itinerario_digital(datos_render, url_pdf)').eq('id_venta', id_venta).single().execute()
+                v_full = res_v_full.data or {}
+                it_dig = v_full.get('itinerario_digital')
+                render_data = None
+                
+                if it_dig:
+                    if isinstance(it_dig, list) and it_dig: it_dig = it_dig[0] # Handle join list
+                    render_data = it_dig.get('datos_render')
+                    if isinstance(render_data, str):
+                        import json
+                        render_data = json.loads(render_data)
+                
+                with c2:
+                    if render_data:
+                        render_itinerary_simple_download(render_data)
+                        url_cloud = it_dig.get('url_pdf')
+                        if url_cloud:
+                            st.link_button("🌐 Ver Itinerario Cloud (Detallado)", url_cloud, use_container_width=True, type="secondary")
+                    else:
+                        st.info("No hay itinerario digital vinculado para esta venta.")
+
+            st.markdown("---")
+            
+            # --- TABLA DE LIQUIDACIÓN (EDITABLE) ---
             res_v_meta = supabase_client.table('venta').select('moneda, tipo_cambio').eq('id_venta', id_venta).single().execute()
             v_meta = res_v_meta.data or {"moneda": "USD", "tipo_cambio": 3.8}
             tc_v = float(v_meta.get('tipo_cambio') or 3.8)
@@ -208,7 +265,6 @@ def render_control_financiero_liquidaciones(supabase_client):
                     column_config={
                         "Estado": st.column_config.TextColumn("Status", width="small"),
                         "terminado": st.column_config.CheckboxColumn("OK", help="Cerrar Servicio"),
-                        "Dia": st.column_config.NumberColumn("Día", format="%d"),
                         "moneda": st.column_config.SelectboxColumn("Moneda", options=["USD", "PEN", "EUR"]),
                         "costo_unitario": st.column_config.NumberColumn("Costo Unit.", format="%.2f"),
                         "PAX": st.column_config.NumberColumn("Pax"),
@@ -225,7 +281,7 @@ def render_control_financiero_liquidaciones(supabase_client):
                     cambios = state.get("edited_rows", {})
                     if cambios:
                         st.warning(f"⚠️ {len(cambios)} cambios pendientes.")
-                        if st.button("💾 Guardar Liquidaciones", type="primary"):
+                        if st.button("💾 Guardar Cambios Financieros", type="primary"):
                             exitos = 0
                             for row_idx, changes in cambios.items():
                                 reg_id = df_edit.iloc[row_idx]['id']
