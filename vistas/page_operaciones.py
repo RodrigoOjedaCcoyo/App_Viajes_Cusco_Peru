@@ -1201,8 +1201,8 @@ def dashboard_simulador_costos(controller):
                 st.write("**Previsualización de datos a cargar:**")
                 st.dataframe(df_preview, use_container_width=True, hide_index=True)
                 
-                # Validar columnas (ahora más flexible para permitir las nuevas del Panel de Control)
-                cols_req = ["Dia", "Tipo de Servicio", "Proveedor", "Moneda", "Costo Unitario", "Pax"]
+                # Validar columnas (Mínimo requerido para Operaciones)
+                cols_req = ["Dia", "Tipo de Servicio", "Proveedor"]
                 if all(c in df_preview.columns for c in cols_req):
                     if st.button("📦 Procesar y Guardar Endoses en DB", type="primary", use_container_width=True):
                         # Llamar al controlador (estamos en dashboard_simulador_costos(controller))
@@ -1307,8 +1307,8 @@ def dashboard_simulador_costos(controller):
 
                 df_edit = pd.DataFrame(display_data)
                 
-                # Definir columnas visibles según solicitud: Dia, Hora, Tipo de Servicio, Proveedor, Fecha de Contratacion, Observacion
-                cols_visible = ['Estado', 'terminado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Fecha de Contratacion', 'Observacion']
+                # Definir columnas visibles: Logística + Finanzas (para que otra persona los llene)
+                cols_visible = ['Estado', 'terminado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Fecha de Contratacion', 'Observacion', 'moneda', 'costo_unitario', 'PAX', 'TOTAL (PEN)']
                 
                 # 2. Renderizar Editor de Datos
                 edited_result = st.data_editor(
@@ -1321,9 +1321,13 @@ def dashboard_simulador_costos(controller):
                         "Tipo de Servicio": st.column_config.TextColumn("Tipo de Servicio", width="medium"),
                         "Proveedor": st.column_config.TextColumn("Proveedor", width="medium"),
                         "Fecha de Contratacion": st.column_config.TextColumn("Fecha", width="small"),
-                        "Observacion": st.column_config.TextColumn("Observación", width="large")
+                        "Observacion": st.column_config.TextColumn("Observación", width="large"),
+                        "moneda": st.column_config.SelectboxColumn("Moneda", options=["USD", "PEN", "EUR"], width="small"),
+                        "costo_unitario": st.column_config.NumberColumn("Costo Unit.", format="%.2f"),
+                        "PAX": st.column_config.NumberColumn("Pax", width="small"),
+                        "TOTAL (PEN)": st.column_config.NumberColumn("Costo Total (S/.)", format="S/. %.2f")
                     },
-                    disabled=['Estado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Fecha de Contratacion', 'Observacion'],
+                    disabled=['Estado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Fecha de Contratacion', 'Observacion', 'TOTAL (PEN)'],
                     hide_index=True,
                     use_container_width=True,
                     key="editor_liq_master"

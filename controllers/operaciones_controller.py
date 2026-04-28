@@ -289,36 +289,19 @@ class OperacionesController:
         except Exception as e:
             return {"exitos": 0, "errores": [f"Error al obtener servicios de la venta: {str(e)}"]}
 
-        # PASO 1.5: Sobrescritura Limpia Inteligente (Bulk Delete)
-        # Identificamos qué días vienen en el Excel y borramos SOLO los servicios anteriores de esos días
-        # para que el Excel actúe como la fuente de la verdad absoluta para esos días específicos.
-        try:
-            dias_en_excel = df_liq['Dia'].dropna().astype(int).unique().tolist()
-            lineas_a_borrar = []
-            for d in dias_en_excel:
-                if d in mapa_servicios:
-                    # Agregamos todas las n_linea asociadas a este día
-                    lineas_a_borrar.extend(mapa_servicios[d])
-            
-            if lineas_a_borrar:
-                self.client.table('venta_servicio_proveedor') \
-                    .delete() \
-                    .eq('id_venta', id_venta) \
-                    .in_('n_linea', lineas_a_borrar) \
-                    .execute()
-        except Exception as e:
-            print(f"Alerta: Fallo en Bulk Delete previo: {e}")
+        # PASO 1.5: Ya no borramos masivamente para no perder los costos ingresados por otra persona.
+        # El sistema usará UPSERT basado en (id_venta, n_linea, tipo_servicio).
+        pass
 
         # PASO 2: Inserción de Nuevos Servicios
         for idx, row in df_liq.iterrows():
             try:
                 dia_excel = int(row.get('Dia', 0))
                 prov_nombre = str(row.get('Proveedor', '')).strip().upper()
-                costo_unit = float(row.get('Costo Unitario', 0))
-                # Cast to float first to handle string decimals ("7.0"), then to int for Postgres
-                pax = int(float(row.get('Pax', 1))) 
+                costo_unit = float(row.get('Costo Unitario', 0)) if not pd.isna(row.get('Costo Unitario')) else 0
+                pax = int(float(row.get('Pax', 1))) if not pd.isna(row.get('Pax')) else 1
                 tipo = str(row.get('Tipo de Servicio', 'ENDOSE')).strip().upper()
-                moneda = str(row.get('Moneda', 'USD')).strip().upper()
+                moneda = str(row.get('Moneda', 'USD')).strip().upper() if not pd.isna(row.get('Moneda')) else "USD"
 
                 id_prov = mapa_prov.get(prov_nombre)
                 if not id_prov:
