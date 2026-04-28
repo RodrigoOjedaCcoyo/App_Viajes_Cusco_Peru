@@ -156,7 +156,11 @@ class VentaModel(BaseModel):
             "tour_nombre": tour_raw,
             "num_pasajeros": num_pax_final,
             "id_agencia_aliada": id_age,
-            "id_itinerario_digital": id_itin
+            "id_itinerario_digital": id_itin,
+            "nro_vuelo_internacional": venta_data.get("nro_vuelo_internacional"),
+            "correo_cliente": venta_data.get("correo_cliente"),
+            "nombre_contacto_emergencia": venta_data.get("nombre_contacto_emergencia"),
+            "telefono_contacto_emergencia": venta_data.get("telefono_contacto_emergencia")
         }
 
         # 3. Insertar Venta
