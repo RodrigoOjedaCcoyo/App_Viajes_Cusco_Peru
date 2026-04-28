@@ -921,6 +921,9 @@ def reporte_operativo(controller):
                             new_name = dr.get('Cliente')
                             if new_name and str(new_name).strip() not in ["", "---", "None", "Desconocido"]:
                                 render_data['nombre_pasajero'] = new_name
+                            
+                            # Enriquecer con celular
+                            render_data['cliente_telefono'] = dr.get('Celular') or ""
                                 
                             render_itinerary_simple_download(render_data)
             else:
@@ -1061,7 +1064,7 @@ def dashboard_simulador_costos(controller):
     # --- NUEVO: RECUPERAR DATOS DEL ITINERARIO PARA DESCARGA ---
     try:
         # Recuperar Venta Live de forma estándar (sin alias complejos para evitar fallos de PostgREST)
-        res_v_live = controller.client.table('venta').select('*, cliente(nombre)').eq('id_venta', id_venta_act).single().execute()
+        res_v_live = controller.client.table('venta').select('*, cliente(nombre, lead(numero_celular))').eq('id_venta', id_venta_act).single().execute()
         v_live = res_v_live.data or {}
         
         id_itin_dig = v_live.get('id_itinerario_digital')
@@ -1080,10 +1083,24 @@ def dashboard_simulador_costos(controller):
                         cliente_obj = v_live.get('cliente') or {}
                         # PostgREST a veces devuelve el objeto directo o en una lista de 1 elemento
                         nombre_raw = "CLIENTE"
+                        telefono_raw = ""
+                        
                         if isinstance(cliente_obj, dict):
                             nombre_raw = cliente_obj.get('nombre')
+                            lead_data = cliente_obj.get('lead')
+                            if isinstance(lead_data, dict):
+                                telefono_raw = lead_data.get('numero_celular', '')
+                            elif isinstance(lead_data, list) and len(lead_data) > 0:
+                                telefono_raw = lead_data[0].get('numero_celular', '')
                         elif isinstance(cliente_obj, list) and len(cliente_obj) > 0:
                             nombre_raw = cliente_obj[0].get('nombre')
+                            lead_data = cliente_obj[0].get('lead')
+                            if isinstance(lead_data, dict):
+                                telefono_raw = lead_data.get('numero_celular', '')
+                            elif isinstance(lead_data, list) and len(lead_data) > 0:
+                                telefono_raw = lead_data[0].get('numero_celular', '')
+                        
+                        render_data['cliente_telefono'] = telefono_raw
                         
                         # Si sigue sin haber nombre, usar el del itinerario o un fallback genérico
                         nombre_final = nombre_raw or render_data.get('nombre_pasajero') or "CLIENTE"

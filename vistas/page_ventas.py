@@ -904,9 +904,12 @@ def constructor_itinerarios():
             st.error("El nombre del pasajero es obligatorio para el PDF.")
         else:
             # Construir el paquete JSON (datos_render) solicitado por el usuario
+            telefono_lead = lead_sel.split(' - ')[0] if ' - ' in lead_sel else ""
             datos_render = {
                 "titulo": titulo_viaje,
                 "duracion": duracion,
+                "nombre_pasajero": nombre_pasajero,
+                "cliente_telefono": telefono_lead,
                 "fecha_viaje": fecha_viaje.isoformat(),
                 "highlights": [h.strip() for h in highlights.split(",")],
                 "inclusiones_globales": [h.strip() for h in inc_global.split("\n") if h.strip()],

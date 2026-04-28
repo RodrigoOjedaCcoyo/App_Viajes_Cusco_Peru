@@ -80,9 +80,20 @@ class OperacionesController:
             ids_clientes = list(set([v['id_cliente'] for v in ventas_map.values() if v.get('id_cliente')]))
             clientes_map = {}
             if ids_clientes:
-                res_c = self.client.table('cliente').select('id_cliente, nombre').in_('id_cliente', ids_clientes).execute()
+                res_c = self.client.table('cliente').select('id_cliente, nombre, lead(numero_celular)').in_('id_cliente', ids_clientes).execute()
                 for c in res_c.data:
-                    clientes_map[c['id_cliente']] = c['nombre']
+                    # PostgREST devuelve el lead como un objeto o lista
+                    lead_data = c.get('lead')
+                    num_tel = "---"
+                    if isinstance(lead_data, dict):
+                        num_tel = lead_data.get('numero_celular', '---')
+                    elif isinstance(lead_data, list) and len(lead_data) > 0:
+                        num_tel = lead_data[0].get('numero_celular', '---')
+                        
+                    clientes_map[c['id_cliente']] = {
+                        "nombre": c['nombre'],
+                        "telefono": num_tel
+                    }
 
             pagos_map = {} 
             if ids_ventas:
@@ -126,7 +137,9 @@ class OperacionesController:
                     continue
                 
                 id_cliente = v.get('id_cliente')
-                nombre_cliente = clientes_map.get(id_cliente, "Desconocido")
+                c_info = clientes_map.get(id_cliente, {"nombre": "Desconocido", "telefono": "---"})
+                nombre_cliente = c_info['nombre']
+                telefono_cliente = c_info['telefono']
                 
                 precio_total = v.get('precio_total_cierre', 0) or 0
                 total_pagado = pagos_map.get(s['id_venta'], 0)
@@ -153,6 +166,7 @@ class OperacionesController:
                     'Pax': s.get('cantidad', 1),
                     'cantidad': s.get('cantidad', 1),
                     'Cliente': nombre_cliente,
+                    'Celular': telefono_cliente,
                     'Guía': nombre_guia,
                     'Agencia Endoso': nombre_endoso,
                     'Proveedor': nombre_endoso if es_endoso else nombre_guia,

@@ -53,6 +53,7 @@ class PDFController:
         
         context = {
             "cliente_nombre": datos_render.get("nombre_pasajero") or "Pasajero",
+            "cliente_telefono": datos_render.get("cliente_telefono") or datos_render.get("telefono") or "",
             "fecha_viaje": fecha_robusta,
             "num_adultos": datos_render.get("num_adultos", 1),
             "num_ninos": datos_render.get("num_ninos", 0),
@@ -114,6 +115,7 @@ class PDFController:
 
         context = {
             "cliente_nombre": datos_render.get("nombre_pasajero") or "Pasajero",
+            "cliente_telefono": datos_render.get("cliente_telefono") or datos_render.get("telefono") or "",
             "fecha_viaje": fecha_robusta if fecha_robusta else "Pendiente",
             "num_adultos": int(num_adultos),
             "num_ninos": int(num_ninos),

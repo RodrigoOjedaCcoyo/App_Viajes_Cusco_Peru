@@ -106,6 +106,7 @@
     
     <div class="header-info">
         <p><strong>Pasajero:</strong> {{ cliente_nombre }}</p>
+        {% if cliente_telefono %}<p><strong>Celular:</strong> {{ cliente_telefono }}</p>{% endif %}
         <p><strong>Fecha Viaje:</strong> {{ fecha_viaje }}</p>
         <p><strong>Pax:</strong> {{ num_adultos + num_ninos }}</p>
     </div>
