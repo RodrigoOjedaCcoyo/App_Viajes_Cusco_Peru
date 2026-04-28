@@ -299,6 +299,9 @@ def registro_ventas_directa():
             if it_data.get('lead') and isinstance(it_data['lead'], dict):
                 cel_cloud = it_data['lead'].get('numero_celular', '')
             
+            # Inyectar teléfono en el render para el PDF
+            render['cliente_telefono'] = cel_cloud
+            
             st.session_state[f"val_nom_{id_itinerario_dig}"] = nombre_pax_cloud
             st.session_state[f"val_tour_{id_itinerario_dig}"] = tour_nombre_cloud
             st.session_state[f"val_cel_{id_itinerario_dig}"] = cel_cloud

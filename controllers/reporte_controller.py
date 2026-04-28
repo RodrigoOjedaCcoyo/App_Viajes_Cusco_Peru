@@ -61,10 +61,21 @@ class ReporteController:
             ventas = self.venta_model.get_all()
             if not ventas: return []
             
-            res_c = self.client.table('cliente').select('id_cliente, nombre').execute()
-            cli_map = {c['id_cliente']: c['nombre'] for c in res_c.data}
+            res_c = self.client.table('cliente').select('id_cliente, nombre, lead(numero_celular)').execute()
+            cli_map = {}
+            tel_map = {}
+            for c in res_c.data:
+                cli_map[c['id_cliente']] = c['nombre']
+                # Extraer celular
+                l_info = c.get('lead') or {}
+                if isinstance(l_info, list) and len(l_info) > 0:
+                    tel_map[c['id_cliente']] = l_info[0].get('numero_celular', '---')
+                else:
+                    tel_map[c['id_cliente']] = l_info.get('numero_celular', '---')
+                    
             for v in ventas:
                 v['cliente_nombre'] = cli_map.get(v.get('id_cliente'), "Desconocido")
+                v['telefono'] = tel_map.get(v.get('id_cliente'), "---")
             return ventas
         except Exception as e:
             print(f"Error auditoría: {e}")
@@ -83,9 +94,18 @@ class ReporteController:
                 vend_map = {v['id_vendedor']: v['nombre'] for v in res_v.data}
                 df_ventas['vendedor'] = df_ventas['id_vendedor'].map(vend_map)
                     
-                res_c = self.client.table('cliente').select('id_cliente, nombre').execute()
+                res_c = self.client.table('cliente').select('id_cliente, nombre, lead(numero_celular)').execute()
                 cli_map = {c['id_cliente']: c['nombre'] for c in res_c.data}
+                tel_map = {}
+                for c in res_c.data:
+                    l_info = c.get('lead') or {}
+                    if isinstance(l_info, list) and len(l_info) > 0:
+                        tel_map[c['id_cliente']] = l_info[0].get('numero_celular', '---')
+                    else:
+                        tel_map[c['id_cliente']] = l_info.get('numero_celular', '---')
+                
                 df_ventas['cliente_nombre'] = df_ventas['id_cliente'].map(cli_map)
+                df_ventas['telefono'] = df_ventas['id_cliente'].map(tel_map)
         except Exception as e:
             print(f"Error dashboard ventas: {e}")
             df_ventas = pd.DataFrame()

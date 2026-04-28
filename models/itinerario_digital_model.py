@@ -38,7 +38,7 @@ class ItinerarioDigitalModel(BaseModel):
         try:
             res = (
                 self.client.table(self.table_name)
-                .select('id_itinerario_digital, nombre_pasajero_itinerario, fecha_generacion, datos_render')
+                .select('id_itinerario_digital, nombre_pasajero_itinerario, fecha_generacion, datos_render, lead(numero_celular)')
                 .eq('id_lead', id_lead)
                 .order('fecha_generacion', desc=True)
                 .execute()

@@ -460,6 +460,7 @@ def estructurador_liquidacion_pro(controller):
                             render_data['fecha_inicio'] = v_act.get('fecha_inicio') or render_data.get('fecha_inicio')
                             render_data['fecha_fin'] = v_act.get('fecha_fin') or render_data.get('fecha_fin')
                             render_data['nombre_pasajero'] = v_act.get('cliente_nombre') or render_data.get('nombre_pasajero')
+                            render_data['cliente_telefono'] = v_act.get('telefono') or ""
                             render_data['num_pasajeros'] = v_act.get('num_pasajeros') or v_act.get('adultos', 1)
                             render_data['num_ninos'] = v_act.get('ninos') or 0
                             

@@ -178,7 +178,7 @@ class VentaController:
         """Obtiene las ventas vinculadas a una agencia aliada específica con nombre de cliente."""
         try:
             # Join con cliente para obtener el nombre - Excluir finalizadas
-            res = self.client.table('venta').select('*, cliente(nombre)')\
+            res = self.client.table('venta').select('*, cliente(nombre, lead(numero_celular))')\
                 .eq('id_agencia_aliada', id_agencia)\
                 .neq('estado_venta', 'FINALIZADO')\
                 .order('fecha_venta', desc=True).execute()
@@ -186,7 +186,16 @@ class VentaController:
             # Aplanar el resultado para que 'nombre_cliente' esté al primer nivel
             data = []
             for v in (res.data or []):
-                v['nombre_cliente'] = v.get('cliente', {}).get('nombre', 'Desconocido')
+                c_info = v.get('cliente') or {}
+                v['nombre_cliente'] = c_info.get('nombre', 'Desconocido')
+                
+                # Extraer celular
+                l_info = c_info.get('lead') or {}
+                if isinstance(l_info, list) and len(l_info) > 0:
+                    v['telefono'] = l_info[0].get('numero_celular', '---')
+                else:
+                    v['telefono'] = l_info.get('numero_celular', '---')
+                
                 data.append(v)
             return data
         except Exception as e:
@@ -197,14 +206,23 @@ class VentaController:
         """Obtiene las ventas directas (B2C) que NO tienen agencia aliada."""
         try:
             # Join con cliente - Excluir finalizadas
-            res = self.client.table('venta').select('*, cliente(nombre)')\
+            res = self.client.table('venta').select('*, cliente(nombre, lead(numero_celular))')\
                 .is_('id_agencia_aliada', 'null')\
                 .neq('estado_venta', 'FINALIZADO')\
                 .order('fecha_venta', desc=True).execute()
             
             data = []
             for v in (res.data or []):
-                v['nombre_cliente'] = v.get('cliente', {}).get('nombre', 'Desconocido')
+                c_info = v.get('cliente') or {}
+                v['nombre_cliente'] = c_info.get('nombre', 'Desconocido')
+                
+                # Extraer celular
+                l_info = c_info.get('lead') or {}
+                if isinstance(l_info, list) and len(l_info) > 0:
+                    v['telefono'] = l_info[0].get('numero_celular', '---')
+                else:
+                    v['telefono'] = l_info.get('numero_celular', '---')
+                    
                 data.append(v)
             return data
         except Exception as e:
@@ -350,11 +368,20 @@ class VentaController:
     def obtener_todas_ventas_b2b(self) -> list:
         """Obtiene todas las ventas registradas vía agencias aliadas para el dashboard global."""
         try:
-            res = self.client.table('venta').select('*, agencia_aliada(nombre), cliente(nombre)').not_.is_('id_agencia_aliada', 'null').order('fecha_venta', desc=True).execute()
+            res = self.client.table('venta').select('*, agencia_aliada(nombre), cliente(nombre, lead(numero_celular))').not_.is_('id_agencia_aliada', 'null').order('fecha_venta', desc=True).execute()
             data = []
             for v in (res.data or []):
                 v['nombre_agencia'] = v.get('agencia_aliada', {}).get('nombre', 'Desconocido')
-                v['nombre_cliente'] = v.get('cliente', {}).get('nombre', 'Desconocido')
+                c_info = v.get('cliente') or {}
+                v['nombre_cliente'] = c_info.get('nombre', 'Desconocido')
+                
+                # Extraer celular
+                l_info = c_info.get('lead') or {}
+                if isinstance(l_info, list) and len(l_info) > 0:
+                    v['telefono'] = l_info[0].get('numero_celular', '---')
+                else:
+                    v['telefono'] = l_info.get('numero_celular', '---')
+                    
                 data.append(v)
             return data
         except Exception as e:
