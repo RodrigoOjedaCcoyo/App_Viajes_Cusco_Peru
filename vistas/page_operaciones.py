@@ -59,9 +59,18 @@ def render_operational_master_download(controller, id_venta, label="📊 Generar
             "telefono_contacto_emergencia": v_raw.get('telefono_contacto_emergencia')
         }
 
-        # 2. Calcular Pagos
-        res_p = controller.client.table('pago').select('monto_pagado').eq('id_venta', id_venta).execute()
-        v_data['monto_pagado'] = sum(float(p['monto_pagado'] or 0) for p in res_p.data)
+        # 2. Calcular Pagos e Información de Depósito
+        res_p = controller.client.table('pago').select('*').eq('id_venta', id_venta).order('fecha_pago', desc=False).execute()
+        pagos = res_p.data or []
+        v_data['monto_pagado'] = sum(float(p['monto_pagado'] or 0) for p in pagos)
+        
+        # Extraer primer depósito
+        if pagos:
+            v_data['fecha_primer_deposito'] = pagos[0].get('fecha_pago')
+            v_data['metodo_pago_primer'] = pagos[0].get('metodo_pago')
+        else:
+            v_data['fecha_primer_deposito'] = ""
+            v_data['metodo_pago_primer'] = ""
 
         # 3. Obtener Itinerario Logístico (Con proveedores asignados)
         itinerario = controller.get_servicios_rango_fechas(date(2000,1,1), date(2100,1,1))

@@ -483,22 +483,39 @@ class ExcelController:
         ws['A2'].font = white_text
         ws['A2'].alignment = center_al
 
-        # Preparar datos (Limpieza de placeholders)
-        def clean(val):
-            return str(val) if val and str(val).strip() not in ["", "---", "None", "0", 0] else ""
-
-        tc_nombre_full = v.get('nombre_cliente') or ""
-        tc_partes = tc_nombre_full.split(' ', 1)
-        tc_nombre = tc_partes[0]
-        tc_apellido = tc_partes[1] if len(tc_partes) > 1 else ""
-        
+        # Preparar datos (Prioridad al Pasajero Principal del Rooming para TC)
         principal = next((p for p in pax if p.get('es_principal')), None)
-        tc_nacionalidad = principal.get('nacionalidad', '') if principal else ""
+        
+        if principal:
+            # Intentar separar nombre y apellido si es nombre_completo
+            full_name = principal.get('nombre_completo', '')
+            # Si el nombre completo tiene coma (Apellido, Nombre), lo respetamos
+            if "," in full_name:
+                parts = full_name.split(",", 1)
+                tc_apellido = parts[0].strip()
+                tc_nombre = parts[1].strip()
+            else:
+                parts = full_name.split(" ", 1)
+                tc_nombre = parts[0]
+                tc_apellido = parts[1] if len(parts) > 1 else ""
+            
+            tc_nacionalidad = principal.get('nacionalidad', '')
+            tc_pax = clean(principal.get('numero_documento'))
+            tc_nacimiento = str(principal.get('fecha_nacimiento', ''))[:10]
+            tc_caducidad = str(principal.get('fecha_caducidad_doc', ''))[:10]
+        else:
+            # Fallback a datos de la venta si no hay rooming
+            tc_nombre_full = v.get('nombre_cliente') or ""
+            tc_partes = tc_nombre_full.split(' ', 1)
+            tc_nombre = tc_partes[0]
+            tc_apellido = tc_partes[1] if len(tc_partes) > 1 else ""
+            tc_nacionalidad = ""
+            tc_pax = ""
+            tc_nacimiento = ""
+            tc_caducidad = ""
+
         tc_telefono = clean(v.get('telefono'))
-        tc_pax = clean(principal.get('numero_documento')) if principal else ""
         tc_vuelo = clean(v.get('nro_vuelo_internacional'))
-        tc_nacimiento = str(principal.get('fecha_nacimiento', ''))[:10] if principal else ""
-        tc_caducidad = str(principal.get('fecha_caducidad_doc', ''))[:10] if principal else ""
         tc_correo = clean(v.get('correo_cliente'))
         tc_emer_nom = clean(v.get('nombre_contacto_emergencia'))
         tc_emer_tel = clean(v.get('telefono_contacto_emergencia'))
@@ -623,34 +640,30 @@ class ExcelController:
         except: ws['L7'] = ""
         style_value(ws['L7'])
 
-        # Fila 8: RESPONSABLE | CANAL | MEDIO | TOTAL
+        # Fila 8: RESPONSABLE | DEPOSITO | MEDIO | TOTAL
         ws['A8'] = "RESPONSABLE VENDA"
         style_label(ws['A8'])
         ws.merge_cells('B8:D8')
         ws['B8'] = clean(v.get('vendedor'))
         style_value(ws['B8'])
 
-        ws['E8'] = "CANAL DE VENDA"
+        ws['E8'] = "FECHA 1º DEPOSITO"
         style_label(ws['E8'])
-        ws['F8'] = ""
+        ws.merge_cells('F8:H8')
+        ws['F8'] = clean(v.get('fecha_primer_deposito'))
         style_value(ws['F8'])
-
-        ws['G8'] = "FECHA 1º DEPOSITO"
-        style_label(ws['G8'])
-        ws['H8'] = ""
-        style_value(ws['H8'])
 
         ws['I8'] = "MEDIO DE PAGO"
         style_label(ws['I8'])
-        ws['J8'] = ""
+        ws.merge_cells('J8:K8')
+        ws['J8'] = clean(v.get('metodo_pago_primer'))
         style_value(ws['J8'])
 
-        ws['K8'] = "TOTAL DE VENDA POR PASS"
-        style_label(ws['K8'])
-        ws.merge_cells('L8:M8')
+        ws['L8'] = "TOTAL TOUR"
+        style_label(ws['L8'])
         total_v = v.get('monto_total', 0)
-        ws['L8'] = f"{v.get('moneda')} {total_v}" if total_v else ""
-        style_value(ws['L8'])
+        ws['M8'] = f"{v.get('moneda')} {total_v}" if total_v else ""
+        style_value(ws['M8'])
 
         # --- 4. SECCIÓN: DETALHES DEL TOUR ---
         ws.merge_cells('A9:M9')
