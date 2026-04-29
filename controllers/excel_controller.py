@@ -665,21 +665,22 @@ class ExcelController:
 
         ws['L8'] = "TOTAL TOUR"
         style_label(ws['L8'])
+        ws.merge_cells('M8:N8')
         total_v = v.get('monto_total', 0)
         ws['M8'] = f"{v.get('moneda')} {total_v}" if total_v else ""
         style_value(ws['M8'])
 
         # --- 4. SECCIÓN: DETALHES DEL TOUR ---
-        ws.merge_cells('A9:M9')
+        ws.merge_cells('A9:N9')
         ws['A9'] = "DETALHES DEL TOUR"
         ws['A9'].fill = black_fill
         ws['A9'].font = white_text
         ws['A9'].alignment = center_al
 
         headers_tour = [
-            "NOMBRE DEL TOUR", "FECHA", "HORA", "Nº DIA", "OPERADOR", 
-            "DESCRIPCIÓN DEL SERVI", "GUÍA", "FECHA CONTRAT", 
-            "VALOR", "RESPONSABLE", "PAGO", "FECHA CON", "OBSERVACION"
+            "NOMBRE DEL TOUR", "FECHA", "HORA", "Nº DIA", "PAX", "OPERADOR", 
+            "DESCRIPCIÓN DEL SERVI", "GUÍA", "MONEDA", 
+            "VALOR", "RESPONSABLE", "PAGO", "FECHA DE CONFIRMACION", "OBSERVACION"
         ]
         
         for i, h in enumerate(headers_tour, 1):
@@ -688,6 +689,8 @@ class ExcelController:
             cell.font = Font(color="FFFFFF", bold=True, size=8)
             cell.alignment = center_al
             cell.border = border_style
+        
+        ws.cell(row=10, column=13).border = border_style
 
         curr_row = 11
         itin_map = {s.get('N Linea'): s for s in data_hoja.get('itinerario', [])}
@@ -703,21 +706,22 @@ class ExcelController:
                 
                 f_conf = clean(s.get('fecha_confirmacion'))
 
-                # Columna 1: NOMBRE DEL TOUR (Usamos el nombre del servicio del itinerario)
+                # Columna 1-7
                 ws.cell(row=curr_row, column=1, value=clean(i_info.get('Servicio'))).border = border_style
                 ws.cell(row=curr_row, column=2, value=clean(i_info.get('fecha_servicio'))).border = border_style
                 ws.cell(row=curr_row, column=3, value=clean(s.get('hora_servicio'))).border = border_style
                 ws.cell(row=curr_row, column=4, value=clean(i_info.get('Día Itin.'))).border = border_style
                 ws.cell(row=curr_row, column=5, value=clean(prov_nom)).border = border_style
-                # Columna 6: DESCRIPCION (Aquí ponemos el tipo: Endose, Guia, etc)
                 ws.cell(row=curr_row, column=6, value=clean(s.get('tipo_servicio'))).border = border_style
                 ws.cell(row=curr_row, column=7, value=clean(s.get('nombre_guia'))).border = border_style
-                ws.cell(row=curr_row, column=8, value=f_conf).border = border_style
-                ws.cell(row=curr_row, column=9, value=clean(s.get('costo_unitario'))).border = border_style
+                
+                # Columnas 8-12 (Desplazadas)
+                ws.cell(row=curr_row, column=8, value=clean(s.get('costo_unitario'))).border = border_style
+                ws.cell(row=curr_row, column=9, value="").border = border_style
                 ws.cell(row=curr_row, column=10, value="").border = border_style
-                ws.cell(row=curr_row, column=11, value="").border = border_style
-                ws.cell(row=curr_row, column=12, value=f_conf).border = border_style
-                ws.cell(row=curr_row, column=13, value=clean(s.get('observacion'))).border = border_style
+                ws.cell(row=curr_row, column=11, value=f_conf).border = border_style
+                ws.cell(row=curr_row, column=12, value=clean(s.get('observacion'))).border = border_style
+                ws.cell(row=curr_row, column=13, value="").border = border_style
                 
                 for c in range(1, 14): ws.cell(row=curr_row, column=c).alignment = center_al
                 curr_row += 1
