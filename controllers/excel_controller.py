@@ -690,21 +690,33 @@ class ExcelController:
             cell.border = border_style
 
         curr_row = 11
+        itin_map = {s.get('N Linea'): s for s in data_hoja.get('itinerario', [])}
+
         if servicios:
             for s in servicios:
-                ws.cell(row=curr_row, column=1, value=clean(s.get('Tipo de Servicio'))).border = border_style
-                ws.cell(row=curr_row, column=2, value=clean(s.get('fecha_servicio'))).border = border_style
-                ws.cell(row=curr_row, column=3, value=clean(s.get('Hora'))).border = border_style
-                ws.cell(row=curr_row, column=4, value=clean(s.get('Dia'))).border = border_style
-                ws.cell(row=curr_row, column=5, value=clean(s.get('Proveedor'))).border = border_style
-                ws.cell(row=curr_row, column=6, value="").border = border_style
-                ws.cell(row=curr_row, column=7, value=clean(s.get('Guía'))).border = border_style
+                # Buscar info extra en el itinerario usando n_linea
+                nl = s.get('n_linea')
+                i_info = itin_map.get(nl, {})
+                
+                prov_data = s.get('proveedor') or {}
+                prov_nom = prov_data.get('nombre_comercial', '')
+
+                # Columna 1: NOMBRE DEL TOUR (Usamos el nombre del servicio del itinerario)
+                ws.cell(row=curr_row, column=1, value=clean(i_info.get('Servicio'))).border = border_style
+                ws.cell(row=curr_row, column=2, value=clean(i_info.get('fecha_servicio'))).border = border_style
+                ws.cell(row=curr_row, column=3, value=clean(s.get('hora_servicio'))).border = border_style
+                ws.cell(row=curr_row, column=4, value=clean(i_info.get('Día Itin.'))).border = border_style
+                ws.cell(row=curr_row, column=5, value=clean(prov_nom)).border = border_style
+                # Columna 6: DESCRIPCION (Aquí ponemos el tipo: Endose, Guia, etc)
+                ws.cell(row=curr_row, column=6, value=clean(s.get('tipo_servicio'))).border = border_style
+                ws.cell(row=curr_row, column=7, value=clean(s.get('nombre_guia'))).border = border_style
                 ws.cell(row=curr_row, column=8, value="").border = border_style
                 ws.cell(row=curr_row, column=9, value=clean(s.get('costo_unitario'))).border = border_style
                 ws.cell(row=curr_row, column=10, value="").border = border_style
                 ws.cell(row=curr_row, column=11, value="").border = border_style
                 ws.cell(row=curr_row, column=12, value=clean(s.get('fecha_confirmacion'))).border = border_style
-                ws.cell(row=curr_row, column=13, value=clean(s.get('Observacion'))).border = border_style
+                ws.cell(row=curr_row, column=13, value=clean(s.get('observacion'))).border = border_style
+                
                 for c in range(1, 14): ws.cell(row=curr_row, column=c).alignment = center_al
                 curr_row += 1
         
