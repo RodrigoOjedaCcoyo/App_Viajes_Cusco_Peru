@@ -433,7 +433,7 @@ class ExcelController:
 
     def generar_ficha_control_grupos_xlsx(self, data_hoja: dict) -> BytesIO:
         """
-        Genera una réplica exacta de la 'FICHA DE CONTROLE DE TOUR PARA GRUPOS' (Layout Nathalia).
+        Genera una réplica PIXEL-PERFECT de la 'FICHA DE CONTROLE DE TOUR PARA GRUPOS'.
         """
         import openpyxl
         from openpyxl.styles import Alignment, Font, Border, Side, PatternFill
@@ -443,224 +443,313 @@ class ExcelController:
         ws = wb.active
         ws.title = "Planilha1"
         
-        # --- ESTILOS ---
-        bold_f = Font(bold=True, size=10)
-        title_f = Font(bold=True, size=14)
-        center_al = Alignment(horizontal='center', vertical='center')
-        left_al = Alignment(horizontal='left', vertical='center', indent=1)
+        # --- COLORES Y ESTILOS ---
+        teal_fill = PatternFill(start_color="31859C", end_color="31859C", fill_type="solid")
+        black_fill = PatternFill(start_color="000000", end_color="000000", fill_type="solid")
+        white_text = Font(color="FFFFFF", bold=True, size=10)
+        black_bold = Font(color="000000", bold=True, size=10)
+        title_f = Font(bold=True, size=24)
+        
         border_style = Border(
             left=Side(style='thin'), 
             right=Side(style='thin'), 
             top=Side(style='thin'), 
             bottom=Side(style='thin')
         )
-        fill_light = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+        
+        center_al = Alignment(horizontal='center', vertical='center')
+        left_al = Alignment(horizontal='left', vertical='center', indent=1)
 
         v = data_hoja.get('venta', {})
         pax = data_hoja.get('pasajeros', [])
         servicios = data_hoja.get('liquidaciones', [])
 
-        # --- 1. CABECERA (DATOS DEL TC) ---
-        ws.merge_cells('A1:L1')
+        # --- 0. CONFIGURACIÓN DE COLUMNAS (13 COLUMNAS BASE) ---
+        col_letters = ['A','B','C','D','E','F','G','H','I','J','K','L','M']
+        widths = [25, 12, 10, 8, 12, 25, 15, 12, 12, 18, 12, 12, 25]
+        for i, w in enumerate(widths):
+            ws.column_dimensions[col_letters[i]].width = w
+
+        # --- 1. TÍTULO ---
+        ws.merge_cells('A1:M1')
         ws['A1'] = "FICHA DE CONTROLE DE TOUR PARA GRUPOS"
         ws['A1'].font = title_f
         ws['A1'].alignment = center_al
-        ws['A1'].border = border_style
 
-        ws.merge_cells('A2:L2')
+        # --- 2. SECCIÓN: DATOS DEL TOUR CONDUCTOR ---
+        ws.merge_cells('A2:M2')
         ws['A2'] = "DATOS DEL TOUR CONDUCTOR"
-        ws['A2'].font = bold_f
-        ws['A2'].fill = fill_light
+        ws['A2'].fill = black_fill
+        ws['A2'].font = white_text
         ws['A2'].alignment = center_al
-        ws['A2'].border = border_style
 
-        # Mapeo de datos TC / Pasajero Principal
+        # Preparar datos
         tc_nombre_full = v.get('nombre_cliente') or "---"
         tc_partes = tc_nombre_full.split(' ', 1)
         tc_nombre = tc_partes[0]
         tc_apellido = tc_partes[1] if len(tc_partes) > 1 else "---"
         
-        tc_pax = "---"
-        tc_fecha_nac = "---"
-        tc_caducidad = "---"
-        tc_contacto = v.get('nombre_contacto_emergencia') or "---"
-        tc_tel_em = v.get('telefono_contacto_emergencia') or "---"
-        tc_vuelo = v.get('nro_vuelo_internacional') or "---"
-        tc_correo = v.get('correo_cliente') or "---"
-
         principal = next((p for p in pax if p.get('es_principal')), None)
-        if principal:
-            tc_pax = principal.get('numero_documento') or tc_pax
-            tc_fecha_nac = str(principal.get('fecha_nacimiento') or tc_fecha_nac)[:10]
-            tc_caducidad = str(principal.get('fecha_caducidad_doc') or tc_caducidad)[:10]
+        tc_nacionalidad = principal.get('nacionalidad', '---') if principal else "---"
+        tc_telefono = v.get('telefono', '---')
+        tc_pax = principal.get('numero_documento', '---') if principal else "---"
+        tc_vuelo = v.get('nro_vuelo_internacional', '---')
+        tc_nacimiento = str(principal.get('fecha_nacimiento', '---'))[:10] if principal else "---"
+        tc_caducidad = str(principal.get('fecha_caducidad_doc', '---'))[:10] if principal else "---"
+        tc_correo = v.get('correo_cliente', '---')
+        tc_emer_nom = v.get('nombre_contacto_emergencia', '---')
+        tc_emer_tel = v.get('telefono_contacto_emergencia', '---')
+        tc_drive = v.get('drive_url', '---')
 
-        # Fila 3: NOMBRE / PASSAPORT / VUELO
-        ws['A3'] = "NOMBRE"
-        ws['B3'] = tc_nombre
-        ws.merge_cells('B3:D3')
-        ws['E3'] = "Nº PASSAPORT"
-        ws['F3'] = tc_pax
-        ws.merge_cells('F3:H3')
-        ws['I3'] = "Nº VUELO INTER"
-        ws['J3'] = tc_vuelo
-        ws.merge_cells('J3:L3')
+        def style_label(cell):
+            cell.fill = teal_fill
+            cell.font = white_text
+            cell.border = border_style
 
-        # Fila 4: APELLIDO / CADUCIDAD / CORREO
-        ws['A4'] = "APELLIDO"
-        ws['B4'] = tc_apellido
-        ws.merge_cells('B4:D4')
-        ws['E4'] = "FECHA CADUCIDAD"
-        ws['F4'] = tc_caducidad
-        ws.merge_cells('F4:H4')
-        ws['I4'] = "CORREO"
-        ws['J4'] = tc_correo
-        ws.merge_cells('J4:L4')
-
-        # Fila 5: NASCIMENTO / TEL EMERGENCIA / LINK DRIVE
-        ws['A5'] = "FECHA DE NASCIMENTO"
-        ws['B5'] = tc_fecha_nac
-        ws.merge_cells('B5:D5')
-        ws['E5'] = "TEL. EMERGENCIA"
-        ws['F5'] = tc_tel_em
-        ws.merge_cells('F5:H5')
-        ws['I5'] = "LINK DRIVE"
-        ws['J5'] = v.get('drive_url', '---')
-        ws.merge_cells('J5:L5')
-
-        # Fila 6: CONTACTO EMER / FECHA VENDA / RESP. VENDA
-        ws['A6'] = "NOMBRE CONTACTO EMERGENCIA"
-        ws['B6'] = tc_contacto
-        ws.merge_cells('B6:D6')
-        ws['E6'] = "FECHA DE VENDA"
-        ws['F6'] = v.get('fecha_venta', '---')
-        ws.merge_cells('F6:H6')
-        ws['I6'] = "RESPONSABLE VENDA"
-        ws['J6'] = v.get('vendedor', '---')
-        ws.merge_cells('J6:L6')
-
-        for r in range(3, 7):
-            for c in range(1, 13):
-                ws.cell(row=r, column=c).border = border_style
-                ws.cell(row=r, column=c).alignment = left_al
-
-        # --- 2. DETALHES DEL TOUR (LISTA DE SERVICIOS) ---
-        current_row = 8
-        ws.merge_cells(f'A{current_row}:L{current_row}')
-        ws[f'A{current_row}'] = "DETALHES DEL TOUR"
-        ws[f'A{current_row}'].font = bold_f
-        ws[f'A{current_row}'].fill = fill_light
-        ws[f'A{current_row}'].alignment = center_al
-        ws[f'A{current_row}'].border = border_style
-        current_row += 1
-
-        # Cabecera de servicios
-        ws[f'A{current_row}'] = "NOMBRE DEL TOUR / SERVICIO"
-        ws.merge_cells(f'A{current_row}:H{current_row}')
-        ws[f'I{current_row}'] = "FECHA VIAJE"
-        ws.merge_cells(f'I{current_row}:J{current_row}')
-        ws[f'K{current_row}'] = "OBSERVACION"
-        ws.merge_cells(f'K{current_row}:L{current_row}')
-        
-        for c in range(1, 13):
-            ws.cell(row=current_row, column=c).font = bold_f
-            ws.cell(row=current_row, column=c).border = border_style
-            ws.cell(row=current_row, column=c).alignment = center_al
-        current_row += 1
-
-        # Listado dinámico de servicios
-        if not servicios:
-            ws[f'A{current_row}'] = v.get('tour_nombre', '---')
-            ws.merge_cells(f'A{current_row}:H{current_row}')
-            ws[f'I{current_row}'] = f"{v.get('fecha_inicio')} - {v.get('fecha_fin')}"
-            ws.merge_cells(f'I{current_row}:J{current_row}')
-            ws[f'K{current_row}'] = "---"
-            ws.merge_cells(f'K{current_row}:L{current_row}')
-            for c in range(1, 13): ws.cell(row=current_row, column=c).border = border_style
-            current_row += 1
-        else:
-            for s in servicios:
-                ws[f'A{current_row}'] = s.get('Tipo de Servicio', '---')
-                ws.merge_cells(f'A{current_row}:H{current_row}')
-                ws[f'I{current_row}'] = s.get('fecha_servicio', '---')
-                ws.merge_cells(f'I{current_row}:J{current_row}')
-                ws[f'K{current_row}'] = s.get('Observacion', '---')
-                ws.merge_cells(f'K{current_row}:L{current_row}')
-                for c in range(1, 13): ws.cell(row=current_row, column=c).border = border_style
-                current_row += 1
-
-        # --- 3. TABLA DE PASAJEROS (ROOMING LIST) ---
-        current_row += 1
-        ws.merge_cells(f'A{current_row}:L{current_row}')
-        ws[f'A{current_row}'] = "PASAJEROS / ROOMING LIST"
-        ws[f'A{current_row}'].font = bold_f
-        ws[f'A{current_row}'].fill = fill_light
-        ws[f'A{current_row}'].alignment = center_al
-        ws[f'A{current_row}'].border = border_style
-        current_row += 1
-
-        headers = ["Nº", "APELLIDOS / NOMBRES", "SEXO", "PASAPORTE", "NACIONALIDAD", "FECHA NAC.", "DIETA", "HABITACIÓN"]
-        col_indices = [1, 2, 5, 6, 8, 9, 10, 12] # Mapeo manual para ocupar las 12 columnas (L)
-        
-        # Merge para headers (distribución manual)
-        header_config = [
-            ("Nº", 1, 1), ("APELLIDOS / NOMBRES", 2, 4), ("SEXO", 5, 5),
-            ("PASAPORTE", 6, 7), ("NACIONALIDAD", 8, 8), ("FECHA NAC.", 9, 9),
-            ("DIETA", 10, 11), ("HABITACIÓN", 12, 12)
-        ]
-
-        for h, start_c, end_c in header_config:
-            cell = ws.cell(row=current_row, column=start_c, value=h)
-            cell.font = bold_f
+        def style_value(cell):
             cell.border = border_style
             cell.alignment = center_al
-            if start_c != end_c:
-                ws.merge_cells(start_row=current_row, end_row=current_row, start_column=start_c, end_column=end_c)
-                # Aplicar bordes a las celdas mergeadas
-                for c in range(start_c, end_c + 1):
-                    ws.cell(row=current_row, column=c).border = border_style
-        current_row += 1
 
+        # Fila 3: NOMBRE | NACIONALIDAD | TELEFONO
+        ws['A3'] = "NOMBRE"
+        style_label(ws['A3'])
+        ws.merge_cells('B3:D3')
+        ws['B3'] = tc_nombre
+        style_value(ws['B3'])
+        for c in range(3, 5): style_value(ws.cell(row=3, column=c))
+        
+        ws['E3'] = "NACIONALIDAD"
+        style_label(ws['E3'])
+        ws.merge_cells('F3:H3')
+        ws['F3'] = tc_nacionalidad
+        style_value(ws['F3'])
+        for c in range(7, 9): style_value(ws.cell(row=3, column=c))
+
+        ws['I3'] = "TELEFONO / WHATSAPP"
+        style_label(ws['I3'])
+        ws.merge_cells('J3:M3')
+        ws['J3'] = tc_telefono
+        style_value(ws['J3'])
+        for c in range(11, 14): style_value(ws.cell(row=3, column=c))
+
+        # Fila 4: APELLIDO | PASSAPORT | VUELO
+        ws['A4'] = "APELLIDO"
+        style_label(ws['A4'])
+        ws.merge_cells('B4:D4')
+        ws['B4'] = tc_apellido
+        style_value(ws['B4'])
+
+        ws['E4'] = "Nº PASSAPORT"
+        style_label(ws['E4'])
+        ws.merge_cells('F4:H4')
+        ws['F4'] = tc_pax
+        style_value(ws['F4'])
+
+        ws['I4'] = "Nº VUELO INTERNACIONAL"
+        style_label(ws['I4'])
+        ws.merge_cells('J4:M4')
+        ws['J4'] = tc_vuelo
+        style_value(ws['J4'])
+
+        # Fila 5: NASCIMENTO | CADUCIDAD | CORREO
+        ws['A5'] = "FECHA DE NASCIMENTO"
+        style_label(ws['A5'])
+        ws.merge_cells('B5:D5')
+        ws['B5'] = tc_nacimiento
+        style_value(ws['B5'])
+
+        ws['E5'] = "FECHA DE CADUCIDAD"
+        style_label(ws['E5'])
+        ws.merge_cells('F5:H5')
+        ws['F5'] = tc_caducidad
+        style_value(ws['F5'])
+
+        ws['I5'] = "CORREO"
+        style_label(ws['I5'])
+        ws.merge_cells('J5:M5')
+        ws['J5'] = tc_correo
+        style_value(ws['J5'])
+
+        # Fila 6: EMERGENCIA | CONTACTO | DRIVE
+        ws['A6'] = "NOMBRE CONTACTO EMER"
+        style_label(ws['A6'])
+        ws.merge_cells('B6:D6')
+        ws['B6'] = tc_emer_nom
+        style_value(ws['B6'])
+
+        ws['E6'] = "TELEFONE CONTATO EMERCIA"
+        style_label(ws['E6'])
+        ws.merge_cells('F6:H6')
+        ws['F6'] = tc_emer_tel
+        style_value(ws['F6'])
+
+        ws['I6'] = "LINK DEL DRIVE"
+        style_label(ws['I6'])
+        ws.merge_cells('J6:M6')
+        ws['J6'] = tc_drive
+        style_value(ws['J3']) # Corregido abajo
+        ws['J6'] = tc_drive
+
+        for r in range(3, 7):
+            for c in range(1, 14):
+                ws.cell(row=r, column=c).border = border_style
+
+        # --- 3. SECCIÓN: DATOS DE VENTA (Intermedia) ---
+        # Fila 7: FECHA VENDA | 1 CIUDAD | INICIO | FINAL | DIAS
+        ws['A7'] = "FECHA DE VENDA"
+        style_label(ws['A7'])
+        ws['B7'] = str(v.get('fecha_venta', '---'))
+        style_value(ws['B7'])
+        
+        ws['C7'] = "1º CIUDAD"
+        style_label(ws['C7'])
+        ws['D7'] = "CUSCO"
+        style_value(ws['D7'])
+
+        ws['E7'] = "FECHA DE INICIO"
+        style_label(ws['E7'])
+        ws.merge_cells('F7:G7')
+        ws['F7'] = str(v.get('fecha_inicio', '---'))
+        style_value(ws['F7'])
+
+        ws['H7'] = "FECHA FINAL DEL"
+        style_label(ws['H7'])
+        ws.merge_cells('I7:J7')
+        ws['I7'] = str(v.get('fecha_fin', '---'))
+        style_value(ws['I7'])
+
+        ws['K7'] = "CANTIDAD DE DIAS DEL TOUR"
+        style_label(ws['K7'])
+        ws.merge_cells('L7:M7')
+        try:
+            d1 = datetime.strptime(v['fecha_inicio'], "%Y-%m-%d")
+            d2 = datetime.strptime(v['fecha_fin'], "%Y-%m-%d")
+            ws['L7'] = (d2 - d1).days + 1
+        except: ws['L7'] = "---"
+        style_value(ws['L7'])
+
+        # Fila 8: RESPONSABLE | CANAL | DEPOSITO | MEDIO | TOTAL
+        ws['A8'] = "RESPONSABLE VENDA"
+        style_label(ws['A8'])
+        ws.merge_cells('B8:D8')
+        ws['B8'] = v.get('vendedor', '---')
+        style_value(ws['B8'])
+
+        ws['E8'] = "CANAL DE VENDA"
+        style_label(ws['E8'])
+        ws['F8'] = "---"
+        style_value(ws['F8'])
+
+        ws['G8'] = "FECHA 1º DEPOSITO"
+        style_label(ws['G8'])
+        ws['H8'] = "---"
+        style_value(ws['H8'])
+
+        ws['I8'] = "MEDIO DE PAGO"
+        style_label(ws['I8'])
+        ws['J8'] = "---"
+        style_value(ws['J8'])
+
+        ws['K8'] = "TOTAL DE VENDA POR PASS"
+        style_label(ws['K8'])
+        ws.merge_cells('L8:M8')
+        ws['L8'] = f"{v.get('moneda')} {v.get('monto_total', 0)}"
+        style_value(ws['L8'])
+
+        # --- 4. SECCIÓN: DETALHES DEL TOUR (TABLA 13 COLUMNAS) ---
+        ws.merge_cells('A9:M9')
+        ws['A9'] = "DETALHES DEL TOUR"
+        ws['A9'].fill = black_fill
+        ws['A9'].font = white_text
+        ws['A9'].alignment = center_al
+
+        headers_tour = [
+            "NOMBRE DEL TOUR", "FECHA", "HORA", "Nº DIA", "OPERADOR", 
+            "DESCRIPCIÓN DEL SERVI", "NOMBRE DEL GUÍA", "FECHA CONTRAT", 
+            "VALOR DEL SER", "RESPONSABLE PELA CON", "FECHA DE P", 
+            "FECHA CON", "OBSERVACION"
+        ]
+        
+        for i, h in enumerate(headers_tour, 1):
+            cell = ws.cell(row=10, column=i, value=h)
+            cell.fill = PatternFill(start_color="31859C", end_color="31859C", fill_type="solid")
+            cell.font = Font(color="FFFFFF", bold=True, size=8)
+            cell.alignment = center_al
+            cell.border = border_style
+
+        curr_row = 11
+        if servicios:
+            for s in servicios:
+                ws.cell(row=curr_row, column=1, value=s.get('Tipo de Servicio', '---')).border = border_style
+                ws.cell(row=curr_row, column=2, value=s.get('fecha_servicio', '---')).border = border_style
+                ws.cell(row=curr_row, column=3, value=s.get('Hora', '---')).border = border_style
+                ws.cell(row=curr_row, column=4, value=s.get('Dia', '---')).border = border_style
+                ws.cell(row=curr_row, column=5, value=s.get('Proveedor', '---')).border = border_style
+                ws.cell(row=curr_row, column=6, value="---").border = border_style
+                ws.cell(row=curr_row, column=7, value=s.get('Guía', '---')).border = border_style
+                ws.cell(row=curr_row, column=8, value="---").border = border_style
+                ws.cell(row=curr_row, column=9, value=s.get('costo_unitario', '---')).border = border_style
+                ws.cell(row=curr_row, column=10, value="---").border = border_style
+                ws.cell(row=curr_row, column=11, value="---").border = border_style
+                ws.cell(row=curr_row, column=12, value=s.get('fecha_confirmacion', '---')).border = border_style
+                ws.cell(row=curr_row, column=13, value=s.get('Observacion', '---')).border = border_style
+                curr_row += 1
+        else:
+            # Fila vacía para estructura
+            for c in range(1, 14): ws.cell(row=curr_row, column=c).border = border_style
+            curr_row += 1
+
+        # --- 5. PASAJEROS / ROOMING LIST ---
+        curr_row += 1
+        ws.merge_cells(f'A{curr_row}:M{curr_row}')
+        ws[f'A{curr_row}'] = "PASAJEROS / ROOMING LIST"
+        ws[f'A{curr_row}'].fill = black_fill
+        ws[f'A{curr_row}'].font = white_text
+        ws[f'A{curr_row}'].alignment = center_al
+        curr_row += 1
+
+        headers_pax = ["Nº", "APELLIDOS / NOMBRES", "SEXO", "PASAPORTE", "NACIONALIDAD", "FECHA NAC.", "DIETA", "HABITACIÓN"]
+        pax_config = [
+            ("Nº", 1, 1), ("APELLIDOS / NOMBRES", 2, 5), ("SEXO", 6, 6),
+            ("PASAPORTE", 7, 8), ("NACIONALIDAD", 9, 9), ("FECHA NAC.", 10, 10),
+            ("DIETA", 11, 12), ("HABITACIÓN", 13, 13)
+        ]
+
+        for h, s_c, e_c in pax_config:
+            cell = ws.cell(row=curr_row, column=s_c, value=h)
+            cell.fill = teal_fill
+            cell.font = white_text
+            cell.border = border_style
+            cell.alignment = center_al
+            if s_c != e_c: ws.merge_cells(start_row=curr_row, end_row=curr_row, start_column=s_c, end_column=e_c)
+            for c in range(s_c, e_c+1): ws.cell(row=curr_row, column=c).border = border_style
+        
+        curr_row += 1
         for i, p in enumerate(pax, 1):
-            # Nº
-            ws.cell(row=current_row, column=1, value=i).alignment = center_al
-            # Nombres
-            ws.cell(row=current_row, column=2, value=str(p.get('nombre_completo', '')).upper())
-            ws.merge_cells(start_row=current_row, end_row=current_row, start_column=2, end_column=4)
-            # Sexo
-            ws.cell(row=current_row, column=5, value=p.get('genero', '---')).alignment = center_al
-            # Pasaporte
-            ws.cell(row=current_row, column=6, value=p.get('numero_documento', '---'))
-            ws.merge_cells(start_row=current_row, end_row=current_row, start_column=6, end_column=7)
-            # Nacionalidad
-            ws.cell(row=current_row, column=8, value=p.get('nacionalidad', '---'))
-            # Nacimiento
-            ws.cell(row=current_row, column=9, value=str(p.get('fecha_nacimiento', '---'))[:10])
-            # Dieta
-            ws.cell(row=current_row, column=10, value=p.get('dieta', p.get('cuidados_especiales', '---')))
-            ws.merge_cells(start_row=current_row, end_row=current_row, start_column=10, end_column=11)
-            # Habitacion
-            ws.cell(row=current_row, column=12, value=p.get('acomodacion', '---'))
+            ws.cell(row=curr_row, column=1, value=i).border = border_style
             
-            for c in range(1, 13):
-                ws.cell(row=current_row, column=c).border = border_style
-            current_row += 1
-
-        # Ajuste de anchos
-        ws.column_dimensions['A'].width = 15
-        ws.column_dimensions['B'].width = 12
-        ws.column_dimensions['C'].width = 12
-        ws.column_dimensions['D'].width = 12
-        ws.column_dimensions['E'].width = 18
-        ws.column_dimensions['F'].width = 15
-        ws.column_dimensions['G'].width = 12
-        ws.column_dimensions['H'].width = 12
-        ws.column_dimensions['I'].width = 18
-        ws.column_dimensions['J'].width = 15
-        ws.column_dimensions['K'].width = 15
-        ws.column_dimensions['L'].width = 15
+            ws.cell(row=curr_row, column=2, value=str(p.get('nombre_completo', '')).upper()).border = border_style
+            ws.merge_cells(start_row=curr_row, end_row=curr_row, start_column=2, end_column=5)
+            
+            ws.cell(row=curr_row, column=6, value=p.get('genero', '---')).border = border_style
+            
+            ws.cell(row=curr_row, column=7, value=p.get('numero_documento', '---')).border = border_style
+            ws.merge_cells(start_row=curr_row, end_row=curr_row, start_column=7, end_column=8)
+            
+            ws.cell(row=curr_row, column=9, value=p.get('nacionalidad', '---')).border = border_style
+            ws.cell(row=curr_row, column=10, value=str(p.get('fecha_nacimiento', '---'))[:10]).border = border_style
+            
+            ws.cell(row=curr_row, column=11, value=p.get('dieta', '---')).border = border_style
+            ws.merge_cells(start_row=curr_row, end_row=curr_row, start_column=11, end_column=12)
+            
+            ws.cell(row=curr_row, column=13, value=p.get('acomodacion', '---')).border = border_style
+            
+            for c in range(1, 14): ws.cell(row=curr_row, column=c).border = border_style
+            curr_row += 1
 
         output = BytesIO()
         wb.save(output)
         output.seek(0)
         return output
+
 
