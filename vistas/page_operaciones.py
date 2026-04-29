@@ -1325,7 +1325,7 @@ def dashboard_simulador_costos(controller):
                 df_edit = pd.DataFrame(display_data)
                 
                 # Definir columnas visibles: Logística + Finanzas
-                cols_visible = ['Estado', 'terminado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'Fecha de Contratacion', 'F. Confirmación', 'Observacion', 'moneda', 'costo_unitario', 'PAX', 'TOTAL (PEN)']
+                cols_visible = ['Estado', 'terminado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'F. Confirmación', 'Observacion', 'moneda', 'costo_unitario', 'PAX', 'TOTAL (PEN)']
                 
                 # 2. Renderizar Editor de Datos
                 edited_result = st.data_editor(
