@@ -742,7 +742,7 @@ class ExcelController:
         pax_config = [
             ("Nº", 1, 1), ("APELLIDOS / NOMBRES", 2, 5), ("SEXO", 6, 6),
             ("PASAPORTE", 7, 8), ("NACIONALIDAD", 9, 9), ("FECHA NAC.", 10, 10),
-            ("DIETA", 11, 12), ("HABITACIÓN", 13, 13)
+            ("CUIDADOS", 11, 12), ("HABITACIÓN", 13, 13)
         ]
 
         for h, s_c, e_c in pax_config:
@@ -772,7 +772,7 @@ class ExcelController:
             ws.cell(row=curr_row, column=9, value=clean(p.get('nacionalidad'))).border = border_style
             ws.cell(row=curr_row, column=10, value=str(p.get('fecha_nacimiento', ''))[:10]).border = border_style
             
-            ws.cell(row=curr_row, column=11, value=clean(p.get('dieta'))).border = border_style
+            ws.cell(row=curr_row, column=11, value=clean(p.get('cuidados_especiales'))).border = border_style
             ws.merge_cells(start_row=curr_row, end_row=curr_row, start_column=11, end_column=12)
             
             ws.cell(row=curr_row, column=13, value=clean(p.get('acomodacion'))).border = border_style
