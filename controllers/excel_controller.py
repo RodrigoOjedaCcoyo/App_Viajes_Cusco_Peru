@@ -664,6 +664,7 @@ class ExcelController:
 
         ws['L8'] = "TOTAL TOUR"
         style_label(ws['L8'])
+        total_v = v.get('monto_total', 0)
         ws['M8'] = f"{v.get('moneda')} {total_v}" if total_v else ""
         style_value(ws['M8'])
 
