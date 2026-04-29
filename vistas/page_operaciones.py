@@ -45,6 +45,7 @@ def render_operational_master_download(controller, id_venta, label="📊 Generar
             "nombre_cliente": cliente_nest.get('nombre', 'Desconocido') if isinstance(cliente_nest, dict) else 'Desconocido',
             "telefono": lead_nest.get('numero_celular', '---') if isinstance(lead_nest, dict) else '---',
             "tour_nombre": v_raw.get('tour_nombre', 'Sin Tour'),
+            "fecha_venta": v_raw.get('fecha_venta'),
             "fecha_inicio": v_raw.get('fecha_inicio'),
             "fecha_fin": v_raw.get('fecha_fin'),
             "num_pasajeros": v_raw.get('num_pasajeros', 1),
