@@ -605,7 +605,7 @@ class ExcelController:
 
         ws['I6'] = "LINK DEL DRIVE"
         style_label(ws['I6'])
-        ws.merge_cells('J6:M3') # Note: fixing row index 3 to 6 too
+        ws.merge_cells('J6:M6')
         ws['J6'] = tc_drive
         style_value(ws['J6'])
 
