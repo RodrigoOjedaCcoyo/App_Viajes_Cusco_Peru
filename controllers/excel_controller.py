@@ -433,19 +433,18 @@ class ExcelController:
 
     def generar_ficha_control_grupos_xlsx(self, data_hoja: dict) -> BytesIO:
         """
-        Genera una réplica exacta de la 'FICHA DE CONTROLE DE TOUR PARA GRUPOS'.
-        Optimizado para impresión en blanco y negro (Ink Saver).
+        Genera una réplica exacta de la 'FICHA DE CONTROLE DE TOUR PARA GRUPOS' (Layout Nathalia).
         """
         import openpyxl
         from openpyxl.styles import Alignment, Font, Border, Side, PatternFill
+        from datetime import datetime
         
         wb = openpyxl.Workbook()
         ws = wb.active
-        ws.title = "FICHA_CONTROL_GRUPOS"
+        ws.title = "Planilha1"
         
         # --- ESTILOS ---
         bold_f = Font(bold=True, size=10)
-        header_f = Font(bold=True, size=12)
         title_f = Font(bold=True, size=14)
         center_al = Alignment(horizontal='center', vertical='center')
         left_al = Alignment(horizontal='left', vertical='center', indent=1)
@@ -459,15 +458,15 @@ class ExcelController:
 
         v = data_hoja.get('venta', {})
         pax = data_hoja.get('pasajeros', [])
+        servicios = data_hoja.get('liquidaciones', [])
 
-        # 1. TÍTULO PRINCIPAL
+        # --- 1. CABECERA (DATOS DEL TC) ---
         ws.merge_cells('A1:L1')
         ws['A1'] = "FICHA DE CONTROLE DE TOUR PARA GRUPOS"
         ws['A1'].font = title_f
         ws['A1'].alignment = center_al
         ws['A1'].border = border_style
 
-        # 2. SECCIÓN: DATOS DEL TOUR CONDUCTOR (Fila 2-5)
         ws.merge_cells('A2:L2')
         ws['A2'] = "DATOS DEL TOUR CONDUCTOR"
         ws['A2'].font = bold_f
@@ -475,8 +474,12 @@ class ExcelController:
         ws['A2'].alignment = center_al
         ws['A2'].border = border_style
 
-        # Mapeo de datos TC / Pasajero Principal (Campos nuevos)
-        tc_nombre = v.get('nombre_cliente') or "---"
+        # Mapeo de datos TC / Pasajero Principal
+        tc_nombre_full = v.get('nombre_cliente') or "---"
+        tc_partes = tc_nombre_full.split(' ', 1)
+        tc_nombre = tc_partes[0]
+        tc_apellido = tc_partes[1] if len(tc_partes) > 1 else "---"
+        
         tc_pax = "---"
         tc_fecha_nac = "---"
         tc_caducidad = "---"
@@ -485,71 +488,109 @@ class ExcelController:
         tc_vuelo = v.get('nro_vuelo_internacional') or "---"
         tc_correo = v.get('correo_cliente') or "---"
 
-        # INTELIGENCIA: Si hay un pasajero marcado como Principal (P), extraemos sus datos para la cabecera
         principal = next((p for p in pax if p.get('es_principal')), None)
         if principal:
             tc_pax = principal.get('numero_documento') or tc_pax
             tc_fecha_nac = str(principal.get('fecha_nacimiento') or tc_fecha_nac)[:10]
             tc_caducidad = str(principal.get('fecha_caducidad_doc') or tc_caducidad)[:10]
 
-        # Fila 3: Nombre y Pasaporte
-        ws['A3'] = "NOMBRE / APELLIDO"
+        # Fila 3: NOMBRE / PASSAPORT / VUELO
+        ws['A3'] = "NOMBRE"
         ws['B3'] = tc_nombre
-        ws.merge_cells('B3:E3')
-        ws['F3'] = "Nº PASSAPORT"
-        ws['G3'] = tc_pax
-        ws.merge_cells('G3:I3')
-        ws['J3'] = "Nº VUELO INTER"
-        ws['K3'] = tc_vuelo
-        ws.merge_cells('K3:L3')
+        ws.merge_cells('B3:D3')
+        ws['E3'] = "Nº PASSAPORT"
+        ws['F3'] = tc_pax
+        ws.merge_cells('F3:H3')
+        ws['I3'] = "Nº VUELO INTER"
+        ws['J3'] = tc_vuelo
+        ws.merge_cells('J3:L3')
 
-        # Fila 4: Nacimiento y Caducidad
-        ws['A4'] = "FECHA NACIMIENTO"
-        ws['B4'] = tc_fecha_nac
-        ws.merge_cells('B4:E4')
-        ws['F4'] = "FECHA CADUCIDAD"
-        ws['G4'] = tc_caducidad
-        ws.merge_cells('G4:I4')
-        ws['J4'] = "CORREO"
-        ws['K4'] = tc_correo
-        ws.merge_cells('K4:L4') 
+        # Fila 4: APELLIDO / CADUCIDAD / CORREO
+        ws['A4'] = "APELLIDO"
+        ws['B4'] = tc_apellido
+        ws.merge_cells('B4:D4')
+        ws['E4'] = "FECHA CADUCIDAD"
+        ws['F4'] = tc_caducidad
+        ws.merge_cells('F4:H4')
+        ws['I4'] = "CORREO"
+        ws['J4'] = tc_correo
+        ws.merge_cells('J4:L3') # Error en merge, corregido a J4:L4
+        ws.merge_cells('J4:L4')
 
-        # Fila 5: Emergencia y Drive
-        ws['A5'] = "CONTACTO EMER."
-        ws['B5'] = tc_contacto
-        ws.merge_cells('B5:E5')
-        ws['F5'] = "TEL. EMERGENCIA"
-        ws['G5'] = tc_tel_em
-        ws.merge_cells('G5:I5')
-        ws['J5'] = "LINK DRIVE"
-        ws['K5'] = v.get('drive_url', '---')
-        ws.merge_cells('K5:L5')
+        # Fila 5: NASCIMENTO / TEL EMERGENCIA / LINK DRIVE
+        ws['A5'] = "FECHA DE NASCIMENTO"
+        ws['B5'] = tc_fecha_nac
+        ws.merge_cells('B5:D5')
+        ws['E5'] = "TEL. EMERGENCIA"
+        ws['F5'] = tc_tel_em
+        ws.merge_cells('F5:H5')
+        ws['I5'] = "LINK DRIVE"
+        ws['J5'] = v.get('drive_url', '---')
+        ws.merge_cells('J5:L5')
 
-        for r in range(3, 6):
+        # Fila 6: CONTACTO EMER / FECHA VENDA / RESP. VENDA
+        ws['A6'] = "NOMBRE CONTACTO EMERGENCIA"
+        ws['B6'] = tc_contacto
+        ws.merge_cells('B6:D6')
+        ws['E6'] = "FECHA DE VENDA"
+        ws['F6'] = v.get('fecha_venta', '---')
+        ws.merge_cells('F6:H6')
+        ws['I6'] = "RESPONSABLE VENDA"
+        ws['J6'] = v.get('vendedor', '---')
+        ws.merge_cells('J6:L6')
+
+        for r in range(3, 7):
             for c in range(1, 13):
                 ws.cell(row=r, column=c).border = border_style
+                ws.cell(row=r, column=c).alignment = left_al
 
-        # 3. SECCIÓN: DETALHES DEL TOUR (Fila 7-8)
-        ws.merge_cells('A7:L7')
-        ws['A7'] = "DETALHES DEL TOUR"
-        ws['A7'].font = bold_f
-        ws['A7'].fill = fill_light
-        ws['A7'].alignment = center_al
-        ws['A7'].border = border_style
+        # --- 2. DETALHES DEL TOUR (LISTA DE SERVICIOS) ---
+        current_row = 8
+        ws.merge_cells(f'A{current_row}:L{current_row}')
+        ws[f'A{current_row}'] = "DETALHES DEL TOUR"
+        ws[f'A{current_row}'].font = bold_f
+        ws[f'A{current_row}'].fill = fill_light
+        ws[f'A{current_row}'].alignment = center_al
+        ws[f'A{current_row}'].border = border_style
+        current_row += 1
 
-        ws['A8'] = "NOMBRE DEL TOUR"
-        ws['B8'] = v.get('tour_nombre', '---')
-        ws.merge_cells('B8:F8')
-        ws['G8'] = "FECHA VIAJE"
-        ws['H8'] = f"{v.get('fecha_inicio')} - {v.get('fecha_fin')}"
-        ws.merge_cells('H8:J8')
-        ws['K8'] = "RESP. VENTA"
-        ws['L8'] = v.get('vendedor', '---')
+        # Cabecera de servicios
+        ws[f'A{current_row}'] = "NOMBRE DEL TOUR / SERVICIO"
+        ws.merge_cells(f'A{current_row}:H{current_row}')
+        ws[f'I{current_row}'] = "FECHA VIAJE"
+        ws.merge_cells(f'I{current_row}:J{current_row}')
+        ws[f'K{current_row}'] = "OBSERVACION"
+        ws.merge_cells(f'K{current_row}:L{current_row}')
         
-        for c in range(1, 13): ws.cell(row=8, column=c).border = border_style
+        for c in range(1, 13):
+            ws.cell(row=current_row, column=c).font = bold_f
+            ws.cell(row=current_row, column=c).border = border_style
+            ws.cell(row=current_row, column=c).alignment = center_al
+        current_row += 1
 
-        # 4. TABLA DE PASAJEROS (A partir de Fila 10)
-        current_row = 10
+        # Listado dinámico de servicios
+        if not servicios:
+            ws[f'A{current_row}'] = v.get('tour_nombre', '---')
+            ws.merge_cells(f'A{current_row}:H{current_row}')
+            ws[f'I{current_row}'] = f"{v.get('fecha_inicio')} - {v.get('fecha_fin')}"
+            ws.merge_cells(f'I{current_row}:J{current_row}')
+            ws[f'K{current_row}'] = "---"
+            ws.merge_cells(f'K{current_row}:L{current_row}')
+            for c in range(1, 13): ws.cell(row=current_row, column=c).border = border_style
+            current_row += 1
+        else:
+            for s in servicios:
+                ws[f'A{current_row}'] = s.get('Tipo de Servicio', '---')
+                ws.merge_cells(f'A{current_row}:H{current_row}')
+                ws[f'I{current_row}'] = s.get('fecha_servicio', '---')
+                ws.merge_cells(f'I{current_row}:J{current_row}')
+                ws[f'K{current_row}'] = s.get('Observacion', '---')
+                ws.merge_cells(f'K{current_row}:L{current_row}')
+                for c in range(1, 13): ws.cell(row=current_row, column=c).border = border_style
+                current_row += 1
+
+        # --- 3. TABLA DE PASAJEROS (ROOMING LIST) ---
+        current_row += 1
         ws.merge_cells(f'A{current_row}:L{current_row}')
         ws[f'A{current_row}'] = "PASAJEROS / ROOMING LIST"
         ws[f'A{current_row}'].font = bold_f
@@ -559,44 +600,68 @@ class ExcelController:
         current_row += 1
 
         headers = ["Nº", "APELLIDOS / NOMBRES", "SEXO", "PASAPORTE", "NACIONALIDAD", "FECHA NAC.", "DIETA", "HABITACIÓN"]
-        # Ajustamos merge para nombres que son largos
-        col_widths = [4, 30, 6, 12, 12, 12, 15, 12]
+        col_indices = [1, 2, 5, 6, 8, 9, 10, 12] # Mapeo manual para ocupar las 12 columnas (L)
         
-        for c_idx, h in enumerate(headers, 1):
-            cell = ws.cell(row=current_row, column=c_idx, value=h)
+        # Merge para headers (distribución manual)
+        header_config = [
+            ("Nº", 1, 1), ("APELLIDOS / NOMBRES", 2, 4), ("SEXO", 5, 5),
+            ("PASAPORTE", 6, 7), ("NACIONALIDAD", 8, 8), ("FECHA NAC.", 9, 9),
+            ("DIETA", 10, 11), ("HABITACIÓN", 12, 12)
+        ]
+
+        for h, start_c, end_c in header_config:
+            cell = ws.cell(row=current_row, column=start_c, value=h)
             cell.font = bold_f
             cell.border = border_style
             cell.alignment = center_al
+            if start_c != end_c:
+                ws.merge_cells(start_row=current_row, end_row=current_row, start_column=start_c, end_column=end_c)
+                # Aplicar bordes a las celdas mergeadas
+                for c in range(start_c, end_c + 1):
+                    ws.cell(row=current_row, column=c).border = border_style
         current_row += 1
 
         for i, p in enumerate(pax, 1):
+            # Nº
             ws.cell(row=current_row, column=1, value=i).alignment = center_al
+            # Nombres
             ws.cell(row=current_row, column=2, value=str(p.get('nombre_completo', '')).upper())
-            ws.cell(row=current_row, column=3, value=p.get('genero', '---')).alignment = center_al
-            ws.cell(row=current_row, column=4, value=p.get('numero_documento', '---'))
-            ws.cell(row=current_row, column=5, value=p.get('nacionalidad', '---'))
-            ws.cell(row=current_row, column=6, value=str(p.get('fecha_nacimiento', '---'))[:10])
-            ws.cell(row=current_row, column=7, value=p.get('dieta', p.get('cuidados_especiales', '---')))
-            ws.cell(row=current_row, column=8, value=p.get('acomodacion', '---'))
+            ws.merge_cells(start_row=current_row, end_row=current_row, start_column=2, end_column=4)
+            # Sexo
+            ws.cell(row=current_row, column=5, value=p.get('genero', '---')).alignment = center_al
+            # Pasaporte
+            ws.cell(row=current_row, column=6, value=p.get('numero_documento', '---'))
+            ws.merge_cells(start_row=current_row, end_row=current_row, start_column=6, end_column=7)
+            # Nacionalidad
+            ws.cell(row=current_row, column=8, value=p.get('nacionalidad', '---'))
+            # Nacimiento
+            ws.cell(row=current_row, column=9, value=str(p.get('fecha_nacimiento', '---'))[:10])
+            # Dieta
+            ws.cell(row=current_row, column=10, value=p.get('dieta', p.get('cuidados_especiales', '---')))
+            ws.merge_cells(start_row=current_row, end_row=current_row, start_column=10, end_column=11)
+            # Habitacion
+            ws.cell(row=current_row, column=12, value=p.get('acomodacion', '---'))
             
-            for c in range(1, 9): # Ajustado a 8 columnas
+            for c in range(1, 13):
                 ws.cell(row=current_row, column=c).border = border_style
             current_row += 1
 
-        # Anchos de columna
-        ws.column_dimensions['A'].width = 5
-        ws.column_dimensions['B'].width = 35
-        ws.column_dimensions['C'].width = 8
-        ws.column_dimensions['D'].width = 15
-        ws.column_dimensions['E'].width = 15
+        # Ajuste de anchos
+        ws.column_dimensions['A'].width = 15
+        ws.column_dimensions['B'].width = 12
+        ws.column_dimensions['C'].width = 12
+        ws.column_dimensions['D'].width = 12
+        ws.column_dimensions['E'].width = 18
         ws.column_dimensions['F'].width = 15
-        ws.column_dimensions['G'].width = 15
-        ws.column_dimensions['H'].width = 15
-        ws.column_dimensions['I'].width = 20
+        ws.column_dimensions['G'].width = 12
+        ws.column_dimensions['H'].width = 12
+        ws.column_dimensions['I'].width = 18
         ws.column_dimensions['J'].width = 15
         ws.column_dimensions['K'].width = 15
+        ws.column_dimensions['L'].width = 15
 
         output = BytesIO()
         wb.save(output)
         output.seek(0)
         return output
+
