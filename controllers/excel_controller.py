@@ -462,11 +462,10 @@ class ExcelController:
 
         v = data_hoja.get('venta', {})
         pax = data_hoja.get('pasajeros', [])
-        servicios = data_hoja.get('liquidaciones', [])
-
-        # --- 0. CONFIGURACIÓN DE COLUMNAS (14 COLUMNAS BALANCEADAS) ---
+               # --- 0. CONFIGURACIÓN DE COLUMNAS (14 COLUMNAS BALANCEADAS) ---
         col_letters = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N']
-        widths = [22, 10, 10, 10, 8, 18, 12, 12, 10, 15, 18, 15, 18, 22]
+        # Anchos optimizados para que las etiquetas quepan bien
+        widths = [18, 9, 9, 9, 18, 9, 9, 9, 22, 9, 9, 9, 15, 25]
         for i, w in enumerate(widths):
             ws.column_dimensions[col_letters[i]].width = w
 
@@ -491,9 +490,7 @@ class ExcelController:
         principal = next((p for p in pax if p.get('es_principal')), None)
         
         if principal:
-            # Intentar separar nombre y apellido si es nombre_completo
             full_name = principal.get('nombre_completo', '')
-            # Si el nombre completo tiene coma (Apellido, Nombre), lo respetamos
             if "," in full_name:
                 parts = full_name.split(",", 1)
                 tc_apellido = parts[0].strip()
@@ -508,7 +505,6 @@ class ExcelController:
             tc_nacimiento = str(principal.get('fecha_nacimiento', ''))[:10]
             tc_caducidad = str(principal.get('fecha_caducidad_doc', ''))[:10]
         else:
-            # Fallback a datos de la venta si no hay rooming
             tc_nombre_full = v.get('nombre_cliente') or ""
             tc_partes = tc_nombre_full.split(' ', 1)
             tc_nombre = tc_partes[0]
@@ -529,7 +525,7 @@ class ExcelController:
             cell.fill = teal_fill
             cell.font = white_text
             cell.border = border_style
-            cell.alignment = center_al
+            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=False) # Sin wrap para etiquetas
 
         def style_value(cell):
             cell.border = border_style
@@ -554,7 +550,7 @@ class ExcelController:
         ws['J3'] = tc_telefono
         style_value(ws['J3'])
 
-        # Fila 4: APELLIDO | PASSAPORT | VUELO
+        # Fila 4: APELLIDO | Nº PASSAPORT | VUELO
         ws['A4'] = "APELLIDO"
         style_label(ws['A4'])
         ws.merge_cells('B4:D4')
@@ -599,7 +595,7 @@ class ExcelController:
         ws['B6'] = tc_emer_nom
         style_value(ws['B6'])
 
-        ws['E6'] = "TELEFONE CONTATO EMERCIA"
+        ws['E6'] = "TELEFONE CONTATO EMER"
         style_label(ws['E6'])
         ws.merge_cells('F6:H6')
         ws['F6'] = tc_emer_tel
@@ -614,35 +610,36 @@ class ExcelController:
         # --- 3. SECCIÓN: DATOS DE VENTA ---
         ws['A7'] = "FECHA DE VENDA"
         style_label(ws['A7'])
+        ws.merge_cells('B7:C7')
         ws['B7'] = clean(v.get('fecha_venta'))
         style_value(ws['B7'])
         
-        ws['C7'] = "1º CIUDAD"
-        style_label(ws['C7'])
-        ws['D7'] = "CUSCO"
-        style_value(ws['D7'])
+        ws['D7'] = "1º CIUDAD"
+        style_label(ws['D7'])
+        ws['E7'] = "CUSCO"
+        style_value(ws['E7'])
 
-        ws['E7'] = "FECHA DE INICIO"
-        style_label(ws['E7'])
-        ws.merge_cells('F7:G7')
-        ws['F7'] = clean(v.get('fecha_inicio'))
-        style_value(ws['F7'])
+        ws['F7'] = "FECHA DE INICIO"
+        style_label(ws['F7'])
+        ws.merge_cells('G7:H7')
+        ws['G7'] = clean(v.get('fecha_inicio'))
+        style_value(ws['G7'])
 
-        ws['H7'] = "FECHA FINAL DEL"
-        style_label(ws['H7'])
-        ws.merge_cells('I7:J7')
-        ws['I7'] = clean(v.get('fecha_fin'))
-        style_value(ws['I7'])
+        ws['I7'] = "FECHA FINAL DEL"
+        style_label(ws['I7'])
+        ws.merge_cells('J7:K7')
+        ws['J7'] = clean(v.get('fecha_fin'))
+        style_value(ws['J7'])
 
-        ws['K7'] = "DIAS DEL TOUR"
-        style_label(ws['K7'])
-        ws.merge_cells('L7:N7')
+        ws['L7'] = "DIAS DEL TOUR"
+        style_label(ws['L7'])
+        ws.merge_cells('M7:N7')
         try:
             d1 = datetime.strptime(v['fecha_inicio'], "%Y-%m-%d")
             d2 = datetime.strptime(v['fecha_fin'], "%Y-%m-%d")
-            ws['L7'] = (d2 - d1).days + 1
-        except: ws['L7'] = ""
-        style_value(ws['L7'])
+            ws['M7'] = (d2 - d1).days + 1
+        except: ws['M7'] = ""
+        style_value(ws['M7'])
 
         # Fila 8: RESPONSABLE | DEPOSITO | MEDIO | TOTAL
         ws['A8'] = "RESPONSABLE VENDA"
