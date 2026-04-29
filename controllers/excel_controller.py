@@ -483,6 +483,10 @@ class ExcelController:
         ws['A2'].font = white_text
         ws['A2'].alignment = center_al
 
+        # Función auxiliar para limpiar datos
+        def clean(val):
+            return str(val) if val and str(val).strip() not in ["", "---", "None", "0", 0] else ""
+
         # Preparar datos (Prioridad al Pasajero Principal del Rooming para TC)
         principal = next((p for p in pax if p.get('es_principal')), None)
         
