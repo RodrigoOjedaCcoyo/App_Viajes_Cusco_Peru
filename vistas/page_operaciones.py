@@ -1322,7 +1322,11 @@ def dashboard_simulador_costos(controller):
                     l['Tipo de Servicio'] = l.get('tipo_servicio', '---')
                     l['Proveedor'] = l.get('proveedor', {}).get('nombre_comercial') if l.get('proveedor') else "---"
                     l['Guía'] = l.get('nombre_guia', '---')
-                    l['F. Confirmación'] = l.get('fecha_confirmacion', '---')
+                    f_raw = l.get('fecha_confirmacion')
+                    try:
+                        l['F. Confirmación'] = pd.to_datetime(f_raw).date() if f_raw else None
+                    except:
+                        l['F. Confirmación'] = None
                     l['Observacion'] = l.get('observacion', '---')
                     
                     # Mantener cálculos internos por si se usan luego (pueden estar ocultos)
