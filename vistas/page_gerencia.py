@@ -247,7 +247,6 @@ def render_control_financiero_liquidaciones(supabase_client):
                     l['Tipo de Servicio'] = l.get('tipo_servicio', '---')
                     l['Proveedor'] = l.get('proveedor', {}).get('nombre_comercial') if l.get('proveedor') else "---"
                     l['Guía'] = l.get('nombre_guia', '---')
-                    l['Fecha de Contratacion'] = l.get('fecha_servicio', '---')
                     l['F. Confirmación'] = l.get('fecha_confirmacion', '---')
                     l['Observacion'] = l.get('observacion', '---')
                     
@@ -261,7 +260,7 @@ def render_control_financiero_liquidaciones(supabase_client):
                     display_data.append(l)
 
                 df_edit = pd.DataFrame(display_data)
-                cols_visible = ['Estado', 'terminado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'Fecha de Contratacion', 'F. Confirmación', 'Observacion', 'moneda', 'costo_unitario', 'PAX', 'TOTAL (PEN)']
+                cols_visible = ['Estado', 'terminado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'F. Confirmación', 'Observacion', 'moneda', 'costo_unitario', 'PAX', 'TOTAL (PEN)']
                 
                 edited_result = st.data_editor(
                     df_edit[cols_visible],
@@ -274,7 +273,7 @@ def render_control_financiero_liquidaciones(supabase_client):
                         "PAX": st.column_config.NumberColumn("Pax"),
                         "TOTAL (PEN)": st.column_config.NumberColumn("Total (S/.)", format="S/. %.2f")
                     },
-                    disabled=['Estado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'Fecha de Contratacion', 'F. Confirmación', 'Observacion', 'TOTAL (PEN)'],
+                    disabled=['Estado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'F. Confirmación', 'Observacion', 'TOTAL (PEN)'],
                     hide_index=True,
                     use_container_width=True,
                     key="editor_liq_gerencia"
@@ -291,6 +290,14 @@ def render_control_financiero_liquidaciones(supabase_client):
                                 reg_id = df_edit.iloc[row_idx]['id']
                                 mapping = {"moneda": "moneda", "costo_unitario": "costo_unitario", "PAX": "cantidad_pax", "terminado": "terminado"}
                                 db_changes = {mapping[k]: v for k, v in changes.items() if k in mapping}
+                                
+                                # NUEVO: Automatización de Fecha de Confirmación
+                                if changes.get('terminado') is True:
+                                    from datetime import date
+                                    db_changes['fecha_confirmacion'] = date.today().isoformat()
+                                elif changes.get('terminado') is False:
+                                    db_changes['fecha_confirmacion'] = None
+
                                 if db_changes:
                                     res_up, _ = op_ctrl.actualizar_campos_liquidacion(reg_id, db_changes)
                                     if res_up: exitos += 1

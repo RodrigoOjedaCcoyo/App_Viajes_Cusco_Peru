@@ -299,7 +299,6 @@
       moneda VARCHAR(10) DEFAULT 'USD',
       cantidad_pax INTEGER DEFAULT 1,
       hora_servicio TEXT,
-      fecha_servicio DATE,
       observacion TEXT,
       nombre_guia TEXT,
       fecha_confirmacion DATE,

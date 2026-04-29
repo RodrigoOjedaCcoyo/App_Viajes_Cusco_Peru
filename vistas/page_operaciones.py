@@ -1187,7 +1187,7 @@ def dashboard_simulador_costos(controller):
 
     # NUEVO: Botón de Plantilla
     import io
-    template_df = pd.DataFrame(columns=["Dia", "Hora", "Tipo de Servicio", "Proveedor", "Nombre del Guia", "Fecha de Contratacion", "Fecha de Confirmacion", "Observacion", "Moneda", "Costo Unitario", "Pax"])
+    template_df = pd.DataFrame(columns=["Dia", "Hora", "Tipo de Servicio", "Proveedor", "Nombre del Guia", "Fecha de Confirmacion", "Observacion", "Pax"])
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
         template_df.to_excel(writer, index=False, sheet_name='Plantilla')
@@ -1309,7 +1309,6 @@ def dashboard_simulador_costos(controller):
                     l['Tipo de Servicio'] = l.get('tipo_servicio', '---')
                     l['Proveedor'] = l.get('proveedor', {}).get('nombre_comercial') if l.get('proveedor') else "---"
                     l['Guía'] = l.get('nombre_guia', '---')
-                    l['Fecha de Contratacion'] = l.get('fecha_servicio', '---')
                     l['F. Confirmación'] = l.get('fecha_confirmacion', '---')
                     l['Observacion'] = l.get('observacion', '---')
                     
@@ -1339,7 +1338,6 @@ def dashboard_simulador_costos(controller):
                         "Tipo de Servicio": st.column_config.TextColumn("Tipo de Servicio", width="medium"),
                         "Proveedor": st.column_config.TextColumn("Proveedor", width="medium"),
                         "Guía": st.column_config.TextColumn("Guía", width="medium"),
-                        "Fecha de Contratacion": st.column_config.TextColumn("Fecha", width="small"),
                         "F. Confirmación": st.column_config.TextColumn("Confirmación", width="small"),
                         "Observacion": st.column_config.TextColumn("Observación", width="large"),
                         "moneda": st.column_config.SelectboxColumn("Moneda", options=["USD", "PEN", "EUR"], width="small"),
@@ -1347,7 +1345,7 @@ def dashboard_simulador_costos(controller):
                         "PAX": st.column_config.NumberColumn("Pax", width="small"),
                         "TOTAL (PEN)": st.column_config.NumberColumn("Costo Total (S/.)", format="S/. %.2f")
                     },
-                    disabled=['Estado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'Fecha de Contratacion', 'F. Confirmación', 'Observacion', 'TOTAL (PEN)'],
+                    disabled=['Estado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'F. Confirmación', 'Observacion', 'TOTAL (PEN)', 'moneda', 'costo_unitario'],
                     hide_index=True,
                     use_container_width=True,
                     key="editor_liq_master"
@@ -1368,6 +1366,13 @@ def dashboard_simulador_costos(controller):
                                 # Renombrar campos internos a nombres de DB si es necesario
                                 mapping = {"moneda": "moneda", "costo_unitario": "costo_unitario", "PAX": "cantidad_pax", "terminado": "terminado"}
                                 db_changes = {mapping[k]: v for k, v in changes.items() if k in mapping}
+                                
+                                # NUEVO: Si se marca como terminado (Check), asignar fecha de confirmación automáticamente
+                                if changes.get('terminado') is True:
+                                    from datetime import date
+                                    db_changes['fecha_confirmacion'] = date.today().isoformat()
+                                elif changes.get('terminado') is False:
+                                    db_changes['fecha_confirmacion'] = None
                                 
                                 if db_changes:
                                     exito, msg = controller.actualizar_campos_liquidacion(reg_id, db_changes)
