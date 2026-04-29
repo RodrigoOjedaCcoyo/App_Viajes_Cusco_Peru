@@ -68,9 +68,11 @@ def render_operational_master_download(controller, id_venta, label="📊 Generar
         if pagos:
             v_data['fecha_primer_deposito'] = pagos[0].get('fecha_pago')
             v_data['metodo_pago_primer'] = pagos[0].get('metodo_pago')
+            v_data['monto_primer_deposito'] = pagos[0].get('monto_pagado')
         else:
             v_data['fecha_primer_deposito'] = ""
             v_data['metodo_pago_primer'] = ""
+            v_data['monto_primer_deposito'] = ""
 
         # 3. Obtener Itinerario Logístico (Con proveedores asignados)
         itinerario = controller.get_servicios_rango_fechas(date(2000,1,1), date(2100,1,1))

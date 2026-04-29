@@ -651,10 +651,10 @@ class ExcelController:
         ws['B8'] = clean(v.get('vendedor'))
         style_value(ws['B8'])
 
-        ws['E8'] = "FECHA 1º DEPOSITO"
+        ws['E8'] = "VALOR 1º DEPOSITO"
         style_label(ws['E8'])
         ws.merge_cells('F8:H8')
-        ws['F8'] = clean(v.get('fecha_primer_deposito'))
+        ws['F8'] = clean(v.get('monto_primer_deposito'))
         style_value(ws['F8'])
 
         ws['I8'] = "MEDIO DE PAGO"
@@ -700,6 +700,8 @@ class ExcelController:
                 
                 prov_data = s.get('proveedor') or {}
                 prov_nom = prov_data.get('nombre_comercial', '')
+                
+                f_conf = clean(s.get('fecha_confirmacion'))
 
                 # Columna 1: NOMBRE DEL TOUR (Usamos el nombre del servicio del itinerario)
                 ws.cell(row=curr_row, column=1, value=clean(i_info.get('Servicio'))).border = border_style
@@ -710,11 +712,11 @@ class ExcelController:
                 # Columna 6: DESCRIPCION (Aquí ponemos el tipo: Endose, Guia, etc)
                 ws.cell(row=curr_row, column=6, value=clean(s.get('tipo_servicio'))).border = border_style
                 ws.cell(row=curr_row, column=7, value=clean(s.get('nombre_guia'))).border = border_style
-                ws.cell(row=curr_row, column=8, value="").border = border_style
+                ws.cell(row=curr_row, column=8, value=f_conf).border = border_style
                 ws.cell(row=curr_row, column=9, value=clean(s.get('costo_unitario'))).border = border_style
                 ws.cell(row=curr_row, column=10, value="").border = border_style
                 ws.cell(row=curr_row, column=11, value="").border = border_style
-                ws.cell(row=curr_row, column=12, value=clean(s.get('fecha_confirmacion'))).border = border_style
+                ws.cell(row=curr_row, column=12, value=f_conf).border = border_style
                 ws.cell(row=curr_row, column=13, value=clean(s.get('observacion'))).border = border_style
                 
                 for c in range(1, 14): ws.cell(row=curr_row, column=c).alignment = center_al
