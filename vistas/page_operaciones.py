@@ -1351,14 +1351,14 @@ def dashboard_simulador_costos(controller):
                         "Tipo de Servicio": st.column_config.TextColumn("Tipo de Servicio", width="medium"),
                         "Proveedor": st.column_config.TextColumn("Proveedor", width="medium"),
                         "Guía": st.column_config.TextColumn("Guía", width="medium"),
-                        "F. Confirmación": st.column_config.TextColumn("Confirmación", width="small"),
+                        "F. Confirmación": st.column_config.DateColumn("Confirmación", width="small"),
                         "Observacion": st.column_config.TextColumn("Observación", width="large"),
                         "moneda": st.column_config.SelectboxColumn("Moneda", options=["USD", "PEN", "EUR"], width="small"),
                         "costo_unitario": st.column_config.NumberColumn("Costo Unit.", format="%.2f"),
                         "PAX": st.column_config.NumberColumn("Pax", width="small"),
                         "TOTAL (PEN)": st.column_config.NumberColumn("Costo Total (S/.)", format="S/. %.2f")
                     },
-                    disabled=['Estado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'F. Confirmación', 'Observacion', 'TOTAL (PEN)', 'moneda', 'costo_unitario'],
+                    disabled=['Estado', 'Dia', 'Tipo de Servicio', 'TOTAL (PEN)'],
                     hide_index=True,
                     use_container_width=True,
                     key="editor_liq_master"
@@ -1376,12 +1376,31 @@ def dashboard_simulador_costos(controller):
                             errores = []
                             for row_idx, changes in cambios_pendientes.items():
                                 reg_id = df_edit.iloc[row_idx]['id']
-                                # Renombrar campos internos a nombres de DB si es necesario
-                                mapping = {"moneda": "moneda", "costo_unitario": "costo_unitario", "PAX": "cantidad_pax", "terminado": "terminado"}
+                                # Renombrar campos internos a nombres de DB
+                                mapping = {
+                                    "moneda": "moneda", 
+                                    "costo_unitario": "costo_unitario", 
+                                    "PAX": "cantidad_pax", 
+                                    "terminado": "terminado",
+                                    "Hora": "hora_servicio",
+                                    "Guía": "nombre_guia",
+                                    "Observacion": "observacion",
+                                    "F. Confirmación": "fecha_confirmacion"
+                                }
                                 db_changes = {mapping[k]: v for k, v in changes.items() if k in mapping}
                                 
-                                # NUEVO: Si se marca como terminado (Check), asignar fecha de confirmación automáticamente
-                                if changes.get('terminado') is True:
+                                # Lógica especial para Proveedor (Búsqueda por nombre)
+                                if "Proveedor" in changes:
+                                    nom_prov = changes["Proveedor"]
+                                    # Buscar ID del proveedor por nombre comercial
+                                    res_p = controller.client.table('proveedor').select('id_proveedor').ilike('nombre_comercial', f"%{nom_prov}%").limit(1).execute()
+                                    if res_p.data:
+                                        db_changes['id_proveedor'] = res_p.data[0]['id_proveedor']
+                                    else:
+                                        errores.append(f"⚠️ No se encontró el proveedor '{nom_prov}'. Se guardarán los demás cambios.")
+                                
+                                # Si se marca como terminado (Check), asignar fecha de confirmación automáticamente si no tiene una
+                                if changes.get('terminado') is True and not (changes.get('F. Confirmación') or df_edit.iloc[row_idx].get('F. Confirmación')):
                                     db_changes['fecha_confirmacion'] = date.today().isoformat()
                                 elif changes.get('terminado') is False:
                                     db_changes['fecha_confirmacion'] = None
