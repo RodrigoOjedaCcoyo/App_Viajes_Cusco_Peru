@@ -558,9 +558,9 @@ class ExcelController:
         ws[f'A{current_row}'].border = border_style
         current_row += 1
 
-        headers = ["Nº", "APELLIDOS / NOMBRES", "SEXO", "PASAPORTE", "NACIONALIDAD", "FECHA NAC.", "VUELO LLEGADA", "VUELO SALIDA", "DIETA", "TELÉFONO", "HABITACIÓN"]
+        headers = ["Nº", "APELLIDOS / NOMBRES", "SEXO", "PASAPORTE", "NACIONALIDAD", "FECHA NAC.", "DIETA", "HABITACIÓN"]
         # Ajustamos merge para nombres que son largos
-        col_widths = [4, 30, 6, 12, 12, 12, 12, 12, 15, 12, 12]
+        col_widths = [4, 30, 6, 12, 12, 12, 15, 12]
         
         for c_idx, h in enumerate(headers, 1):
             cell = ws.cell(row=current_row, column=c_idx, value=h)
@@ -576,13 +576,10 @@ class ExcelController:
             ws.cell(row=current_row, column=4, value=p.get('numero_documento', '---'))
             ws.cell(row=current_row, column=5, value=p.get('nacionalidad', '---'))
             ws.cell(row=current_row, column=6, value=str(p.get('fecha_nacimiento', '---'))[:10])
-            ws.cell(row=current_row, column=7, value=p.get('vuelo_llegada', '---'))
-            ws.cell(row=current_row, column=8, value=p.get('vuelo_salida', '---'))
-            ws.cell(row=current_row, column=9, value=p.get('dieta', p.get('cuidados_especiales', '---')))
-            ws.cell(row=current_row, column=10, value=p.get('telefono', '---'))
-            ws.cell(row=current_row, column=11, value=p.get('acomodacion', '---'))
+            ws.cell(row=current_row, column=7, value=p.get('dieta', p.get('cuidados_especiales', '---')))
+            ws.cell(row=current_row, column=8, value=p.get('acomodacion', '---'))
             
-            for c in range(1, 12): # Ajustado a 11 columnas
+            for c in range(1, 9): # Ajustado a 8 columnas
                 ws.cell(row=current_row, column=c).border = border_style
             current_row += 1
 

@@ -31,13 +31,14 @@ def render_operational_master_download(controller, id_venta, label="📊 Generar
         # 1. Obtener Datos de la Venta
         vc = VentaController(controller.client)
         # Buscar la venta específica en la base de datos para tener datos frescos
-        res_v = controller.client.table('venta').select('*, cliente(nombre, lead(numero_celular))').eq('id_venta', id_venta).single().execute()
+        res_v = controller.client.table('venta').select('*, cliente(nombre, lead(numero_celular)), vendedor(nombre)').eq('id_venta', id_venta).single().execute()
         if not res_v.data:
             return
             
         v_raw = res_v.data
         cliente_nest = v_raw.get('cliente', {})
         lead_nest = cliente_nest.get('lead', {}) if isinstance(cliente_nest, dict) else {}
+        vendedor_nest = v_raw.get('vendedor', {})
         
         v_data = {
             "id_venta": v_raw['id_venta'],
@@ -47,7 +48,7 @@ def render_operational_master_download(controller, id_venta, label="📊 Generar
             "fecha_inicio": v_raw.get('fecha_inicio'),
             "fecha_fin": v_raw.get('fecha_fin'),
             "num_pasajeros": v_raw.get('num_pasajeros', 1),
-            "vendedor": "---", 
+            "vendedor": vendedor_nest.get('nombre', '---') if isinstance(vendedor_nest, dict) else '---', 
             "moneda": v_raw.get('moneda', 'USD'),
             "monto_total": v_raw.get('precio_total_cierre', 0),
             "monto_pagado": 0,
