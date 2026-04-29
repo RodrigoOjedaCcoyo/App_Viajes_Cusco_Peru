@@ -293,7 +293,6 @@ def render_control_financiero_liquidaciones(supabase_client):
                                 
                                 # NUEVO: Automatización de Fecha de Confirmación
                                 if changes.get('terminado') is True:
-                                    from datetime import date
                                     db_changes['fecha_confirmacion'] = date.today().isoformat()
                                 elif changes.get('terminado') is False:
                                     db_changes['fecha_confirmacion'] = None

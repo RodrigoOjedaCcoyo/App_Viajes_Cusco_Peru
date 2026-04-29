@@ -1370,7 +1370,6 @@ def dashboard_simulador_costos(controller):
                                 
                                 # NUEVO: Si se marca como terminado (Check), asignar fecha de confirmación automáticamente
                                 if changes.get('terminado') is True:
-                                    from datetime import date
                                     db_changes['fecha_confirmacion'] = date.today().isoformat()
                                 elif changes.get('terminado') is False:
                                     db_changes['fecha_confirmacion'] = None
