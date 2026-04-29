@@ -462,7 +462,9 @@ class ExcelController:
 
         v = data_hoja.get('venta', {})
         pax = data_hoja.get('pasajeros', [])
-               # --- 0. CONFIGURACIÓN DE COLUMNAS (14 COLUMNAS BALANCEADAS) ---
+        servicios = data_hoja.get('liquidaciones', [])
+
+        # --- 0. CONFIGURACIÓN DE COLUMNAS (14 COLUMNAS BALANCEADAS) ---
         col_letters = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N']
         # Anchos optimizados para que las etiquetas quepan bien
         widths = [18, 9, 9, 9, 18, 9, 9, 9, 22, 9, 9, 9, 15, 25]
