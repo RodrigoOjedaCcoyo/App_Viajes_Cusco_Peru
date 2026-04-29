@@ -514,7 +514,6 @@ class ExcelController:
         ws.merge_cells('F4:H4')
         ws['I4'] = "CORREO"
         ws['J4'] = tc_correo
-        ws.merge_cells('J4:L3') # Error en merge, corregido a J4:L4
         ws.merge_cells('J4:L4')
 
         # Fila 5: NASCIMENTO / TEL EMERGENCIA / LINK DRIVE
