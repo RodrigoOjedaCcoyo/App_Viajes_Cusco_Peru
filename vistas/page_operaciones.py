@@ -1187,7 +1187,7 @@ def dashboard_simulador_costos(controller):
 
     # NUEVO: Botón de Plantilla
     import io
-    template_df = pd.DataFrame(columns=["Dia", "Hora", "Tipo de Servicio", "Proveedor", "Nombre del Guia", "Fecha de Confirmacion", "Observacion", "Pax"])
+    template_df = pd.DataFrame(columns=["Dia", "Hora", "Tipo de Servicio", "Proveedor", "Nombre del Guia", "Observacion", "Pax"])
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
         template_df.to_excel(writer, index=False, sheet_name='Plantilla')
