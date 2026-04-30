@@ -317,7 +317,7 @@
       moneda VARCHAR(10) DEFAULT 'USD' CHECK (moneda IN ('USD', 'PEN', 'EUR')),
       tasa_cambio DECIMAL(10,4) DEFAULT 1.0, -- TC para convertir 'monto_pagado' a moneda de la deuda
       monto_en_moneda_costo DECIMAL(10,2) NOT NULL, -- Cuánto baja de la deuda original
-      fecha_pago DATE DEFAULT CURRENT_DATE NOT NULL,
+      fecha_pago DATE DEFAULT CURRENT_DATE NOT NULL, 
       metodo_pago VARCHAR(50) CHECK (metodo_pago IN ('EFECTIVO', 'TRANSFERENCIA', 'YAPE', 'PLIN', 'TARJETA', 'PAYPAL', 'IZIPAY', 'VISA', 'MASTER CARD', 'INTERBANK', 'OTRO')),
       comprobante_url TEXT, -- Link al voucher/foto
       observaciones TEXT,

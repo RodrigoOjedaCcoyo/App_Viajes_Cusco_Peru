@@ -115,11 +115,7 @@ class VentaController:
                                   tipo_comprobante: str = "RECIBO",
                                   tipo_cambio: Optional[float] = None,
                                   items_ingreso: Optional[list] = None,
-                                  metodo_pago: str = "OTRO",
-                                  vuelo_internacional: Optional[str] = None,
-                                  correo: Optional[str] = None,
-                                  contacto_emergencia_nombre: Optional[str] = None,
-                                  contacto_emergencia_tel: Optional[str] = None
+                                  metodo_pago: str = "OTRO"
                                   ) -> tuple[bool, str]:
         """Registra una venta proveniente de una agencia externa (B2B)."""
         try:

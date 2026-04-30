@@ -807,38 +807,6 @@ def registro_ventas_proveedores(supabase_client):
             st.caption("No hay itinerario vinculado. El desglose se generará automáticamente por el total.")
         
         st.markdown("##### 🛡️ Logística y Emergencia (Pasajero Principal)")
-        col_b2b_log1, col_b2b_log2 = st.columns(2)
-        vuelo_b2b = col_b2b_log1.text_input("Nro de Vuelo Internacional (Pasajero)", placeholder="Ej: LA2451")
-        correo_b2b = col_log2_correo = col_b2b_log2.text_input("Correo del Pasajero", placeholder="pasajero@mail.com")
-        
-        cont_nom_b2b = col_b2b_log1.text_input("Contacto Emergencia (Nombre)", placeholder="Ej: John Doe")
-        cont_tel_b2b = col_b2b_log2.text_input("Contacto Emergencia (Teléfono)", placeholder="+1 555 1234")
-
-        # --- NUEVO: DATOS DEL TOUR CONDUCTOR (TC) B2B ---
-        tc_data_b2b = None
-        with st.expander("🚌 Datos del Tour Conductor (Opcional)", expanded=False):
-            st.info("Complete estos datos si la agencia envía un Tour Conductor con el grupo.")
-            c_tc1, c_tc2 = st.columns(2)
-            tc_nom = c_tc1.text_input("Nombre del TC", key="tc_nom_b2b")
-            tc_pas = c_tc1.text_input("Nº Pasaporte", key="tc_pas_b2b")
-            tc_nac = c_tc2.date_input("Fecha Nacimiento", value=None, key="tc_nac_b2b")
-            tc_cad = c_tc2.date_input("Caducidad Pasaporte", value=None, key="tc_cad_b2b")
-            
-            c_tc3, c_tc4 = st.columns(2)
-            tc_con = c_tc3.text_input("Contacto Emergencia", key="tc_con_b2b")
-            tc_tel = c_tc3.text_input("Teléfono Emergencia", key="tc_tel_b2b")
-            tc_vue = c_tc4.text_input("Nº Vuelo Inter.", key="tc_vue_b2b")
-            tc_cor = c_tc4.text_input("Correo TC", key="tc_cor_b2b")
-            
-            if tc_nom:
-                tc_data_b2b = {
-                    "nombre": tc_nom, "pasaporte": tc_pas, 
-                    "nacimiento": tc_nac.isoformat() if tc_nac else None,
-                    "caducidad": tc_cad.isoformat() if tc_cad else None,
-                    "contacto": tc_con, "telefono": tc_tel, "vuelo": tc_vue, "correo": tc_cor
-                }
-
-
         st.divider()
         submitted = st.form_submit_button("✅ REGISTRAR VENTA B2B Y NOTIFICAR", use_container_width=True, type="primary")
 
@@ -868,12 +836,7 @@ def registro_ventas_proveedores(supabase_client):
                     tipo_comprobante=tipo_comp,
                     tipo_cambio=tipo_cambio,
                     items_ingreso=items_ingreso if items_ingreso else None,
-                    metodo_pago=metodo_pago,
-                    vuelo_internacional=vuelo_b2b,
-                    correo=correo_b2b,
-                    contacto_emergencia_nombre=cont_nom_b2b,
-                    contacto_emergencia_tel=cont_tel_b2b,
-                    tc_data=tc_data_b2b
+                    metodo_pago=metodo_pago
                 )
                 
                 if exito:
