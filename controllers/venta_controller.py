@@ -115,7 +115,12 @@ class VentaController:
                                   tipo_comprobante: str = "RECIBO",
                                   tipo_cambio: Optional[float] = None,
                                   items_ingreso: Optional[list] = None,
-                                  metodo_pago: str = "OTRO"
+                                  metodo_pago: str = "OTRO",
+                                  vuelo_internacional: Optional[str] = None,
+                                  correo: Optional[str] = None,
+                                  contacto_emergencia_nombre: Optional[str] = None,
+                                  contacto_emergencia_tel: Optional[str] = None,
+                                  comentarios: Optional[str] = None
                                   ) -> tuple[bool, str]:
         """Registra una venta proveniente de una agencia externa (B2B)."""
         try:
@@ -141,7 +146,12 @@ class VentaController:
                 "tipo_comprobante": tipo_comprobante,
                 "tipo_cambio": tipo_cambio,
                 "items_ingreso": items_ingreso,
-                "metodo_pago": metodo_pago
+                "metodo_pago": metodo_pago,
+                "nro_vuelo_internacional": vuelo_internacional,
+                "correo_cliente": correo,
+                "nombre_contacto_emergencia": contacto_emergencia_nombre,
+                "telefono_contacto_emergencia": contacto_emergencia_tel,
+                "comentarios": comentarios
             }
             
             res_id = self.model.create_venta(venta_data)

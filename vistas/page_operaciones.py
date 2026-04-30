@@ -732,7 +732,7 @@ def registro_ventas_proveedores(supabase_client):
             st.markdown(f"📊 **SUB-TOTALES POR MONEDA:** Soles: **S/ {sub_soles:,.2f}** | Dólares: **$ {sub_dolares:,.2f}**")
 
     idx_m = monedas_list.index(m_auto) if m_auto in monedas_list else 0
-    moneda_sel = c_p0.selectbox("Moneda", monedas_list, index=idx_m, key="b2b_final_moneda", disabled=(id_itinerario_dig is not None))
+    moneda_sel = c_p0.selectbox("Moneda", monedas_list, index=idx_m, key="b2b_final_moneda")
     
     # TC: Tipo de Cambio "Foto"
     tipo_cambio = c_p1.number_input("TC (Foto)", min_value=0.0, value=3.80, format="%.3f", key="b2b_tc")
@@ -828,6 +828,15 @@ def registro_ventas_proveedores(supabase_client):
             st.caption("No hay itinerario vinculado. El desglose se generará automáticamente por el total.")
         
         st.markdown("##### 🛡️ Logística y Emergencia (Pasajero Principal)")
+        col_log1, col_log2 = st.columns(2)
+        vuelo_int = col_log1.text_input("Nro de Vuelo Internacional", placeholder="Ej: AA947 / LA2345")
+        correo_cli = col_log2.text_input("Correo Electrónico", placeholder="ejemplo@correo.com")
+        
+        cont_nom = col_log1.text_input("Nombre del Contacto de Emergencia", placeholder="Ej: María García (Hermana)")
+        cont_tel = col_log2.text_input("Teléfono del Contacto de Emergencia", placeholder="+51 999 888 777")
+
+        comentarios_op = st.text_area("🗒️ Comentarios para Operaciones", placeholder="Ej: Pasajero alérgico, requiere recojo puntual, etc.", key="coment_op_b2b")
+
         st.divider()
         submitted = st.form_submit_button("✅ REGISTRAR VENTA B2B Y NOTIFICAR", use_container_width=True, type="primary")
 
@@ -857,7 +866,12 @@ def registro_ventas_proveedores(supabase_client):
                     tipo_comprobante=tipo_comp,
                     tipo_cambio=tipo_cambio,
                     items_ingreso=items_ingreso if items_ingreso else None,
-                    metodo_pago=metodo_pago
+                    metodo_pago=metodo_pago,
+                    vuelo_internacional=vuelo_int,
+                    correo=correo_cli,
+                    contacto_emergencia_nombre=cont_nom,
+                    contacto_emergencia_tel=cont_tel,
+                    comentarios=comentarios_op
                 )
                 
                 if exito:
