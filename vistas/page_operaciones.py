@@ -422,59 +422,74 @@ def registro_ventas_proveedores(supabase_client):
     st.subheader("🤝 Registro de Venta B2B (Agencias & Partners)")
 
     # ═══════════════════════════════════════════════════════════════
-    # 1️⃣ SELECTOR DE ITINERARIO (Diseño Cloud)
+    # 1️⃣ Buscador Inteligente de Lead y Selector de Itinerario
     # ═══════════════════════════════════════════════════════════════
-    # Aumentamos límite para B2B y añadimos buscador local
-    c_it_1, c_it_2 = st.columns([2, 1])
-    search_itin = c_it_2.text_input("🔍 Buscar por Nombre de Pasajero:", placeholder="Escriba para filtrar...", key="search_itin_b2b").strip().lower()
+    search_query = st.text_input("🔍 Buscar Pasajero (Nombre o Celular)", placeholder="Escriba para filtrar...", key="search_lead_b2b").strip().lower()
     
-    # Mostrar itinerarios recientes de forma global para B2B
-    itinerarios_recuperados = it_controller.obtener_todos_recientes(limit=200)
+    leads = lead_controller.obtener_todos_leads()
+    lead_opt = ["--- Selecciona un Lead (Obligatorio) ---"]
+    lead_map = {}
+    
+    if leads:
+        if search_query:
+            filtered_leads = [
+                l for l in leads 
+                if search_query in str(l.get('nombre_pasajero', '')).lower() or 
+                   search_query in str(l.get('numero_celular', '')).lower()
+            ]
+            st.caption(f"✨ Se encontraron {len(filtered_leads)} coincidencias.")
+        else:
+            filtered_leads = leads[:20]
+            st.caption("💡 Mostrando los 20 más recientes. Use el buscador para ver otros.")
+
+        for l in filtered_leads:
+            lbl = f"{l['numero_celular']} - {l.get('nombre_pasajero') or 'Sin Nombre'}"
+            lead_opt.append(lbl)
+            lead_map[lbl] = l
+
+    lead_sel = st.selectbox("🎯 Vincular con un Lead existente", lead_opt, help="Busque por nombre o celular arriba", key="lead_sel_b2b")
+    lead_data = lead_map.get(lead_sel)
+
+    id_lead_seleccionado = lead_data.get('id_lead') if lead_data else None
+    
+    if id_lead_seleccionado:
+        itinerarios_recuperados = it_controller.listar_itinerarios_lead(id_lead_seleccionado)
+    else:
+        itinerarios_recuperados = it_controller.obtener_todos_recientes(limit=30)
     
     opciones_itinerario = ["--- Sin Itinerario ---"]
     mapa_itinerarios = {}
     
     if itinerarios_recuperados:
-        # 1. Ordenar por antigüedad (fecha_generacion ascendente)
         itinerarios_recuperados.sort(key=lambda x: x.get('fecha_generacion', ''))
-        
-        # 2. Contador para versiones
         conteos = {}
 
         for it in itinerarios_recuperados:
-            render_data = it.get('datos_render')
+            id_lead_from_itinerario = it.get('id_lead')
+            render_data = it.get('datos_render', {})
             if isinstance(render_data, str):
+                import json
                 try: render_data = json.loads(render_data)
                 except: render_data = {}
-            
-            # Asegurar que sea un dict
-            if not isinstance(render_data, dict):
-                render_data = {}
 
-            # --- FILTRO B2B: Solo mostrar itinerarios generados como B2B ---
-            metadata = render_data.get('metadata', {})
-            tipo_v = metadata.get('tipo_venta', 'B2C')
+            # Filtro B2B
+            tipo_v = render_data.get('metadata', {}).get('tipo_venta', 'B2C')
             if tipo_v != 'B2B':
                 continue
 
             titulo = render_data.get('titulo', '')
             if not titulo:
-                t1 = render_data.get('title_1', '')
-                t2 = render_data.get('title_2', '')
-                titulo = f"{t1} {t2}".strip() or 'Sin título'
+                title_1 = render_data.get('title_1', '')
+                title_2 = render_data.get('title_2', '')
+                titulo = f"{title_1} {title_2}".strip() or 'Sin título'
             
-            pax_itin = it.get('nombre_pasajero_itinerario', '') or render_data.get('pasajero', 'Sin Nombre')
-            
-            # --- NUEVO: FILTRO LOCAL POR BÚSQUEDA ---
-            if search_itin and search_itin not in pax_itin.lower() and search_itin not in titulo.lower():
-                continue
-
             fecha = it.get('fecha_generacion', '')[:10] if it.get('fecha_generacion') else 'Sin fecha'
             
-            # Label descriptivo base
-            base_label = f"[{fecha}] {pax_itin} - {titulo}"
+            celular = it.get('lead', {}).get('numero_celular', '') if it.get('lead') else lead_data.get('numero_celular', '') if lead_data else ''
+            cel_label = f"📱 {celular} | " if celular else ""
             
-            # Manejo de Versiones (V1, V2...)
+            base_label = f"{cel_label}{titulo} ({fecha})"
+            
             conteos[base_label] = conteos.get(base_label, 0) + 1
             ver = conteos[base_label]
             
@@ -482,19 +497,16 @@ def registro_ventas_proveedores(supabase_client):
             opciones_itinerario.append(label_final)
             mapa_itinerarios[label_final] = it
     
-    def_cant_pax = 1
-
     if len(opciones_itinerario) == 1:
         st.warning("⚠️ No se encontraron itinerarios marcados como **B2B**. ¿Olvidaste marcar la casilla 'Venta B2B' al diseñarlo?")
-        if st.checkbox("🔍 Buscar también en itinerarios B2C (Solo para vincular errores)"):
-            # Re-procesar itinerarios sin el filtro B2B
+        if st.checkbox("🔍 Buscar también en itinerarios B2C (Solo para vincular errores)", key="search_b2c_fallback"):
             for it in itinerarios_recuperados:
                 r_d = it.get('datos_render')
                 if isinstance(r_d, str):
+                    import json
                     try: r_d = json.loads(r_d)
                     except: r_d = {}
                 
-                # Obtener título y pax igual que arriba
                 tit = r_d.get('titulo') or f"{r_d.get('title_1','')} {r_d.get('title_2','')}".strip() or 'Sin Título'
                 pax_i = it.get('nombre_pasajero_itinerario') or (r_d.get('pasajero') if isinstance(r_d, dict) else 'Sin Nombre')
                 f_i = it.get('fecha_generacion', '')[:10] if it.get('fecha_generacion') else 'Sin fecha'
@@ -507,7 +519,8 @@ def registro_ventas_proveedores(supabase_client):
     itinerario_seleccionado = st.selectbox(
         "✨ Seleccionar Itinerario Visual (Diseño Cloud)", 
         opciones_itinerario,
-        help="Seleccione el diseño que corresponde a esta venta B2B"
+        help="Seleccione el diseño que corresponde a esta venta B2B",
+        key="itin_sel_b2b"
     )
 
     # ═══════════════════════════════════════════════════════════════
@@ -536,6 +549,14 @@ def registro_ventas_proveedores(supabase_client):
 
             def_pax = it_data.get('nombre_pasajero_itinerario', '') or render.get('pasajero', '') or def_pax
             def_tour = render.get('titulo', '') or f"{render.get('title_1', '')} {render.get('title_2', '')}".strip()
+            
+            # Extraer celular del lead o itinerario
+            cel_cloud = ''
+            if it_data.get('lead') and isinstance(it_data['lead'], dict):
+                cel_cloud = it_data['lead'].get('numero_celular', '')
+            if not cel_cloud and lead_data:
+                cel_cloud = lead_data.get('numero_celular', '')
+            def_cel = cel_cloud or def_cel
             
             # Fechas y Pax
             f_viaje = render.get('fecha_viaje')
