@@ -464,21 +464,21 @@ class ExcelController:
         pax = data_hoja.get('pasajeros', [])
         servicios = data_hoja.get('liquidaciones', [])
 
-        # --- 0. CONFIGURACIÓN DE COLUMNAS (13 COLUMNAS BALANCEADAS) ---
-        col_letters = ['A','B','C','D','E','F','G','H','I','J','K','L','M']
-        # Anchos optimizados para 13 columnas
-        widths = [18, 10, 10, 10, 18, 10, 10, 10, 22, 10, 15, 18, 25]
+        # --- 0. CONFIGURACIÓN DE COLUMNAS (14 COLUMNAS BALANCEADAS) ---
+        col_letters = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N']
+        # Anchos optimizados para 14 columnas
+        widths = [18, 10, 10, 10, 18, 10, 10, 10, 22, 10, 15, 18, 18, 25]
         for i, w in enumerate(widths):
             ws.column_dimensions[col_letters[i]].width = w
 
         # --- 1. TÍTULO ---
-        ws.merge_cells('A1:M1')
+        ws.merge_cells('A1:N1')
         ws['A1'] = "FICHA DE CONTROLE DE TOUR PARA GRUPOS"
         ws['A1'].font = title_f
         ws['A1'].alignment = center_al
 
         # --- 2. SECCIÓN: DATOS DEL TOUR CONDUCTOR ---
-        ws.merge_cells('A2:M2')
+        ws.merge_cells('A2:N2')
         ws['A2'] = "DATOS DEL TOUR CONDUCTOR"
         ws['A2'].fill = black_fill
         ws['A2'].font = white_text
@@ -548,7 +548,7 @@ class ExcelController:
 
         ws['I3'] = "TELEFONO / WHATSAPP"
         style_label(ws['I3'])
-        ws.merge_cells('J3:M3')
+        ws.merge_cells('J3:N3')
         ws['J3'] = tc_telefono
         style_value(ws['J3'])
 
@@ -567,7 +567,7 @@ class ExcelController:
 
         ws['I4'] = "Nº VUELO INTERNACIONAL"
         style_label(ws['I4'])
-        ws.merge_cells('J4:M4')
+        ws.merge_cells('J4:N4')
         ws['J4'] = tc_vuelo
         style_value(ws['J4'])
 
@@ -586,7 +586,7 @@ class ExcelController:
 
         ws['I5'] = "CORREO"
         style_label(ws['I5'])
-        ws.merge_cells('J5:M5')
+        ws.merge_cells('J5:N5')
         ws['J5'] = tc_correo
         style_value(ws['J5'])
 
@@ -635,6 +635,7 @@ class ExcelController:
 
         ws['L7'] = "DIAS DEL TOUR"
         style_label(ws['L7'])
+        ws.merge_cells('M7:N7')
         ws['M7'] = ""
         try:
             d1 = datetime.strptime(v['fecha_inicio'], "%Y-%m-%d")
@@ -665,11 +666,12 @@ class ExcelController:
         ws['L8'] = "TOTAL TOUR"
         style_label(ws['L8'])
         total_v = v.get('monto_total', 0)
+        ws.merge_cells('M8:N8')
         ws['M8'] = f"{v.get('moneda')} {total_v}" if total_v else ""
         style_value(ws['M8'])
 
         # --- 4. SECCIÓN: DETALHES DEL TOUR ---
-        ws.merge_cells('A9:M9')
+        ws.merge_cells('A9:N9')
         ws['A9'] = "DETALHES DEL TOUR"
         ws['A9'].fill = black_fill
         ws['A9'].font = white_text
@@ -678,7 +680,7 @@ class ExcelController:
         headers_tour = [
             "NOMBRE DEL TOUR", "FECHA", "HORA", "Nº DIA", "PAX", "OPERADOR", 
             "DESCRIPCIÓN DEL SERVI", "GUÍA", "MONEDA", 
-            "VALOR", "PAGO", "FECHA DE CONFIRMACION", "OBSERVACION"
+            "VALOR", "PAGO", "FECHA DE CONFIRMACION", "RESP. CONTRATO", "OBSERVACION"
         ]
         
         for i, h in enumerate(headers_tour, 1):
@@ -688,7 +690,7 @@ class ExcelController:
             cell.alignment = center_al
             cell.border = border_style
         
-        ws.cell(row=10, column=13).border = border_style
+        ws.cell(row=10, column=14).border = border_style
 
         curr_row = 11
         itin_map = {s.get('N Linea'): s for s in data_hoja.get('itinerario', [])}
@@ -719,20 +721,21 @@ class ExcelController:
                 ws.cell(row=curr_row, column=10, value=clean(s.get('costo_unitario'))).border = border_style
                 ws.cell(row=curr_row, column=11, value="").border = border_style # Pago
                 ws.cell(row=curr_row, column=12, value=f_conf).border = border_style
-                ws.cell(row=curr_row, column=13, value=clean(s.get('observacion'))).border = border_style
+                ws.cell(row=curr_row, column=13, value=clean(s.get('responsable_contratacion'))).border = border_style
+                ws.cell(row=curr_row, column=14, value=clean(s.get('observacion'))).border = border_style
                 
-                for c in range(1, 14): ws.cell(row=curr_row, column=c).alignment = center_al
+                for c in range(1, 15): ws.cell(row=curr_row, column=c).alignment = center_al
                 curr_row += 1
         
         # Filas extra para completar el diseño (total 15 filas de tour)
         while curr_row < 25:
-            for c in range(1, 14): 
+            for c in range(1, 15): 
                 ws.cell(row=curr_row, column=c).border = border_style
             curr_row += 1
 
         # --- 5. PASAJEROS / ROOMING LIST ---
         curr_row += 1
-        ws.merge_cells(f'A{curr_row}:M{curr_row}')
+        ws.merge_cells(f'A{curr_row}:N{curr_row}')
         ws[f'A{curr_row}'] = "PASAJEROS / ROOMING LIST"
         ws[f'A{curr_row}'].fill = black_fill
         ws[f'A{curr_row}'].font = white_text
@@ -742,7 +745,7 @@ class ExcelController:
         pax_config = [
             ("Nº", 1, 1), ("APELLIDOS / NOMBRES", 2, 5), ("SEXO", 6, 6),
             ("PASAPORTE", 7, 8), ("NACIONALIDAD", 9, 9), ("FECHA NAC.", 10, 10),
-            ("CUIDADOS", 11, 12), ("HABITACIÓN", 13, 13)
+            ("CUIDADOS", 11, 12), ("HABITACIÓN", 13, 14)
         ]
 
         for h, s_c, e_c in pax_config:
@@ -776,8 +779,9 @@ class ExcelController:
             ws.merge_cells(start_row=curr_row, end_row=curr_row, start_column=11, end_column=12)
             
             ws.cell(row=curr_row, column=13, value=clean(p.get('acomodacion'))).border = border_style
+            ws.merge_cells(start_row=curr_row, end_row=curr_row, start_column=13, end_column=14)
             
-            for c in range(1, 14): 
+            for c in range(1, 15): 
                 ws.cell(row=curr_row, column=c).border = border_style
                 ws.cell(row=curr_row, column=c).alignment = center_al
             curr_row += 1

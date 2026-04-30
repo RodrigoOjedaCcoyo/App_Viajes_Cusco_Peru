@@ -1327,6 +1327,7 @@ def dashboard_simulador_costos(controller):
                         l['F. Confirmación'] = pd.to_datetime(f_raw).date() if f_raw else None
                     except:
                         l['F. Confirmación'] = None
+                    l['Resp. Contrato'] = l.get('responsable_contratacion', '')
                     l['Observacion'] = l.get('observacion', '---')
                     
                     # Mantener cálculos internos por si se usan luego (pueden estar ocultos)
@@ -1342,7 +1343,7 @@ def dashboard_simulador_costos(controller):
                 df_edit = pd.DataFrame(display_data)
                 
                 # Definir columnas visibles: Logística + Finanzas
-                cols_visible = ['Estado', 'terminado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'F. Confirmación', 'Observacion', 'moneda', 'costo_unitario', 'PAX', 'TOTAL (PEN)']
+                cols_visible = ['Estado', 'terminado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'F. Confirmación', 'Resp. Contrato', 'Observacion', 'moneda', 'costo_unitario', 'PAX', 'TOTAL (PEN)']
                 
                 # 2. Renderizar Editor de Datos
                 edited_result = st.data_editor(
@@ -1356,6 +1357,7 @@ def dashboard_simulador_costos(controller):
                         "Proveedor": st.column_config.TextColumn("Proveedor", width="medium"),
                         "Guía": st.column_config.TextColumn("Guía", width="medium"),
                         "F. Confirmación": st.column_config.DateColumn("Confirmación", width="small"),
+                        "Resp. Contrato": st.column_config.TextColumn("Resp. Contrato", width="medium"),
                         "Observacion": st.column_config.TextColumn("Observación", width="large"),
                         "moneda": st.column_config.SelectboxColumn("Moneda", options=["USD", "PEN", "EUR"], width="small"),
                         "costo_unitario": st.column_config.NumberColumn("Costo Unit.", format="%.2f"),
@@ -1389,7 +1391,8 @@ def dashboard_simulador_costos(controller):
                                     "Hora": "hora_servicio",
                                     "Guía": "nombre_guia",
                                     "Observacion": "observacion",
-                                    "F. Confirmación": "fecha_confirmacion"
+                                    "F. Confirmación": "fecha_confirmacion",
+                                    "Resp. Contrato": "responsable_contratacion"
                                 }
                                 db_changes = {mapping[k]: v for k, v in changes.items() if k in mapping}
                                 
