@@ -661,22 +661,12 @@ class OperacionesController:
                         elif dias_dif <= 5: alertas["amarillo"].append(alerta_item)
                         else: alertas["verde"].append(alerta_item)
 
-            # --- NUEVO: OBTENER TODAS LAS VENTAS QUE YA TIENEN AL MENOS 1 ASIGNACIÓN ---
-            res_any_vsp = self.client.table('venta_servicio_proveedor').select('id_venta').execute()
-            ventas_con_algo_asignado = set()
-            if res_any_vsp.data:
-                for item in res_any_vsp.data:
-                    ventas_con_algo_asignado.add(item['id_venta'])
-
-            # --- 5. DETECTAR SERVICIOS SIN ASIGNAR 100% VACÍOS (Huérfanos en venta_tour desde HOY) ---
+            # --- 5. DETECTAR SERVICIOS SIN ASIGNAR (Huérfanos en venta_tour desde HOY) ---
             ventas_sin_asignar = {}
             if res_vt.data:
                 for vt in res_vt.data:
-                    # Si esta venta ya tiene alguna asignación, la ignoramos por completo para esta alerta
-                    if vt['id_venta'] in ventas_con_algo_asignado:
-                        continue
-                        
                     k = f"{vt['id_venta']}-{vt['n_linea']}"
+                    # Solo nos interesan los que NO están en venta_servicio_proveedor
                     if k not in keys_asignadas:
                         estado = vt.get('estado_servicio', 'PENDIENTE')
                         if estado in ['COMPLETADO', 'CANCELADO']:
@@ -693,6 +683,18 @@ class OperacionesController:
                         diff = (f_serv - hoy).days
                         
                         if 0 <= diff <= 10:
+                            # AGREGAR A MACHU PICCHU SI ES TICKET Y NO TIENE DATA
+                            obs = (vt.get('observacion') or "").upper()
+                            if "MACHU" in obs or "MAPI" in obs or "TICKET" in obs:
+                                alertas["machupicchu"].append({
+                                    "id": None,
+                                    "fecha": f_serv.strftime("%d/%m/%Y"),
+                                    "servicio": vt.get('observacion', 'TICKET MP'),
+                                    "cliente": cliente_nombres.get(vt['id_venta'], '---'),
+                                    "proveedor": "🚨 PENDIENTE CARGAR DATA",
+                                    "dias": diff
+                                })
+
                             id_v = vt['id_venta']
                             if id_v not in ventas_sin_asignar:
                                 ventas_sin_asignar[id_v] = {
@@ -704,8 +706,11 @@ class OperacionesController:
                                     "cliente": cliente_nombres.get(id_v, '---')
                                 }
                             else:
-                                ventas_sin_asignar[id_v]["servicios"].append(vt.get('observacion') or "Tour Desconocido")
-                                # Quedarnos con la fecha más próxima (menor diferencia de días)
+                                # Solo agregamos si no es un duplicado de servicio en la misma alerta agrupada
+                                s_nom = vt.get('observacion') or "Tour Desconocido"
+                                if s_nom not in ventas_sin_asignar[id_v]["servicios"]:
+                                    ventas_sin_asignar[id_v]["servicios"].append(s_nom)
+                                
                                 if diff < ventas_sin_asignar[id_v]["diff_minima"]:
                                     ventas_sin_asignar[id_v]["diff_minima"] = diff
                                     ventas_sin_asignar[id_v]["f_serv_minima"] = f_serv
@@ -716,7 +721,7 @@ class OperacionesController:
                 if cantidad == 1:
                     serv_text = v_data["servicios"][0]
                 else:
-                    serv_text = f"⚠️ {cantidad} servicios del itinerario sin costo/proveedor"
+                    serv_text = f"⚠️ {cantidad} servicios sin asignar"
                     
                 alertas["sin_asignar"].append({
                     "id_venta": v_data["id_venta"],
@@ -724,7 +729,7 @@ class OperacionesController:
                     "fecha": v_data["f_serv_minima"].strftime("%d/%m/%Y"),
                     "servicio": serv_text,
                     "cliente": v_data["cliente"],
-                    "proveedor": "🚨 PENDIENTE CARGAR DATA",
+                    "proveedor": "🚨 PENDIENTE",
                     "dias": v_data["diff_minima"]
                 })
 
