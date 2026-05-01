@@ -1335,6 +1335,15 @@ def dashboard_simulador_costos(controller):
                     l['Resp. Contrato'] = l.get('responsable_contratacion', '')
                     l['Observacion'] = l.get('observacion', '---')
                     
+                    # FECHAS Y CHECKS NUEVOS
+                    f_cont = l.get('fecha_contratacion')
+                    try:
+                        l['F. Contratación'] = pd.to_datetime(f_cont).date() if f_cont else None
+                    except:
+                        l['F. Contratación'] = None
+                    
+                    l['Estado Contrato'] = "🔵 OK" if l.get('contratado') else "⚪ PENDIENTE"
+                    
                     # Mantener cálculos internos por si se usan luego (pueden estar ocultos)
                     c_unit = float(l.get('costo_unitario', 0))
                     pax = float(l.get('cantidad_pax') or l.get('cantidad_items') or 1)
@@ -1348,14 +1357,21 @@ def dashboard_simulador_costos(controller):
                 df_edit = pd.DataFrame(display_data)
                 
                 # Definir columnas visibles: Logística + Finanzas
-                cols_visible = ['Estado', 'terminado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'F. Confirmación', 'Resp. Contrato', 'Observacion', 'moneda', 'costo_unitario', 'PAX', 'TOTAL (PEN)']
+                cols_visible = [
+                    'Estado', 'terminado', 
+                    'Estado Contrato', 'contratado', 'F. Contratación',
+                    'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'F. Confirmación', 'Resp. Contrato', 'Observacion', 'moneda', 'costo_unitario', 'PAX', 'TOTAL (PEN)'
+                ]
                 
                 # 2. Renderizar Editor de Datos
                 edited_result = st.data_editor(
                     df_edit[cols_visible],
                     column_config={
                         "Estado": st.column_config.TextColumn("Visual", width="small"),
-                        "terminado": st.column_config.CheckboxColumn("Check", help="Marcar como Terminado"),
+                        "terminado": st.column_config.CheckboxColumn("Check", help="Marcar como Confirmado"),
+                        "Estado Contrato": st.column_config.TextColumn("Visual Contrato", width="small"),
+                        "contratado": st.column_config.CheckboxColumn("Check Contrato", help="Marcar como Contratado"),
+                        "F. Contratación": st.column_config.DateColumn("F. Contratación", width="small"),
                         "Dia": st.column_config.NumberColumn("Día", format="%d", width="small"),
                         "Hora": st.column_config.TextColumn("Hora", width="small"),
                         "Tipo de Servicio": st.column_config.TextColumn("Tipo de Servicio", width="medium"),
@@ -1369,7 +1385,7 @@ def dashboard_simulador_costos(controller):
                         "PAX": st.column_config.NumberColumn("Pax", width="small"),
                         "TOTAL (PEN)": st.column_config.NumberColumn("Costo Total (S/.)", format="S/. %.2f")
                     },
-                    disabled=['Estado', 'Dia', 'Tipo de Servicio', 'TOTAL (PEN)'],
+                    disabled=['Estado', 'Estado Contrato', 'Dia', 'Tipo de Servicio', 'TOTAL (PEN)'],
                     hide_index=True,
                     use_container_width=True,
                     key="editor_liq_master"
@@ -1397,6 +1413,8 @@ def dashboard_simulador_costos(controller):
                                     "Guía": "nombre_guia",
                                     "Observacion": "observacion",
                                     "F. Confirmación": "fecha_confirmacion",
+                                    "F. Contratación": "fecha_contratacion",
+                                    "contratado": "contratado",
                                     "Resp. Contrato": "responsable_contratacion"
                                 }
                                 db_changes = {mapping[k]: v for k, v in changes.items() if k in mapping}

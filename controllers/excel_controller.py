@@ -679,7 +679,7 @@ class ExcelController:
         style_value(ws['M8'])
 
         # --- 4. SECCIÓN: DETALHES DEL TOUR ---
-        ws.merge_cells('A9:N9')
+        ws.merge_cells('A9:O9')
         ws['A9'] = "DETALHES DEL TOUR"
         ws['A9'].fill = black_fill
         ws['A9'].font = white_text
@@ -688,7 +688,7 @@ class ExcelController:
         headers_tour = [
             "NOMBRE DEL TOUR", "FECHA", "HORA", "Nº DIA", "PAX", "OPERADOR", 
             "DESCRIPCIÓN DEL SERVI", "GUÍA", "MONEDA", 
-            "VALOR", "PAGO", "FECHA DE CONFIRMACION", "RESP. CONTRATO", "OBSERVACION"
+            "VALOR", "PAGO", "FECHA DE CONTRATACION", "FECHA DE CONFIRMACION", "RESP. CONTRATO", "OBSERVACION"
         ]
         
         for i, h in enumerate(headers_tour, 1):
@@ -698,7 +698,7 @@ class ExcelController:
             cell.alignment = center_al
             cell.border = border_style
         
-        ws.cell(row=10, column=14).border = border_style
+        ws.cell(row=10, column=15).border = border_style
 
         curr_row = 11
         itin_map = {s.get('N Linea'): s for s in data_hoja.get('itinerario', [])}
@@ -713,10 +713,11 @@ class ExcelController:
                 prov_nom = prov_data.get('nombre_comercial', '')
                 
                 f_conf = clean(s.get('fecha_confirmacion'))
+                f_cont = clean(s.get('fecha_contratacion'))
                 desc_serv = clean(s.get('tipo_servicio'))
                 if not desc_serv: desc_serv = "SERVICIO"
 
-                # Mapeo Exacto 1-13
+                # Mapeo Exacto 1-15
                 ws.cell(row=curr_row, column=1, value=clean(i_info.get('Servicio'))).border = border_style
                 ws.cell(row=curr_row, column=2, value=clean(i_info.get('fecha_servicio'))).border = border_style
                 ws.cell(row=curr_row, column=3, value=clean(s.get('hora_servicio'))).border = border_style
@@ -728,16 +729,17 @@ class ExcelController:
                 ws.cell(row=curr_row, column=9, value=clean(s.get('moneda'))).border = border_style
                 ws.cell(row=curr_row, column=10, value=clean(s.get('costo_unitario'))).border = border_style
                 ws.cell(row=curr_row, column=11, value="").border = border_style # Pago
-                ws.cell(row=curr_row, column=12, value=f_conf).border = border_style
-                ws.cell(row=curr_row, column=13, value=clean(s.get('responsable_contratacion'))).border = border_style
-                ws.cell(row=curr_row, column=14, value=clean(s.get('observacion'))).border = border_style
+                ws.cell(row=curr_row, column=12, value=f_cont).border = border_style
+                ws.cell(row=curr_row, column=13, value=f_conf).border = border_style
+                ws.cell(row=curr_row, column=14, value=clean(s.get('responsable_contratacion'))).border = border_style
+                ws.cell(row=curr_row, column=15, value=clean(s.get('observacion'))).border = border_style
                 
-                for c in range(1, 15): ws.cell(row=curr_row, column=c).alignment = center_al
+                for c in range(1, 16): ws.cell(row=curr_row, column=c).alignment = center_al
                 curr_row += 1
         
         # Filas extra para completar el diseño (total 15 filas de tour)
         while curr_row < 25:
-            for c in range(1, 15): 
+            for c in range(1, 16): 
                 ws.cell(row=curr_row, column=c).border = border_style
             curr_row += 1
 
