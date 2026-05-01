@@ -1417,7 +1417,51 @@ def dashboard_simulador_costos(controller):
                                     "contratado": "contratado",
                                     "Resp. Contrato": "responsable_contratacion"
                                 }
-                                db_changes = {mapping[k]: v for k, v in changes.items() if k in mapping}
+                                # Renombrar campos internos a nombres de DB y convertir fechas a string
+                                db_changes = {}
+                                for k, v in changes.items():
+                                    if k in mapping:
+                                        val = v
+                                        if hasattr(v, 'isoformat'): # Para objetos date de Streamlit
+                                            val = v.isoformat()
+                                        db_changes[mapping[k]] = val
+                                
+                                # --- LÓGICA DE VÍNCULO (Linkage) ---
+                                # 1. Confirmación (terminado <-> fecha_confirmacion)
+                                if 'terminado' in changes:
+                                    if changes['terminado'] is True:
+                                        # Si se marca como OK y no hay fecha (ni en cambios ni en DF), poner hoy
+                                        if not (changes.get('F. Confirmación') or df_edit.iloc[row_idx].get('F. Confirmación')):
+                                            db_changes['fecha_confirmacion'] = date.today().isoformat()
+                                    else:
+                                        # Si se desmarca, limpiar fecha
+                                        db_changes['fecha_confirmacion'] = None
+                                
+                                if 'F. Confirmación' in changes:
+                                    if changes['F. Confirmación']:
+                                        # Si se pone una fecha, marcar como OK
+                                        db_changes['terminado'] = True
+                                    else:
+                                        # Si se limpia la fecha, desmarcar OK
+                                        db_changes['terminado'] = False
+
+                                # 2. Contratación (contratado <-> fecha_contratacion)
+                                if 'contratado' in changes:
+                                    if changes['contratado'] is True:
+                                        # Si se marca como contratado y no hay fecha, poner hoy
+                                        if not (changes.get('F. Contratación') or df_edit.iloc[row_idx].get('F. Contratación')):
+                                            db_changes['fecha_contratacion'] = date.today().isoformat()
+                                    else:
+                                        # Si se desmarca, limpiar fecha
+                                        db_changes['fecha_contratacion'] = None
+                                
+                                if 'F. Contratación' in changes:
+                                    if changes['F. Contratación']:
+                                        # Si se pone una fecha, marcar como contratado
+                                        db_changes['contratado'] = True
+                                    else:
+                                        # Si se limpia la fecha, desmarcar contratado
+                                        db_changes['contratado'] = False
                                 
                                 # Lógica especial para Proveedor (Búsqueda por nombre)
                                 if "Proveedor" in changes:
@@ -1429,11 +1473,7 @@ def dashboard_simulador_costos(controller):
                                     else:
                                         errores.append(f"⚠️ No se encontró el proveedor '{nom_prov}'. Se guardarán los demás cambios.")
                                 
-                                # Si se marca como terminado (Check), asignar fecha de confirmación automáticamente si no tiene una
-                                if changes.get('terminado') is True and not (changes.get('F. Confirmación') or df_edit.iloc[row_idx].get('F. Confirmación')):
-                                    db_changes['fecha_confirmacion'] = date.today().isoformat()
-                                elif changes.get('terminado') is False:
-                                    db_changes['fecha_confirmacion'] = None
+                                # La lógica de vinculación anterior ya cubre los casos de automatización
                                 
                                 if db_changes:
                                     exito, msg = controller.actualizar_campos_liquidacion(reg_id, db_changes)
