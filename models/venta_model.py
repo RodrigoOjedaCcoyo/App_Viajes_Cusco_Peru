@@ -41,17 +41,28 @@ class VentaModel(BaseModel):
             print(f"Error buscando tour {nombre}: {e}")
         return None
 
-    def get_or_create_cliente(self, nombre: str, celular: str, origen: str, id_lead: Optional[int] = None, tipo_cliente: str = "B2C") -> Optional[int]:
-        """Busca un cliente por nombre (simplicidad), si no existe lo crea."""
+    def get_or_create_cliente(self, nombre: str, celular: str, origen: str, id_lead: Optional[int] = None, tipo_cliente: str = "B2C", id_vendedor: Optional[int] = None) -> Optional[int]:
+        """Busca un cliente por nombre (simplicidad), si no existe lo crea. Crea el lead asociado si hay celular."""
         if not nombre: 
             raise Exception("El nombre del cliente es obligatorio")
         
         # 1. Buscar existente
         res = self.client.table('cliente').select('id_cliente').eq('nombre', nombre).limit(1).execute()
         if res.data:
-            # Si existe, opcionalmente podríamos actualizar el tipo_cliente si es B2B, 
-            # pero por ahora simplemente retornamos el ID.
             return res.data[0]['id_cliente']
+            
+        # 1.5 Crear Lead si es necesario para mantener el número de celular
+        if not id_lead and celular:
+            from .lead_model import LeadModel
+            lead_mod = LeadModel(self.client)
+            nuevo_lead = lead_mod.create_lead(
+                telefono=celular,
+                origen=origen or "B2B",
+                vendedor=id_vendedor,
+                nombre_pasajero=nombre
+            )
+            if nuevo_lead:
+                id_lead = nuevo_lead
         
         # 2. Crear nuevo (esto lanzará excepción si falla)
         nuevo_cliente = {
@@ -86,18 +97,6 @@ class VentaModel(BaseModel):
         id_age = venta_data.get('id_agencia_aliada')
         tipo_final = "B2B" if id_age else "B2C"
 
-        # 2. Obtener IDs Relacionales
-        id_cliente = self.get_or_create_cliente(
-            venta_data.get('nombre_cliente'), 
-            venta_data.get('telefono_cliente'), 
-            venta_data.get('origen'),
-            id_lead=venta_data.get('id_lead'),
-            tipo_cliente=tipo_final
-        )
-        
-        if not id_cliente:
-            raise Exception("No se pudo crear o encontrar el cliente. Verifique la tabla 'cliente'.")
-        
         id_vendedor = self.get_vendedor_id_by_query(venta_data.get('vendedor'))
         
         if not id_vendedor:
@@ -107,6 +106,16 @@ class VentaModel(BaseModel):
                 id_vendedor = res_fb.data[0]['id_vendedor']
             else:
                 raise Exception("No hay vendedores en la base de datos.")
+
+        # 2. Obtener IDs Relacionales
+        id_cliente = self.get_or_create_cliente(
+            venta_data.get('nombre_cliente'), 
+            venta_data.get('telefono_cliente'), 
+            venta_data.get('origen'),
+            id_lead=venta_data.get('id_lead'),
+            tipo_cliente=tipo_final,
+            id_vendedor=id_vendedor
+        )
         
         tour_raw = venta_data.get('tour', '')
         id_paquete = None
