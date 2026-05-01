@@ -57,7 +57,9 @@ def render_operational_master_download(controller, id_venta, label="📊 Generar
             "nro_vuelo_internacional": v_raw.get('nro_vuelo_internacional'),
             "correo_cliente": v_raw.get('correo_cliente'),
             "nombre_contacto_emergencia": v_raw.get('nombre_contacto_emergencia'),
-            "telefono_contacto_emergencia": v_raw.get('telefono_contacto_emergencia')
+            "telefono_contacto_emergencia": v_raw.get('telefono_contacto_emergencia'),
+            "origen": v_raw.get('origen'),
+            "telefono_cliente": v_raw.get('telefono_cliente')
         }
 
         # 2. Calcular Pagos e Información de Depósito
