@@ -516,7 +516,7 @@ class ExcelController:
             tc_nacimiento = ""
             tc_caducidad = ""
 
-        tc_telefono = clean(v.get('telefono'))
+        tc_telefono = clean(v.get('telefono_cliente') or v.get('telefono'))
         tc_vuelo = clean(v.get('nro_vuelo_internacional'))
         tc_correo = clean(v.get('correo_cliente'))
         tc_emer_nom = clean(v.get('nombre_contacto_emergencia'))
@@ -645,10 +645,18 @@ class ExcelController:
         style_value(ws['M7'])
 
         # Fila 8: RESPONSABLE | DEPOSITO | MEDIO | TOTAL
-        ws['A8'] = "RESPONSABLE VENDA"
+        # Extraer agencia del origen (ej: "B2B: Kuna Travel" -> "Kuna Travel")
+        origen_val = str(v.get('origen', ''))
+        if origen_val.startswith('B2B:'):
+            ws['A8'] = "AGENCIA / PROVEEDOR"
+            origen_val = origen_val.replace('B2B:', '').strip()
+        else:
+            ws['A8'] = "RESPONSABLE VENDA"
+            origen_val = clean(v.get('vendedor'))
+            
         style_label(ws['A8'])
         ws.merge_cells('B8:D8')
-        ws['B8'] = clean(v.get('vendedor'))
+        ws['B8'] = origen_val
         style_value(ws['B8'])
 
         ws['E8'] = "VALOR 1º DEPOSITO"
