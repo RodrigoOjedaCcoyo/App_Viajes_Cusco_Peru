@@ -150,7 +150,7 @@ class VentaController:
                 "nro_vuelo_internacional": vuelo_internacional,
                 "correo_cliente": correo,
                 "nombre_contacto_emergencia": contacto_emergencia_nombre,
-                "telefono_contacto_emergencia": contacto_emergencia_tel,
+                "telefono_contacto_emergencia": contacto_emergencia_tel or telefono,
                 "comentarios": comentarios
             }
             

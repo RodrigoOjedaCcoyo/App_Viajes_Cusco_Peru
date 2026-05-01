@@ -58,7 +58,7 @@ def render_operational_master_download(controller, id_venta, label="📊 Generar
             "correo_cliente": v_raw.get('correo_cliente'),
             "nombre_contacto_emergencia": v_raw.get('nombre_contacto_emergencia'),
             "telefono_contacto_emergencia": v_raw.get('telefono_contacto_emergencia'),
-            "origen": v_raw.get('origen'),
+            "origen": v_raw.get('canal_venta'),
             "telefono_cliente": v_raw.get('telefono_cliente')
         }
 

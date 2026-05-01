@@ -516,7 +516,7 @@ class ExcelController:
             tc_nacimiento = ""
             tc_caducidad = ""
 
-        tc_telefono = clean(v.get('telefono_cliente') or v.get('telefono'))
+        tc_telefono = clean(v.get('telefono_cliente') or v.get('telefono') or v.get('telefono_contacto_emergencia'))
         tc_vuelo = clean(v.get('nro_vuelo_internacional'))
         tc_correo = clean(v.get('correo_cliente'))
         tc_emer_nom = clean(v.get('nombre_contacto_emergencia'))
