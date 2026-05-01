@@ -472,10 +472,8 @@ def registro_ventas_proveedores(supabase_client):
                 try: render_data = json.loads(render_data)
                 except: render_data = {}
 
-            # Filtro B2B
-            tipo_v = render_data.get('metadata', {}).get('tipo_venta', 'B2C')
-            if tipo_v != 'B2B':
-                continue
+            # Ya no filtramos por B2B o B2C, mostramos todos los itinerarios del pasajero
+            # ya que la pestaña define el tipo de venta final.
 
             titulo = render_data.get('titulo', '')
             if not titulo:
@@ -497,24 +495,7 @@ def registro_ventas_proveedores(supabase_client):
             opciones_itinerario.append(label_final)
             mapa_itinerarios[label_final] = it
     
-    if len(opciones_itinerario) == 1:
-        st.warning("⚠️ No se encontraron itinerarios marcados como **B2B**. ¿Olvidaste marcar la casilla 'Venta B2B' al diseñarlo?")
-        if st.checkbox("🔍 Buscar también en itinerarios B2C (Solo para vincular errores)", key="search_b2c_fallback"):
-            for it in itinerarios_recuperados:
-                r_d = it.get('datos_render')
-                if isinstance(r_d, str):
-                    import json
-                    try: r_d = json.loads(r_d)
-                    except: r_d = {}
-                
-                tit = r_d.get('titulo') or f"{r_d.get('title_1','')} {r_d.get('title_2','')}".strip() or 'Sin Título'
-                pax_i = it.get('nombre_pasajero_itinerario') or (r_d.get('pasajero') if isinstance(r_d, dict) else 'Sin Nombre')
-                f_i = it.get('fecha_generacion', '')[:10] if it.get('fecha_generacion') else 'Sin fecha'
-                
-                lab = f"📦 [B2C] {f_i} - {pax_i} - {tit}"
-                if lab not in opciones_itinerario:
-                    opciones_itinerario.append(lab)
-                    mapa_itinerarios[lab] = it
+
 
     itinerario_seleccionado = st.selectbox(
         "✨ Seleccionar Itinerario Visual (Diseño Cloud)", 
@@ -558,16 +539,28 @@ def registro_ventas_proveedores(supabase_client):
                 cel_cloud = lead_data.get('numero_celular', '')
             def_cel = cel_cloud or def_cel
             
-            # Fechas y Pax
-            f_viaje = render.get('fecha_viaje')
+            # --- 📅 CÁLCULO AUTOMÁTICO DE FECHAS (ROBUSTO) ---
+            f_viaje = render.get('fecha_viaje') or render.get('fecha_inicio') or render.get('fechaViaje') or render.get('fecha')
+            if not f_viaje and render.get('control_interno'):
+                ci = render.get('control_interno', {})
+                f_viaje = ci.get('fecha_inicio') or ci.get('fecha_llegada') or ci.get('fecha_viaje')
+            if not f_viaje:
+                dias = render.get('itinerario') or render.get('days') or render.get('itinerario_detalles')
+                if dias and isinstance(dias, list) and len(dias) > 0 and isinstance(dias[0], dict):
+                    f_viaje = dias[0].get('fecha')
+                
             if f_viaje:
                 try: 
-                    f_clean = f_viaje.replace(" ", "")
+                    f_clean = str(f_viaje).replace(" ", "").strip()
                     if '/' in f_clean:
                         from datetime import datetime
-                        def_f_inicio = datetime.strptime(f_clean, "%d/%m/%Y").date()
-                    else:
-                        def_f_inicio = date.fromisoformat(f_clean)
+                        try:
+                            def_f_inicio = datetime.strptime(f_clean, "%d/%m/%Y").date()
+                        except ValueError:
+                            try: def_f_inicio = datetime.strptime(f_clean, "%Y/%m/%d").date()
+                            except ValueError: def_f_inicio = datetime.strptime(f_clean, "%m/%d/%Y").date()
+                    elif '-' in f_clean:
+                        def_f_inicio = date.fromisoformat(f_clean[:10])
                 except: pass
             
             def_f_fin = def_f_inicio
@@ -578,7 +571,13 @@ def registro_ventas_proveedores(supabase_client):
                     if num_dias_str: def_f_fin = def_f_inicio + timedelta(days=int(num_dias_str) - 1)
                 except: pass
             
-            def_cant_pax = int(render.get('cantidad_pax') or 1)
+            # Cálculo de Pax Robusto
+            if render.get('control_interno'):
+                def_cant_pax = int(render['control_interno'].get('total_pasajeros') or render['control_interno'].get('total_pax') or 1)
+            elif render.get('detalle_ingresos'):
+                def_cant_pax = sum(int(d.get('cantidad', 0)) for d in render['detalle_ingresos'])
+            else:
+                def_cant_pax = int(render.get('cantidad_pax') or render.get('pax_count') or 1)
 
             # --- INICIALIZACIÓN DE VARIABLES PARA AUTO-COMPLETADO ---
             items_extraidos = []
