@@ -800,11 +800,17 @@ def registro_ventas_proveedores(supabase_client):
         tipo_comp = col2.radio("Comprobante para Agencia", ["Boleta", "Factura", "Recibo Simple"], horizontal=True, key="b2b_tipo_comp_v2")
         metodo_pago = col2.selectbox("💳 Método de Pago", ["EFECTIVO", "TRANSFERENCIA", "YAPE", "PLIN", "TARJETA", "PAYPAL", "OTRO"], key="b2b_metodo_pago_v2")
         
-        # --- NUEVO: FECHAS MANUALES SI NO HAY ITINERARIO ---
-        if not id_itinerario_dig:
+        cantidad_pax = col1.number_input("Cantidad Pax", min_value=1, value=int(def_cant_pax), disabled=is_disabled, key="b2b_pax_v2")
+
+        # --- 📅 MOSTRAR FECHAS Y PAX (AL ESTILO B2C) ---
+        if id_itinerario_dig:
+            st.success(f"🗓️ **Viaje Programado:** Del {def_f_inicio.strftime('%d/%m/%Y')} al {def_f_fin.strftime('%d/%m/%Y')} | 👥 **Pax:** {def_cant_pax}")
+            fecha_inicio_sel = def_f_inicio
+            fecha_fin_sel = def_f_fin
+        else:
             c_f1, c_f2 = st.columns(2)
-            def_f_inicio = c_f1.date_input("Fecha Inicio", value=def_f_inicio)
-            def_f_fin = c_f2.date_input("Fecha Fin", value=def_f_fin)
+            fecha_inicio_sel = c_f1.date_input("Fecha Inicio", value=def_f_inicio, key="b2b_finicio")
+            fecha_fin_sel = c_f2.date_input("Fecha Fin", value=def_f_fin, key="b2b_ffin")
 
         # --- DESGLOSE DE INGRESOS B2B (MÁS ROBUSTO) ---
         items_ingreso = []
@@ -858,9 +864,9 @@ def registro_ventas_proveedores(supabase_client):
                     monto_total=monto_total,
                     monto_depositado=monto_pagado,
                     id_agencia_aliada=id_age,
-                    fecha_inicio=def_f_inicio.isoformat(),
-                    fecha_fin=def_f_fin.isoformat(),
-                    cantidad_pax=def_cant_pax,
+                    fecha_inicio=fecha_inicio_sel.isoformat(),
+                    fecha_fin=fecha_fin_sel.isoformat(),
+                    cantidad_pax=int(cantidad_pax),
                     id_itinerario_digital=id_itinerario_dig,
                     id_lead=None,
                     tipo_comprobante=tipo_comp,
