@@ -678,7 +678,10 @@ def registro_ventas_directa():
 
         comentarios_op = st.text_area("🗒️ Comentarios para Operaciones", placeholder="Ej: Pasajero alérgico, requiere recojo puntual, etc.", key="coment_op_b2c")
 
-
+        st.markdown("##### 📧 Notificaciones y Adjuntos")
+        c_not1, c_not2 = st.columns([1, 1])
+        enviar_notif = c_not1.checkbox("Enviar Resumen por Correo Corporativo", value=True, help="Envía un resumen de la venta a los correos de gerencia y reservas.")
+        archivos_adjuntos = c_not2.file_uploader("Adjuntar Comprobantes o Fotos", accept_multiple_files=True, help="Opcional: Estas imágenes se enviarán como adjuntos en el correo.")
 
         submitted = st.form_submit_button("🚀 REGISTRAR VENTA Y NOTIFICAR", use_container_width=True)
 
@@ -717,7 +720,9 @@ def registro_ventas_directa():
                     vuelo_internacional=vuelo_int,
                     correo=correo_cli,
                     contacto_emergencia_nombre=cont_nom,
-                    contacto_emergencia_tel=cont_tel
+                    contacto_emergencia_tel=cont_tel,
+                    enviar_correo=enviar_notif,
+                    adjuntos={f.name: f.getvalue() for f in archivos_adjuntos} if archivos_adjuntos else None
                 )
                 
                 if exito:

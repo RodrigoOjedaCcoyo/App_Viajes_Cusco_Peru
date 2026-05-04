@@ -35,7 +35,9 @@ class VentaController:
                                 vuelo_internacional: Optional[str] = None,
                                 correo: Optional[str] = None,
                                 contacto_emergencia_nombre: Optional[str] = None,
-                                contacto_emergencia_tel: Optional[str] = None
+                                contacto_emergencia_tel: Optional[str] = None,
+                                enviar_correo: bool = False,
+                                adjuntos: Optional[dict] = None
                                 ) -> tuple[bool, str]:
         """Registra una venta con todos los detalles extendidos."""
         
@@ -91,6 +93,13 @@ class VentaController:
         try:
             nuevo_id = self.model.create_venta(venta_data)
             if nuevo_id:
+                # 5. Enviar Notificación por Correo (Async)
+                if enviar_correo:
+                    from utils.email_helper import enviar_notificacion_venta_async
+                    # Incluimos el ID generado en la data para el correo
+                    venta_data['id_venta'] = nuevo_id
+                    enviar_notificacion_venta_async(venta_data, adjuntos)
+
                 return True, f"Venta registrada. ID: {nuevo_id}. Saldo pendiente: {moneda} {float(saldo or 0):.2f}"
             else:
                 return False, "Error: no se pudo crear la venta."
