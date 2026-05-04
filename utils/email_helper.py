@@ -35,7 +35,7 @@ def _enviar_correo_worker(venta_data, adjuntos=None):
         msg = MIMEMultipart()
         msg['From'] = user
         msg['To'] = ", ".join(destinatarios)
-        msg['Subject'] = f"🚀 NUEVA VENTA: {venta_data.get('nombre_cliente')} - {venta_data.get('tour')}"
+        msg['Subject'] = f"🚀 [Vendedor: {venta_data.get('vendedor')}] Nueva Venta: {venta_data.get('nombre_cliente')} - {venta_data.get('tour')}"
 
         # 3. Construir Cuerpo HTML (Diseño Profesional)
         html = f"""
