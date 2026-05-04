@@ -1573,89 +1573,14 @@ def dashboard_simulador_costos(controller):
         except Exception as e:
             st.error(f"Error cargando pasajeros: {e}")
 
-    # --- NUEVO: EDITOR DE LOGÍSTICA DIRECTO (MODO MANUAL) ---
-    st.divider()
-    with st.expander("🛠️ Edición Manual de Itinerario (Añadir/Quitar Días)", expanded=False):
-        st.markdown("### ➕ Añadir Servicio Manual")
-        c_add1, c_add2, c_add3 = st.columns([2, 1, 1])
-        
-        # Obtener catálogo de tours
-        res_tours = controller.client.table('tour').select('id_tour, nombre').order('nombre').execute()
-        mapa_tours = {t['nombre']: t['id_tour'] for t in (res_tours.data or [])}
-        tour_nom_sel = c_add1.selectbox("Seleccione Tour del Catálogo:", list(mapa_tours.keys()), key="tm_sel")
-        
-        # Fecha por defecto basada en la venta
-        id_actual = st.session_state.get('last_loaded_id_venta')
-        res_v_f = controller.client.table('venta').select('fecha_inicio').eq('id_venta', id_actual).single().execute()
-        f_def = pd.to_datetime(res_v_f.data.get('fecha_inicio')).date() if res_v_f.data else date.today()
-        
-        f_serv_manual = c_add2.date_input("Fecha:", value=f_def, key="fm_sel")
-        cant_manual = c_add3.number_input("Cant. Pax:", min_value=1, value=1, key="cm_sel")
-        
-        obs_manual = st.text_input("Observación / Nombre Personalizado:", value=tour_nom_sel, key="om_sel")
-        
-        if st.button("🚀 Añadir a la Logística", use_container_width=True, type="secondary"):
-            vc_temp = VentaController(supabase_client)
-            exito_a, msg_a = vc_temp.agregar_servicio_operativo(
-                id_venta=id_actual,
-                id_tour=mapa_tours[tour_nom_sel],
-                fecha=f_serv_manual.isoformat(),
-                observacion=obs_manual,
-                cantidad=cant_manual
-            )
-            if exito_a:
-                st.success(msg_a)
-                st.rerun()
-            else:
-                st.error(msg_a)
-
-        st.markdown("---")
-        st.markdown("### 📝 Gestión y Edición de Días")
-        servicios_v = vc.obtener_detalles_itinerario_venta(id_actual)
-        if servicios_v:
-            for s in servicios_v:
-                with st.expander(f"Día {s['n_linea']}: {s['observacion']} ({s['fecha_servicio']})", expanded=False):
-                    c_ed1, c_ed2 = st.columns([3, 1])
-                    
-                    # Formulario de edición para este día específico
-                    new_obs = c_ed1.text_input("Cambiar Nombre:", value=s['observacion'], key=f"obs_ed_{s['n_linea']}")
-                    new_fecha = c_ed2.date_input("Cambiar Fecha:", value=pd.to_datetime(s['fecha_servicio']).date(), key=f"f_ed_{s['n_linea']}")
-                    
-                    c_btn1, c_btn2, c_btn3 = st.columns([1, 1, 1])
-                    if c_btn1.button("💾 Guardar Cambios", key=f"save_ed_{s['n_linea']}", use_container_width=True, type="primary"):
-                        vc_temp = VentaController(supabase_client)
-                        exito_e, msg_e = vc_temp.actualizar_servicio_operativo(
-                            id_venta=id_actual, 
-                            n_linea=s['n_linea'],
-                            update_data={"observacion": new_obs, "fecha_servicio": new_fecha.isoformat()}
-                        )
-                        if exito_e:
-                            st.success(msg_e)
-                            st.rerun()
-                        else:
-                            st.error(msg_e)
-                            
-                    if c_btn3.button("🗑️ Eliminar Día", key=f"del_s_{s['n_linea']}", use_container_width=True):
-                        vc_temp = VentaController(supabase_client)
-                        exito_d, msg_d = vc_temp.eliminar_servicio_operativo(id_actual, s['n_linea'])
-                        if exito_d:
-                            st.success(msg_d)
-                            st.rerun()
-                        else:
-                            st.error(msg_d)
-        else:
-            st.info("No hay servicios registrados en la logística actual.")
-
-    # Botón de sincronización con Itinerario Digital
+    # Botón de Sincronización Unificado
     st.divider()
     if st.session_state.get('last_loaded_id_venta'):
         id_actual = st.session_state['last_loaded_id_venta']
-        
         c_sync1, c_sync2, c_sync3 = st.columns([1, 2, 1])
         with c_sync2:
-            st.warning("⚠️ **Sincronización:** Si el vendedor cambió el itinerario, presione este botón para actualizar la logística.")
-            if st.button("🔄 Sincronizar Logística con Itinerario Cloud", use_container_width=True, help="Refresca los días y nombres de tours basándose en el diseño más reciente del vendedor."):
-                # Necesitamos llamar al método desde venta_controller
+            if st.button("🔄 Sincronizar Itinerario", use_container_width=True, help="Aplica los cambios realizados en el constructor a esta venta."):
+                from controllers.venta_controller import VentaController
                 vc_temp = VentaController(supabase_client)
                 exito_s, msg_s = vc_temp.sincronizar_venta_con_itinerario(id_actual)
                 if exito_s:
