@@ -184,11 +184,21 @@ class PDFController:
                         new_desc += f"<b>{part}</b>"
                 it_copy['descripcion'] = new_desc
 
-            # Consolidar inclusiones
-            it_copy['incluye_final'] = (
+            # Consolidar inclusiones y extraer SOLO el texto (los items pueden ser dicts)
+            raw_incluye = (
                 item.get('incluye') or item.get('inclusiones') or
                 item.get('servicios') or []
             )
+            incluye_limpio = []
+            for inc in raw_incluye:
+                if isinstance(inc, dict):
+                    texto = (inc.get('texto') or inc.get('text') or
+                             inc.get('nombre') or inc.get('title') or "")
+                    if texto:
+                        incluye_limpio.append(str(texto).strip())
+                elif isinstance(inc, str) and inc.strip():
+                    incluye_limpio.append(inc.strip())
+            it_copy['incluye_final'] = incluye_limpio
             itinerario_procesado.append(it_copy)
 
         # Número de voucher formateado (ej: 00042-05-00001)
