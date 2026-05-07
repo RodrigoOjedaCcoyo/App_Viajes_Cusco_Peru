@@ -131,3 +131,100 @@ class PDFController:
         """Genera un Vale de Endose para un proveedor específico."""
         data['hoy'] = datetime.date.today().strftime("%d/%m/%Y")
         return self._render_pdf('voucher_endose_template.html', data)
+
+    def generar_voucher_reserva_pdf(self, data: dict) -> BytesIO:
+        """
+        Genera un Voucher de Reserva profesional para el cliente.
+        'data' contiene campos de la venta + campos temporales (pasaporte, hotel, etc.)
+        que NO se guardan en la base de datos.
+        """
+        # Procesar itinerario desde datos_render del itinerario digital
+        datos_render = data.get('datos_render', {})
+        itinerario_raw = (
+            datos_render.get("itinerario_detalles") or
+            datos_render.get("itinerario_detales") or
+            datos_render.get("days") or
+            datos_render.get("servicios") or
+            datos_render.get("itinerario") or []
+        )
+
+        itinerario_procesado = []
+        for item in itinerario_raw:
+            if not isinstance(item, dict):
+                continue
+            it_copy = item.copy()
+
+            # Título del día
+            it_copy['titulo'] = (
+                item.get('titulo') or item.get('title') or
+                item.get('day_title') or item.get('nombre') or
+                item.get('dia') or ""
+            )
+
+            # Procesar negritas *** -> <b>
+            desc = it_copy.get('descripcion', '')
+            if desc:
+                parts = desc.split('***')
+                new_desc = ""
+                for i, part in enumerate(parts):
+                    if i % 2 == 0:
+                        new_desc += part
+                    else:
+                        new_desc += f"<b>{part}</b>"
+                it_copy['descripcion'] = new_desc
+
+            # Consolidar inclusiones
+            it_copy['incluye_final'] = (
+                item.get('incluye') or item.get('inclusiones') or
+                item.get('servicios') or []
+            )
+            itinerario_procesado.append(it_copy)
+
+        # Número de voucher formateado (ej: 00042-05-00001)
+        id_venta = data.get('id_venta') or data.get('id') or 1
+        try:
+            num_str = f"{int(id_venta):05d}"
+        except Exception:
+            num_str = "00001"
+        mes_actual = datetime.date.today().strftime("%m")
+        numero_voucher = f"{num_str}-{mes_actual}-{num_str}"
+
+        # Montos
+        monto_total = float(data.get('monto_total') or 0)
+        monto_pagado = float(data.get('monto_depositado') or data.get('monto_pagado') or 0)
+        saldo = monto_total - monto_pagado
+
+        context = {
+            # Empresa
+            "empresa_nombre": "LATITUD VIAJES CUSCO PERU SAC",
+            "empresa_telefono": "942128412 / 970909088",
+            "empresa_direccion": "Av. Mariscal José Luis de Obregoso BI-B",
+            "empresa_email": "viajescuscoperu@gmail.com",
+            "empresa_web": "www.viajescuscoperu.com",
+            # Voucher
+            "numero_voucher": numero_voucher,
+            "fecha_emision": datetime.date.today().strftime("%d/%m/%Y"),
+            # Cliente
+            "nombre_cliente": data.get('nombre_cliente', ''),
+            "telefono_cliente": data.get('telefono', data.get('telefono_cliente', '')),
+            "correo_cliente": data.get('correo_cliente', ''),
+            # Datos temporales para el voucher (no guardados en DB)
+            "pasaporte": data.get('pasaporte', '---'),
+            "hotel": data.get('hotel', '---'),
+            "nacionalidad": data.get('nacionalidad', '---'),
+            "edad": data.get('edad', '---'),
+            "num_adultos": data.get('num_adultos_voucher', data.get('cantidad', 1)),
+            "num_estudiantes": data.get('num_estudiantes_voucher', 0),
+            # Fechas y PAX
+            "fecha_inicio": data.get('fecha_inicio', ''),
+            "fecha_fin": data.get('fecha_fin', ''),
+            "num_pax": data.get('cantidad', 1),
+            # Itinerario
+            "itinerario": itinerario_procesado,
+            # Montos
+            "moneda": data.get('moneda', 'USD'),
+            "monto_total": monto_total,
+            "monto_pagado": monto_pagado,
+            "saldo": saldo,
+        }
+        return self._render_pdf('voucher_reserva_template.html', context)

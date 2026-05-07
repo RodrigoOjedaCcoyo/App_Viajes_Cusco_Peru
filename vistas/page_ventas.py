@@ -678,6 +678,15 @@ def registro_ventas_directa():
 
         comentarios_op = st.text_area("🗒️ Comentarios para Operaciones", placeholder="Ej: Pasajero alérgico, requiere recojo puntual, etc.", key="coment_op_b2c")
 
+        st.markdown("##### 🏨 Datos Adicionales para el Voucher (sólo para el documento)")
+        cv1, cv2, cv3 = st.columns(3)
+        v_pasaporte  = cv1.text_input("Pasaporte / DNI", placeholder="Ej: AAH121307")
+        v_hotel      = cv2.text_input("Hotel de Hospedaje", placeholder="Ej: Casa Andina 3*")
+        v_nacionalidad = cv3.text_input("Nacionalidad", placeholder="Ej: ARGENTINA")
+        cv4, cv5 = st.columns(2)
+        v_adultos    = cv4.number_input("N° Adultos", min_value=0, value=int(def_pax), step=1)
+        v_estudiantes = cv5.number_input("N° Estudiantes", min_value=0, value=0, step=1)
+
         st.markdown("##### 📧 Notificaciones y Adjuntos")
         c_not1, c_not2 = st.columns([1, 1])
         enviar_notif = c_not1.checkbox("Enviar Resumen por Correo Corporativo", value=True, help="Envía un resumen de la venta a los correos de gerencia y reservas.")
@@ -726,11 +735,110 @@ def registro_ventas_directa():
                 )
                 
                 if exito:
+                    # --- Generar Voucher PDF (datos temporales, no se guardan en DB) ---
+                    try:
+                        from controllers.pdf_controller import PDFController
+                        pdf_ctrl = PDFController()
+
+                        # Obtener datos_render del itinerario seleccionado
+                        render_para_voucher = {}
+                        if id_itinerario_dig and itinerario_seleccionado != "--- Sin Itinerario ---":
+                            it_raw = mapa_itinerarios.get(itinerario_seleccionado, {})
+                            render_para_voucher = it_raw.get('datos_render', {})
+                            if isinstance(render_para_voucher, str):
+                                import json
+                                try: render_para_voucher = json.loads(render_para_voucher)
+                                except: render_para_voucher = {}
+
+                        voucher_data = {
+                            'nombre_cliente':       nombre,
+                            'telefono_cliente':     tel,
+                            'correo_cliente':       correo_cli,
+                            'fecha_inicio':         fecha_inicio_sel.strftime('%d/%m/%Y'),
+                            'fecha_fin':            fecha_fin_sel.strftime('%d/%m/%Y'),
+                            'monto_total':          monto_total,
+                            'monto_depositado':     monto_pagado,
+                            'moneda':               moneda_sel,
+                            'cantidad':             int(cantidad_pax),
+                            # Temporales (voucher only)
+                            'pasaporte':            v_pasaporte or '---',
+                            'hotel':                v_hotel or '---',
+                            'nacionalidad':         v_nacionalidad or '---',
+                            'num_adultos_voucher':  int(v_adultos),
+                            'num_estudiantes_voucher': int(v_estudiantes),
+                            # Itinerario
+                            'datos_render':         render_para_voucher,
+                        }
+
+                        pdf_bytes_io = pdf_ctrl.generar_voucher_reserva_pdf(voucher_data)
+                        if pdf_bytes_io:
+                            pdf_bytes = pdf_bytes_io.read()
+                            st.session_state['voucher_pdf_bytes'] = pdf_bytes
+                            st.session_state['voucher_pdf_nombre'] = f"Voucher_{nombre.replace(' ','_')}.pdf"
+
+                            # Si el correo está activo, adjuntar el voucher automáticamente
+                            if enviar_notif:
+                                from utils.email_helper import enviar_notificacion_venta_async
+                                venta_notif = {
+                                    'nombre_cliente':  nombre,
+                                    'tour':            id_paquete,
+                                    'vendedor':        vendedor_actual,
+                                    'cantidad':        int(cantidad_pax),
+                                    'fecha_inicio':    fecha_inicio_sel.strftime('%d/%m/%Y'),
+                                    'fecha_fin':       fecha_fin_sel.strftime('%d/%m/%Y'),
+                                    'moneda':          moneda_sel,
+                                    'monto_total':     monto_total,
+                                    'monto_depositado': monto_pagado,
+                                    'saldo':           monto_total - monto_pagado,
+                                    'metodo_pago':     metodo_pago,
+                                    'comentarios':     comentarios_op,
+                                }
+                                adjuntos_final = {f.name: f.getvalue() for f in archivos_adjuntos} if archivos_adjuntos else {}
+                                adjuntos_final[st.session_state['voucher_pdf_nombre']] = pdf_bytes
+                                enviar_notificacion_venta_async(venta_notif, adjuntos_final)
+                        else:
+                            # Si no se pudo generar PDF, igual enviar correo sin adjunto
+                            if enviar_notif:
+                                from utils.email_helper import enviar_notificacion_venta_async
+                                venta_notif = {
+                                    'nombre_cliente':  nombre,
+                                    'tour':            id_paquete,
+                                    'vendedor':        vendedor_actual,
+                                    'cantidad':        int(cantidad_pax),
+                                    'fecha_inicio':    fecha_inicio_sel.strftime('%d/%m/%Y'),
+                                    'fecha_fin':       fecha_fin_sel.strftime('%d/%m/%Y'),
+                                    'moneda':          moneda_sel,
+                                    'monto_total':     monto_total,
+                                    'monto_depositado': monto_pagado,
+                                    'saldo':           monto_total - monto_pagado,
+                                    'metodo_pago':     metodo_pago,
+                                    'comentarios':     comentarios_op,
+                                }
+                                adjuntos_final = {f.name: f.getvalue() for f in archivos_adjuntos} if archivos_adjuntos else None
+                                enviar_notificacion_venta_async(venta_notif, adjuntos_final)
+
+                    except Exception as e_pdf:
+                        st.warning(f"⚠️ Venta registrada, pero hubo un problema generando el Voucher: {e_pdf}")
+
                     st.success(msg)
                     st.balloons()
                 else:
                     st.error(msg)
 
+    # --- Boton de descarga del Voucher PDF (fuera del form, persiste en sesión) ---
+    if st.session_state.get('voucher_pdf_bytes'):
+        st.divider()
+        st.success("✅ Voucher PDF generado y adjuntado al correo. ¡También puedes descargarlo aquí!")
+        st.download_button(
+            label="📅 Descargar Voucher de Reserva (PDF)",
+            data=st.session_state['voucher_pdf_bytes'],
+            file_name=st.session_state.get('voucher_pdf_nombre', 'Voucher_Reserva.pdf'),
+            mime='application/pdf',
+            use_container_width=True
+        )
+        if st.button("🗑️ Limpiar", key="limpiar_voucher"):
+            del st.session_state['voucher_pdf_bytes']
+            st.rerun()
 
 def render_reminders_dashboard():
     lead_controller = st.session_state.get('lead_controller')

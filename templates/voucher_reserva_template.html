@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page { size: A4; margin: 1.2cm; }
+        body { font-family: Arial, sans-serif; font-size: 9pt; color: #000; margin: 0; padding: 0; }
+
+        .header-table { width: 100%; border-collapse: collapse; margin-bottom: 6pt; }
+        .company-name { font-size: 13pt; font-weight: bold; color: #1a5276; }
+        .company-sub { font-size: 8.5pt; color: #333; margin-top: 2pt; }
+        .voucher-box {
+            border: 2px solid #000; padding: 5pt 8pt;
+            text-align: center; font-weight: bold; font-size: 11pt;
+        }
+        .numero-voucher { color: #c0392b; font-size: 14pt; font-weight: bold; text-align: center; margin-top: 4pt; }
+
+        .info-table { width: 100%; border-collapse: collapse; margin-bottom: 3pt; }
+        .info-table td { border: 1px solid #000; padding: 3pt 5pt; font-size: 8.5pt; }
+        .field-label { font-weight: bold; font-size: 7pt; text-transform: uppercase; display: block; }
+
+        .tour-block { border: 1px solid #000; margin-bottom: 3pt; padding: 4pt 6pt; }
+        .tour-title { font-weight: bold; font-size: 9pt; text-transform: uppercase; }
+        .tour-sub { font-size: 8pt; margin-top: 2pt; }
+        .incluye-title { font-size: 8pt; font-weight: bold; margin-top: 3pt; }
+        .incluye-list { margin: 1pt 0 0 12pt; padding: 0; }
+        .incluye-list li { font-size: 8pt; margin: 1pt 0; }
+
+        .totals-table { width: 42%; border-collapse: collapse; float: right; margin-top: 6pt; }
+        .totals-table td { border: 1px solid #000; padding: 3pt 8pt; font-size: 9pt; }
+        .total-label { font-weight: bold; text-align: right; }
+        .total-amount { text-align: right; min-width: 80pt; }
+        .total-final td { font-size: 11pt; font-weight: bold; }
+
+        .clear { clear: both; }
+        .footer { font-size: 7pt; margin-top: 8pt; border-top: 1px solid #000; padding-top: 4pt; }
+
+        .logo-circle {
+            border: 3px solid #17a589; border-radius: 50%;
+            width: 65pt; height: 65pt; margin: auto;
+            text-align: center; display: table-cell;
+            vertical-align: middle; font-size: 8pt;
+            font-weight: bold; color: #17a589; line-height: 1.3;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ===== ENCABEZADO ===== -->
+<table class="header-table">
+    <tr>
+        <td style="width: 22%; text-align: center; vertical-align: middle; padding: 5pt;">
+            <table style="width: 65pt; height: 65pt; border: 3px solid #17a589; border-radius: 50%; margin: auto;">
+                <tr><td style="text-align:center; vertical-align:middle; font-size:8pt; font-weight:bold; color:#17a589; line-height:1.4;">
+                    VIAJES<br>Cusco - Perú
+                </td></tr>
+            </table>
+        </td>
+        <td style="width: 44%; text-align: center; vertical-align: middle; padding: 5pt;">
+            <div class="company-name">{{ empresa_nombre }}</div>
+            <div class="company-sub">Cel.: {{ empresa_telefono }}</div>
+            <div class="company-sub">{{ empresa_direccion }}</div>
+            <div class="company-sub" style="margin-top: 4pt;">{{ empresa_email }} / {{ empresa_web }}</div>
+        </td>
+        <td style="width: 34%; vertical-align: top; text-align: right; padding: 5pt;">
+            <div class="voucher-box">VOUCHER DE RESERVA</div>
+            <div class="numero-voucher">N°: {{ numero_voucher }}</div>
+        </td>
+    </tr>
+</table>
+
+<!-- ===== FECHA / TELEFONO ===== -->
+<table class="info-table">
+    <tr>
+        <td style="width: 55%;"><span class="field-label">Email Pax:</span> {{ correo_cliente }}</td>
+        <td style="width: 22%;"><span class="field-label">DATE:</span> {{ fecha_emision }}</td>
+        <td style="width: 23%;"><span class="field-label">PHONE:</span> {{ telefono_cliente }}</td>
+    </tr>
+</table>
+
+<!-- ===== DATOS DEL CLIENTE ===== -->
+<table class="info-table">
+    <tr>
+        <td style="width: 35%;"><span class="field-label">NAME:</span> {{ nombre_cliente }}</td>
+        <td style="width: 10%;"><span class="field-label">AGE:</span> {{ edad }}</td>
+        <td style="width: 25%;"><span class="field-label">HOTEL:</span> {{ hotel }}</td>
+        <td style="width: 18%;"><span class="field-label">PAS:</span> {{ pasaporte }}</td>
+        <td style="width: 12%;"><span class="field-label">N° PAX:</span> {{ num_pax }}</td>
+    </tr>
+    <tr>
+        <td><span class="field-label">DEPARTURE:</span> {{ fecha_inicio }}</td>
+        <td colspan="2"><span class="field-label">RETURN:</span> {{ fecha_fin }}</td>
+        <td><span class="field-label">ADULT:</span> {{ num_adultos }}</td>
+        <td><span class="field-label">STUDENT:</span> {{ num_estudiantes }}</td>
+    </tr>
+    <tr>
+        <td colspan="5"><span class="field-label">NACIONALITY:</span> {{ nacionalidad }}</td>
+    </tr>
+</table>
+
+<!-- ===== ITINERARIO DÍA A DÍA ===== -->
+{% for dia in itinerario %}
+<div class="tour-block">
+    <div class="tour-title">{{ dia.titulo or "" }}</div>
+    {% if dia.descripcion %}
+    <div class="tour-sub">{{ dia.descripcion }}</div>
+    {% endif %}
+    {% if dia.incluye_final %}
+    <div class="incluye-title">INCLUYE:</div>
+    <ul class="incluye-list">
+        {% for item in dia.incluye_final %}
+        <li>{{ item }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+</div>
+{% endfor %}
+
+<!-- ===== TOTALES ===== -->
+<table class="totals-table">
+    <tr>
+        <td class="total-label">A CUENTA :</td>
+        <td class="total-amount">{{ moneda }} &nbsp; {{ "%.2f"|format(monto_pagado) }}</td>
+    </tr>
+    <tr>
+        <td class="total-label">SALDO :</td>
+        <td class="total-amount">{{ moneda }} &nbsp; {{ "%.2f"|format(saldo) }}</td>
+    </tr>
+    <tr class="total-final">
+        <td class="total-label">TOTAL :</td>
+        <td class="total-amount">{{ moneda }} &nbsp; {{ "%.2f"|format(monto_total) }}</td>
+    </tr>
+</table>
+<div class="clear"></div>
+
+<!-- ===== PIE DE PÁGINA LEGAL ===== -->
+<div class="footer">
+    <p>NOTA – El pasajero pierde el 100% del precio pagado, en caso de cancelación y/o por no estar presente a la hora pactada, sin derecho a reclamo ni reembolso.</p>
+    <p>- La empresa no se responsabiliza en caso de cualquier tipo de accidentes, retrasos, paros, protestas, etc. El pasajero compra el tour bajo su propia responsabilidad.</p>
+</div>
+
+</body>
+</html>
