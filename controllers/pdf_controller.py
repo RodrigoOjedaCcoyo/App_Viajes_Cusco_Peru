@@ -1,9 +1,9 @@
 # controllers/pdf_controller.py
 import os
+import base64
 from jinja2 import Environment, FileSystemLoader
 from xhtml2pdf import pisa
 from io import BytesIO
-
 import datetime
 
 class PDFController:
@@ -13,6 +13,17 @@ class PDFController:
         # Localización de las plantillas
         self.template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates')
         self.env = Environment(loader=FileSystemLoader(self.template_dir))
+        # Ruta del logo (en la raíz del proyecto)
+        self.logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logo_background.png')
+
+    def _get_logo_base64(self) -> str:
+        """Lee el logo y lo convierte a base64 para incrustar en el PDF."""
+        try:
+            with open(self.logo_path, "rb") as f:
+                return base64.b64encode(f.read()).decode("utf-8")
+        except Exception as e:
+            print(f"No se pudo cargar el logo: {e}")
+            return ""
 
     def _render_pdf(self, template_name: str, context: dict) -> BytesIO:
         """Helper centralizado para renderizar HTML y convertir a PDF."""
@@ -204,7 +215,8 @@ class PDFController:
             # Voucher
             "numero_voucher": numero_voucher,
             "fecha_emision": datetime.date.today().strftime("%d/%m/%Y"),
-            # Cliente
+            # Logo en base64
+            "logo_base64": self._get_logo_base64(),
             "nombre_cliente": data.get('nombre_cliente', ''),
             "telefono_cliente": data.get('telefono', data.get('telefono_cliente', '')),
             "correo_cliente": data.get('correo_cliente', ''),
