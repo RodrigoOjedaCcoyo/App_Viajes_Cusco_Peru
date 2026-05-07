@@ -3,51 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <style>
-        @page {
-            size: A4;
-            margin: 1.2cm 1.5cm;
-        }
-
+        @page { size: A4; margin: 1.2cm 1.5cm; }
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
             font-family: Arial, sans-serif;
             font-size: 8.5pt;
-            color: #000;
+            color: #1a1a1a;
         }
 
-        /* ===== COLORES ===== */
-        .color-navy   { color: #1a3a5c; }
-        .color-teal   { color: #0097a7; }
-        .color-red    { color: #c0392b; }
-        .color-dark   { color: #111; }
+        /* ── PALETA ─────────────────────────────────── */
+        /* Navy       : #0d3b6b  */
+        /* Teal       : #0097a7  */
+        /* Rojo acento: #c0392b  */
 
-        /* ===== ENCABEZADO ===== */
-        .header-wrap {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 4pt;
-        }
+        /* ── ENCABEZADO ─────────────────────────────── */
+        .hdr { width: 100%; border-collapse: collapse; margin-bottom: 4pt; }
         .company-name {
-            font-size: 12.5pt;
+            font-size: 13pt;
             font-weight: bold;
-            color: #1a3a5c;
-            letter-spacing: 0.5pt;
+            color: #0d3b6b;
+            letter-spacing: 0.4pt;
         }
-        .company-detail {
-            font-size: 8pt;
-            color: #333;
-            margin-top: 2pt;
-        }
+        .company-sub { font-size: 7.5pt; color: #444; margin-top: 2pt; }
+
         .voucher-box {
-            border: 2px solid #000;
-            padding: 5pt 8pt;
+            border: 2.5pt solid #0d3b6b;
+            padding: 5pt 10pt;
             text-align: center;
             font-weight: bold;
             font-size: 10.5pt;
-            color: #000;
+            color: #0d3b6b;
         }
-        .voucher-number {
+        .voucher-num {
             text-align: center;
             font-size: 14pt;
             font-weight: bold;
@@ -55,245 +43,263 @@
             margin-top: 5pt;
         }
 
-        /* ===== LÍNEA DE CONTACTO ===== */
-        .contact-line {
-            font-size: 8pt;
-            color: #333;
+        /* ── LÍNEA WEB ───────────────────────────────── */
+        .web-line {
             text-align: center;
-            border-bottom: 1px solid #ccc;
-            padding-bottom: 3pt;
-            margin-bottom: 3pt;
+            font-size: 7.5pt;
+            color: #555;
+            padding: 3pt 0;
+            border-top: 1pt solid #ccc;
+            border-bottom: 1pt solid #ccc;
+            margin: 4pt 0;
         }
 
-        /* ===== FILA DATE / PHONE ===== */
-        .date-row {
+        /* ── FILA META (fecha / teléfono / email) ────── */
+        .meta { width: 100%; border-collapse: collapse; margin-bottom: 5pt; font-size: 8pt; }
+        .meta td { padding: 1.5pt 3pt; }
+        .lbl { font-weight: bold; color: #0d3b6b; }
+
+        /* ── TABLA CLIENTE ───────────────────────────── */
+        .ct {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 4pt;
+            margin-bottom: 5pt;
+            border: 1.5pt solid #0d3b6b;
         }
-        .date-row td {
-            padding: 2pt 4pt;
-            font-size: 8pt;
+        .ct td {
+            border: 1pt solid #0d3b6b;
+            padding: 4pt 7pt;
+            vertical-align: top;
         }
-        .lbl { font-weight: bold; text-transform: uppercase; font-size: 7.5pt; }
-
-        /* ===== TABLA CLIENTE ===== */
-        .client-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 4pt;
-            border: 1.5px solid #000;
+        .fn {   /* field name */
+            display: block;
+            font-size: 6.5pt;
+            font-weight: bold;
+            color: #0d3b6b;
+            text-transform: uppercase;
+            letter-spacing: 0.3pt;
+            margin-bottom: 1pt;
         }
-        .client-table td {
-            border: 1px solid #000;
-            padding: 3pt 5pt;
-            font-size: 8.5pt;
-            vertical-align: middle;
-        }
-        .client-table .row-header td {
-            background-color: #f5f5f5;
+        .fv {   /* field value */
+            font-size: 9pt;
+            font-weight: bold;
+            color: #111;
         }
 
-        /* ===== ENCABEZADO DEL TOUR ===== */
-        .tour-header {
-            background-color: #1a3a5c;
+        /* ── ENCABEZADO TOUR ─────────────────────────── */
+        .tour-hdr {
+            background-color: #0d3b6b;
             color: #fff;
+            text-align: center;
             font-weight: bold;
             font-size: 10pt;
-            text-align: center;
-            padding: 4pt;
-            margin-bottom: 3pt;
-            letter-spacing: 1pt;
+            letter-spacing: 3pt;
+            padding: 5pt;
+            margin-bottom: 4pt;
         }
 
-        /* ===== BLOQUE DE DÍA ===== */
-        .day-block {
-            border: 1px solid #ccc;
-            margin-bottom: 3pt;
-            padding: 4pt 6pt;
+        /* ── BLOQUES DE DÍA ──────────────────────────── */
+        .day {
+            border-left: 4pt solid #0097a7;
+            border-bottom: 1pt solid #e5e5e5;
+            padding: 4pt 6pt 4pt 9pt;
+            margin-bottom: 2.5pt;
+            background-color: #f9f9f9;
         }
         .day-title {
             font-weight: bold;
             font-size: 9pt;
-            color: #1a3a5c;
+            color: #0d3b6b;
             text-transform: uppercase;
-            margin-bottom: 2pt;
         }
-        .incluye-label {
-            font-size: 8pt;
+        .inc-lbl {
+            font-size: 7.5pt;
             font-weight: bold;
-            color: #1a3a5c;
-            margin-left: 8pt;
-            margin-top: 1pt;
+            color: #555;
+            margin: 2.5pt 0 1pt 5pt;
         }
-        .incluye-item {
+        .inc-item {
             font-size: 8pt;
             color: #0097a7;
-            margin-left: 18pt;
-            line-height: 1.5;
+            margin-left: 14pt;
+            line-height: 1.65;
         }
 
-        /* ===== TOTALES ===== */
-        .totals-wrap {
-            width: 100%;
-            margin-top: 6pt;
-        }
-        .totals-table {
-            width: 42%;
-            border-collapse: collapse;
-            float: right;
-        }
-        .totals-table td {
-            border: 1px solid #000;
-            padding: 3pt 8pt;
-            font-size: 9pt;
-        }
-        .tot-label { font-weight: bold; text-align: right; }
-        .tot-value { text-align: right; min-width: 70pt; }
-        .tot-final td {
+        /* ── TOTALES ─────────────────────────────────── */
+        .tot-wrap { width: 100%; margin-top: 8pt; }
+        .tot-tbl  { width: 44%; border-collapse: collapse; float: right; }
+        .tot-tbl td { border: 1pt solid #ccc; padding: 3.5pt 9pt; font-size: 9pt; }
+        .tot-lbl  { font-weight: bold; text-align: right; color: #333; width: 52%; }
+        .tot-val  { text-align: right; min-width: 68pt; }
+        .tot-row-final td {
+            background-color: #0d3b6b;
+            color: #ffffff;
             font-size: 10.5pt;
             font-weight: bold;
-            background-color: #f5f5f5;
+            border-color: #0d3b6b;
         }
         .clear { clear: both; }
 
-        /* ===== PIE DE PÁGINA ===== */
+        /* ── PIE LEGAL ───────────────────────────────── */
         .footer {
-            font-size: 7pt;
-            color: #444;
-            margin-top: 8pt;
-            border-top: 1px solid #999;
+            font-size: 6.5pt;
+            color: #555;
+            border-top: 1pt solid #aaa;
             padding-top: 4pt;
-            line-height: 1.6;
+            margin-top: 10pt;
+            line-height: 1.75;
         }
     </style>
 </head>
 <body>
 
-<!-- ================================================================
+<!-- ══════════════════════════════════════════════
      ENCABEZADO
-     ================================================================ -->
-<table class="header-wrap">
+══════════════════════════════════════════════ -->
+<table class="hdr">
     <tr>
         <!-- Logo -->
-        <td style="width: 20%; text-align: center; vertical-align: middle; padding: 4pt;">
+        <td style="width:20%; text-align:center; vertical-align:middle; padding:3pt;">
             {% if logo_base64 %}
             <img src="data:image/png;base64,{{ logo_base64 }}"
-                 style="width: 72pt; height: 72pt;" />
+                 style="width:72pt; height:72pt;" />
             {% else %}
-            <div style="border: 3px solid #0097a7; border-radius: 50%; width: 72pt; height: 72pt;
-                        text-align: center; line-height: 72pt; font-size: 8pt; font-weight: bold; color: #0097a7;">
-                VIAJES
-            </div>
+            <div style="border:3pt solid #0097a7; border-radius:50%; width:72pt; height:72pt;
+                        text-align:center; line-height:72pt; font-size:8pt;
+                        font-weight:bold; color:#0097a7;">VIAJES</div>
             {% endif %}
         </td>
 
-        <!-- Datos empresa -->
-        <td style="width: 47%; text-align: center; vertical-align: middle; padding: 4pt;">
+        <!-- Empresa -->
+        <td style="width:47%; text-align:center; vertical-align:middle; padding:4pt;">
             <div class="company-name">{{ empresa_nombre }}</div>
-            <div class="company-detail">Cel.: {{ empresa_telefono }}</div>
-            <div class="company-detail">{{ empresa_direccion }}</div>
+            <div class="company-sub" style="margin-top:4pt;">Cel.: {{ empresa_telefono }}</div>
+            <div class="company-sub">{{ empresa_direccion }}</div>
         </td>
 
-        <!-- Caja Voucher -->
-        <td style="width: 33%; vertical-align: top; padding: 4pt;">
+        <!-- Voucher box -->
+        <td style="width:33%; vertical-align:top; padding:4pt; text-align:right;">
             <div class="voucher-box">VOUCHER DE RESERVA</div>
-            <div class="voucher-number">N°: {{ numero_voucher }}</div>
+            <div class="voucher-num">N°: {{ numero_voucher }}</div>
         </td>
     </tr>
 </table>
 
-<!-- Línea email / web empresa -->
-<div class="contact-line">{{ empresa_email }} &nbsp;/&nbsp; {{ empresa_web }}</div>
+<!-- Línea web / email empresa -->
+<div class="web-line">
+    {{ empresa_email }} &nbsp;/&nbsp; {{ empresa_web }}
+</div>
 
-<!-- DATE / PHONE / EMAIL PAX -->
-<table class="date-row">
+<!-- Fila: email pax / fecha / teléfono -->
+<table class="meta">
     <tr>
-        <td style="width: 40%;"><span class="lbl">Email Pax:</span> {{ correo_cliente or "—" }}</td>
-        <td style="width: 30%; text-align: right;"><span class="lbl">DATE:</span> {{ fecha_emision }}</td>
-        <td style="width: 30%; text-align: right;"><span class="lbl">PHONE:</span> {{ telefono_cliente }}</td>
+        <td style="width:45%;"><span class="lbl">Email Pax: </span>{{ correo_cliente or "—" }}</td>
+        <td style="width:28%; text-align:right;"><span class="lbl">DATE: </span>{{ fecha_emision }}</td>
+        <td style="width:27%; text-align:right;"><span class="lbl">PHONE: </span>{{ telefono_cliente }}</td>
     </tr>
 </table>
 
-<!-- ================================================================
-     TABLA DE DATOS DEL CLIENTE
-     ================================================================ -->
-<table class="client-table">
+<!-- ══════════════════════════════════════════════
+     TABLA DE DATOS DEL CLIENTE  (3 columnas fijas)
+══════════════════════════════════════════════ -->
+<table class="ct">
     <!-- NAME -->
     <tr>
-        <td colspan="4"><span class="lbl">NAME:</span>&nbsp; {{ nombre_cliente | upper }}</td>
-    </tr>
-    <!-- AGE / HOTEL / PAS -->
-    <tr>
-        <td style="width:15%;"><span class="lbl">AGE:</span> {{ edad }}</td>
-        <td style="width:35%;"><span class="lbl">HOTEL:</span> {{ hotel }}</td>
-        <td style="width:25%;"><span class="lbl">PAS:</span> {{ pasaporte }}</td>
-        <td style="width:25%;"></td>
-    </tr>
-    <!-- DEPARTURE / RETURN / N° PAX -->
-    <tr>
-        <td colspan="2">
-            <span class="lbl">DEPARTURE:</span> {{ fecha_inicio }}
-            &nbsp;&nbsp;
-            <span class="lbl">RETURN:</span> {{ fecha_fin }}
+        <td colspan="3">
+            <span class="fn">Name</span>
+            <span class="fv">{{ nombre_cliente | upper }}</span>
         </td>
-        <td><span class="lbl">N° PAX:</span> {{ num_pax }}</td>
-        <td></td>
     </tr>
-    <!-- NACIONALITY / ADULT / STUDENT -->
+    <!-- AGE | HOTEL | PASAPORTE -->
     <tr>
-        <td colspan="2"><span class="lbl">NACIONALITY:</span> {{ nacionalidad | upper }}</td>
-        <td><span class="lbl">ADULT:</span> {{ num_adultos }}</td>
-        <td><span class="lbl">STUDENT:</span> {{ num_estudiantes }}</td>
+        <td style="width:14%;">
+            <span class="fn">Age</span>
+            <span class="fv">{{ edad }}</span>
+        </td>
+        <td style="width:50%;">
+            <span class="fn">Hotel</span>
+            <span class="fv">{{ hotel }}</span>
+        </td>
+        <td style="width:36%;">
+            <span class="fn">Passport / DNI</span>
+            <span class="fv">{{ pasaporte }}</span>
+        </td>
+    </tr>
+    <!-- DEPARTURE | RETURN | N° PAX -->
+    <tr>
+        <td>
+            <span class="fn">Departure</span>
+            <span class="fv">{{ fecha_inicio }}</span>
+        </td>
+        <td>
+            <span class="fn">Return</span>
+            <span class="fv">{{ fecha_fin }}</span>
+        </td>
+        <td>
+            <span class="fn">N° Pax</span>
+            <span class="fv">{{ num_pax }}</span>
+        </td>
+    </tr>
+    <!-- NATIONALITY | ADULT | STUDENT -->
+    <tr>
+        <td>
+            <span class="fn">Nationality</span>
+            <span class="fv">{{ nacionalidad | upper }}</span>
+        </td>
+        <td>
+            <span class="fn">Adults</span>
+            <span class="fv">{{ num_adultos }}</span>
+        </td>
+        <td>
+            <span class="fn">Students</span>
+            <span class="fv">{{ num_estudiantes }}</span>
+        </td>
     </tr>
 </table>
 
-<!-- ================================================================
+<!-- ══════════════════════════════════════════════
      ITINERARIO
-     ================================================================ -->
+══════════════════════════════════════════════ -->
 {% if itinerario %}
-<div class="tour-header">TOUR {{ itinerario | length }}D</div>
+<div class="tour-hdr">TOUR {{ itinerario | length }}D</div>
 
 {% for dia in itinerario %}
-<div class="day-block">
-    <!-- Título del Día -->
+<div class="day">
     <div class="day-title">{{ dia.titulo }}</div>
-
-    <!-- Listado INCLUYE -->
     {% if dia.incluye_final %}
-    <div class="incluye-label">&bull; INCLUYE:</div>
+    <div class="inc-lbl">&bull; INCLUYE:</div>
     {% for item in dia.incluye_final %}
-    <div class="incluye-item">{{ item | upper }}</div>
+    <div class="inc-item">{{ item | upper }}</div>
     {% endfor %}
     {% endif %}
 </div>
 {% endfor %}
 {% endif %}
 
-<!-- ================================================================
+<!-- ══════════════════════════════════════════════
      TOTALES
-     ================================================================ -->
-<div class="totals-wrap">
-    <table class="totals-table">
+══════════════════════════════════════════════ -->
+<div class="tot-wrap">
+    <table class="tot-tbl">
         <tr>
-            <td class="tot-label">A CUENTA :</td>
-            <td class="tot-value">{{ moneda }} &nbsp; {{ "%.2f"|format(monto_pagado) }}</td>
+            <td class="tot-lbl">A CUENTA :</td>
+            <td class="tot-val">{{ moneda }} &nbsp; {{ "%.2f"|format(monto_pagado) }}</td>
         </tr>
         <tr>
-            <td class="tot-label">SALDO :</td>
-            <td class="tot-value">{{ moneda }} &nbsp; {{ "%.2f"|format(saldo) }}</td>
+            <td class="tot-lbl">SALDO :</td>
+            <td class="tot-val">{{ moneda }} &nbsp; {{ "%.2f"|format(saldo) }}</td>
         </tr>
-        <tr class="tot-final">
-            <td class="tot-label">TOTAL :</td>
-            <td class="tot-value">{{ moneda }} &nbsp; {{ "%.2f"|format(monto_total) }}</td>
+        <tr class="tot-row-final">
+            <td class="tot-lbl" style="color:#fff;">TOTAL :</td>
+            <td class="tot-val">{{ moneda }} &nbsp; {{ "%.2f"|format(monto_total) }}</td>
         </tr>
     </table>
 </div>
 <div class="clear"></div>
 
-<!-- ================================================================
-     PIE DE PÁGINA LEGAL
-     ================================================================ -->
+<!-- ══════════════════════════════════════════════
+     PIE LEGAL
+══════════════════════════════════════════════ -->
 <div class="footer">
     NOTA – El pasajero pierde el 100% del precio pagado, en caso de cancelación y/o por no estar presente a la hora pactada, sin derecho a reclamo ni reembolso.<br>
     – La empresa no se responsabiliza en caso de cualquier tipo de accidentes, retrasos, paros, protestas, etc. El pasajero compra el tour bajo su propia responsabilidad.
