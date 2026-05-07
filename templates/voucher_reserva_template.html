@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <style>
-        @page { size: A4; margin: 1.2cm 1.5cm; }
+        @page { size: A4; margin: 0.9cm 1cm; }
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
@@ -13,26 +13,27 @@
         }
 
         /* ── PALETA ─────────────────────────────────── */
-        /* Navy       : #0d3b6b  */
-        /* Teal       : #0097a7  */
+        /* Teal logo  : #00b4c6  */
+        /* Navy texto : #0d3b6b  */
         /* Rojo acento: #c0392b  */
 
         /* ── ENCABEZADO ─────────────────────────────── */
         .hdr { width: 100%; border-collapse: collapse; margin-bottom: 4pt; }
         .company-name {
-            font-size: 13pt;
+            font-size: 11.5pt;
             font-weight: bold;
             color: #0d3b6b;
-            letter-spacing: 0.4pt;
+            letter-spacing: 0.3pt;
+            word-wrap: break-word;
         }
         .company-sub { font-size: 7.5pt; color: #444; margin-top: 2pt; }
 
         .voucher-box {
             border: 2.5pt solid #0d3b6b;
-            padding: 5pt 10pt;
+            padding: 4pt 8pt;
             text-align: center;
             font-weight: bold;
-            font-size: 10.5pt;
+            font-size: 10pt;
             color: #0d3b6b;
         }
         .voucher-num {
@@ -40,7 +41,7 @@
             font-size: 14pt;
             font-weight: bold;
             color: #c0392b;
-            margin-top: 5pt;
+            margin-top: 4pt;
         }
 
         /* ── LÍNEA WEB ───────────────────────────────── */
@@ -48,26 +49,26 @@
             text-align: center;
             font-size: 7.5pt;
             color: #555;
-            padding: 3pt 0;
+            padding: 2pt 0;
             border-top: 1pt solid #ccc;
             border-bottom: 1pt solid #ccc;
-            margin: 4pt 0;
+            margin: 3pt 0;
         }
 
         /* ── FILA META (fecha / teléfono / email) ────── */
-        .meta { width: 100%; border-collapse: collapse; margin-bottom: 5pt; font-size: 8pt; }
-        .meta td { padding: 1.5pt 3pt; }
+        .meta { width: 100%; border-collapse: collapse; margin-bottom: 4pt; font-size: 8pt; }
+        .meta td { padding: 1pt 3pt; }
         .lbl { font-weight: bold; color: #0d3b6b; }
 
         /* ── TABLA CLIENTE ───────────────────────────── */
         .ct {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 5pt;
+            margin-bottom: 4pt;
             border: 1.5pt solid #0d3b6b;
         }
         .ct td {
-            border: 1pt solid #0d3b6b;
+            border: 0.8pt solid #0d3b6b;
             padding: 1.5pt 5pt;
             vertical-align: middle;
         }
@@ -75,7 +76,7 @@
             display: block;
             font-size: 6pt;
             font-weight: bold;
-            color: #0d3b6b;
+            color: #00b4c6;
             text-transform: uppercase;
             letter-spacing: 0.3pt;
             margin-bottom: 0;
@@ -92,49 +93,49 @@
             color: #fff;
             text-align: center;
             font-weight: bold;
-            font-size: 10pt;
+            font-size: 9.5pt;
             letter-spacing: 3pt;
-            padding: 5pt;
-            margin-bottom: 4pt;
+            padding: 4pt;
+            margin-bottom: 3pt;
         }
 
         /* ── BLOQUES DE DÍA ──────────────────────────── */
         .day {
-            border-left: 4pt solid #0097a7;
-            border-bottom: 1pt solid #e5e5e5;
-            padding: 4pt 6pt 4pt 9pt;
-            margin-bottom: 2.5pt;
-            background-color: #f9f9f9;
+            border-left: 3.5pt solid #00b4c6;
+            border-bottom: 0.8pt solid #e0e0e0;
+            padding: 2.5pt 5pt 2.5pt 8pt;
+            margin-bottom: 2pt;
+            background-color: #f8fbfc;
         }
         .day-title {
             font-weight: bold;
-            font-size: 9pt;
+            font-size: 8.5pt;
             color: #0d3b6b;
             text-transform: uppercase;
         }
         .inc-lbl {
-            font-size: 7.5pt;
+            font-size: 7pt;
             font-weight: bold;
             color: #555;
-            margin: 2.5pt 0 1pt 5pt;
+            margin: 1.5pt 0 0.5pt 5pt;
         }
         .inc-item {
-            font-size: 8pt;
-            color: #0097a7;
-            margin-left: 14pt;
-            line-height: 1.65;
+            font-size: 7.5pt;
+            color: #00b4c6;
+            margin-left: 12pt;
+            line-height: 1.55;
         }
 
         /* ── TOTALES ─────────────────────────────────── */
-        .tot-wrap { width: 100%; margin-top: 8pt; }
-        .tot-tbl  { width: 44%; border-collapse: collapse; float: right; }
-        .tot-tbl td { border: 1pt solid #ccc; padding: 3.5pt 9pt; font-size: 9pt; }
-        .tot-lbl  { font-weight: bold; text-align: right; color: #333; width: 52%; }
-        .tot-val  { text-align: right; min-width: 68pt; }
+        .tot-wrap { width: 100%; margin-top: 6pt; }
+        .tot-tbl  { width: 42%; border-collapse: collapse; float: right; }
+        .tot-tbl td { border: 0.8pt solid #ccc; padding: 2.5pt 8pt; font-size: 8.5pt; }
+        .tot-lbl  { font-weight: bold; text-align: right; color: #333; width: 50%; }
+        .tot-val  { text-align: right; min-width: 65pt; }
         .tot-row-final td {
             background-color: #0d3b6b;
             color: #ffffff;
-            font-size: 10.5pt;
+            font-size: 10pt;
             font-weight: bold;
             border-color: #0d3b6b;
         }
@@ -159,26 +160,26 @@
 <table class="hdr">
     <tr>
         <!-- Logo -->
-        <td style="width:20%; text-align:center; vertical-align:middle; padding:3pt;">
+        <td style="width:17%; text-align:center; vertical-align:middle; padding:2pt;">
             {% if logo_base64 %}
             <img src="data:image/png;base64,{{ logo_base64 }}"
-                 style="width:72pt; height:72pt;" />
+                 style="width:68pt; height:68pt;" />
             {% else %}
-            <div style="border:3pt solid #0097a7; border-radius:50%; width:72pt; height:72pt;
-                        text-align:center; line-height:72pt; font-size:8pt;
-                        font-weight:bold; color:#0097a7;">VIAJES</div>
+            <div style="border:3pt solid #00b4c6; border-radius:50%; width:68pt; height:68pt;
+                        text-align:center; line-height:68pt; font-size:8pt;
+                        font-weight:bold; color:#00b4c6;">VIAJES</div>
             {% endif %}
         </td>
 
         <!-- Empresa -->
-        <td style="width:47%; text-align:center; vertical-align:middle; padding:4pt;">
+        <td style="width:52%; text-align:center; vertical-align:middle; padding:3pt;">
             <div class="company-name">{{ empresa_nombre }}</div>
             <div class="company-sub" style="margin-top:4pt;">Cel.: {{ empresa_telefono }}</div>
             <div class="company-sub">{{ empresa_direccion }}</div>
         </td>
 
         <!-- Voucher box -->
-        <td style="width:33%; vertical-align:top; padding:4pt; text-align:right;">
+        <td style="width:31%; vertical-align:top; padding:3pt; text-align:right;">
             <div class="voucher-box">VOUCHER DE RESERVA</div>
             <div class="voucher-num">N°: {{ numero_voucher }}</div>
         </td>
