@@ -230,11 +230,11 @@
 
 {% for dia in itinerario %}
 <div class="day">
-    <div class="day-title">{{ dia.titulo }}</div>
+    <div class="day-title">{{ dia.titulo | striptags }}</div>
     {% if dia.incluye_final %}
     <div class="inc-lbl">&bull; &nbsp; INCLUYE:</div>
     {% for item in dia.incluye_final %}
-    <div class="inc-item">{{ item | upper }}</div>
+    <div class="inc-item">{{ item | striptags | upper }}</div>
     {% endfor %}
     {% endif %}
 </div>
