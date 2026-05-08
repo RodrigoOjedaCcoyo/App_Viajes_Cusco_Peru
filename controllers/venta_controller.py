@@ -101,11 +101,11 @@ class VentaController:
                     venta_data['id_venta'] = nuevo_id
                     enviar_notificacion_venta_async(venta_data, adjuntos)
 
-                return True, f"Venta registrada. ID: {nuevo_id}. Saldo pendiente: {moneda} {float(saldo or 0):.2f}"
+                return True, f"Venta registrada. ID: {nuevo_id}. Saldo pendiente: {moneda} {float(saldo or 0):.2f}", nuevo_id
             else:
-                return False, "Error: no se pudo crear la venta."
+                return False, "Error: no se pudo crear la venta.", None
         except Exception as e:
-            return False, f"Error de base de datos: {e}"
+            return False, f"Error de base de datos: {e}", None
 
     def registrar_venta_proveedor(self, 
                                   nombre_proveedor: str,

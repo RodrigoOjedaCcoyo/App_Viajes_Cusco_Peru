@@ -201,14 +201,20 @@ class PDFController:
             it_copy['incluye_final'] = incluye_limpio
             itinerario_procesado.append(it_copy)
 
-        # Número de voucher formateado (ej: 00042-05-00001)
-        id_venta = data.get('id_venta') or data.get('id') or 1
+        # Número de voucher: 000YY-MM-IDDDD
+        # Ejemplo: 00026-05-00013 → año 2026, mes mayo, ID venta 13
+        id_venta = data.get('id_venta') or 1
+        anio_2d = datetime.date.today().year % 100      # últimos 2 dígitos del año (ej: 26)
+        mes_actual = datetime.date.today().month         # número de mes (ej: 5)
         try:
-            num_str = f"{int(id_venta):05d}"
+            id_num = int(id_venta)
         except Exception:
-            num_str = "00001"
-        mes_actual = datetime.date.today().strftime("%m")
-        numero_voucher = f"{num_str}-{mes_actual}-{num_str}"
+            id_num = 1
+
+        parte_anio = f"{anio_2d:05d}"      # 00026
+        parte_mes  = f"{mes_actual:02d}"   # 05
+        parte_id   = f"{id_num:05d}"       # 00013
+        numero_voucher = f"{parte_anio}-{parte_mes}-{parte_id}"
 
         # Montos
         monto_total = float(data.get('monto_total') or 0)
@@ -249,4 +255,5 @@ class PDFController:
             "monto_pagado": monto_pagado,
             "saldo": saldo,
         }
-        return self._render_pdf('voucher_reserva_template.html', context)
+        pdf_bytes = self._render_pdf('voucher_reserva_template.html', context)
+        return pdf_bytes, numero_voucher

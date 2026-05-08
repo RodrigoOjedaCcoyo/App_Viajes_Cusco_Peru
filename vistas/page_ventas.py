@@ -692,9 +692,11 @@ def registro_ventas_directa():
         enviar_notif = c_not1.checkbox("Enviar Resumen por Correo Corporativo", value=True, help="Envía un resumen de la venta a los correos de gerencia y reservas.")
         archivos_adjuntos = c_not2.file_uploader("Adjuntar Comprobantes o Fotos", accept_multiple_files=True, help="Opcional: Estas imágenes se enviarán como adjuntos en el correo.")
 
-        submitted = st.form_submit_button("🚀 REGISTRAR VENTA Y NOTIFICAR", use_container_width=True)
+        col_btn1, col_btn2 = st.columns(2)
+        btn_preview = col_btn1.form_submit_button("🖨️ GENERAR VOUCHER (Solo imprimir)", use_container_width=True)
+        submitted = col_btn2.form_submit_button("🚀 REGISTRAR VENTA Y NOTIFICAR", use_container_width=True)
 
-        if submitted:
+        if btn_preview or submitted:
             # Validación previa
             id_lead_final = id_lead_seleccionado or id_lead_from_itinerario
             if not id_lead_final:
@@ -706,7 +708,12 @@ def registro_ventas_directa():
             elif monto_total <= 0:
                 st.error("❌ El Monto Total debe ser mayor a 0.")
             else:
-                exito, msg = venta_controller.registrar_venta_directa(
+                if btn_preview:
+                    exito = True
+                    id_venta_nuevo = "0"
+                    st.info("ℹ️ Generando voucher en modo vista previa (no se guardará la venta ni se enviará notificación automática).")
+                else:
+                    exito, msg, id_venta_nuevo = venta_controller.registrar_venta_directa(
                     nombre_cliente=nombre,
                     telefono=tel,
                     origen="Directo",
@@ -760,6 +767,9 @@ def registro_ventas_directa():
                             'monto_depositado':     monto_pagado,
                             'moneda':               moneda_sel,
                             'cantidad':             int(cantidad_pax),
+                            'tour_nombre':          id_paquete,
+                            # ID real de la venta para el número del voucher
+                            'id_venta':             id_venta_nuevo,
                             # Temporales (voucher only)
                             'pasaporte':            v_pasaporte or '---',
                             'hotel':                v_hotel or '---',
@@ -770,14 +780,14 @@ def registro_ventas_directa():
                             'datos_render':         render_para_voucher,
                         }
 
-                        pdf_bytes_io = pdf_ctrl.generar_voucher_reserva_pdf(voucher_data)
+                        pdf_bytes_io, num_v = pdf_ctrl.generar_voucher_reserva_pdf(voucher_data)
                         if pdf_bytes_io:
                             pdf_bytes = pdf_bytes_io.read()
                             st.session_state['voucher_pdf_bytes'] = pdf_bytes
-                            st.session_state['voucher_pdf_nombre'] = f"Voucher_{nombre.replace(' ','_')}.pdf"
+                            st.session_state['voucher_pdf_nombre'] = f"VOUCHER DE RESERVA {num_v} {nombre.upper()}.pdf"
 
-                            # Si el correo está activo, adjuntar el voucher automáticamente
-                            if enviar_notif:
+                            # Si el correo está activo y NO es una vista previa, adjuntar el voucher
+                            if enviar_notif and not btn_preview:
                                 from utils.email_helper import enviar_notificacion_venta_async
                                 venta_notif = {
                                     'nombre_cliente':  nombre,
@@ -797,8 +807,8 @@ def registro_ventas_directa():
                                 adjuntos_final[st.session_state['voucher_pdf_nombre']] = pdf_bytes
                                 enviar_notificacion_venta_async(venta_notif, adjuntos_final)
                         else:
-                            # Si no se pudo generar PDF, igual enviar correo sin adjunto
-                            if enviar_notif:
+                            # Si no se pudo generar PDF, igual enviar correo sin adjunto (si no es vista previa)
+                            if enviar_notif and not btn_preview:
                                 from utils.email_helper import enviar_notificacion_venta_async
                                 venta_notif = {
                                     'nombre_cliente':  nombre,

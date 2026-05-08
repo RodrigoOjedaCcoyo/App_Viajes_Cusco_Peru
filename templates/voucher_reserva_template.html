@@ -65,27 +65,17 @@
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 4pt;
-            border: 1.2pt solid #000;
         }
         .ct td {
             border: 1pt solid #000;
-            padding: 0pt 4pt;
+            padding: 2pt 5pt;
+            font-size: 7pt;
             vertical-align: middle;
-            line-height: 1.2;
+            color: #000;
         }
-        .fn {   /* field name - celeste */
-            display: block;
-            font-size: 6.5pt;
+        .ct b {
             font-weight: bold;
-            color: #00b4c6;
-            text-transform: uppercase;
-            letter-spacing: 0.3pt;
-            margin-bottom: 0;
-        }
-        .fv {   /* field value - negro */
-            font-size: 6pt;
-            font-weight: bold;
-            color: #111;
+            font-size: 7pt;
         }
 
         /* ── ENCABEZADO TOUR ─────────────────────────── */
@@ -102,29 +92,28 @@
 
         /* ── BLOQUES DE DÍA ──────────────────────────── */
         .day {
-            border-left: 3.5pt solid #00b4c6;
-            border-bottom: 0.8pt solid #e0e0e0;
-            padding: 2.5pt 5pt 2.5pt 8pt;
-            margin-bottom: 2pt;
-            background-color: #f8fbfc;
+            border: 1pt solid #ccc;
+            padding: 3pt 6pt 4pt 8pt;
+            margin-bottom: 3pt;
         }
         .day-title {
             font-weight: bold;
             font-size: 8.5pt;
             color: #0d3b6b;
             text-transform: uppercase;
+            margin-bottom: 1pt;
         }
         .inc-lbl {
-            font-size: 7pt;
+            font-size: 7.5pt;
             font-weight: bold;
-            color: #555;
-            margin: 1.5pt 0 0.5pt 5pt;
+            color: #0d3b6b;
+            margin: 1pt 0 0pt 12pt;
         }
         .inc-item {
             font-size: 7.5pt;
             color: #00b4c6;
-            margin-left: 12pt;
-            line-height: 1.55;
+            margin-left: 20pt;
+            line-height: 1.6;
         }
 
         /* ── TOTALES ─────────────────────────────────── */
@@ -202,60 +191,32 @@
 </table>
 
 <!-- ══════════════════════════════════════════════
-     TABLA DE DATOS DEL CLIENTE  (3 columnas fijas)
+     TABLA DE DATOS DEL CLIENTE  (estilo referencia)
 ══════════════════════════════════════════════ -->
 <table class="ct">
     <!-- NAME -->
     <tr>
-        <td colspan="3">
-            <span class="fn">Name</span>
-            <span class="fv">{{ nombre_cliente | upper }}</span>
+        <td colspan="4" style="font-size:7.5pt;">
+            <b>NAME:</b> {{ nombre_cliente | upper }}
         </td>
     </tr>
-    <!-- AGE | HOTEL | PASAPORTE -->
+    <!-- AGE | HOTEL | PAS | VALOR -->
     <tr>
-        <td style="width:14%;">
-            <span class="fn">Age</span>
-            <span class="fv">{{ edad }}</span>
-        </td>
-        <td style="width:50%;">
-            <span class="fn">Hotel</span>
-            <span class="fv">{{ hotel }}</span>
-        </td>
-        <td style="width:36%;">
-            <span class="fn">Passport / DNI</span>
-            <span class="fv">{{ pasaporte }}</span>
-        </td>
+        <td style="width:10%;"><b>AGE:</b> {{ edad }}</td>
+        <td style="width:48%;"><b>HOTEL:</b> {{ hotel }}</td>
+        <td style="width:12%;"><b>PAS:</b></td>
+        <td style="width:30%;">{{ pasaporte }}</td>
     </tr>
     <!-- DEPARTURE | RETURN | N° PAX -->
     <tr>
-        <td>
-            <span class="fn">Departure</span>
-            <span class="fv">{{ fecha_inicio }}</span>
-        </td>
-        <td>
-            <span class="fn">Return</span>
-            <span class="fv">{{ fecha_fin }}</span>
-        </td>
-        <td>
-            <span class="fn">N° Pax</span>
-            <span class="fv">{{ num_pax }}</span>
-        </td>
+        <td colspan="2"><b>DEPARTURE:</b> {{ fecha_inicio }} &nbsp;&nbsp;&nbsp; <b>RETURN:</b> {{ fecha_fin }}</td>
+        <td colspan="2"><b>N° PAX:</b> {{ num_pax }}</td>
     </tr>
     <!-- NATIONALITY | ADULT | STUDENT -->
     <tr>
-        <td>
-            <span class="fn">Nationality</span>
-            <span class="fv">{{ nacionalidad | upper }}</span>
-        </td>
-        <td>
-            <span class="fn">Adults</span>
-            <span class="fv">{{ num_adultos }}</span>
-        </td>
-        <td>
-            <span class="fn">Students</span>
-            <span class="fv">{{ num_estudiantes }}</span>
-        </td>
+        <td colspan="2"><b>NATIONALITY:</b> {{ nacionalidad | upper }}</td>
+        <td><b>ADULT:</b> {{ num_adultos }}</td>
+        <td><b>STUDENT:</b> {{ num_estudiantes }}</td>
     </tr>
 </table>
 
@@ -263,7 +224,7 @@
      ITINERARIO
 ══════════════════════════════════════════════ -->
 {% if itinerario %}
-<div class="tour-hdr">TOUR {{ itinerario | length }}D</div>
+<div class="tour-hdr">{{ tour_nombre | upper if tour_nombre else 'TOUR' }}</div>
 
 {% for dia in itinerario %}
 <div class="day">
