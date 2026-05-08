@@ -711,6 +711,7 @@ def registro_ventas_directa():
                 if btn_preview:
                     exito = True
                     id_venta_nuevo = "0"
+                    msg = "Voucher generado para vista previa."
                     st.info("ℹ️ Generando voucher en modo vista previa (no se guardará la venta ni se enviará notificación automática).")
                 else:
                     exito, msg, id_venta_nuevo = venta_controller.registrar_venta_directa(
@@ -780,7 +781,18 @@ def registro_ventas_directa():
                             'datos_render':         render_para_voucher,
                         }
 
-                        pdf_bytes_io, num_v = pdf_ctrl.generar_voucher_reserva_pdf(voucher_data)
+                        pdf_bytes_io = pdf_ctrl.generar_voucher_reserva_pdf(voucher_data)
+                        
+                        # Calculate numero_voucher locally to match pdf format
+                        import datetime
+                        anio_2d = datetime.date.today().year % 100
+                        mes_actual = datetime.date.today().month
+                        try:
+                            id_num = int(id_venta_nuevo)
+                        except Exception:
+                            id_num = 1
+                        num_v = f"{anio_2d:05d}-{mes_actual:02d}-{id_num:05d}"
+
                         if pdf_bytes_io:
                             pdf_bytes = pdf_bytes_io.read()
                             st.session_state['voucher_pdf_bytes'] = pdf_bytes

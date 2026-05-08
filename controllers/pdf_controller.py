@@ -256,4 +256,4 @@ class PDFController:
             "saldo": saldo,
         }
         pdf_bytes = self._render_pdf('voucher_reserva_template.html', context)
-        return pdf_bytes, numero_voucher
+        return pdf_bytes
