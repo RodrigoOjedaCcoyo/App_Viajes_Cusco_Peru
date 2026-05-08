@@ -710,7 +710,12 @@ def registro_ventas_directa():
             else:
                 if btn_preview:
                     exito = True
-                    id_venta_nuevo = "0"
+                    try:
+                        res_id = supabase_client.table('venta').select('id').order('id', desc=True).limit(1).execute()
+                        next_id = (res_id.data[0]['id'] + 1) if res_id.data else 1
+                        id_venta_nuevo = str(next_id)
+                    except Exception:
+                        id_venta_nuevo = "0"
                     msg = "Voucher generado para vista previa."
                     st.info("ℹ️ Generando voucher en modo vista previa (no se guardará la venta ni se enviará notificación automática).")
                 else:
