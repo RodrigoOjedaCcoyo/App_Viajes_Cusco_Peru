@@ -87,37 +87,6 @@
             margin-bottom: 4pt;
         }
 
-        /* ── BLOQUES DE DÍA ──────────────────────────── */
-        .day {
-            border: 1.5pt solid #000;
-            padding: 4pt 6pt 4pt 8pt;
-            margin-bottom: 0;
-            border-bottom: none;
-        }
-        .day:last-of-type {
-            border-bottom: 1.5pt solid #000;
-            margin-bottom: 4pt;
-        }
-        .day-title {
-            font-weight: bold;
-            font-size: 8.5pt;
-            color: #0d3b6b;
-            text-transform: uppercase;
-            margin-bottom: 1pt;
-        }
-        .inc-lbl {
-            font-size: 7.5pt;
-            font-weight: bold;
-            color: #0d3b6b;
-            margin: 1pt 0 0pt 16pt;
-        }
-        .inc-item {
-            font-size: 7.5pt;
-            color: #0d3b6b;
-            margin-left: 16pt;
-            line-height: 1.6;
-        }
-
         /* ── TOTALES ─────────────────────────────────── */
         .tot-wrap { width: 100%; margin-top: 6pt; }
         .tot-tbl  { width: 42%; border-collapse: collapse; float: right; }
@@ -227,18 +196,28 @@
 ══════════════════════════════════════════════ -->
 {% if itinerario %}
 <div class="tour-hdr">{{ tour_nombre | upper if tour_nombre else 'TOUR' }}</div>
+<table style="width: 100%; border-collapse: collapse; margin-bottom: 4pt;">
 
 {% for dia in itinerario %}
-<div class="day">
-    <div class="day-title">{{ dia.titulo | striptags }}</div>
-    {% if dia.incluye_final %}
-    <div class="inc-lbl">&bull; &nbsp; INCLUYE:</div>
-    {% for item in dia.incluye_final %}
-    <div class="inc-item">{{ item | striptags | upper }}</div>
-    {% endfor %}
-    {% endif %}
-</div>
+    <tr>
+        <td style="border: 1.5pt solid #000; padding: 4pt 6pt 4pt 8pt;">
+            <div style="font-weight: bold; font-size: 8.5pt; color: #0d3b6b; text-transform: uppercase; margin-bottom: 1pt;">
+                {{ dia.titulo | striptags }}
+            </div>
+            {% if dia.incluye_final %}
+            <div style="font-size: 7.5pt; font-weight: bold; color: #0d3b6b; margin: 1pt 0 0pt 16pt;">
+                &bull; &nbsp; INCLUYE:
+            </div>
+            {% for item in dia.incluye_final %}
+            <div style="font-size: 7.5pt; color: #0d3b6b; margin-left: 24pt; line-height: 1.6;">
+                {{ item | striptags | upper }}
+            </div>
+            {% endfor %}
+            {% endif %}
+        </td>
+    </tr>
 {% endfor %}
+</table>
 {% endif %}
 
 <!-- ══════════════════════════════════════════════
