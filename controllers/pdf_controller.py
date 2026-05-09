@@ -135,6 +135,143 @@ class PDFController:
             "total": total_val,
             "moneda_total": moneda_val,
             "hoy": datetime.date.today().strftime("%d/%m/%Y")
+# controllers/pdf_controller.py
+import os
+import base64
+from jinja2 import Environment, FileSystemLoader
+from xhtml2pdf import pisa
+from io import BytesIO
+import datetime
+
+class PDFController:
+    """Controlador para la generación de documentos PDF a partir de plantillas HTML."""
+    
+    def __init__(self):
+        # Localización de las plantillas
+        self.template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates')
+        self.env = Environment(loader=FileSystemLoader(self.template_dir))
+        # Ruta del logo (en la raíz del proyecto)
+        self.logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logo_background.png')
+
+    def _get_logo_base64(self) -> str:
+        """Lee el logo y lo convierte a base64 para incrustar en el PDF."""
+        try:
+            with open(self.logo_path, "rb") as f:
+                return base64.b64encode(f.read()).decode("utf-8")
+        except Exception as e:
+            print(f"No se pudo cargar el logo: {e}")
+            return ""
+
+    def _render_pdf(self, template_name: str, context: dict) -> BytesIO:
+        """Helper centralizado para renderizar HTML y convertir a PDF."""
+        try:
+            template = self.env.get_template(template_name)
+            html_content = template.render(context)
+            
+            pdf_output = BytesIO()
+            pisa_status = pisa.CreatePDF(html_content, dest=pdf_output)
+            
+            if pisa_status.err:
+                print(f"Error en xhtml2pdf ({template_name}): {pisa_status.err}")
+                return None
+            
+            pdf_output.seek(0)
+            return pdf_output
+        except Exception as e:
+            print(f"Error renderizando PDF {template_name}: {e}")
+            return None
+
+    def _extraer_fecha_viaje_robusta(self, datos_render: dict) -> str:
+        f_inicio = datos_render.get('fecha_viaje') or datos_render.get('fecha_inicio') or datos_render.get('fechaViaje') or datos_render.get('fecha')
+        ci = datos_render.get('control_interno', {})
+        if not f_inicio and ci:
+            f_inicio = ci.get('fecha_inicio') or ci.get('fecha_llegada') or ci.get('fecha_viaje')
+        if not f_inicio:
+            dias_itin = datos_render.get('itinerario') or datos_render.get('days') or datos_render.get('itinerario_detalles')
+            if dias_itin and isinstance(dias_itin, list) and len(dias_itin) > 0 and isinstance(dias_itin[0], dict):
+                f_inicio = dias_itin[0].get('fecha')
+        return str(f_inicio).strip() if f_inicio else ""
+
+    def generar_itinerario_pdf(self, datos_render: dict) -> BytesIO:
+        """Genera un PDF de itinerario PREMIUM."""
+        fecha_robusta = self._extraer_fecha_viaje_robusta(datos_render)
+        precios = datos_render.get("precios", {})
+        total_val = precios.get("extranjero", 0)
+        moneda_val = precios.get("moneda_extranjero", "USD")
+        
+        context = {
+            "cliente_nombre": datos_render.get("nombre_pasajero") or "Pasajero",
+            "cliente_telefono": datos_render.get("cliente_telefono") or datos_render.get("telefono") or "",
+            "fecha_viaje": fecha_robusta,
+            "num_adultos": datos_render.get("num_adultos", 1),
+            "num_ninos": datos_render.get("num_ninos", 0),
+            "itinerario": (datos_render.get("itinerario_detalles") or 
+                           datos_render.get("itinerario_detales") or 
+                           datos_render.get("days") or 
+                           datos_render.get("servicios") or 
+                           datos_render.get("itinerario") or []),
+            "total": total_val,
+            "moneda_total": moneda_val
+        }
+        return self._render_pdf('itinerario_template.html', context)
+
+    def generar_itinerario_simple_pdf(self, datos_render: dict) -> BytesIO:
+        """Genera un PDF de itinerario SIMPLE (Ink Saver)."""
+        fecha_robusta = self._extraer_fecha_viaje_robusta(datos_render)
+        precios = datos_render.get("precios", {})
+        total_val = precios.get("extranjero", 0)
+        moneda_val = precios.get("moneda_extranjero", "USD")
+
+        # --- Extracción de PAX Robusta ---
+        num_adultos = datos_render.get("num_adultos") or datos_render.get("num_pasajeros") or datos_render.get("pax") or datos_render.get("total_pax") or 1
+        num_ninos = datos_render.get("num_ninos") or 0
+        ci = datos_render.get('control_interno', {})
+        if ci and not datos_render.get("num_adultos"):
+            num_adultos = ci.get('total_pasajeros') or ci.get('total_pax') or num_adultos
+
+        itinerario_raw = (datos_render.get("itinerario_detalles") or 
+                          datos_render.get("itinerario_detales") or 
+                          datos_render.get("days") or 
+                          datos_render.get("servicios") or 
+                          datos_render.get("itinerario") or [])
+        
+        # Procesar datos (Negritas y Listas de Inclusiones)
+        itinerario_procesado = []
+        for item in itinerario_raw:
+            if not isinstance(item, dict):
+                continue
+            it_copy = item.copy()
+            
+            # 1. Procesar negritas (*** -> <b>)
+            desc = it_copy.get('descripcion', '')
+            if desc:
+                parts = desc.split('***')
+                new_desc = ""
+                for i, part in enumerate(parts):
+                    if i % 2 == 0: new_desc += part
+                    else: new_desc += f"<b>{part}</b>"
+                it_copy['descripcion'] = new_desc
+            
+            # 2. Consolidar INCLUSIONES
+            it_copy['incluye_final'] = (item.get('incluye') or item.get('inclusiones') or item.get('servicios') or [])
+            it_copy['no_incluye_final'] = (item.get('no_incluye') or item.get('exclusiones') or item.get('servicios_no') or [])
+            
+            # 3. Extraer HORA Robusta
+            it_copy['hora'] = item.get('hora') or item.get('time') or item.get('hora_inicio') or ""
+            
+            itinerario_procesado.append(it_copy)
+
+        context = {
+            "cliente_nombre": datos_render.get("nombre_pasajero") or "Pasajero",
+            "cliente_telefono": datos_render.get("cliente_telefono") or datos_render.get("telefono") or "",
+            "fecha_viaje": fecha_robusta if fecha_robusta else "Pendiente",
+            "num_adultos": int(num_adultos),
+            "num_ninos": int(num_ninos),
+            "itinerario": itinerario_procesado,
+            "comentarios_generales": datos_render.get("comentarios_generales", ""),
+            "total": total_val,
+            "moneda_total": moneda_val,
+            "hoy": datetime.date.today().strftime("%d/%m/%Y")
         }
         return self._render_pdf('itinerario_simple_template.html', context)
 
@@ -166,11 +303,16 @@ class PDFController:
             it_copy = item.copy()
 
             # Título del día
-            it_copy['titulo'] = (
+            titulo_base = (
                 item.get('titulo') or item.get('title') or
                 item.get('day_title') or item.get('nombre') or
                 item.get('dia') or ""
             )
+            fecha_dia = item.get('fecha') or item.get('date') or ""
+            if fecha_dia:
+                it_copy['titulo'] = f"{fecha_dia} - {titulo_base}"
+            else:
+                it_copy['titulo'] = titulo_base
 
             # Procesar negritas *** -> <b>
             desc = it_copy.get('descripcion', '')
@@ -215,8 +357,6 @@ class PDFController:
         parte_mes  = f"{mes_actual:02d}"   # 05
         parte_id   = f"{id_num:05d}"       # 00013
         numero_voucher = f"{parte_anio}-{parte_mes}-{parte_id}"
-
-
 
         # Montos
         monto_total = float(data.get('monto_total') or 0)
