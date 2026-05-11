@@ -1120,30 +1120,47 @@ def seguimiento_ventas_vendedor():
         return
         
     for v in ventas[:10]: # Mostrar las 10 más recientes
-        with st.container(border=True):
-            col1, col2, col3 = st.columns([3, 2, 2])
-            col1.markdown(f"👤 **{v['nombre_cliente']}**")
-            col1.caption(f"📅 {v['fecha_inicio']} | ID: {v['id_venta']}")
-            
-            # Botón de Sincronización
-            if col2.button("🔄 Sincronizar Itinerario", key=f"sync_v_{v['id_venta']}", help="Aplica los cambios realizados en el constructor a esta venta."):
-                exito, msg = venta_controller.sincronizar_venta_con_itinerario(v['id_venta'])
-                if exito: st.success(msg)
-                else: st.error(msg)
-            
-            # Link al itinerario digital si existe (Carga robusta para evitar error de columna inexistente)
-            res_it = venta_controller.client.table('itinerario_digital').select('*').eq('id_itinerario_digital', v['id_itinerario_digital']).single().execute()
-            if res_it.data:
-                # Prioridad 1: Columna real (si existiera en el futuro)
-                # Prioridad 2: Dentro de datos_render (donde suele guardarse el backup)
-                pdf_link = res_it.data.get('url_pdf') or res_it.data.get('datos_render', {}).get('url_pdf')
+        try:
+            id_venta = v.get('id_venta')
+            id_itin = v.get('id_itinerario_digital')  # Puede ser None si la venta no tiene itinerario vinculado
+
+            with st.container(border=True):
+                col1, col2, col3 = st.columns([3, 2, 2])
+                col1.markdown(f"👤 **{v.get('nombre_cliente', 'Sin nombre')}**")
+                col1.caption(f"📅 {v.get('fecha_inicio', '---')} | ID: {id_venta}")
                 
-                if pdf_link:
-                    col3.link_button("📄 Ver PDF Cloud", pdf_link, use_container_width=True)
+                # --- Botón de Sincronización ---
+                if col2.button("🔄 Sincronizar Itinerario", key=f"sync_v_{id_venta}", use_container_width=True, help="Aplica los cambios del constructor al calendario operativo."):
+                    with st.spinner("Sincronizando..."):
+                        exito_s, msg_s = venta_controller.sincronizar_venta_con_itinerario(id_venta)
+                    if exito_s:
+                        st.success(msg_s)
+                    else:
+                        st.error(msg_s)
+                
+                # --- Link al PDF del itinerario digital ---
+                if id_itin:
+                    try:
+                        res_it = venta_controller.client.table('itinerario_digital').select('url_pdf, datos_render').eq('id_itinerario_digital', id_itin).maybe_single().execute()
+                        if res_it and res_it.data:
+                            render_raw = res_it.data.get('datos_render') or {}
+                            if isinstance(render_raw, str):
+                                import json
+                                try: render_raw = json.loads(render_raw)
+                                except: render_raw = {}
+                            pdf_link = res_it.data.get('url_pdf') or render_raw.get('url_pdf')
+                            if pdf_link:
+                                col3.link_button("📄 Ver PDF Cloud", pdf_link, use_container_width=True)
+                            else:
+                                col3.caption("🚫 Sin PDF")
+                        else:
+                            col3.caption("🚫 Sin itinerario")
+                    except Exception:
+                        col3.caption("🚫 Sin PDF")
                 else:
-                    col3.caption("🚫 Sin PDF")
-            else:
-                col3.caption("🚫 No encontrado")
+                    col3.caption("🚫 Sin itinerario")
+        except Exception as e_card:
+            st.warning(f"⚠️ Error mostrando venta ID {v.get('id_venta', '?')}: {e_card}")
 
 def gestion_registros_multicanal():
     tabs = st.tabs(["💰 Registrar Nueva Venta", "📋 Mis Ventas Activas"])
