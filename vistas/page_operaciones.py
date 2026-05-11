@@ -420,7 +420,7 @@ def registro_ventas_proveedores(supabase_client):
     venta_controller = VentaController(supabase_client)
     it_controller = ItinerarioDigitalController(supabase_client)
     lead_controller = LeadController(supabase_client)
-
+                                                                                                                                                            
     st.subheader("🤝 Registro de Venta B2B (Agencias & Partners)")
 
     # ═══════════════════════════════════════════════════════════════
@@ -432,7 +432,7 @@ def registro_ventas_proveedores(supabase_client):
     lead_opt = ["--- Selecciona un Lead (Obligatorio) ---"]
     lead_map = {}
     
-    if leads:
+    if leads:                                                                                                                                                           
         if search_query:
             filtered_leads = [
                 l for l in leads 

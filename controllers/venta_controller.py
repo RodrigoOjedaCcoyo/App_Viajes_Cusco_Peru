@@ -272,9 +272,10 @@ class VentaController:
         """
         import json
         from datetime import datetime, timedelta
+        import dateutil.parser
         try:
-            # 1. Obtener datos de la Venta actual (CORRECCIÓN: precio_total_cierre en lugar de monto_total)
-            res_v = self.client.table('venta').select('id_itinerario_digital, precio_total_cierre, num_pasajeros, fecha_inicio, tour_nombre, id_paquete').eq('id_venta', id_venta).single().execute()
+            # 1. Obtener datos de la Venta actual
+            res_v = self.client.table('venta').select('id_itinerario_digital, precio_total_cierre, num_pasajeros, fecha_inicio, tour_nombre').eq('id_venta', id_venta).single().execute()
             venta = res_v.data
             if not venta or not venta.get('id_itinerario_digital'):
                 return False, "Esta venta no tiene un itinerario digital vinculado."
@@ -292,33 +293,38 @@ class VentaController:
             
             itin_detalles = render.get('itinerario_detalles', []) or render.get('itinerario_detales', []) or render.get('days', [])
             if not itin_detalles:
-                return False, "El diseño del itinerario está vacío o tiene un formato no reconocido."
+                return False, "El diseño del itinerario está vacío."
 
-            # 3. Datos base para los servicios
+            # 3. Preparación de datos
             f_inicio = datetime.strptime(venta['fecha_inicio'], "%Y-%m-%d").date() if isinstance(venta['fecha_inicio'], str) else venta['fecha_inicio']
             num_pax = venta.get('num_pasajeros') or 1
             monto_total_v = float(venta.get('precio_total_cierre') or 0)
             precio_dia = monto_total_v / len(itin_detalles) if len(itin_detalles) > 0 else 0
 
-            # 4. Obtener registros existentes en venta_tour
+            # 4. Obtener registros existentes
             res_current = self.client.table('venta_tour').select('n_linea').eq('id_venta', id_venta).execute()
             lineas_actuales = {row['n_linea'] for row in (res_current.data or [])}
 
-            # 5. Procesar Sincronización
+            # 5. Procesar
             lineas_procesadas = set()
+            fechas_servicio = []
             for i, dia_info in enumerate(itin_detalles):
                 n_linea = i + 1
                 lineas_procesadas.add(n_linea)
                 
-                # Extraer info del diseño
-                nombre_servicio = dia_info.get('titulo') or dia_info.get('nombre') or dia_info.get('title') or venta.get('tour_nombre') or "Servicio"
-                f_servicio = f_inicio + timedelta(days=i)
-                f_raw = dia_info.get('fecha')
-                if f_raw and isinstance(f_raw, str):
+                # Intentar obtener nombre y fecha con mayor flexibilidad
+                nombre_servicio = dia_info.get('titulo') or dia_info.get('nombre') or dia_info.get('title') or "Servicio"
+                f_raw = dia_info.get('fecha') or dia_info.get('date')
+                
+                if f_raw:
                     try:
-                        f_parsed = datetime.strptime(f_raw.replace(" ", ""), "%d/%m/%Y").date()
-                        f_servicio = f_parsed
-                    except: pass
+                        f_servicio = dateutil.parser.parse(str(f_raw)).date()
+                    except:
+                        f_servicio = f_inicio + timedelta(days=i)
+                else:
+                    f_servicio = f_inicio + timedelta(days=i)
+                
+                fechas_servicio.append(f_servicio)
                 
                 payload = {
                     "fecha_servicio": f_servicio.isoformat(),
@@ -329,23 +335,24 @@ class VentaController:
                 }
 
                 if n_linea in lineas_actuales:
-                    # UPDATE
                     self.client.table('venta_tour').update(payload).eq('id_venta', id_venta).eq('n_linea', n_linea).execute()
                 else:
-                    # INSERT
-                    payload.update({
-                        "id_venta": id_venta,
-                        "n_linea": n_linea,
-                        "id_itinerario_dia_index": n_linea
-                    })
+                    payload.update({"id_venta": id_venta, "n_linea": n_linea})
                     self.client.table('venta_tour').insert(payload).execute()
 
-            # 6. ELIMINAR líneas excedentes (si el nuevo itinerario es más corto)
+            # 6. Actualizar fechas en venta principal
+            if fechas_servicio:
+                self.client.table('venta').update({
+                    "fecha_inicio": min(fechas_servicio).isoformat(),
+                    "fecha_fin": max(fechas_servicio).isoformat()
+                }).eq('id_venta', id_venta).execute()
+
+            # 7. Eliminar excedentes
             lineas_a_borrar = lineas_actuales - lineas_procesadas
             if lineas_a_borrar:
                 self.client.table('venta_tour').delete().eq('id_venta', id_venta).in_('n_linea', list(lineas_a_borrar)).execute()
 
-            return True, f"Sincronización exitosa. Se procesaron {len(itin_detalles)} días."
+            return True, f"✅ Sincronización exitosa. Se actualizaron {len(itin_detalles)} días en el calendario operativo."
             
         except Exception as e:
             return False, f"Error durante la sincronización: {str(e)}"
