@@ -268,94 +268,175 @@ class VentaController:
 
     def sincronizar_venta_con_itinerario(self, id_venta: int) -> tuple[bool, str]:
         """
-        Sincroniza la logística operativa (venta_tour) con la última versión del diseño digital.
+        Sincroniza venta_tour con la ULTIMA version del itinerario del lead.
+        Estrategia: Lead -> itinerario mas reciente por fecha_generacion -> venta_tour.
         """
         import json
-        from datetime import datetime, timedelta
-        import dateutil.parser
+        from datetime import datetime, timedelta, date as date_type
         try:
-            # 1. Obtener datos de la Venta actual
-            res_v = self.client.table('venta').select('id_itinerario_digital, precio_total_cierre, num_pasajeros, fecha_inicio, tour_nombre').eq('id_venta', id_venta).single().execute()
-            venta = res_v.data
-            if not venta or not venta.get('id_itinerario_digital'):
-                return False, "Esta venta no tiene un itinerario digital vinculado."
+            # PASO 1: Leer datos de la venta
+            res_v = self.client.table('venta').select(
+                'id_itinerario_digital, id_cliente, precio_total_cierre, num_pasajeros, fecha_inicio, tour_nombre'
+            ).eq('id_venta', id_venta).single().execute()
 
-            id_itin = venta['id_itinerario_digital']
-            
-            # 2. Obtener el Diseño Digital
-            res_it = self.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_itin).single().execute()
+            venta = res_v.data
+            if not venta:
+                return False, "No se encontro la venta en la base de datos."
+
+            id_itin_guardado = venta.get('id_itinerario_digital')
+            id_cliente       = venta.get('id_cliente')
+
+            # PASO 2: Buscar el ULTIMO itinerario disponible para este cliente/lead
+            id_itin_final = None
+            fuente_itin   = ""
+
+            # Intento A: buscar el itinerario mas reciente del LEAD del cliente
+            if id_cliente:
+                try:
+                    res_cli = self.client.table('cliente').select('id_lead').eq('id_cliente', id_cliente).single().execute()
+                    id_lead = (res_cli.data or {}).get('id_lead')
+                    if id_lead:
+                        res_li = self.client.table('itinerario_digital') \
+                            .select('id_itinerario_digital, fecha_generacion') \
+                            .eq('id_lead', id_lead) \
+                            .order('fecha_generacion', desc=True) \
+                            .limit(1).execute()
+                        if res_li.data:
+                            id_itin_final = res_li.data[0]['id_itinerario_digital']
+                            fecha_g = str(res_li.data[0].get('fecha_generacion', ''))[:10]
+                            fuente_itin = f"ultimo del Lead (generado {fecha_g})"
+                except Exception as e_a:
+                    print(f"[Sync-A] {e_a}")
+
+            # Intento B: usar el que esta guardado en la venta (puede ser mas viejo)
+            if not id_itin_final and id_itin_guardado:
+                id_itin_final = id_itin_guardado
+                fuente_itin   = "vinculado a la venta"
+
+            if not id_itin_final:
+                return False, (
+                    "No se encontro ningun itinerario para sincronizar.\n"
+                    "Asegurate de que la venta tenga un lead vinculado con al menos un itinerario generado en el Constructor."
+                )
+
+            # PASO 3: Leer el JSON del itinerario encontrado
+            res_it = self.client.table('itinerario_digital') \
+                .select('datos_render') \
+                .eq('id_itinerario_digital', id_itin_final).single().execute()
+
             if not res_it.data:
-                return False, "No se encontró el diseño original."
-            
+                return False, f"El itinerario {id_itin_final} no contiene datos."
+
             render = res_it.data.get('datos_render', {})
             if isinstance(render, str):
-                render = json.loads(render)
-            
-            itin_detalles = render.get('itinerario_detalles', []) or render.get('itinerario_detales', []) or render.get('days', [])
+                try:
+                    render = json.loads(render)
+                except Exception:
+                    return False, "El formato del itinerario no es valido (JSON corrupto)."
+
+            if not isinstance(render, dict):
+                return False, "El itinerario tiene un formato desconocido."
+
+            # Buscar lista de dias en las claves posibles
+            itin_detalles = (
+                render.get('itinerario_detalles') or
+                render.get('itinerario_detales') or
+                render.get('days') or
+                render.get('itinerario') or
+                []
+            )
+
             if not itin_detalles:
-                return False, "El diseño del itinerario está vacío."
+                return False, (
+                    f"El itinerario ({fuente_itin}) no tiene dias definidos.\n"
+                    "Completa el itinerario en el Constructor primero."
+                )
 
-            # 3. Preparación de datos
-            f_inicio = datetime.strptime(venta['fecha_inicio'], "%Y-%m-%d").date() if isinstance(venta['fecha_inicio'], str) else venta['fecha_inicio']
-            num_pax = venta.get('num_pasajeros') or 1
-            monto_total_v = float(venta.get('precio_total_cierre') or 0)
-            precio_dia = monto_total_v / len(itin_detalles) if len(itin_detalles) > 0 else 0
+            # PASO 4: Datos base
+            f_inicio_raw = venta.get('fecha_inicio')
+            try:
+                f_inicio = datetime.strptime(str(f_inicio_raw)[:10], "%Y-%m-%d").date() if f_inicio_raw else date_type.today()
+            except Exception:
+                f_inicio = date_type.today()
 
-            # 4. Obtener registros existentes
-            res_current = self.client.table('venta_tour').select('n_linea').eq('id_venta', id_venta).execute()
-            lineas_actuales = {row['n_linea'] for row in (res_current.data or [])}
+            num_pax     = int(venta.get('num_pasajeros') or 1)
+            monto_total = float(venta.get('precio_total_cierre') or 0)
+            precio_dia  = round(monto_total / len(itin_detalles), 2) if itin_detalles else 0
 
-            # 5. Procesar
+            # PASO 5: Lineas existentes en venta_tour
+            res_cur = self.client.table('venta_tour').select('n_linea').eq('id_venta', id_venta).execute()
+            lineas_actuales = {row['n_linea'] for row in (res_cur.data or [])}
+
+            # PASO 6: Upsert de cada dia
             lineas_procesadas = set()
-            fechas_servicio = []
+            fechas_servicio   = []
+
             for i, dia_info in enumerate(itin_detalles):
                 n_linea = i + 1
                 lineas_procesadas.add(n_linea)
-                
-                # Intentar obtener nombre y fecha con mayor flexibilidad
-                nombre_servicio = dia_info.get('titulo') or dia_info.get('nombre') or dia_info.get('title') or "Servicio"
+
+                nombre_servicio = (
+                    dia_info.get('titulo') or dia_info.get('nombre') or
+                    dia_info.get('title') or dia_info.get('nombre_dia') or
+                    render.get('titulo') or venta.get('tour_nombre') or "Servicio"
+                )
+
                 f_raw = dia_info.get('fecha') or dia_info.get('date')
-                
+                f_servicio = f_inicio + timedelta(days=i)
                 if f_raw:
-                    try:
-                        f_servicio = dateutil.parser.parse(str(f_raw)).date()
-                    except:
-                        f_servicio = f_inicio + timedelta(days=i)
-                else:
-                    f_servicio = f_inicio + timedelta(days=i)
-                
+                    f_str = str(f_raw).replace(" ", "").strip()
+                    for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%d/%m/%y", "%Y/%m/%d"]:
+                        try:
+                            f_servicio = datetime.strptime(f_str[:10], fmt).date()
+                            break
+                        except Exception:
+                            continue
+
                 fechas_servicio.append(f_servicio)
-                
+
                 payload = {
-                    "fecha_servicio": f_servicio.isoformat(),
-                    "observacion": nombre_servicio,
-                    "cantidad": num_pax,
-                    "precio_applied": precio_dia,
-                    "precio_vendedor": precio_dia
+                    "fecha_servicio":          f_servicio.isoformat(),
+                    "observacion":             nombre_servicio,
+                    "cantidad":                num_pax,
+                    "precio_applied":          precio_dia,
+                    "precio_vendedor":         precio_dia,
+                    "id_itinerario_dia_index": n_linea
                 }
 
                 if n_linea in lineas_actuales:
-                    self.client.table('venta_tour').update(payload).eq('id_venta', id_venta).eq('n_linea', n_linea).execute()
+                    self.client.table('venta_tour').update(payload) \
+                        .eq('id_venta', id_venta).eq('n_linea', n_linea).execute()
                 else:
                     payload.update({"id_venta": id_venta, "n_linea": n_linea})
                     self.client.table('venta_tour').insert(payload).execute()
 
-            # 6. Actualizar fechas en venta principal
-            if fechas_servicio:
-                self.client.table('venta').update({
-                    "fecha_inicio": min(fechas_servicio).isoformat(),
-                    "fecha_fin": max(fechas_servicio).isoformat()
-                }).eq('id_venta', id_venta).execute()
-
-            # 7. Eliminar excedentes
+            # PASO 7: Borrar lineas sobrantes
             lineas_a_borrar = lineas_actuales - lineas_procesadas
             if lineas_a_borrar:
-                self.client.table('venta_tour').delete().eq('id_venta', id_venta).in_('n_linea', list(lineas_a_borrar)).execute()
+                self.client.table('venta_tour').delete() \
+                    .eq('id_venta', id_venta).in_('n_linea', list(lineas_a_borrar)).execute()
 
-            return True, f"✅ Sincronización exitosa. Se actualizaron {len(itin_detalles)} días en el calendario operativo."
-            
+            # PASO 8: Actualizar venta con el ID del itinerario usado y las fechas reales
+            venta_update = {"id_itinerario_digital": id_itin_final}
+            if fechas_servicio:
+                venta_update['fecha_inicio'] = min(fechas_servicio).isoformat()
+                venta_update['fecha_fin']    = max(fechas_servicio).isoformat()
+            titulo_render = render.get('titulo') or render.get('title_1') or render.get('tour_nombre')
+            if titulo_render:
+                venta_update['tour_nombre'] = titulo_render
+
+            self.client.table('venta').update(venta_update).eq('id_venta', id_venta).execute()
+
+            return True, (
+                f"Sincronizacion exitosa. "
+                f"{len(itin_detalles)} dias actualizados en el calendario operativo. "
+                f"Itinerario: {fuente_itin}."
+            )
+
         except Exception as e:
-            return False, f"Error durante la sincronización: {str(e)}"
+            import traceback
+            detalle = traceback.format_exc()[-400:]
+            return False, f"Error durante la sincronizacion: {str(e)}\n\nDetalle tecnico:\n{detalle}"
 
     def agregar_servicio_operativo(self, id_venta: int, id_tour: int, fecha: str, observacion: str, cantidad: int = 1) -> tuple[bool, str]:
         """Añade un servicio manualmente a la logística de una venta."""
