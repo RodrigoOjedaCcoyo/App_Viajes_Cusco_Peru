@@ -742,13 +742,19 @@ def registro_ventas_proveedores(supabase_client):
     if id_itinerario_dig and tipo_cambio > 0:
         items_recalc_b2b = st.session_state.get(f"b2b_items_{id_itinerario_dig}", [])
         if items_recalc_b2b:
-            nuevo_total_b2b = 0.0
+            # Calculamos el total base siempre en SOLES primero
+            total_base_soles = 0.0
             for it in items_recalc_b2b:
                 if it.get('moneda') == "USD":
-                    nuevo_total_b2b += it['cantidad'] * it['p_raw'] * tipo_cambio
+                    total_base_soles += it['cantidad'] * it['p_raw'] * tipo_cambio
                 else:
-                    nuevo_total_b2b += it['cantidad'] * it['p_raw']
-            st.session_state['b2b_m_total'] = round(nuevo_total_b2b, 2)
+                    total_base_soles += it['cantidad'] * it['p_raw']
+            
+            # Ahora, convertimos ese total base a la moneda seleccionada para el input
+            if moneda_sel == "USD":
+                st.session_state['b2b_m_total'] = round(total_base_soles / tipo_cambio, 2)
+            else:
+                st.session_state['b2b_m_total'] = round(total_base_soles, 2)
 
     if 'b2b_m_total' not in st.session_state: st.session_state['b2b_m_total'] = 0.0
     if 'b2b_m_pago' not in st.session_state: st.session_state['b2b_m_pago'] = 0.0
