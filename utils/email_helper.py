@@ -121,3 +121,79 @@ def _enviar_correo_worker(venta_data, adjuntos=None):
 
     except Exception as e:
         print(f"❌ Error al enviar correo de notificación: {str(e)}")
+
+
+def enviar_adjuntos_adicionales(asunto: str, nota: str, adjuntos: dict):
+    """
+    Envía un correo con asunto y nota personalizados más los archivos adjuntos indicados.
+    Pensado para reenviar documentos que faltaron al registrar una venta.
+    adjuntos: dict {nombre_archivo: bytes}
+    """
+    import threading
+    thread = threading.Thread(
+        target=_worker_adjuntos_adicionales,
+        args=(asunto, nota, adjuntos),
+        daemon=True
+    )
+    thread.start()
+
+
+def _worker_adjuntos_adicionales(asunto: str, nota: str, adjuntos: dict):
+    try:
+        if "smtp" not in st.secrets:
+            print("Error: No se encontró la configuración [smtp] en st.secrets")
+            return
+
+        smtp_conf     = st.secrets["smtp"]
+        server_host   = smtp_conf["server"]
+        port          = int(smtp_conf["port"])
+        user          = smtp_conf["user"]
+        password      = smtp_conf["password"]
+        destinatarios = [d.strip() for d in smtp_conf["destination"].split(",")]
+
+        msg = MIMEMultipart()
+        msg['From']    = user
+        msg['To']      = ", ".join(destinatarios)
+        msg['Subject'] = asunto
+
+        # Cuerpo HTML simple con la nota
+        html = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; color: #333;">
+            <div style="max-width: 600px; margin: auto; border: 1px solid #ddd;
+                        padding: 20px; border-radius: 10px;">
+                <h2 style="color: #1565c0; text-align: center;">
+                    📎 Documentos Adicionales
+                </h2>
+                <hr>
+                <p style="font-size: 15px; white-space: pre-line;">{nota}</p>
+                <p style="font-size: 12px; color: #777; text-align: center; margin-top: 20px;">
+                    Este mensaje fue enviado desde el Sistema Viajes Cusco Perú.
+                </p>
+            </div>
+        </body>
+        </html>
+        """
+        msg.attach(MIMEText(html, 'html'))
+
+        # Adjuntar archivos
+        for nombre_archivo, contenido in adjuntos.items():
+            part = MIMEApplication(contenido, Name=nombre_archivo)
+            part['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
+            msg.attach(part)
+
+        # Envío
+        if port == 465:
+            with smtplib.SMTP_SSL(server_host, port) as server:
+                server.login(user, password)
+                server.sendmail(user, destinatarios, msg.as_string())
+        else:
+            with smtplib.SMTP(server_host, port) as server:
+                server.starttls()
+                server.login(user, password)
+                server.sendmail(user, destinatarios, msg.as_string())
+
+        print(f"✅ Adjuntos adicionales enviados a {destinatarios} ({len(adjuntos)} archivos)")
+
+    except Exception as e:
+        print(f"❌ Error enviando adjuntos adicionales: {str(e)}")

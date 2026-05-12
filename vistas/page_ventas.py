@@ -1111,42 +1111,49 @@ def seguimiento_ventas_vendedor():
     if not venta_controller: st.error("Error de inicialización."); return
     
     st.subheader("📋 Mis Ventas y Seguimiento de Itinerarios")
-    st.info("Desde aquí puedes sincronizar cambios si modificaste el itinerario en el constructor.")
+    st.info("Sincroniza itinerarios y envía documentos adicionales a ventas ya registradas.")
     
-    # 1. Obtener ventas (Simplificado para el vendedor)
     ventas = venta_controller.obtener_ventas_directas()
     if not ventas:
         st.info("No tienes ventas registradas para gestionar.")
         return
         
-    for v in ventas[:10]: # Mostrar las 10 más recientes
+    for v in ventas[:10]:
         try:
-            id_venta = v.get('id_venta')
-            id_itin = v.get('id_itinerario_digital')  # Puede ser None si la venta no tiene itinerario vinculado
+            id_venta       = v.get('id_venta')
+            nombre_cliente = v.get('nombre_cliente', 'Sin nombre')
+            fecha_inicio   = v.get('fecha_inicio', '---')
+            tour_nombre    = v.get('tour_nombre', '')
+            id_itin        = v.get('id_itinerario_digital')
 
             with st.container(border=True):
+                # ── Fila superior: info + botones principales ──
                 col1, col2, col3 = st.columns([3, 2, 2])
-                col1.markdown(f"👤 **{v.get('nombre_cliente', 'Sin nombre')}**")
-                col1.caption(f"📅 {v.get('fecha_inicio', '---')} | ID: {id_venta}")
-                
-                # --- Botón de Sincronización ---
-                if col2.button("🔄 Sincronizar Itinerario", key=f"sync_v_{id_venta}", use_container_width=True, help="Aplica los cambios del constructor al calendario operativo."):
+                col1.markdown(f"👤 **{nombre_cliente}**")
+                col1.caption(f"📅 {fecha_inicio} | 🎫 {tour_nombre} | ID: {id_venta}")
+
+                # Botón Sincronizar
+                if col2.button("🔄 Sincronizar Itinerario", key=f"sync_v_{id_venta}",
+                               use_container_width=True,
+                               help="Toma la última versión del itinerario y actualiza el calendario operativo."):
                     with st.spinner("Sincronizando..."):
                         exito_s, msg_s = venta_controller.sincronizar_venta_con_itinerario(id_venta)
                     if exito_s:
                         st.success(msg_s)
                     else:
                         st.error(msg_s)
-                
-                # --- Link al PDF del itinerario digital ---
+
+                # Link PDF
                 if id_itin:
                     try:
-                        res_it = venta_controller.client.table('itinerario_digital').select('url_pdf, datos_render').eq('id_itinerario_digital', id_itin).maybe_single().execute()
+                        res_it = venta_controller.client.table('itinerario_digital') \
+                            .select('url_pdf, datos_render') \
+                            .eq('id_itinerario_digital', id_itin).maybe_single().execute()
                         if res_it and res_it.data:
+                            import json as _json
                             render_raw = res_it.data.get('datos_render') or {}
                             if isinstance(render_raw, str):
-                                import json
-                                try: render_raw = json.loads(render_raw)
+                                try: render_raw = _json.loads(render_raw)
                                 except: render_raw = {}
                             pdf_link = res_it.data.get('url_pdf') or render_raw.get('url_pdf')
                             if pdf_link:
@@ -1159,6 +1166,74 @@ def seguimiento_ventas_vendedor():
                         col3.caption("🚫 Sin PDF")
                 else:
                     col3.caption("🚫 Sin itinerario")
+
+                # ── Panel de documentos adicionales ──
+                with st.expander(f"📎 Adjuntar y Reenviar Documentos — ID {id_venta}"):
+                    st.caption(
+                        "Sube aquí los archivos que faltaron al registrar la venta "
+                        "(comprobantes, pasaportes, vouchers, etc.) y envíalos al equipo."
+                    )
+
+                    archivos_extra = st.file_uploader(
+                        "Selecciona uno o más archivos",
+                        accept_multiple_files=True,
+                        key=f"adj_extra_{id_venta}",
+                        help="PDF, imágenes, Word, Excel — cualquier formato."
+                    )
+
+                    asunto_extra = st.text_input(
+                        "Asunto del correo",
+                        value=f"Documentos adicionales — {nombre_cliente} (ID {id_venta})",
+                        key=f"asunto_extra_{id_venta}"
+                    )
+
+                    nota_extra = st.text_area(
+                        "Nota / mensaje (opcional)",
+                        placeholder="Ej: Adjunto el pasaporte del pasajero que faltaba.",
+                        key=f"nota_extra_{id_venta}",
+                        height=80
+                    )
+
+                    if st.button("📤 Enviar Documentos por Correo",
+                                 key=f"btn_enviar_adj_{id_venta}",
+                                 use_container_width=True,
+                                 disabled=(not archivos_extra)):
+                        if not archivos_extra:
+                            st.warning("Selecciona al menos un archivo antes de enviar.")
+                        else:
+                            adjuntos_dict = {f.name: f.read() for f in archivos_extra}
+
+                            # Construir datos de la notificación
+                            venta_info = {
+                                'nombre_cliente':   nombre_cliente,
+                                'tour':             tour_nombre or "---",
+                                'vendedor':         st.session_state.get('user_id', 'Sistema'),
+                                'cantidad':         v.get('cantidad', 1),
+                                'fecha_inicio':     fecha_inicio,
+                                'fecha_fin':        v.get('fecha_fin', '---'),
+                                'moneda':           v.get('moneda', 'USD'),
+                                'monto_total':      float(v.get('precio_total_cierre') or 0),
+                                'monto_depositado': 0,
+                                'saldo':            0,
+                                'metodo_pago':      '---',
+                                'comentarios':      nota_extra or f"Documentos adicionales para la venta ID {id_venta}.",
+                                # Sobreescribir asunto (se usa en el subject)
+                                '_asunto_override': asunto_extra
+                            }
+
+                            with st.spinner("Enviando correo con adjuntos..."):
+                                try:
+                                    from utils.email_helper import enviar_adjuntos_adicionales
+                                    enviar_adjuntos_adicionales(
+                                        asunto=asunto_extra,
+                                        nota=nota_extra or f"Documentos adicionales para la venta #{id_venta} — {nombre_cliente}.",
+                                        adjuntos=adjuntos_dict
+                                    )
+                                    nombres = ", ".join(adjuntos_dict.keys())
+                                    st.success(f"✅ Correo enviado con {len(adjuntos_dict)} archivo(s): {nombres}")
+                                except Exception as e_mail:
+                                    st.error(f"❌ Error al enviar: {e_mail}")
+
         except Exception as e_card:
             st.warning(f"⚠️ Error mostrando venta ID {v.get('id_venta', '?')}: {e_card}")
 

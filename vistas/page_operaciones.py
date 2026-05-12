@@ -426,7 +426,8 @@ def registro_ventas_proveedores(supabase_client):
     # ═══════════════════════════════════════════════════════════════
     # 1️⃣ Buscador Inteligente de Lead y Selector de Itinerario
     # ═══════════════════════════════════════════════════════════════
-    search_query = st.text_input("🔍 Buscar Pasajero (Nombre o Celular)", placeholder="Escriba para filtrar...", key="search_lead_b2b").strip().lower()
+    search_que
+    ry = st.text_input("🔍 Buscar Pasajero (Nombre o Celular)", placeholder="Escriba para filtrar...", key="search_lead_b2b").strip().lower()
     
     leads = lead_controller.obtener_todos_leads()
     lead_opt = ["--- Selecciona un Lead (Obligatorio) ---"]

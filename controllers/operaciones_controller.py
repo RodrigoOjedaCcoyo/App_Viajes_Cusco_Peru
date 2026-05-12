@@ -267,57 +267,115 @@ class OperacionesController:
 
     def vincular_endoses_masivos(self, id_venta: str, df_liq: pd.DataFrame):
         """
-        Vincula masivamente costos y proveedores a una venta basándose en el 'Dia'.
-        df_liq debe tener: ['Dia', 'Tipo de Servicio', 'Proveedor', 'Moneda', 'Costo Unitario', 'Pax']
+        Vincula masivamente costos y proveedores a una venta con Mapeo Inteligente.
+        Distribuye los servicios del Excel entre los servicios disponibles de la venta.
         """
         resultados = {"exitos": 0, "errores": []}
         
         try:
+            # 1. Cargar proveedores activos para mapeo de nombres
             res_p = self.client.table('proveedor').select('id_proveedor, nombre_comercial').eq('activo', True).execute()
             mapa_prov = {str(p['nombre_comercial']).strip().upper(): p['id_proveedor'] for p in res_p.data}
         except Exception as e:
             return {"exitos": 0, "errores": [f"Error al cargar proveedores: {str(e)}"]}
 
         try:
-            res_s = self.client.table('venta_tour').select('n_linea, id_itinerario_dia_index').eq('id_venta', id_venta).execute()
-            mapa_servicios = {}
+            # 2. Obtener todos los servicios de la venta con su descripción para el Smart Match
+            res_s = self.client.table('venta_tour').select('n_linea, id_itinerario_dia_index, observacion').eq('id_venta', id_venta).execute()
+            
+            # Agrupar servicios por día
+            servicios_por_dia = {}
             for s in res_s.data:
                 dia = s.get('id_itinerario_dia_index')
                 if dia:
-                    if dia not in mapa_servicios: mapa_servicios[dia] = []
-                    mapa_servicios[dia].append(s['n_linea'])
+                    if dia not in servicios_por_dia: servicios_por_dia[dia] = []
+                    servicios_por_dia[dia].append(s)
+            
+            if not servicios_por_dia:
+                return {"exitos": 0, "errores": ["No se encontró itinerario sincronizado para esta venta. Sincronice primero."]}
+                
         except Exception as e:
             return {"exitos": 0, "errores": [f"Error al obtener servicios de la venta: {str(e)}"]}
 
-        # PASO 1.5: Ya no borramos masivamente para no perder los costos ingresados por otra persona.
-        # El sistema usará UPSERT basado en (id_venta, n_linea, tipo_servicio).
-        pass
+        # Diccionario para rastrear qué (n_linea, tipo) ya hemos usado en esta carga
+        # Esto evita que dos filas de 'TICKET' en el Excel se amontonen en el mismo n_linea si hay otros disponibles
+        usados_en_carga = set()
 
-        # PASO 2: Inserción de Nuevos Servicios
+        # Keywords para Smart Match (Mapeo por palabras clave)
+        keywords_map = {
+            "INCARAIL": ["TREN", "INCA", "TRAIN"],
+            "PERURAIL": ["TREN", "PERU", "TRAIN"],
+            "CONSETTUR": ["BUS", "SUBIDA", "CONSETTUR", "MAPI"],
+            "FENIX": ["HOTEL", "ALOJAMIENTO", "FENIX", "FENIX MACHUPICCHU"],
+            "RESTAURANTE": ["ALMUERZO", "CENA", "BUFFET", "COMIDA"],
+            "GUIA": ["GUIA", "GUIDE", "JOSE"],
+            "COSITUC": ["CITY", "BOLETO", "TURISTICO", "GENERAL"],
+            "SALINERAS": ["MARAS", "MORAY", "SALINERAS"]
+        }
+
+        # 3. Procesar filas del Excel
         for idx, row in df_liq.iterrows():
             try:
+                # Limpieza de datos del Excel
                 dia_excel = int(row.get('Dia', 0))
-                prov_nombre = str(row.get('Proveedor', '')).strip().upper()
+                prov_nombre_raw = str(row.get('Proveedor', '')).strip()
+                prov_nombre_up = prov_nombre_raw.upper()
+                tipo = str(row.get('Tipo de Servicio', 'ENDOSE')).strip().upper()
                 costo_unit = float(row.get('Costo Unitario', 0)) if not pd.isna(row.get('Costo Unitario')) else 0
                 pax = int(float(row.get('Pax', 1))) if not pd.isna(row.get('Pax')) else 1
-                tipo = str(row.get('Tipo de Servicio', 'ENDOSE')).strip().upper()
                 moneda = str(row.get('Moneda', 'USD')).strip().upper() if not pd.isna(row.get('Moneda')) else "USD"
 
-                id_prov = mapa_prov.get(prov_nombre)
+                # Buscar ID del proveedor
+                id_prov = mapa_prov.get(prov_nombre_up)
                 if not id_prov:
-                    resultados["errores"].append(f"Fila {idx+1}: Proveedor '{prov_nombre}' no encontrado.")
+                    resultados["errores"].append(f"Fila {idx+1}: Proveedor '{prov_nombre_raw}' no encontrado en el Directorio.")
                     continue
 
-                n_lineas_disponibles = mapa_servicios.get(dia_excel)
-                if not n_lineas_disponibles:
-                    resultados["errores"].append(f"Fila {idx+1}: No se encontró el Día {dia_excel} en esta venta.")
+                servicios_dia = servicios_por_dia.get(dia_excel, [])
+                if not servicios_dia:
+                    resultados["errores"].append(f"Fila {idx+1}: El Día {dia_excel} no existe en el itinerario de esta venta.")
                     continue
                 
-                # Consumir la PRIMERA línea (n_linea) asociada a este día como "Ancla"
-                # Múltiples servicios del mismo día compartirán esta misma n_linea (permitido por UNIQUE constraint)
-                nl = n_lineas_disponibles[0]
+                # --- LÓGICA DE SMART MATCH (Encontrar el servicio correcto) ---
+                target_service = None
                 
-                # Extraer campos adicionales para actualizar la base de datos maestra (venta_tour)
+                # Intento 1: Coincidencia por palabras clave en la descripción
+                for s in servicios_dia:
+                    obs = str(s.get('observacion', '')).upper()
+                    # Si el nombre del proveedor está en la descripción (ej: "TREN INCARAIL")
+                    if prov_nombre_up in obs:
+                        target_service = s
+                        break
+                    # O si alguna keyword del proveedor coincide
+                    for p_key, kws in keywords_map.items():
+                        if p_key in prov_nombre_up:
+                            if any(kw in obs for kw in kws):
+                                target_service = s
+                                break
+                    if target_service: break
+
+                # Intento 2: Si no hubo match, buscar por "Tipo de Servicio" en la descripción
+                if not target_service:
+                    for s in servicios_dia:
+                        if tipo in str(s.get('observacion', '')).upper():
+                            target_service = s
+                            break
+
+                # Intento 3: Si aún no hay match, usar el primero disponible para ese día/tipo que no hayamos usado aún
+                if not target_service:
+                    for s in servicios_dia:
+                        key_check = (s['n_linea'], tipo)
+                        if key_check not in usados_en_carga:
+                            target_service = s
+                            break
+                    # Fallback final: primer servicio del día
+                    if not target_service:
+                        target_service = servicios_dia[0]
+
+                nl = target_service['n_linea']
+                usados_en_carga.add((nl, tipo))
+
+                # Extraer campos adicionales
                 hora_excel = row.get('Hora')
                 obs_excel = row.get('Observacion')
                 guia_excel = row.get('Nombre del Guia')
@@ -351,20 +409,29 @@ class OperacionesController:
                                     except: continue
                         except: pass
 
+                    # Usamos UPSERT basado en (id_venta, n_linea, tipo_servicio, id_proveedor)
+                    # Nota: Si el tipo y proveedor son iguales en el mismo n_linea, se sobreescribe.
                     self.client.table('venta_servicio_proveedor').upsert(data_ins).execute()
                     
-                    # --- ACTUALIZACIÓN DE VENTA_TOUR (SOLO COSTOS) ---
-                    update_data = {"costo_unitario": (costo_unit * float(pax))}
+                    # --- ACTUALIZACIÓN DE VENTA_TOUR (COSTO ACUMULADO) ---
+                    # Para evitar el error de sobreescritura de costos totales, sumamos los costos de este n_linea
+                    res_tot = self.client.table('venta_servicio_proveedor').select('costo_unitario, cantidad_pax, moneda').eq('id_venta', id_venta).eq('n_linea', nl).execute()
                     
+                    total_n_linea = 0
+                    for c in res_tot.data:
+                        # Simplificación: sumamos directo (mejoraría con TC si son monedas mixtas)
+                        total_n_linea += (float(c['costo_unitario'] or 0) * float(c['cantidad_pax'] or 1))
+
+                    update_data = {"costo_unitario": total_n_linea}
                     if tipo == "ENDOSE":
                         update_data["es_endoso"] = True
                     
                     self.client.table('venta_tour').update(update_data).eq('id_venta', id_venta).eq('n_linea', nl).execute()
                     resultados["exitos"] += 1
                 except Exception as e:
-                    resultados["errores"].append(f"Fila {idx+1}: Error DB al guardar Día {dia_excel}, Línea {nl}: {str(e)}")
+                    resultados["errores"].append(f"Fila {idx+1}: Error al guardar en DB: {str(e)}")
             except Exception as e:
-                resultados["errores"].append(f"Fila {idx+1}: Error formato: {str(e)}")
+                resultados["errores"].append(f"Fila {idx+1}: Error de formato o datos: {str(e)}")
 
         return resultados
 
