@@ -573,13 +573,16 @@ def registro_ventas_proveedores(supabase_client):
                     if num_dias_str: def_f_fin = def_f_inicio + timedelta(days=int(num_dias_str) - 1)
                 except: pass
             
-            # Cálculo de Pax Robusto
+            # --- CÁLCULO DE PAX ROBUSTO ---
             if render.get('control_interno'):
                 def_cant_pax = int(render['control_interno'].get('total_pasajeros') or render['control_interno'].get('total_pax') or 1)
             elif render.get('detalle_ingresos'):
                 def_cant_pax = sum(int(d.get('cantidad', 0)) for d in render['detalle_ingresos'])
             else:
                 def_cant_pax = int(render.get('cantidad_pax') or render.get('pax_count') or 1)
+
+            # Sincronizar con el widget del formulario
+            st.session_state['b2b_pax_v2'] = def_cant_pax
 
             # --- INICIALIZACIÓN DE VARIABLES PARA AUTO-COMPLETADO ---
             items_extraidos = []
