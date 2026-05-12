@@ -409,28 +409,27 @@ class OperacionesController:
                                     except: continue
                         except: pass
 
-                    # --- LÓGICA DE GUARDADO INTELIGENTE ---
-                    # Buscamos si YA EXISTE esta combinación exacta de (Venta, Línea, Tipo, Proveedor)
-                    # para actualizarla en lugar de crear una nueva, pero permitiendo que coexistan
-                    # diferentes proveedores para el mismo tipo y línea.
+                    # --- LÓGICA DE GUARDADO INTELIGENTE (BYPASS UNIQUE CONSTRAINT) ---
+                    # Para permitir múltiples "TICKET" en un mismo servicio, hacemos que el tipo sea único
+                    # añadiendo el nombre del proveedor al tipo si es necesario.
+                    tipo_unico = f"{tipo} ({prov_nombre_raw})"
+                    
+                    data_ins["tipo_servicio"] = tipo_unico
+
                     res_check = self.client.table('venta_servicio_proveedor') \
                         .select('id') \
                         .eq('id_venta', id_venta) \
                         .eq('n_linea', nl) \
-                        .eq('tipo_servicio', tipo) \
-                        .eq('id_proveedor', id_prov) \
+                        .eq('tipo_servicio', tipo_unico) \
                         .execute()
 
                     if res_check.data:
-                        # Si existe, actualizamos ese ID específico
                         id_reg = res_check.data[0]['id']
                         self.client.table('venta_servicio_proveedor').update(data_ins).eq('id', id_reg).execute()
                     else:
-                        # Si no existe, insertamos uno nuevo
                         self.client.table('venta_servicio_proveedor').insert(data_ins).execute()
                     
                     # --- ACTUALIZACIÓN DE VENTA_TOUR (COSTO ACUMULADO) ---
-                    # Sumamos todos los costos vinculados a este n_linea (pueden ser varios proveedores)
                     res_tot = self.client.table('venta_servicio_proveedor') \
                         .select('costo_unitario, cantidad_pax') \
                         .eq('id_venta', id_venta) \
@@ -439,12 +438,10 @@ class OperacionesController:
                     
                     total_n_linea = 0
                     for c in (res_tot.data or []):
-                        c_u = float(c.get('costo_unitario', 0) or 0)
-                        c_p = float(c.get('cantidad_pax', 1) or 1)
-                        total_n_linea += (c_u * c_p)
+                        total_n_linea += (float(c.get('costo_unitario', 0) or 0) * float(c.get('cantidad_pax', 1) or 1))
 
                     update_data = {"costo_unitario": total_n_linea}
-                    if tipo == "ENDOSE":
+                    if "ENDOSE" in tipo_unico.upper():
                         update_data["es_endoso"] = True
                     
                     self.client.table('venta_tour').update(update_data).eq('id_venta', id_venta).eq('n_linea', nl).execute()
