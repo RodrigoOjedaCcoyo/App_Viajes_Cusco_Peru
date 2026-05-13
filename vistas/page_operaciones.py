@@ -1256,12 +1256,12 @@ def dashboard_simulador_costos(controller):
                 st.write("**Previsualización de datos a cargar:**")
                 st.dataframe(df_preview, use_container_width=True, hide_index=True)
                 
-                # Validar columnas (Mínimo requerido para Operaciones)
-                cols_req = ["Dia", "Tipo de Servicio", "Proveedor"]
-                if all(c in df_preview.columns for c in cols_req):
+                    # --- CONFIGURACIÓN DE TIPO DE CAMBIO PARA LA CARGA ---
+                    tc_carga = st.number_input("💱 Tipo de Cambio para esta Carga (USD -> PEN):", min_value=0.0, value=3.80, format="%.3f", help="Se usará para convertir costos si la moneda del proveedor es distinta a la de la venta.")
+                    
                     if st.button("📦 Procesar y Guardar Endoses en DB", type="primary", use_container_width=True):
                         # Llamar al controlador (estamos en dashboard_simulador_costos(controller))
-                        res_bulk = controller.vincular_endoses_masivos(st.session_state['last_loaded_id_venta'], df_preview)
+                        res_bulk = controller.vincular_endoses_masivos(st.session_state['last_loaded_id_venta'], df_preview, tc_manual=tc_carga)
                         
                         if res_bulk['exitos'] > 0:
                             st.success(f"✅ Se vincularon {res_bulk['exitos']} registros correctamente.")
@@ -1369,6 +1369,7 @@ def dashboard_simulador_costos(controller):
                     c_unit = float(l.get('costo_unitario', 0))
                     pax = float(l.get('cantidad_pax') or l.get('cantidad_items') or 1)
                     l['PAX'] = int(pax)
+                    l['TC'] = l.get('tipo_cambio') or tc_v
                     l['TOTAL (PEN)'] = (c_unit * pax) * tc_v if l.get('moneda') == 'USD' else (c_unit * pax)
                     
                     # ICONO DE ESTADO
@@ -1381,7 +1382,7 @@ def dashboard_simulador_costos(controller):
                 cols_visible = [
                     'Estado', 'terminado', 
                     'Estado Contrato', 'contratado', 'F. Contratación',
-                    'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'F. Confirmación', 'Resp. Contrato', 'Observacion', 'moneda', 'costo_unitario', 'PAX', 'TOTAL (PEN)'
+                    'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'F. Confirmación', 'Resp. Contrato', 'Observacion', 'moneda', 'costo_unitario', 'PAX', 'TC', 'TOTAL (PEN)'
                 ]
                 
                 # 2. Renderizar Editor de Datos
@@ -1398,6 +1399,7 @@ def dashboard_simulador_costos(controller):
                         "Tipo de Servicio": st.column_config.TextColumn("Tipo de Servicio", width="medium"),
                         "Proveedor": st.column_config.TextColumn("Proveedor", width="medium"),
                         "Guía": st.column_config.TextColumn("Guía", width="medium"),
+                        "TC": st.column_config.NumberColumn("TC", format="%.3f", width="small"),
                         "F. Confirmación": st.column_config.DateColumn("Confirmación", width="small"),
                         "Resp. Contrato": st.column_config.TextColumn("Resp. Contrato", width="medium"),
                         "Observacion": st.column_config.TextColumn("Observación", width="large"),

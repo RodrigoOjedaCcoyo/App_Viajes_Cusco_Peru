@@ -265,7 +265,7 @@ class OperacionesController:
             print(f"Error dashboard operaciones: {e}")
             return []
 
-    def vincular_endoses_masivos(self, id_venta: str, df_liq: pd.DataFrame):
+    def vincular_endoses_masivos(self, id_venta: str, df_liq: pd.DataFrame, tc_manual: float = 3.80):
         """
         Vincula masivamente costos y proveedores a una venta con Mapeo Inteligente.
         Distribuye los servicios del Excel entre los servicios disponibles de la venta.
@@ -273,6 +273,10 @@ class OperacionesController:
         resultados = {"exitos": 0, "errores": []}
         
         try:
+            # 0. Obtener moneda de la venta para normalización
+            res_v = self.client.table('venta').select('moneda').eq('id_venta', id_venta).single().execute()
+            moneda_v = (res_v.data or {}).get('moneda', 'USD')
+
             # 1. Cargar proveedores activos para mapeo de nombres
             res_p = self.client.table('proveedor').select('id_proveedor, nombre_comercial').eq('activo', True).execute()
             mapa_prov = {str(p['nombre_comercial']).strip().upper(): p['id_proveedor'] for p in res_p.data}
@@ -431,14 +435,25 @@ class OperacionesController:
                     
                     # --- ACTUALIZACIÓN DE VENTA_TOUR (COSTO ACUMULADO) ---
                     res_tot = self.client.table('venta_servicio_proveedor') \
-                        .select('costo_unitario, cantidad_pax') \
+                        .select('costo_unitario, cantidad_pax, moneda') \
                         .eq('id_venta', id_venta) \
                         .eq('n_linea', nl) \
                         .execute()
                     
                     total_n_linea = 0
                     for c in (res_tot.data or []):
-                        total_n_linea += (float(c.get('costo_unitario', 0) or 0) * float(c.get('cantidad_pax', 1) or 1))
+                        c_u = float(c.get('costo_unitario', 0) or 0)
+                        c_p = float(c.get('cantidad_pax', 1) or 1)
+                        c_m = c.get('moneda', 'USD')
+
+                        # Normalizar a la moneda de la venta (moneda_v)
+                        if c_m != moneda_v:
+                            if c_m == 'USD' and moneda_v == 'PEN':
+                                c_u = c_u * tc_manual
+                            elif c_m == 'PEN' and moneda_v == 'USD':
+                                c_u = c_u / tc_manual
+                        
+                        total_n_linea += (c_u * c_p)
 
                     update_data = {"costo_unitario": total_n_linea}
                     if "ENDOSE" in tipo_unico.upper():
