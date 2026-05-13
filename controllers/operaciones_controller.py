@@ -394,6 +394,7 @@ class OperacionesController:
                         "costo_unitario": costo_unit,
                         "moneda": moneda,
                         "cantidad_pax": pax,
+                        "tipo_cambio": tc_manual,
                         "hora_servicio": str(hora_excel).strip() if not pd.isna(hora_excel) else None,
                         "observacion": str(obs_excel).strip() if not pd.isna(obs_excel) else None,
                         "nombre_guia": str(guia_excel).strip() if not pd.isna(guia_excel) else None
