@@ -130,7 +130,9 @@ class VentaController:
                                   correo: Optional[str] = None,
                                   contacto_emergencia_nombre: Optional[str] = None,
                                   contacto_emergencia_tel: Optional[str] = None,
-                                  comentarios: Optional[str] = None
+                                  comentarios: Optional[str] = None,
+                                  enviar_correo: bool = True,
+                                  adjuntos: Optional[dict] = None
                                   ) -> tuple[bool, str]:
         """Registra una venta proveniente de una agencia externa (B2B)."""
         try:
@@ -167,6 +169,17 @@ class VentaController:
             res_id = self.model.create_venta(venta_data)
             
             if res_id:
+                # 2. Enviar Notificación por Correo (B2B)
+                if enviar_correo:
+                    try:
+                        from utils.email_helper import enviar_notificacion_venta_async
+                        venta_data['id_venta'] = res_id
+                        # Ajustar moneda por defecto si no viene
+                        venta_data['moneda'] = venta_data.get('moneda', 'PEN')
+                        enviar_notificacion_venta_async(venta_data, adjuntos)
+                    except Exception as e_mail:
+                        print(f"Error enviando correo B2B: {e_mail}")
+
                 return True, f"Venta B2B de {nombre_proveedor} registrada éxito (ID: {res_id})"
             return False, "No se pudo registrar la venta en la base de datos."
             

@@ -26,15 +26,20 @@ def _enviar_correo_worker(venta_data, adjuntos=None):
 
         smtp_conf = st.secrets["smtp"]
         server_host = smtp_conf["server"]
-        port = smtp_conf["port"]
+        port = int(smtp_conf["port"])
         user = smtp_conf["user"]
         password = smtp_conf["password"]
-        destinatarios = smtp_conf["destination"].split(",")
+        destinatarios = [d.strip() for d in smtp_conf["destination"].split(",")]
 
         # 2. Crear el mensaje
         msg = MIMEMultipart()
         msg['From'] = user
         msg['To'] = ", ".join(destinatarios)
+        
+        # Asegurar moneda para evitar errores de formato
+        if not venta_data.get('moneda'):
+            venta_data['moneda'] = 'PEN'
+
         # Limpiar nombre del vendedor si es un correo
         vendedor_nombre = venta_data.get('vendedor', 'Desconocido')
         if "@" in vendedor_nombre:

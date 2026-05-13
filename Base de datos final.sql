@@ -298,6 +298,7 @@
       costo_unitario DECIMAL(10,2) NOT NULL,
       moneda VARCHAR(10) DEFAULT 'USD',
       cantidad_pax INTEGER DEFAULT 1,
+      tipo_cambio DECIMAL(8,4) DEFAULT 3.80,
       hora_servicio TEXT,
       observacion TEXT,
       nombre_guia TEXT,

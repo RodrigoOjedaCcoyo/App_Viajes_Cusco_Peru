@@ -708,45 +708,54 @@ def registro_ventas_directa():
             elif monto_total <= 0:
                 st.error("❌ El Monto Total debe ser mayor a 0.")
             else:
-                if btn_preview:
-                    exito = True
-                    try:
-                        res_id = venta_controller.client.table('venta').select('id_venta').order('id_venta', desc=True).limit(1).execute()
-                        next_id = (res_id.data[0]['id_venta'] + 1) if res_id.data else 1
-                        id_venta_nuevo = str(next_id)
-                    except Exception as e:
-                        st.error(f"Error interno (Vista Previa ID): {e}")
-                        id_venta_nuevo = "0"
-                    msg = "Voucher generado para vista previa."
-                    st.info("ℹ️ Generando voucher en modo vista previa (no se guardará la venta ni se enviará notificación automática).")
+                # --- SEGURO DE DOBLE ENVÍO ---
+                # Evitamos que Streamlit ejecute esto dos veces por el rerun automático
+                lock_key = f"last_sale_{nombre}_{tel}_{monto_total}"
+                if st.session_state.get('last_processed_sale') == lock_key:
+                    st.warning("⚠️ Esta venta ya ha sido procesada.")
                 else:
-                    exito, msg, id_venta_nuevo = venta_controller.registrar_venta_directa(
-                    nombre_cliente=nombre,
-                    telefono=tel,
-                    origen="Directo",
-                    vendedor=vendedor_actual, 
-                    tour=id_paquete,
-                    tipo_hotel="Estándar", 
-                    fecha_inicio=fecha_inicio_sel.isoformat(),
-                    fecha_fin=fecha_fin_sel.isoformat(),
-                    monto_total=monto_total,
-                    monto_depositado=monto_pagado,
-                    tipo_comprobante=tipo_comp,
-                    moneda=moneda_sel,
-                    tipo_cambio=tipo_cambio,
-                    id_itinerario_digital=id_itinerario_dig if id_itinerario_dig else None,
-                    id_lead=id_lead_seleccionado or id_lead_from_itinerario,
-                    items_ingreso=items_ingreso if items_ingreso else None,
-                    metodo_pago=metodo_pago,
-                    cantidad_pax=int(cantidad_pax),
-                    comentarios=comentarios_op,
-                    vuelo_internacional=vuelo_int,
-                    correo=correo_cli,
-                    contacto_emergencia_nombre=cont_nom,
-                    contacto_emergencia_tel=cont_tel,
-                    enviar_correo=enviar_notif,
-                    adjuntos={f.name: f.getvalue() for f in archivos_adjuntos} if archivos_adjuntos else None
-                )
+                    if btn_preview:
+                        exito = True
+                        try:
+                            res_id = venta_controller.client.table('venta').select('id_venta').order('id_venta', desc=True).limit(1).execute()
+                            next_id = (res_id.data[0]['id_venta'] + 1) if res_id.data else 1
+                            id_venta_nuevo = str(next_id)
+                        except Exception as e:
+                            st.error(f"Error interno (Vista Previa ID): {e}")
+                            id_venta_nuevo = "0"
+                        msg = "Voucher generado para vista previa."
+                        st.info("ℹ️ Generando voucher en modo vista previa (no se guardará la venta ni se enviará notificación automática).")
+                    else:
+                        # Marcar como procesada ANTES de disparar el proceso pesado
+                        st.session_state['last_processed_sale'] = lock_key
+                        
+                        exito, msg, id_venta_nuevo = venta_controller.registrar_venta_directa(
+                            nombre_cliente=nombre,
+                            telefono=tel,
+                            origen="Directo",
+                            vendedor=vendedor_actual, 
+                            tour=id_paquete,
+                            tipo_hotel="Estándar", 
+                            fecha_inicio=fecha_inicio_sel.isoformat(),
+                            fecha_fin=fecha_fin_sel.isoformat(),
+                            monto_total=monto_total,
+                            monto_depositado=monto_pagado,
+                            tipo_comprobante=tipo_comp,
+                            moneda=moneda_sel,
+                            tipo_cambio=tipo_cambio,
+                            id_itinerario_digital=id_itinerario_dig if id_itinerario_dig else None,
+                            id_lead=id_lead_seleccionado or id_lead_from_itinerario,
+                            items_ingreso=items_ingreso if items_ingreso else None,
+                            metodo_pago=metodo_pago,
+                            cantidad_pax=int(cantidad_pax),
+                            comentarios=comentarios_op,
+                            vuelo_internacional=vuelo_int,
+                            correo=correo_cli,
+                            contacto_emergencia_nombre=cont_nom,
+                            contacto_emergencia_tel=cont_tel,
+                            enviar_correo=enviar_notif,
+                            adjuntos={f.name: f.getvalue() for f in archivos_adjuntos} if archivos_adjuntos else None
+                        )
                 
                 if exito:
                     # --- Generar Voucher PDF (datos temporales, no se guardan en DB) ---

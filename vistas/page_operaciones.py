@@ -864,6 +864,11 @@ def registro_ventas_proveedores(supabase_client):
         cont_tel = col_log2.text_input("Teléfono del Contacto de Emergencia", placeholder="+51 999 888 777")
 
         comentarios_op = st.text_area("🗒️ Comentarios para Operaciones", placeholder="Ej: Pasajero alérgico, requiere recojo puntual, etc.", key="coment_op_b2b")
+        
+        st.markdown("##### 📧 Notificaciones y Adjuntos B2B")
+        c_not_b1, c_not_b2 = st.columns([1, 1])
+        enviar_notif_b2b = c_not_b1.checkbox("Enviar Resumen por Correo Corporativo", value=True, help="Envía un resumen de la venta B2B a los correos de gerencia y reservas.")
+        archivos_adjuntos_b2b = c_not_b2.file_uploader("Adjuntar Comprobantes o Fotos", accept_multiple_files=True, help="Opcional: Estas imágenes se enviarán como adjuntos en el correo.", key="uploader_b2b")
 
         st.divider()
         submitted = st.form_submit_button("✅ REGISTRAR VENTA B2B Y NOTIFICAR", use_container_width=True, type="primary")
@@ -899,7 +904,9 @@ def registro_ventas_proveedores(supabase_client):
                     correo=correo_cli,
                     contacto_emergencia_nombre=cont_nom,
                     contacto_emergencia_tel=cont_tel,
-                    comentarios=comentarios_op
+                    comentarios=comentarios_op,
+                    enviar_correo=enviar_notif_b2b,
+                    adjuntos={f.name: f.getvalue() for f in archivos_adjuntos_b2b} if archivos_adjuntos_b2b else None
                 )
                 
                 if exito:
