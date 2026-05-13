@@ -419,23 +419,87 @@ def estructurador_liquidacion_pro(controller):
                         render_itinerary_simple_download(render_data)
                         st.markdown("---")
                         render_operational_master_download_acc(controller, v_act['id_venta'])
+            
+            # --- TABLA DE LIQUIDACIÓN (EDITABLE - INTELIGENCIA DE GERENCIA) ---
+            st.markdown("---")
+            res_v_meta = vc.client.table('venta').select('moneda, tipo_cambio').eq('id_venta', v_act['id_venta']).single().execute()
+            v_meta = res_v_meta.data or {"moneda": "USD", "tipo_cambio": 3.8}
+            tc_v = float(v_meta.get('tipo_cambio') or 3.8)
+            
+            from controllers.operaciones_controller import OperacionesController
+            op_ctrl = OperacionesController(vc.client)
+            liq_data = op_ctrl.get_liquidaciones_venta(v_act['id_venta'])
+            
+            if liq_data:
+                display_data = []
+                for l in liq_data:
+                    l['Dia'] = l.get('n_linea')
+                    l['Hora'] = l.get('hora_servicio') or "---"
+                    l['Tipo de Servicio'] = l.get('tipo_servicio', '---')
+                    l['Proveedor'] = l.get('proveedor', {}).get('nombre_comercial') if l.get('proveedor') else "---"
+                    l['Guía'] = l.get('nombre_guia', '---')
+                    l['F. Confirmación'] = l.get('fecha_confirmacion', '---')
+                    l['Observacion'] = l.get('observacion', '---')
+                    
+                    c_u = float(l.get('costo_unitario', 0))
+                    p = float(l.get('cantidad_pax') or 1)
+                    l['moneda'] = l.get('moneda', 'USD')
+                    l['costo_unitario'] = c_u
+                    l['PAX'] = int(p)
+                    l['TOTAL (PEN)'] = (c_u * p) * tc_v if l['moneda'] == 'USD' else (c_u * p)
+                    l['Estado'] = "🟢 OK" if l.get('terminado') else "🔴 PENDIENTE"
+                    display_data.append(l)
 
-    df = pd.DataFrame(st.session_state['simulador_contable_adv_data'])
-    if not df.empty:
-        df.sort_values(by='FECHA', inplace=True)
-        col_costo = 'COSTO_PEN'
-        st.dataframe(
-            df,
-            column_order=["FECHA", "HORA", "ESTADO", "SERVICIO", "PAX", col_costo],
-            column_config={
-                "FECHA"    : st.column_config.DateColumn("Fecha", format="DD/MM/YYYY"),
-                "COSTO_PEN": st.column_config.NumberColumn("Costo (S/.)", format="S/ %.2f"),
-            },
-            use_container_width=True,
-            hide_index=True
-        )
-        t_costos = df[col_costo].sum()
-        st.metric("COSTO TOTAL EN SOLES", f"S/ {t_costos:,.2f}")
+                df_edit = pd.DataFrame(display_data)
+                cols_visible = ['Estado', 'terminado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'F. Confirmación', 'Observacion', 'moneda', 'costo_unitario', 'PAX', 'TOTAL (PEN)']
+                
+                edited_result = st.data_editor(
+                    df_edit[cols_visible],
+                    column_config={
+                        "Estado": st.column_config.TextColumn("Status", width="small"),
+                        "terminado": st.column_config.CheckboxColumn("OK", help="Cerrar Servicio"),
+                        "Guía": st.column_config.TextColumn("Guía"),
+                        "moneda": st.column_config.SelectboxColumn("Moneda", options=["USD", "PEN", "EUR"]),
+                        "costo_unitario": st.column_config.NumberColumn("Costo Unit.", format="%.2f"),
+                        "PAX": st.column_config.NumberColumn("Pax"),
+                        "TOTAL (PEN)": st.column_config.NumberColumn("Total (S/.)", format="S/. %.2f")
+                    },
+                    disabled=['Estado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'F. Confirmación', 'Observacion', 'TOTAL (PEN)'],
+                    hide_index=True,
+                    use_container_width=True,
+                    key="editor_liq_contabilidad"
+                )
+
+                if "editor_liq_contabilidad" in st.session_state:
+                    state = st.session_state.editor_liq_contabilidad
+                    cambios = state.get("edited_rows", {})
+                    if cambios:
+                        st.warning(f"⚠️ {len(cambios)} cambios financieros pendientes de guardar.")
+                        if st.button("💾 Guardar Cambios en Liquidación", type="primary", use_container_width=True):
+                            exitos = 0
+                            for row_idx, changes in cambios.items():
+                                reg_id = df_edit.iloc[row_idx]['id']
+                                mapping = {"moneda": "moneda", "costo_unitario": "costo_unitario", "PAX": "cantidad_pax", "terminado": "terminado"}
+                                db_changes = {mapping[k]: v for k, v in changes.items() if k in mapping}
+                                
+                                if changes.get('terminado') is True:
+                                    db_changes['fecha_confirmacion'] = date.today().isoformat()
+                                elif changes.get('terminado') is False:
+                                    db_changes['fecha_confirmacion'] = None
+
+                                if db_changes:
+                                    res_up, _ = op_ctrl.actualizar_campos_liquidacion(reg_id, db_changes)
+                                    if res_up: exitos += 1
+                            if exitos > 0:
+                                st.success(f"✅ Se actualizaron {exitos} registros de costos.")
+                                st.rerun()
+
+                t_costos = df_edit['TOTAL (PEN)'].sum() if not df_edit.empty else 0.0
+                st.divider()
+                st.metric("COSTO TOTAL EN SOLES (PROYECTADO)", f"S/ {t_costos:,.2f}")
+                st.info("💡 Contabilidad ahora tiene permisos de edición sobre los costos y monedas de cada servicio.")
+            else:
+                st.info("No hay servicios registrados para esta venta.")
 
 from controllers.venta_controller import VentaController
 
