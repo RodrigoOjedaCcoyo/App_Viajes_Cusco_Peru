@@ -33,6 +33,22 @@ class PagoOperativoController:
         }
         return self.model.registrar_pago(data)
 
+    def actualizar_pago_operativo(self, id_pago_op: int, campos: dict):
+        """Actualiza un pago existente y retorna éxito/error."""
+        try:
+            self.client.table('pago_operativo').update(campos).eq('id_pago_op', id_pago_op).execute()
+            return True, "Pago actualizado correctamente."
+        except Exception as e:
+            return False, f"Error al actualizar pago: {e}"
+
+    def eliminar_pago_operativo(self, id_pago_op: int):
+        """Elimina un pago operativo."""
+        try:
+            self.client.table('pago_operativo').delete().eq('id_pago_op', id_pago_op).execute()
+            return True, "Pago eliminado correctamente."
+        except Exception as e:
+            return False, f"Error al eliminar pago: {e}"
+
     def obtener_historial_pagos_proveedor(self, id_proveedor: int):
         """Retorna un DataFrame con el historial de pagos a un proveedor."""
         pagos = self.model.obtener_pagos_por_proveedor(id_proveedor)

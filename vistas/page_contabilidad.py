@@ -62,75 +62,6 @@ def render_operational_master_download_acc(controller, id_venta):
     op_ctrl = OperacionesController(controller.client)
     render_operational_master_download(op_ctrl, id_venta, label="📊 Generar Informe Maestro", key=f"acc_master_dl_{id_venta}")
 
-def redundat_old_function_to_be_removed(controller, id_venta):
-    from datetime import date
-    
-    xl_ctrl = ExcelController()
-    op_ctrl = OperacionesController(controller.client)
-    
-    # Generar el reporte maestro con toda la data junta
-    if st.button("📊 Generar Informe Maestro (Operaciones + Contabilidad)", type="primary", use_container_width=True):
-        with st.spinner("Compilando Reporte Maestro..."):
-            try:
-                # fallback: Obtener toda la data necesaria aquí mismo
-                res_v = controller.client.table('venta').select('*, cliente(nombre, lead(numero_celular))').eq('id_venta', id_venta).single().execute()
-                if not res_v.data:
-                    st.error("No se pudo recuperar la información de la venta.")
-                    return
-                    
-                v_raw = res_v.data
-                cliente_nest = v_raw.get('cliente', {})
-                lead_nest = cliente_nest.get('lead', {}) if isinstance(cliente_nest, dict) else {}
-                
-                v_data = {
-                    "id_venta": v_raw['id_venta'],
-                    "nombre_cliente": cliente_nest.get('nombre', 'Desconocido') if isinstance(cliente_nest, dict) else 'Desconocido',
-                    "telefono": lead_nest.get('numero_celular', '---') if isinstance(lead_nest, dict) else '---',
-                    "tour_nombre": v_raw.get('tour_nombre', 'Sin Tour'),
-                    "fecha_inicio": v_raw.get('fecha_inicio'),
-                    "fecha_fin": v_raw.get('fecha_fin'),
-                    "num_pasajeros": v_raw.get('num_pasajeros', 1),
-                    "vendedor": "---", 
-                    "moneda": v_raw.get('moneda', 'USD'),
-                    "monto_total": v_raw.get('precio_total_cierre', 0),
-                    "monto_pagado": 0 
-                }
-
-                # 2. Calcular Pagos
-                res_p = controller.client.table('pago').select('monto_pagado').eq('id_venta', id_venta).execute()
-                v_data['monto_pagado'] = sum(float(p['monto_pagado'] or 0) for p in res_p.data)
-
-                # 3. Obtener Itinerario Logístico (Usando métodos estables del controller)
-                itinerario = op_ctrl.get_servicios_rango_fechas(date(2000,1,1), date(2100,1,1))
-                it_venta = [s for s in itinerario if s['ID Venta'] == id_venta]
-
-                # 4. Obtener Pasajeros
-                pasajeros = op_ctrl.pasajero_model.get_by_venta_id(id_venta)
-
-                # 5. Obtener Liquidación Detallada (Costos)
-                liquidaciones = op_ctrl.get_liquidaciones_venta(id_venta)
-
-                data_maestra = {
-                    "venta": v_data,
-                    "itinerario": it_venta,
-                    "pasajeros": pasajeros,
-                    "liquidaciones": liquidaciones
-                }
-
-                xlsx_maestro = xl_ctrl.generar_hoja_servicio_maestra_xlsx(data_maestra)
-                
-                if xlsx_maestro:
-                    st.download_button(
-                        label="✅ ¡Reporte Listo! Haz clic para Descargar",
-                        data=xlsx_maestro,
-                        file_name=f"MAESTRO_{id_venta}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True
-                    )
-                    st.success("Reporte generado. Recuerda que contiene: Resumen Financiero, Logística, Liquidaciones y Rooming List.")
-            except Exception as e:
-                st.error(f"Error generando Hoja de Servicio: {e}")
-
 def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, supabase_client=None):
     if supabase_client:
         st.session_state['reporte_controller'] = ReporteController(supabase_client)
@@ -325,7 +256,6 @@ def dashboard_pagos_operativos(supabase_client):
                     observaciones_contables=obs_cont
                 )
 
-                
                 if exito:
                     st.success(f"✅ Pago de {moneda_pago} {monto_pago:,.2f} registrado con éxito.")
                     st.balloons()
@@ -333,13 +263,62 @@ def dashboard_pagos_operativos(supabase_client):
                 else:
                     st.error("No se pudo registrar el pago. Verifique los campos.")
 
-    # 3. Historial de Pagos (Recientes)
-    with st.expander("🔎 Historial de Pagos Recientes"):
+    # 3. Historial de Pagos (Recientes con Edición)
+    with st.expander("🔎 Historial de Pagos Recientes (Editar/Borrar)"):
         if prov_sel != "--- Seleccione ---":
             st.write(f"Historial para **{prov_sel}**:")
             df_hist = po_ctrl.obtener_historial_pagos_proveedor(mapa_prov[prov_sel])
             if not df_hist.empty:
-                st.dataframe(df_hist, use_container_width=True, hide_index=True)
+                # Columnas visibles y editables
+                cols_ed = ['id_pago_op', 'Fecha', 'Monto', 'Moneda', 'TC', 'Abono Eq.', 'Metodo', 'Notas', 'Obs. Contables', 'Voucher']
+                
+                df_hist['Borrar'] = False
+                
+                edited_hist = st.data_editor(
+                    df_hist[['Borrar'] + cols_ed],
+                    column_config={
+                        "id_pago_op": st.column_config.TextColumn("ID", width="small", disabled=True),
+                        "Borrar": st.column_config.CheckboxColumn("❌", width="small"),
+                        "Abono Eq.": st.column_config.NumberColumn("Descuento Deuda", format="%.2f", disabled=True),
+                        "Fecha": st.column_config.DateColumn("Fecha"),
+                        "Monto": st.column_config.NumberColumn("Monto", format="%.2f"),
+                        "Moneda": st.column_config.SelectboxColumn("Moneda", options=["USD", "PEN", "EUR"]),
+                        "Metodo": st.column_config.SelectboxColumn("Método", options=["YAPE", "PLIN", "TRANSFERENCIA", "EFECTIVO", "OTRO"]),
+                        "TC": st.column_config.NumberColumn("TC", format="%.4f")
+                    },
+                    hide_index=True,
+                    use_container_width=True,
+                    key=f"editor_hist_prov_{id_prov}"
+                )
+
+                if st.button("💾 Aplicar Cambios en Historial de Proveedor", key=f"btn_save_hist_{id_prov}", use_container_width=True):
+                    # 1. Procesar Borrados
+                    borrados = edited_hist[edited_hist['Borrar'] == True]
+                    for _, row in borrados.iterrows():
+                        po_ctrl.eliminar_pago_operativo(row['id_pago_op'])
+                    
+                    # 2. Procesar Ediciones
+                    state = st.session_state.get(f"editor_hist_prov_{id_prov}", {})
+                    edits = state.get("edited_rows", {})
+                    for idx, changes in edits.items():
+                        if edited_hist.iloc[idx]['Borrar']: continue
+                        reg_id = edited_hist.iloc[idx]['id_pago_op']
+                        mapping = {
+                            "Fecha": "fecha_pago",
+                            "Monto": "monto_pagado",
+                            "Moneda": "moneda",
+                            "Metodo": "metodo_pago",
+                            "TC": "tasa_cambio",
+                            "Notas": "observaciones",
+                            "Obs. Contables": "observaciones_contables",
+                            "Voucher": "comprobante_url"
+                        }
+                        db_changes = {mapping[k]: (v.isoformat() if hasattr(v, 'isoformat') else v) for k, v in changes.items() if k in mapping}
+                        if db_changes:
+                            po_ctrl.actualizar_pago_operativo(reg_id, db_changes)
+                    
+                    st.success("✅ Cambios aplicados.")
+                    st.rerun()
             else:
                 st.caption("No se encontraron pagos anteriores para este proveedor.")
         else:
@@ -348,18 +327,13 @@ def dashboard_pagos_operativos(supabase_client):
 def estructurador_liquidacion_pro(controller):
     """
     Herramienta avanzada para estructurar liquidaciones (Versión Contabilidad).
-    Permite cargar ventas y asignar costos/proveedores directamente.
     """
     from datetime import date
     st.subheader("📊 Estructurador de Liquidación Profesional", divider='rainbow')
 
-    # Inicializar datos en el estado
     if 'simulador_contable_adv_data' not in st.session_state:
         st.session_state['simulador_contable_adv_data'] = []
 
-    st.info("💡 Selecciona la venta para cargar su desglose de servicios e itinerario.")
-    
-    # Barra de ventas
     from controllers.venta_controller import VentaController
     vc = VentaController(controller.client)
     
@@ -388,36 +362,22 @@ def estructurador_liquidacion_pro(controller):
         if p_sel != "--- Seleccione ---":
             v_act = mapa_v.get(p_sel)
             
-            # Solo cargar si ha cambiado la venta
             if st.session_state.get('last_loaded_id_venta_acc') != v_act['id_venta']:
                 from controllers.operaciones_controller import OperacionesController
                 op_ctrl = OperacionesController(controller.client)
                 
                 detalles = vc.obtener_detalles_itinerario_venta(v_act['id_venta'])
-                # Obtener liquidaciones reales para sumar los costos
                 liquidaciones = op_ctrl.get_liquidaciones_venta(v_act['id_venta'])
                 
-                # ==============================================================
-                # LÓGICA DE CONVERSIÓN DEFINITIVA (corregida)
-                # El problema era: 100 USD + 20 USD + 100 PEN = 220 (mezcla incorrecta)
-                # La solución: convertir CADA liquidación a PEN usando su propio
-                # campo moneda_costo (que SÍ está guardado correctamente en
-                # venta_servicio_proveedor) ANTES de sumar por n_linea.
-                # ==============================================================
                 tc_venta = float(v_act.get('tipo_cambio') or 3.70)
-
-                # Sumar costos por n_linea, convirtiendo cada fila a PEN individualmente
                 mapa_costos_pen = {}
                 for liq in liquidaciones:
                     nl = liq.get('n_linea')
                     if nl is not None:
-                        costo_liq    = float(liq.get('costo_unitario') or 0.0)
-                        # CAMPO CORRECTO: en venta_servicio_proveedor la columna es 'moneda' (no 'moneda_costo')
-                        moneda_liq   = (liq.get('moneda') or 'PEN').strip().upper()
-                        # Convertir a PEN si es USD
+                        costo_liq = float(liq.get('costo_unitario') or 0.0)
+                        moneda_liq = (liq.get('moneda') or 'PEN').strip().upper()
                         costo_en_pen = round(costo_liq * tc_venta, 4) if moneda_liq == 'USD' else costo_liq
                         
-                        # NUEVO: Guardar taveitn de estado para la vista
                         if nl not in mapa_costos_pen:
                             mapa_costos_pen[nl] = {"total": 0.0, "confirmados": 0.0, "vistos": 0}
                         
@@ -444,384 +404,135 @@ def estructurador_liquidacion_pro(controller):
                     })
 
                 st.session_state['simulador_contable_adv_data'] = filas
-                st.session_state['tc_venta_acc']             = tc_venta
-                st.session_state['es_usd_acc']               = False  # ya convertido, no re-convertir
+                st.session_state['tc_venta_acc'] = tc_venta
+                st.session_state['es_usd_acc'] = False
                 st.session_state['last_loaded_id_venta_acc'] = v_act['id_venta']
-                # No hacemos st.rerun() aquí porque causa un bucle infinito al renderizar la tabla de corrido
 
-            # --- 📥 AUDITORÍA DE ITINERARIO (BOTÓN DE DESCARGA) ---
             id_it_dig = v_act.get('id_itinerario_digital')
             if id_it_dig:
                 with st.expander("📄 Ver Itinerario Original para Auditoría", expanded=False):
                     res_it = controller.client.table('itinerario_digital').select('datos_render').eq('id_itinerario_digital', id_it_dig).single().execute()
                     if res_it.data:
+                        import json
                         render_data = res_it.data['datos_render']
-                        if isinstance(render_data, str):
-                            import json
-                            render_data = json.loads(render_data)
-                        
-                        # --- ENRIQUECIMIENTO ---
-                        if isinstance(render_data, dict):
-                            render_data['fecha_inicio'] = v_act.get('fecha_inicio') or render_data.get('fecha_inicio')
-                            render_data['fecha_fin'] = v_act.get('fecha_fin') or render_data.get('fecha_fin')
-                            render_data['titulo'] = v_act.get('tour_nombre') or render_data.get('titulo')
-                            render_data['nombre_pasajero'] = v_act.get('cliente_nombre') or render_data.get('nombre_pasajero')
-                            render_data['cliente_telefono'] = v_act.get('telefono') or ""
-                            render_data['num_pasajeros'] = v_act.get('num_pasajeros') or v_act.get('adultos', 1)
-                            render_data['num_ninos'] = v_act.get('ninos') or 0
-                            
-                            live_tours = vc.obtener_detalles_itinerario_venta(v_act['id_venta'])
-                            if live_tours:
-                                itin_list = render_data.get('itinerario_detalles') or render_data.get('days') or []
-                                if isinstance(itin_list, list):
-                                    for i, t_live in enumerate(live_tours):
-                                        if i < len(itin_list) and isinstance(itin_list[i], dict):
-                                            itin_list[i]['fecha'] = t_live.get('fecha_servicio') or itin_list[i].get('fecha')
-                                    render_data['itinerario_detalles'] = itin_list
-
+                        if isinstance(render_data, str): render_data = json.loads(render_data)
                         render_itinerary_simple_download(render_data)
                         st.markdown("---")
                         render_operational_master_download_acc(controller, v_act['id_venta'])
-            else:
-                st.caption("Esta venta no tiene un itinerario digital vinculado.")
 
-    # Editor estilo Excel
     df = pd.DataFrame(st.session_state['simulador_contable_adv_data'])
-    if not df.empty and 'FECHA' in df.columns:
+    if not df.empty:
         df.sort_values(by='FECHA', inplace=True)
-
-    tc_usado = st.session_state.get('tc_venta_acc', 3.70)
-    es_usd   = st.session_state.get('es_usd_acc', False)
-
-    # Nota informativa de moneda
-    if es_usd:
-        st.caption(f"💱 Venta en **USD** · TC aplicado: 1 USD = S/ {tc_usado:.4f} · Costos convertidos a Soles.")
-    elif not df.empty:
-        st.caption("🇵🇪 Venta en **Soles (PEN)** · Los costos se muestran tal cual, sin conversión.")
-
-    # Columna de costo según esquema activo
-    col_costo = 'COSTO_PEN' if 'COSTO_PEN' in df.columns else ('TOTAL_PEN' if 'TOTAL_PEN' in df.columns else 'TOTAL')
-
-    # Vista de solo lectura unificada en S/.
-    cols_orden = [c for c in ("FECHA", "HORA", "ESTADO", "SERVICIO", "PAX", col_costo) if c in df.columns]
-    st.dataframe(
-        df,
-        column_order=cols_orden,
-        column_config={
-            "FECHA"    : st.column_config.DateColumn("Fecha", format="DD/MM/YYYY"),
-            "HORA"     : st.column_config.TextColumn("Hora", width="small"),
-            "ESTADO"   : st.column_config.TextColumn("Conf. Op", width="small"),
-            "SERVICIO" : st.column_config.TextColumn("Servicio", width="large"),
-            "PAX"      : st.column_config.NumberColumn("Pax", format="%d"),
-            "COSTO_PEN": st.column_config.NumberColumn("Costo (S/.)", format="S/ %.2f"),
-            "TOTAL_PEN": st.column_config.NumberColumn("Costo (S/.)", format="S/ %.2f"),
-            "TOTAL"    : st.column_config.NumberColumn("Costo (S/.)", format="S/ %.2f"),
-        },
-        use_container_width=True,
-        hide_index=True
-    )
-
-    # Total en Soles
-    t_costos = df[col_costo].sum() if not df.empty and col_costo in df.columns else 0.0
-    st.divider()
-    st.metric("COSTO TOTAL EN SOLES", f"S/ {t_costos:,.2f}")
-    st.info("💡 Vista de auditoría — solo lectura. Todos los costos expresados en Soles (S/.).")
+        col_costo = 'COSTO_PEN'
+        st.dataframe(
+            df,
+            column_order=["FECHA", "HORA", "ESTADO", "SERVICIO", "PAX", col_costo],
+            column_config={
+                "FECHA"    : st.column_config.DateColumn("Fecha", format="DD/MM/YYYY"),
+                "COSTO_PEN": st.column_config.NumberColumn("Costo (S/.)", format="S/ %.2f"),
+            },
+            use_container_width=True,
+            hide_index=True
+        )
+        t_costos = df[col_costo].sum()
+        st.metric("COSTO TOTAL EN SOLES", f"S/ {t_costos:,.2f}")
 
 from controllers.venta_controller import VentaController
 
 def herramienta_carga_masiva_pagos(supabase_client, key_suffix=""):
-    """Herramienta compartida para carga masiva de pagos desde Excel."""
     st.markdown("### 📥 Carga Masiva de Pagos (Excel)")
-    
     tipo_import = st.selectbox("1️⃣ Tipo:", ["B2B (Agencias)", "B2C (Directas)"], key=f"sel_tipo_import_{key_suffix}")
-    st.info(f"Importando pagos para ventas tipo: **{tipo_import}**")
-
+    
     with st.expander("📁 Subir Archivo y Plantilla", expanded=True):
-        st.markdown("""
-        Descargue la plantilla, complete los datos y suba el archivo. 
-        Asegúrese de que el **ID Venta** sea válido en el sistema.
-        """)
-        
-        # 1. Crear plantilla en memoria
-        template_df = pd.DataFrame(columns=[
-            "ID Venta", "Fecha", "Monto", "Moneda", "Metodo", "Tipo", "Comprobante", "TC"
-        ])
-        
+        template_df = pd.DataFrame(columns=["ID Venta", "Fecha", "Monto", "Moneda", "Metodo", "Tipo", "Comprobante", "TC", "Obs. Contables"])
         output = io.BytesIO()
-        try:
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                template_df.to_excel(writer, index=False, sheet_name='PlantillaPagos')
-            processed_data = output.getvalue()
-            
-            st.download_button(
-                label="📄 Descargar Plantilla Excel",
-                data=processed_data,
-                file_name="plantilla_pagos_masivos.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key=f"dl_btn_{key_suffix}",
-                use_container_width=True
-            )
-        except Exception as e:
-            st.error(f"Error al generar plantilla: {e}")
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            template_df.to_excel(writer, index=False, sheet_name='PlantillaPagos')
         
-        st.divider()
-        
-        uploaded_file = st.file_uploader("Subir Excel de Pagos:", type=["xlsx", "xls", "csv"], key=f"uploader_pagos_{key_suffix}")
+        st.download_button(label="📄 Descargar Plantilla Excel", data=output.getvalue(), file_name="plantilla_pagos.xlsx", use_container_width=True)
+        uploaded_file = st.file_uploader("Subir Excel de Pagos:", type=["xlsx", "csv"], key=f"uploader_pagos_{key_suffix}")
         
         if uploaded_file:
-            try:
-                if uploaded_file.name.endswith('.csv'):
-                    df_upload = pd.read_csv(uploaded_file)
-                else:
-                    df_upload = pd.read_excel(uploaded_file)
-                
-                st.write("### 🔍 Previsualización de Datos:")
-                st.dataframe(df_upload, use_container_width=True, hide_index=True)
-                
-                if st.button("🧧 Procesar y Registrar Todo", type="primary", use_container_width=True, key=f"btn_proc_{key_suffix}"):
-                    with st.spinner("Registrando pagos en el sistema..."):
-                        vc = VentaController(supabase_client)
-                        resultado = vc.vincular_pagos_masivos(df_upload)
-                        
-                        if resultado["exitos"] > 0:
-                            st.success(f"✅ Se registraron {resultado['exitos']} pagos exitosamente.")
-                        
-                        if resultado["errores"]:
-                            with st.expander("⚠️ Ver Detalles de Errores"):
-                                for err in resultado["errores"]:
-                                    st.error(err)
-                        
-                        if resultado["exitos"] > 0:
-                            st.balloons()
-                            st.rerun()
-                            
-            except Exception as e:
-                st.error(f"Error al leer/procesar el archivo: {e}")
+            df_upload = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
+            st.dataframe(df_upload, use_container_width=True, hide_index=True)
+            if st.button("🧧 Procesar y Registrar Todo", type="primary", use_container_width=True, key=f"btn_proc_{key_suffix}"):
+                vc = VentaController(supabase_client)
+                resultado = vc.vincular_pagos_masivos(df_upload)
+                if resultado["exitos"] > 0: st.success(f"✅ Se registraron {resultado['exitos']} pagos.")
+                if resultado["errores"]:
+                    with st.expander("⚠️ Ver Errores"):
+                        for err in resultado["errores"]: st.error(err)
+                st.rerun()
 
 def dashboard_cuentas_por_cobrar_unified(supabase_client):
-    """Dashboard unificado para controlar deudas (B2B y B2C)."""
     st.subheader("💰 Cuentas por Cobrar", divider='orange')
-    
-    # 1. Herramienta de Carga Masiva (Siempre visible arriba)
     herramienta_carga_masiva_pagos(supabase_client, "unified")
     st.divider()
 
-    # 2. Selector de Contexto
-    tipo_vista = st.radio(
-        "Seleccione el tipo de cobro a gestionar:",
-        ["💎 B2B (Agencias)", "👤 B2C (Directas)"],
-        horizontal=True,
-        key="sb_tipo_cobro_unified"
-    )
-
+    tipo_vista = st.radio("Seleccione el tipo de cobro:", ["💎 B2B (Agencias)", "👤 B2C (Directas)"], horizontal=True)
     vc = VentaController(supabase_client)
-    from controllers.excel_controller import ExcelController
-    exc_ctrl = ExcelController()
 
     if "B2B" in tipo_vista:
-        # Lógica B2B
         ventas = vc.obtener_todas_ventas_b2b()
-        if not ventas:
-            st.info("No hay ventas B2B registradas.")
-            return
-
-        ids_ventas = [v['id_venta'] for v in ventas]
-        pagos = supabase_client.table('pago').select('id_venta, monto_moneda_venta').in_('id_venta', ids_ventas).execute().data
-        
-        mapa_pagos = {}
-        for p in pagos:
-            pid = p['id_venta']
-            mapa_pagos[pid] = mapa_pagos.get(pid, 0) + (p['monto_moneda_venta'] or 0)
-
-        data_agencias = {}
-        lista_detalle = []
-        for v in ventas:
-            id_agencia = v.get('id_agencia_aliada')
-            nombre_agencia = v.get('nombre_agencia', 'Sin Nombre')
-            moneda = v.get('moneda', 'USD')
-            monto = float(v.get('precio_total_cierre') or 0)
-            pagado = float(mapa_pagos.get(v['id_venta'], 0))
-            saldo = monto - pagado
-            
-            if id_agencia not in data_agencias:
-                data_agencias[id_agencia] = {'Nombre': nombre_agencia, 'Total Ventas': 0.0, 'Cobrado': 0.0, 'Por Cobrar': 0.0, 'Count': 0, 'Moneda': moneda}
-            
-            data_agencias[id_agencia]['Total Ventas'] += monto
-            data_agencias[id_agencia]['Cobrado'] += pagado
-            data_agencias[id_agencia]['Por Cobrar'] += saldo
-            data_agencias[id_agencia]['Count'] += 1
-            
-            lista_detalle.append({
-                'Agencia': nombre_agencia,
-                'Pasajero': v.get('nombre_cliente'),
-                'Fecha Venta': v.get('fecha_venta'),
-                f'Total ({moneda})': monto,
-                f'A Cuenta ({moneda})': pagado,
-                f'Saldo ({moneda})': saldo,
-                'Estado': '✅ PAGADO' if saldo <= 0.1 else '🔴 DEBE'
-            })
-            
-        total_deuda = sum(d['Por Cobrar'] for d in data_agencias.values())
-        c1, c2 = st.columns(2)
-        c1.metric("Total por Cobrar Agencias", f"${total_deuda:,.2f}")
-        c2.metric("Agencias con Deuda", len([d for d in data_agencias.values() if d['Por Cobrar'] > 1]))
-
-        # Botón Excel B2B
-        df_detalle_rep = pd.DataFrame(lista_detalle)
-        if not df_detalle_rep.empty:
-            try:
-                reporte_xlsx = exc_ctrl.generar_reporte_cuentas_cobrar_xlsx(df_detalle_rep)
-                st.download_button(
-                    label="📊 Descargar Informe de Cuentas B2B (Excel)",
-                    data=reporte_xlsx,
-                    file_name=f"reporte_cuentas_b2b_{date.today()}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True,
-                    key="btn_dl_b2b_unified"
-                )
-            except Exception as e:
-                st.error(f"Error: {e}")
-
-        st.write("### 🏢 Resumen por Agencia")
-        df_ag = pd.DataFrame(data_agencias.values())
-        if not df_ag.empty:
-            st.dataframe(df_ag, hide_index=True, use_container_width=True)
-
-        with st.expander("🔎 Ver Detalle Individual"):
-            st.dataframe(df_detalle_rep, use_container_width=True, hide_index=True)
-
     else:
-        # Lógica B2C
         ventas = vc.obtener_ventas_directas()
-        if not ventas:
-            st.info("No hay ventas B2C con saldo pendiente.")
-            return
 
-        ids_ventas = [v['id_venta'] for v in ventas]
-        # Obtener todos los pagos vinculados a estas ventas para calcular el saldo REAL en moneda de la venta
-        pagos = supabase_client.table('pago').select('id_venta, monto_moneda_venta').in_('id_venta', ids_ventas).execute().data
-        
-        mapa_pagos = {}
-        for p in pagos:
-            pid = p['id_venta']
-            # Usamos monto_moneda_venta para que el saldo siempre sea en la moneda original de la venta
-            mapa_pagos[pid] = mapa_pagos.get(pid, 0) + (p['monto_moneda_venta'] or 0)
+    if not ventas:
+        st.info("No hay ventas registradas.")
+        return
 
-        lista_detalle = []
-        for v in ventas:
-            monto = float(v.get('precio_total_cierre') or 0)
-            pagado = float(mapa_pagos.get(v['id_venta'], 0))
-            saldo = monto - pagado
-            mon = v.get('moneda', '$')
-            
-            lista_detalle.append({
-                'ID Venta': v['id_venta'],
-                'Cliente': v.get('nombre_cliente'),
-                'Fecha': v.get('fecha_venta'),
-                f'Total ({mon})': monto,
-                f'Pagado ({mon})': pagado,
-                f'Saldo ({mon})': saldo,
-                'Estado': '✅ PAGADO' if saldo <= 0.1 else '🔴 DEBE'
-            })
-        
-        df_b2c = pd.DataFrame(lista_detalle)
-        # Nota: La suma total solo es válida si todas las ventas están en la misma moneda (usualmente USD)
-        total_deuda = 0
-        if not df_b2c.empty:
-            # Buscar la columna de Saldo dinámicamente
-            saldo_col = [c for c in df_b2c.columns if 'Saldo' in c]
-            if saldo_col: total_deuda = df_b2c[saldo_col[0]].sum()
+    ids_v = [v['id_venta'] for v in ventas]
+    pagos = supabase_client.table('pago').select('id_venta, monto_moneda_venta').in_('id_venta', ids_v).execute().data
+    mapa_p = {}
+    for p in pagos: mapa_p[p['id_venta']] = mapa_p.get(p['id_venta'], 0) + (p['monto_moneda_venta'] or 0)
 
-        c1, c2 = st.columns(2)
-        c1.metric("Total por Cobrar Directos", f"$ {total_deuda:,.2f}")
-        c2.metric("Clientes con Deuda", len(df_b2c[df_b2c.iloc[:, 5] > 1]) if not df_b2c.empty else 0)
+    lista_detalle = []
+    for v in ventas:
+        monto = float(v.get('precio_total_cierre') or 0)
+        pagado = float(mapa_p.get(v['id_venta'], 0))
+        saldo = monto - pagado
+        lista_detalle.append({
+            'ID Venta': v['id_venta'],
+            'Cliente': v.get('nombre_cliente') or v.get('nombre_agencia'),
+            'Total': monto,
+            'Pagado': pagado,
+            'Saldo': saldo,
+            'Moneda': v.get('moneda', 'USD')
+        })
 
-        # Botón Excel B2C
-        if not df_b2c.empty:
-            try:
-                reporte_xlsx = exc_ctrl.generar_reporte_cuentas_cobrar_xlsx(df_b2c)
-                st.download_button(
-                    label="📊 Descargar Informe de Cuentas B2C (Excel)",
-                    data=reporte_xlsx,
-                    file_name=f"reporte_cuentas_b2c_{date.today()}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True,
-                    key="btn_dl_b2c_unified"
-                )
-            except Exception as e:
-                st.error(f"Error: {e}")
+    df_cobros = pd.DataFrame(lista_detalle)
+    st.dataframe(df_cobros, use_container_width=True, hide_index=True)
 
-        st.write("### 📋 Detalle de Saldos Directos")
-        st.dataframe(df_b2c, hide_index=True, use_container_width=True)
-
-    # 3. Formulario de Pago Manual (Común al final)
     st.divider()
     with st.expander("➕ Registrar Nuevo Abono / Pago Manual", expanded=False):
-        st.write("Selecciona una venta con saldo pendiente para registrar un abono.")
-        
-        todas_v = vc.obtener_todas_ventas_b2b() + vc.obtener_ventas_directas()
-        ids_v_all = [v['id_venta'] for v in todas_v]
-        p_all = supabase_client.table('pago').select('id_venta, monto_moneda_venta').in_('id_venta', ids_v_all).execute().data
-        m_p = {}
-        for p in p_all:
-            m_p[p['id_venta']] = m_p.get(p['id_venta'], 0) + (p['monto_moneda_venta'] or 0)
-
-        v_deuda = [v for v in todas_v if (float(v.get('precio_total_cierre') or 0) - float(m_p.get(v['id_venta'], 0))) > 0.1]
-        
-        if not v_deuda:
-            st.success("No hay deudas pendientes.")
-        else:
-            # Crear un mapa para búsqueda rápida de moneda
-            mapa_monedas = {v['id_venta']: v.get('moneda', 'USD') for v in v_deuda}
-            opc = [f"{v['id_venta']} | {v.get('nombre_cliente') or v.get('nombre_agencia')} (Saldo: {v.get('moneda', 'USD')} {float(v.get('precio_total_cierre') or 0) - float(m_p.get(v['id_venta'], 0)):.2f})" for v in v_deuda]
-            sel_v = st.selectbox("Seleccione Venta:", opc, key="sel_v_pago_manual_unified")
+        sel_v = st.selectbox("Seleccione Venta:", [f"{v['ID Venta']} | {v['Cliente']} (Saldo: {v['Saldo']:.2f})" for v in lista_detalle if v['Saldo'] > 0.1])
+        if sel_v:
+            id_v = int(sel_v.split(" | ")[0])
+            c1, c2, c3 = st.columns(3)
+            monto_p = c1.number_input("Monto:", min_value=1.0)
+            moneda_p = c2.selectbox("Moneda:", ["USD", "PEN", "EUR"])
+            fecha_p = c3.date_input("Fecha:", date.today())
+            obs_cont = st.text_input("Observaciones Contables:", key="obs_cont_manual")
             
-            if sel_v:
-                id_v = int(sel_v.split(" | ")[0])
-                moneda_venta = mapa_monedas.get(id_v, 'USD')
-                
-                c1, c2, c3 = st.columns(3)
-                monto_p = c1.number_input("Monto Recibido:", min_value=1.0, step=10.0)
-                moneda_p = c2.selectbox("Moneda del Pago:", ["USD", "PEN", "EUR"], index=0 if moneda_venta == "USD" else 1)
-                fecha_p = c3.date_input("Fecha de Pago:", date.today())
-                
-                obs_cont_acc = st.text_input("Observaciones Contables:", placeholder="Uso exclusivo contabilidad", key="obs_cont_acc_manual")
-                
-                # Inteligencia de Tipo de Cambio
-                tasa_cambio = 1.0
-                if moneda_p != moneda_venta:
-                    st.warning(f"⚠️ **Atención**: Estás recibiendo {moneda_p} para una deuda en {moneda_venta}. Se requiere Tipo de Cambio.")
-                    col_tc1, col_tc2 = st.columns(2)
-                    tc_sugerido = 1.0
-                    from services.exchange_service import ExchangeService
-                    if moneda_p == "PEN" and moneda_venta == "USD": 
-                        tc_sugerido = ExchangeService.get_current_tc()
-                    elif moneda_p == "USD" and moneda_venta == "PEN":
-                        tc_sugerido = 1 / ExchangeService.get_current_tc()
-                    
-                    tasa_cambio = col_tc1.number_input(f"TC ({moneda_p} a {moneda_venta}):", min_value=0.01, value=float(tc_sugerido), format="%.4f")
-                    monto_equiv = round(monto_p / tasa_cambio, 2)
-                    col_tc2.metric(f"Equivale en {moneda_venta}:", f"{monto_equiv:,.2f}")
+            if st.button("🚀 Registrar Pago", type="primary", use_container_width=True):
+                exito, msg = vc.registrar_pago(id_venta=id_v, monto_pagado=monto_p, moneda_pago=moneda_p, tasa_cambio=3.7, fecha_pago=fecha_p.isoformat(), metodo="TRANSFERENCIA", tipo_pago="ABONO", observaciones_contables=obs_cont)
+                if exito: st.success(msg); st.rerun()
+                else: st.error(msg)
 
-                c4, c5 = st.columns(2)
-                metodo_p = c4.selectbox("Método:", ["TRANSFERENCIA", "EFECTIVO", "YAPE/PLIN", "TARJETA", "DEPÓSITO"])
-                tipo_p = c5.selectbox("Tipo:", ["PARCIAL", "SALDO", "TOTAL", "ADELANTO"])
+            # --- Historial Editable ---
+            st.markdown("#### 🔎 Historial de Pagos de esta Venta")
+            pagos_v = vc.obtener_pagos_venta(id_v)
+            if pagos_v:
+                df_p = pd.DataFrame(pagos_v)
+                df_p['Borrar'] = False
+                cols_p = ['id_pago', 'fecha_pago', 'monto_pagado', 'moneda', 'metodo_pago', 'tipo_pago', 'observaciones_contables']
+                edited_p = st.data_editor(df_p[['Borrar'] + cols_p], key=f"edit_p_{id_v}", hide_index=True, use_container_width=True)
                 
-                if st.button("🚀 Registrar Pago Ahora", type="primary", use_container_width=True, key="btn_reg_pago_unified"):
-                    exito, msg = vc.registrar_pago(
-                        id_venta=id_v,
-                        monto_pagado=monto_p,
-                        moneda_pago=moneda_p,
-                        tasa_cambio=tasa_cambio,
-                        fecha_pago=fecha_p.isoformat(),
-                        metodo=metodo_p,
-                        tipo_pago=tipo_p,
-                        observaciones_contables=obs_cont_acc
-                    )
-                    
-                    if exito:
-                        st.success(msg)
-                        st.balloons()
-                        st.rerun()
-                    else:
-                        st.error(msg)
+                if st.button("💾 Guardar Cambios en Historial", key=f"btn_save_p_{id_v}"):
+                    for _, row in edited_p[edited_p['Borrar']].iterrows(): vc.eliminar_pago(row['id_pago'])
+                    state_p = st.session_state.get(f"edit_p_{id_v}", {}).get("edited_rows", {})
+                    for idx, ch in state_p.items():
+                        if not edited_p.iloc[idx]['Borrar']:
+                            db_ch = {k: (v.isoformat() if hasattr(v, 'isoformat') else v) for k, v in ch.items()}
+                            vc.actualizar_pago(edited_p.iloc[idx]['id_pago'], db_ch)
+                    st.success("Cambios guardados"); st.rerun()

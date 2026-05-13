@@ -636,6 +636,31 @@ class VentaController:
         
         return {"exitos": exitos, "errores": errores}
 
+    def actualizar_pago(self, id_pago: int, campos: dict) -> tuple[bool, str]:
+        """Actualiza un registro de pago de cliente."""
+        try:
+            self.client.table('pago').update(campos).eq('id_pago', id_pago).execute()
+            return True, "Pago actualizado correctamente."
+        except Exception as e:
+            return False, f"Error actualizando pago: {e}"
+
+    def eliminar_pago(self, id_pago: int) -> tuple[bool, str]:
+        """Elimina un registro de pago de cliente."""
+        try:
+            self.client.table('pago').delete().eq('id_pago', id_pago).execute()
+            return True, "Pago eliminado correctamente."
+        except Exception as e:
+            return False, f"Error eliminando pago: {e}"
+
+    def obtener_pagos_venta(self, id_venta: int) -> list[dict]:
+        """Obtiene la lista de pagos realizados para una venta."""
+        try:
+            res = self.client.table('pago').select('*').eq('id_venta', id_venta).order('fecha_pago', desc=True).execute()
+            return res.data or []
+        except Exception as e:
+            print(f"Error obteniendo pagos de venta {id_venta}: {e}")
+            return []
+
     def eliminar_venta(self, id_venta: int) -> tuple[bool, str]:
         """Elimina una venta y sus registros asociados (dependiendo de FK cascades)."""
         try:
