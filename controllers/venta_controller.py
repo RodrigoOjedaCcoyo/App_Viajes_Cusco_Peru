@@ -534,7 +534,8 @@ class VentaController:
                        fecha_pago: str, 
                        metodo: str, 
                        tipo_pago: str, 
-                       comprobante: str = "RECIBO") -> tuple[bool, str]:
+                       comprobante: str = "RECIBO",
+                       observaciones_contables: str = None) -> tuple[bool, str]:
         """Registra un pago individual manejando la conversión de moneda si es necesario."""
         try:
             # 1. Obtener la moneda de la venta
@@ -563,7 +564,8 @@ class VentaController:
                 "tipo_pago": tipo_pago,
                 "tipo_comprobante": comprobante,
                 "tasa_cambio": tasa_cambio,
-                "monto_moneda_venta": monto_equivalente
+                "monto_moneda_venta": monto_equivalente,
+                "observaciones_contables": observaciones_contables
             }
             
             # 4. Insertar
@@ -615,7 +617,8 @@ class VentaController:
                     "tipo_pago": str(row.get('Tipo') or 'ABONO').strip().upper(),
                     "tipo_comprobante": str(row.get('Comprobante') or 'RECIBO').strip().upper(),
                     "tasa_cambio": tasa_cambio,
-                    "monto_moneda_venta": monto_equivalente
+                    "monto_moneda_venta": monto_equivalente,
+                    "observaciones_contables": str(row.get('Obs. Contables') or row.get('Observaciones Contables') or '').strip() or None
                 }
                 
                 # Validaciones de enums

@@ -14,7 +14,7 @@ class PagoOperativoController:
     def registrar_pago_operativo(self, id_proveedor: int, id_venta: int, n_linea: int, 
                                 monto: float, moneda: str, tasa_cambio: float, 
                                 monto_equivalente: float, fecha: str, metodo: str, 
-                                voucher_url: str = None, notas: str = "", id_usuario: int = None):
+                                voucher_url: str = None, notas: str = "", id_usuario: int = None, observaciones_contables: str = None):
         """Prepara y registra un pago a proveedor con inteligencia multimoneda."""
         data = {
             "id_proveedor": id_proveedor,
@@ -28,6 +28,7 @@ class PagoOperativoController:
             "metodo_pago": metodo,
             "comprobante_url": voucher_url,
             "observaciones": notas,
+            "observaciones_contables": observaciones_contables,
             "id_usuario_registro": id_usuario
         }
         return self.model.registrar_pago(data)

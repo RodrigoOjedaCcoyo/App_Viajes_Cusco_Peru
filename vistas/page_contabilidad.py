@@ -300,6 +300,7 @@ def dashboard_pagos_operativos(supabase_client):
             c6, c7 = st.columns(2)
             metodo = c6.selectbox("Método de Pago:", ["YAPE", "PLIN", "TRANSFERENCIA", "EFECTIVO", "OTRO"])
             notas = c7.text_input("Observaciones / Nro Operación:", placeholder="Ej: Pago de guiado City Tour")
+            obs_cont = c7.text_input("Observaciones Contables:", placeholder="Uso exclusivo contabilidad", key="obs_cont_op")
             
             voucher = st.text_input("🔗 Link al Voucher (Opcional):", placeholder="https://supabase-storage...")
 
@@ -320,7 +321,8 @@ def dashboard_pagos_operativos(supabase_client):
                     metodo=metodo,
                     voucher_url=voucher,
                     notas=notas,
-                    id_usuario=None
+                    id_usuario=None,
+                    observaciones_contables=obs_cont
                 )
 
                 
@@ -783,6 +785,8 @@ def dashboard_cuentas_por_cobrar_unified(supabase_client):
                 moneda_p = c2.selectbox("Moneda del Pago:", ["USD", "PEN", "EUR"], index=0 if moneda_venta == "USD" else 1)
                 fecha_p = c3.date_input("Fecha de Pago:", date.today())
                 
+                obs_cont_acc = st.text_input("Observaciones Contables:", placeholder="Uso exclusivo contabilidad", key="obs_cont_acc_manual")
+                
                 # Inteligencia de Tipo de Cambio
                 tasa_cambio = 1.0
                 if moneda_p != moneda_venta:
@@ -811,7 +815,8 @@ def dashboard_cuentas_por_cobrar_unified(supabase_client):
                         tasa_cambio=tasa_cambio,
                         fecha_pago=fecha_p.isoformat(),
                         metodo=metodo_p,
-                        tipo_pago=tipo_p
+                        tipo_pago=tipo_p,
+                        observaciones_contables=obs_cont_acc
                     )
                     
                     if exito:
@@ -820,6 +825,3 @@ def dashboard_cuentas_por_cobrar_unified(supabase_client):
                         st.rerun()
                     else:
                         st.error(msg)
-
-
-
