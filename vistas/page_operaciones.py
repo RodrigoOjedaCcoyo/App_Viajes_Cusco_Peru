@@ -1256,6 +1256,9 @@ def dashboard_simulador_costos(controller):
                 st.write("**Previsualización de datos a cargar:**")
                 st.dataframe(df_preview, use_container_width=True, hide_index=True)
                 
+                # Validar columnas (Mínimo requerido para Operaciones)
+                cols_req = ["Dia", "Tipo de Servicio", "Proveedor"]
+                if all(c in df_preview.columns for c in cols_req):
                     # --- CONFIGURACIÓN DE TIPO DE CAMBIO PARA LA CARGA ---
                     tc_carga = st.number_input("💱 Tipo de Cambio para esta Carga (USD -> PEN):", min_value=0.0, value=3.80, format="%.3f", help="Se usará para convertir costos si la moneda del proveedor es distinta a la de la venta.")
                     
