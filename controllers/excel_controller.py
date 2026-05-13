@@ -251,6 +251,8 @@ class ExcelController:
             ["RESUMEN FINANCIERO", "", ""],
             ["Moneda", v.get('moneda'), "Monto Venta"],
             ["Ingreso Total", monto_venta, "RECAUDADO"],
+            ["1º Método Pago", v.get('metodo_pago_primer'), f"DEP 1: {v.get('monto_primer_deposito')}"],
+            ["2º Método Pago", v.get('metodo_pago_segundo'), f"DEP 2: {v.get('monto_segundo_deposito')}"],
             ["Costo Total", costo_total_liq, "COSTO NETO"],
             ["UTILIDAD ESTIMADA", utilidad, "MARGEN"],
             ["Rentabilidad", f"{(utilidad / monto_venta * 100):.2f}%" if monto_venta > 0 else "0%", ""],
