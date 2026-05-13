@@ -206,7 +206,7 @@ def dashboard_pagos_operativos(supabase_client):
             c3, c4, c5 = st.columns(3)
             monto_pago = c3.number_input("Monto a Entregar:", min_value=0.01, step=50.0)
             moneda_pago = c4.selectbox("Moneda del Pago:", ["PEN", "USD", "EUR"], index=0 if moneda_deuda == "PEN" else 1)
-            fecha = c5.date_input("Fecha:", date.today())
+            fecha = c5.date_input("Fecha:", date.today(), key="fecha_pago_prov_manual")
             
             # Cálculo de Equivalencia
             tasa_cambio = 1.0
@@ -511,7 +511,7 @@ def dashboard_cuentas_por_cobrar_unified(supabase_client):
             c1, c2, c3 = st.columns(3)
             monto_p = c1.number_input("Monto:", min_value=1.0)
             moneda_p = c2.selectbox("Moneda:", ["USD", "PEN", "EUR"])
-            fecha_p = c3.date_input("Fecha:", date.today())
+            fecha_p = c3.date_input("Fecha:", date.today(), key="fecha_abono_cliente_manual")
             obs_cont = st.text_input("Observaciones Contables:", key="obs_cont_manual")
             
             if st.button("🚀 Registrar Pago", type="primary", use_container_width=True):
