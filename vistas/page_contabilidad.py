@@ -615,7 +615,8 @@ def dashboard_cuentas_por_cobrar_unified(supabase_client):
                     for idx, ch in state_p.items():
                         if not edited_p.iloc[idx]['Borrar']:
                             db_ch = {k: (v.isoformat() if hasattr(v, 'isoformat') else v) for k, v in ch.items()}
-        
+                            vc.actualizar_pago(edited_p.iloc[idx]['id_pago'], db_ch)
+                    st.success("Cambios guardados"); st.rerun()
 def render_reporte_maestro_cobranzas(supabase_client):
     """
     Muestra el reporte maestro de cobranzas con pagos pivoteados (1°, 2°, 3° pago)
