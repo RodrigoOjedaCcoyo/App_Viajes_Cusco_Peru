@@ -323,12 +323,13 @@ class ExcelController:
             ws.cell(row=current_row, column=c).alignment = center_al
         current_row += 1
 
-        headers_l = ["Día", "Proveedor Real", "Tipo Servicio", "Moneda", "Costo Unit.", "Cant/Pax", "Total Línea", "Estado"]
+        headers_l = ["Día", "Proveedor Real", "Tipo Servicio", "Moneda", "Costo Unit.", "Cant/Pax", "Total Línea", "Estado", "Método Pago", "Obs. Contables"]
         for c_idx, h in enumerate(headers_l, 1):
             cell = ws.cell(row=current_row, column=c_idx, value=h)
             cell.fill = subheader_fill
             cell.font = bold_font
             cell.border = thin_border
+            cell.alignment = center_al
         current_row += 1
 
         red_font = Font(color="FF0000", bold=True) # Rojo para pendientes
@@ -352,7 +353,11 @@ class ExcelController:
             if estado_txt == "Pte":
                 cell_est.font = red_font
             
-            for c in range(1, 9): ws.cell(row=current_row, column=c).border = thin_border
+            # NUEVOS CAMPOS: Método de Pago y Observaciones Contables
+            ws.cell(row=current_row, column=9, value=l.get('metodo_pago', '---'))
+            ws.cell(row=current_row, column=10, value=l.get('observaciones_contables', '---'))
+            
+            for c in range(1, 11): ws.cell(row=current_row, column=c).border = thin_border
             current_row += 1
 
         current_row += 2 # Espacio
@@ -391,8 +396,10 @@ class ExcelController:
             current_row += 1
 
         # Anchos de columna finales
-        for col, w in zip(['A','B','C','D','E','F','G','H','I','J','K'], [18, 18, 14, 12, 14, 18, 14, 8, 10, 20, 10]):
-            ws.column_dimensions[col].width = w
+        col_letters = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N']
+        anchos = [12, 25, 20, 10, 12, 10, 14, 10, 15, 30]
+        for i, w in enumerate(anchos):
+            ws.column_dimensions[col_letters[i]].width = w
 
         output = BytesIO()
         wb.save(output)
