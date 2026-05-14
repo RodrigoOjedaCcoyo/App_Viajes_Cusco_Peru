@@ -572,13 +572,37 @@ class OperacionesController:
         Obtiene el detalle de costos (liquidación) vinculado a una venta.
         """
         try:
+            # 1. Obtener los costos/servicios
             res = (
                 self.client.table('venta_servicio_proveedor')
                 .select('*, proveedor(nombre_comercial)')
                 .eq('id_venta', id_venta)
                 .execute()
             )
-            return res.data or []
+            servicios = res.data or []
+            
+            # 2. Obtener los pagos operativos asociados a esta venta
+            res_pagos = (
+                self.client.table('pago_operativo')
+                .select('n_linea, metodo_pago, observaciones_contables')
+                .eq('id_venta', id_venta)
+                .execute()
+            )
+            pagos_map = {}
+            for p in (res_pagos.data or []):
+                nl = p.get('n_linea')
+                if nl is not None:
+                    # Si hay varios pagos, tomamos el último o consolidamos (aquí tomamos el primero encontrado por simplicidad)
+                    if nl not in pagos_map:
+                        pagos_map[nl] = p
+            
+            # 3. Cruzar datos
+            for s in servicios:
+                p_info = pagos_map.get(s['n_linea'], {})
+                s['metodo_pago'] = p_info.get('metodo_pago', '---')
+                s['observaciones_contables'] = p_info.get('observaciones_contables', '---')
+                
+            return servicios
         except Exception as e:
             print(f"Error cargando liquidaciones: {e}")
             return []
@@ -644,16 +668,52 @@ class OperacionesController:
         Actualiza campos de un registro en venta_servicio_proveedor y sincroniza con venta_tour si es costo/pax.
         """
         try:
-            res = self.client.table('venta_servicio_proveedor').update(campos).eq('id', id_registro).execute()
+            # 1. Separar campos de pago vs campos de servicio
+            campos_pago = {}
+            if 'metodo_pago' in campos: campos_pago['metodo_pago'] = campos.pop('metodo_pago')
+            if 'observaciones_contables' in campos: campos_pago['observaciones_contables'] = campos.pop('observaciones_contables')
+
+            # 2. Actualizar venta_servicio_proveedor (Costo, Pax, Moneda, Terminados)
+            if campos:
+                res = self.client.table('venta_servicio_proveedor').update(campos).eq('id', id_registro).execute()
+                
+                # Sincronización de costo total en venta_tour
+                if "costo_unitario" in campos or "cantidad_pax" in campos:
+                    if res.data:
+                        d = res.data[0]
+                        c_u = float(d.get('costo_unitario', 0))
+                        p = float(d.get('cantidad_pax', 1))
+                        self.client.table('venta_tour').update({"costo_unitario": c_u * p})\
+                            .eq('id_venta', d['id_venta']).eq('n_linea', d['n_linea']).execute()
             
-            # Sincronización de costo total en venta_tour
-            if "costo_unitario" in campos or "cantidad_pax" in campos:
-                if res.data:
-                    d = res.data[0]
-                    c_u = float(d.get('costo_unitario', 0))
-                    p = float(d.get('cantidad_pax', 1))
-                    self.client.table('venta_tour').update({"costo_unitario": c_u * p})\
-                        .eq('id_venta', d['id_venta']).eq('n_linea', d['n_linea']).execute()
+            # 3. Actualizar o crear registro en pago_operativo si hay cambios en pago
+            if campos_pago:
+                # Obtener info del servicio para saber a qué n_linea e id_proveedor pertenece
+                res_serv = self.client.table('venta_servicio_proveedor').select('id_venta, n_linea, id_proveedor, costo_unitario, cantidad_pax, moneda').eq('id', id_registro).single().execute()
+                if res_serv.data:
+                    s = res_serv.data
+                    # Buscar si ya existe un pago para este servicio
+                    res_p = self.client.table('pago_operativo').select('id_pago_op').eq('id_venta', s['id_venta']).eq('n_linea', s['n_linea']).execute()
+                    
+                    if res_p.data:
+                        # Actualizar existente
+                        id_pago = res_p.data[0]['id_pago_op']
+                        self.client.table('pago_operativo').update(campos_pago).eq('id_pago_op', id_pago).execute()
+                    else:
+                        # Crear nuevo registro de pago (monto por defecto = costo total)
+                        monto_total = float(s['costo_unitario'] or 0) * float(s['cantidad_pax'] or 1)
+                        nuevo_pago = {
+                            "id_venta": s['id_venta'],
+                            "n_linea": s['n_linea'],
+                            "id_proveedor": s['id_proveedor'],
+                            "monto_pagado": monto_total,
+                            "moneda": s['moneda'] or 'USD',
+                            "monto_en_moneda_costo": monto_total,
+                            "fecha_pago": date.today().isoformat(),
+                            "metodo_pago": campos_pago.get('metodo_pago', 'TRANSFERENCIA'),
+                            "observaciones_contables": campos_pago.get('observaciones_contables', '')
+                        }
+                        self.client.table('pago_operativo').insert(nuevo_pago).execute()
                         
             return True, "Cambios guardados."
         except Exception as e:

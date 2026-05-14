@@ -77,7 +77,8 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, su
     st.markdown("---")
     
     if funcionalidad_seleccionada in ["Gestión de Registros", "Finanzas y Caja"]:
-        tab1, tab2, tab3, tab4 = st.tabs([
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+            "📈 Reporte Maestro",
             "📊 Estructurador Financiero", 
             "💰 Cuentas por Cobrar",
             "🚐 Pagos Operativos (Proveedores)",
@@ -85,15 +86,18 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, su
         ])
         
         with tab1:
+            render_reporte_maestro_cobranzas(supabase_client)
+
+        with tab2:
             estructurador_liquidacion_pro(st.session_state['reporte_controller'])
             
-        with tab2:
+        with tab3:
             dashboard_cuentas_por_cobrar_unified(supabase_client)
             
-        with tab3:
+        with tab4:
             dashboard_pagos_operativos(supabase_client)
 
-        with tab4:
+        with tab5:
             from controllers.operaciones_controller import OperacionesController
             from vistas.page_operaciones import dashboard_tablero_diario
             ctrl_ops = OperacionesController(supabase_client)
@@ -451,20 +455,26 @@ def estructurador_liquidacion_pro(controller):
                     display_data.append(l)
 
                 df_edit = pd.DataFrame(display_data)
-                cols_visible = ['Estado', 'terminado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'F. Confirmación', 'Observacion', 'moneda', 'costo_unitario', 'PAX', 'TOTAL (PEN)']
+                cols_visible = [
+                    'Estado', 'terminado', 'Dia', 'Hora', 'Tipo de Servicio', 
+                    'Proveedor', 'Guía', 'metodo_pago', 'observaciones_contables',
+                    'Observacion', 'moneda', 'costo_unitario', 'PAX', 'TOTAL (PEN)'
+                ]
                 
                 edited_result = st.data_editor(
                     df_edit[cols_visible],
                     column_config={
                         "Estado": st.column_config.TextColumn("Status", width="small"),
                         "terminado": st.column_config.CheckboxColumn("OK", help="Cerrar Servicio"),
+                        "metodo_pago": st.column_config.SelectboxColumn("Método Pago", options=["YAPE", "PLIN", "TRANSFERENCIA", "EFECTIVO", "OTRO"]),
+                        "observaciones_contables": st.column_config.TextColumn("Obs. Contables"),
                         "Guía": st.column_config.TextColumn("Guía"),
                         "moneda": st.column_config.SelectboxColumn("Moneda", options=["USD", "PEN", "EUR"]),
                         "costo_unitario": st.column_config.NumberColumn("Costo Unit.", format="%.2f"),
                         "PAX": st.column_config.NumberColumn("Pax"),
                         "TOTAL (PEN)": st.column_config.NumberColumn("Total (S/.)", format="S/. %.2f")
                     },
-                    disabled=['Estado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'F. Confirmación', 'Observacion', 'TOTAL (PEN)'],
+                    disabled=['Estado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'Observacion', 'TOTAL (PEN)'],
                     hide_index=True,
                     use_container_width=True,
                     key="editor_liq_contabilidad"
@@ -479,7 +489,14 @@ def estructurador_liquidacion_pro(controller):
                             exitos = 0
                             for row_idx, changes in cambios.items():
                                 reg_id = df_edit.iloc[row_idx]['id']
-                                mapping = {"moneda": "moneda", "costo_unitario": "costo_unitario", "PAX": "cantidad_pax", "terminado": "terminado"}
+                                mapping = {
+                                    "moneda": "moneda", 
+                                    "costo_unitario": "costo_unitario", 
+                                    "PAX": "cantidad_pax", 
+                                    "terminado": "terminado",
+                                    "metodo_pago": "metodo_pago",
+                                    "observaciones_contables": "observaciones_contables"
+                                }
                                 db_changes = {mapping[k]: v for k, v in changes.items() if k in mapping}
                                 
                                 if changes.get('terminado') is True:
@@ -598,5 +615,125 @@ def dashboard_cuentas_por_cobrar_unified(supabase_client):
                     for idx, ch in state_p.items():
                         if not edited_p.iloc[idx]['Borrar']:
                             db_ch = {k: (v.isoformat() if hasattr(v, 'isoformat') else v) for k, v in ch.items()}
-                            vc.actualizar_pago(edited_p.iloc[idx]['id_pago'], db_ch)
-                    st.success("Cambios guardados"); st.rerun()
+        
+def render_reporte_maestro_cobranzas(supabase_client):
+    """
+    Muestra el reporte maestro de cobranzas con pagos pivoteados (1°, 2°, 3° pago)
+    """
+    st.subheader("📈 Reporte Maestro de Cobranzas (Ingresos)", divider='blue')
+    
+    from controllers.venta_controller import VentaController
+    vc = VentaController(supabase_client)
+    
+    with st.spinner("Generando reporte maestro..."):
+        # 1. Obtener todas las ventas activas (B2B y B2C)
+        res_v = supabase_client.table('venta').select('*, cliente(nombre, lead(pais_origen)), pasajero(nacionalidad, es_principal)').neq('estado_venta', 'CANCELADO').order('fecha_venta', desc=True).execute()
+        ventas = res_v.data or []
+        
+        if not ventas:
+            st.info("No hay ventas registradas para mostrar.")
+            return
+
+        # 2. Obtener todos los pagos para estas ventas
+        ids_v = [v['id_venta'] for v in ventas]
+        res_p = supabase_client.table('pago').select('*').in_('id_venta', ids_v).order('fecha_pago', desc=False).execute()
+        pagos_raw = res_p.data or []
+        
+        # Mapear pagos por venta
+        mapa_pagos_pivote = {}
+        for p in pagos_raw:
+            vid = p['id_venta']
+            if vid not in mapa_pagos_pivote:
+                mapa_pagos_pivote[vid] = []
+            mapa_pagos_pivote[vid].append(p)
+
+        # 3. Construir filas del reporte
+        data_maestra = []
+        for v in ventas:
+            # Extraer Nacionalidad (Prioridad: Pasajero Principal > Lead > 'Nacional')
+            nacionalidad = "Nacional"
+            pax_list = v.get('pasajero', [])
+            if pax_list:
+                principal = next((p for p in pax_list if p.get('es_principal')), pax_list[0])
+                nacionalidad = principal.get('nacionalidad') or "Nacional"
+            else:
+                c_info = v.get('cliente') or {}
+                l_info = c_info.get('lead') or {}
+                nacionalidad = l_info.get('pais_origen') or "Nacional"
+
+            # Datos base de la venta
+            monto_total = float(v.get('precio_total_cierre') or 0)
+            moneda = v.get('moneda', 'USD')
+            
+            fila = {
+                "ID": v['id_venta'],
+                "FECHA REG.": v['fecha_venta'],
+                "CLIENTE": v.get('cliente', {}).get('nombre', '---'),
+                "PAX": v.get('num_pasajeros', 1),
+                "NACIONALIDAD": nacionalidad,
+                "TOUR": v.get('tour_nombre', '---'),
+                "FECHA VIAJE": v.get('fecha_inicio'),
+                "MONTO TOTAL": f"{moneda} {monto_total:,.2f}",
+                "total_num": monto_total
+            }
+
+            # Pivote de Pagos (Hasta 3 pagos principales)
+            v_pagos = mapa_pagos_pivote.get(v['id_venta'], [])
+            total_pagado = 0
+            
+            for i in range(1, 4):
+                if i <= len(v_pagos):
+                    p = v_pagos[i-1]
+                    m_pagado = float(p.get('monto_moneda_venta') or 0)
+                    total_pagado += m_pagado
+                    fila[f"PAGO {i}"] = f"{moneda} {m_pagado:,.2f} ({p.get('metodo_pago', '---')})"
+                    fila[f"FECHA P{i}"] = p.get('fecha_pago')
+                else:
+                    fila[f"PAGO {i}"] = "---"
+                    fila[f"FECHA P{i}"] = "---"
+
+            # Saldo y Diferencia
+            diferencia = monto_total - total_pagado
+            fila["SALDO"] = f"{moneda} {diferencia:,.2f}"
+            fila["ESTADO"] = "🟢 SALDADO" if diferencia <= 0.1 else "🔴 PENDIENTE"
+            
+            data_maestra.append(fila)
+
+        df_maestro = pd.DataFrame(data_maestra)
+        
+        # 4. Mostrar Tabla con Configuración Premium
+        st.data_editor(
+            df_maestro,
+            column_config={
+                "ID": st.column_config.NumberColumn("ID", width="small"),
+                "ESTADO": st.column_config.TextColumn("Estado", width="medium"),
+                "MONTO TOTAL": st.column_config.TextColumn("Monto Total", width="medium"),
+                "SALDO": st.column_config.TextColumn("Diferencia", width="medium"),
+                "PAGO 1": st.column_config.TextColumn("1er Pago (Abono)", width="medium"),
+                "PAGO 2": st.column_config.TextColumn("2do Pago", width="medium"),
+                "PAGO 3": st.column_config.TextColumn("3er Pago", width="medium"),
+            },
+            hide_index=True,
+            use_container_width=True,
+            disabled=df_maestro.columns, # Solo lectura por ahora
+            key="maestro_cobranzas_editor"
+        )
+        
+        # 5. Métricas de Resumen
+        c1, c2, c3 = st.columns(3)
+        total_proyectado = sum(d['total_num'] for d in data_maestra)
+        c1.metric("Proyectado Total", f"$ {total_proyectado:,.2f}")
+        
+        # Exportar a Excel
+        import io
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df_maestro.to_excel(writer, index=False, sheet_name='ReporteMaestro')
+        
+        st.download_button(
+            label="📥 Exportar Reporte Maestro a Excel",
+            data=output.getvalue(),
+            file_name=f"reporte_maestro_cobranzas_{date.today()}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
