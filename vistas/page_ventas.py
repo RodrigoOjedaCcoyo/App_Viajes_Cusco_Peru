@@ -1122,12 +1122,17 @@ def seguimiento_ventas_vendedor():
     st.subheader("📋 Mis Ventas y Seguimiento de Itinerarios")
     st.info("Sincroniza itinerarios y envía documentos adicionales a ventas ya registradas.")
     
-    ventas = venta_controller.obtener_ventas_directas()
+    with st.spinner("Cargando todas las ventas..."):
+        # Unificar ventas directas y B2B para que aparezca todo el sistema
+        ventas = venta_controller.obtener_ventas_directas() + venta_controller.obtener_todas_ventas_b2b()
+        # Ordenar por fecha de venta (más recientes primero)
+        ventas = sorted(ventas, key=lambda x: x.get('fecha_venta', ''), reverse=True)
+
     if not ventas:
-        st.info("No tienes ventas registradas para gestionar.")
+        st.info("No hay ventas registradas en el sistema para gestionar.")
         return
         
-    for v in ventas[:10]:
+    for v in ventas:
         try:
             id_venta       = v.get('id_venta')
             nombre_cliente = v.get('nombre_cliente', 'Sin nombre')
