@@ -535,7 +535,8 @@ class VentaController:
                        metodo: str, 
                        tipo_pago: str, 
                        comprobante: str = "RECIBO",
-                       observaciones_contables: str = None) -> tuple[bool, str]:
+                       observaciones_contables: str = None,
+                       comprobante_url: str = None) -> tuple[bool, str]:
         """Registra un pago individual manejando la conversión de moneda si es necesario."""
         try:
             # 1. Obtener la moneda de la venta
@@ -555,6 +556,12 @@ class VentaController:
                 tasa_cambio = 1.0
             
             # 3. Preparar data
+            # Si viene un link de comprobante, lo concatenamos a las observaciones para no perderlo
+            obs_final = observaciones_contables or ""
+            if comprobante_url:
+                prefix = "\n🔗 VOUCHER: " if obs_final else "🔗 VOUCHER: "
+                obs_final += f"{prefix}{comprobante_url}"
+
             pago_data = {
                 "id_venta": id_venta,
                 "fecha_pago": fecha_pago,
@@ -565,7 +572,7 @@ class VentaController:
                 "tipo_comprobante": comprobante,
                 "tasa_cambio": tasa_cambio,
                 "monto_moneda_venta": monto_equivalente,
-                "observaciones_contables": observaciones_contables
+                "observaciones_contables": obs_final
             }
             
             # 4. Insertar

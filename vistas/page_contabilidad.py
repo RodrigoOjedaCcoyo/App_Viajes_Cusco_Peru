@@ -593,10 +593,26 @@ def dashboard_cuentas_por_cobrar_unified(supabase_client):
             monto_p = c1.number_input("Monto:", min_value=1.0)
             moneda_p = c2.selectbox("Moneda:", ["USD", "PEN", "EUR"])
             fecha_p = c3.date_input("Fecha:", date.today(), key="fecha_abono_cliente_manual")
+            col_p1, col_p2, col_p3 = st.columns(3)
+            tipo_comp = col_p1.selectbox("Tipo Documento:", ["RECIBO", "BOLETA", "FACTURA", "RECIBO SIMPLE"], key="tipo_comp_manual")
+            metodo_p = col_p2.selectbox("Método de Pago:", ["TRANSFERENCIA", "YAPE", "PLIN", "EFECTIVO", "OTRO"], key="metodo_pago_manual")
+            voucher_url = col_p3.text_input("🔗 Link Voucher / Nº Operación:", placeholder="https://...", key="voucher_manual")
+            
             obs_cont = st.text_input("Observaciones Contables:", key="obs_cont_manual")
             
             if st.button("🚀 Registrar Pago", type="primary", use_container_width=True):
-                exito, msg = vc.registrar_pago(id_venta=id_v, monto_pagado=monto_p, moneda_pago=moneda_p, tasa_cambio=3.7, fecha_pago=fecha_p.isoformat(), metodo="TRANSFERENCIA", tipo_pago="ABONO", observaciones_contables=obs_cont)
+                exito, msg = vc.registrar_pago(
+                    id_venta=id_v, 
+                    monto_pagado=monto_p, 
+                    moneda_pago=moneda_p, 
+                    tasa_cambio=3.7, 
+                    fecha_pago=fecha_p.isoformat(), 
+                    metodo=metodo_p, 
+                    tipo_pago="ABONO", 
+                    comprobante=tipo_comp,
+                    observaciones_contables=obs_cont,
+                    comprobante_url=voucher_url
+                )
                 if exito: st.success(msg); st.rerun()
                 else: st.error(msg)
 
@@ -606,7 +622,7 @@ def dashboard_cuentas_por_cobrar_unified(supabase_client):
             if pagos_v:
                 df_p = pd.DataFrame(pagos_v)
                 df_p['Borrar'] = False
-                cols_p = ['id_pago', 'fecha_pago', 'monto_pagado', 'moneda', 'metodo_pago', 'tipo_pago', 'observaciones_contables']
+                cols_p = ['id_pago', 'fecha_pago', 'monto_pagado', 'moneda', 'metodo_pago', 'tipo_comprobante', 'tipo_pago', 'observaciones_contables']
                 edited_p = st.data_editor(df_p[['Borrar'] + cols_p], key=f"edit_p_{id_v}", hide_index=True, use_container_width=True)
                 
                 if st.button("💾 Guardar Cambios en Historial", key=f"btn_save_p_{id_v}"):
