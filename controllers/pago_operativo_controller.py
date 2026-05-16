@@ -55,22 +55,23 @@ class PagoOperativoController:
         if not pagos:
             return pd.DataFrame()
         
-        # Aplanar para el DataFrame
+        # Aplanar para el DataFrame asegurando nombres exactos para st.data_editor
         flat_data = []
         for p in pagos:
             v_info = p.get('venta') or {}
-            monto_str = f"{p['moneda']} {p['monto_pagado']:,.2f}"
-            if p.get('tasa_cambio', 1.0) != 1.0:
-                monto_str += f" (TC: {p['tasa_cambio']})"
-                
+            
             flat_data.append({
-                "ID": p['id_pago_op'],
+                "id_pago_op": p['id_pago_op'],
                 "Fecha": p['fecha_pago'],
-                "Monto": monto_str,
-                "Abono a Deuda": p.get('monto_en_moneda_costo', p['monto_pagado']),
-                "Método": p['metodo_pago'],
+                "Monto": float(p['monto_pagado']),
+                "Moneda": p.get('moneda', 'USD'),
+                "TC": float(p.get('tasa_cambio') or 1.0),
+                "Abono Eq.": float(p.get('monto_en_moneda_costo') or p['monto_pagado']),
+                "Metodo": p['metodo_pago'],
                 "Tour/Venta": v_info.get('tour_nombre', 'Varios/General'),
-                "Notas": p['observaciones']
+                "Notas": p.get('observaciones', ''),
+                "Obs. Contables": p.get('observaciones_contables', ''),
+                "Voucher": p.get('comprobante_url', '')
             })
         return pd.DataFrame(flat_data)
 
