@@ -1418,9 +1418,10 @@ def dashboard_simulador_costos(controller):
                         "PAX": st.column_config.NumberColumn("Pax", width="small"),
                         "TOTAL (PEN)": st.column_config.NumberColumn("Costo Total (S/.)", format="S/. %.2f")
                     },
-                    disabled=['Estado', 'Estado Contrato', 'Dia', 'Tipo de Servicio', 'TOTAL (PEN)'],
+                    disabled=['Estado', 'Estado Contrato', 'TOTAL (PEN)'],
                     hide_index=True,
                     use_container_width=True,
+                    num_rows="dynamic",
                     key="editor_liq_master"
                 )
 
@@ -1428,9 +1429,10 @@ def dashboard_simulador_costos(controller):
                 if "editor_liq_master" in st.session_state:
                     state = st.session_state.editor_liq_master
                     cambios_pendientes = state.get("edited_rows", {})
+                    agregados_pendientes = state.get("added_rows", [])
                     
-                    if cambios_pendientes:
-                        st.warning(f"⚠️ Tienes {len(cambios_pendientes)} cambios pendientes de guardar.")
+                    if cambios_pendientes or agregados_pendientes:
+                        st.warning(f"⚠️ Tienes {len(cambios_pendientes)} cambios y {len(agregados_pendientes)} filas nuevas pendientes de guardar.")
                         if st.button("💾 Guardar Cambios en Operativa", type="primary", use_container_width=True):
                             exitos = 0
                             errores = []
@@ -1513,10 +1515,46 @@ def dashboard_simulador_costos(controller):
                                     exito, msg = controller.actualizar_campos_liquidacion(reg_id, db_changes)
                                     if exito: exitos += 1
                                     else: errores.append(f"Error en fila {row_idx+1}: {msg}")
+                            # --- PROCESAR FILAS AÑADIDAS (NUEVOS SERVICIOS) ---
+                            exitos_nuevos = 0
+                            for new_row in agregados_pendientes:
+                                db_insert = {"id_venta": id_actual}
+                                
+                                # Calcular N_linea (Día)
+                                n_lin = new_row.get("Dia")
+                                if not n_lin:
+                                    n_lin = df_edit['Dia'].max() + 1 if not df_edit.empty else 1
+                                db_insert["n_linea"] = int(n_lin)
+                                
+                                # Aplicar mapeo
+                                for k, v in new_row.items():
+                                    if k in mapping:
+                                        val = v
+                                        if hasattr(v, 'isoformat'): val = v.isoformat()
+                                        db_insert[mapping[k]] = val
+                                        
+                                # Proveedor
+                                if "Proveedor" in new_row and new_row["Proveedor"]:
+                                    nom_prov = new_row["Proveedor"]
+                                    res_p = controller.client.table('proveedor').select('id_proveedor').ilike('nombre_comercial', f"%{nom_prov}%").limit(1).execute()
+                                    if res_p.data:
+                                        db_insert['id_proveedor'] = res_p.data[0]['id_proveedor']
+                                    else:
+                                        errores.append(f"⚠️ Proveedor '{nom_prov}' no encontrado para nueva fila. Se creará sin proveedor asignado.")
+                                
+                                # Validaciones de BD
+                                if 'costo_unitario' not in db_insert or db_insert['costo_unitario'] is None:
+                                    db_insert['costo_unitario'] = 0.0
+                                
+                                try:
+                                    controller.client.table('venta_servicio_proveedor').insert(db_insert).execute()
+                                    exitos_nuevos += 1
+                                except Exception as e:
+                                    errores.append(f"Error al añadir fila (Día {n_lin}): {str(e)}")
                             
-                            if exitos > 0:
-                                st.success(f"✅ Se actualizaron {exitos} servicios.")
-                                # Limpiar el editor forzando un reset (esto es opcional pero recomendado)
+                            if exitos > 0 or exitos_nuevos > 0:
+                                st.success(f"✅ Se actualizaron {exitos} servicios y se añadieron {exitos_nuevos} nuevos.")
+                                # Limpiar el editor forzando un reset
                                 st.rerun()
                             if errores:
                                 for e in errores: st.error(e)
