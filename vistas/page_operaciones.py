@@ -1380,7 +1380,7 @@ def dashboard_simulador_costos(controller):
                     pax = float(l.get('cantidad_pax') or l.get('cantidad_items') or 1)
                     l['PAX'] = int(pax)
                     l['TC'] = l.get('tipo_cambio') or tc_v
-                    l['TOTAL (PEN)'] = (c_unit * pax) * tc_v if l.get('moneda') == 'USD' else (c_unit * pax)
+                    l['TOTAL (PEN)'] = (c_unit * pax) * float(l['TC']) if l.get('moneda') == 'USD' else (c_unit * pax)
                     
                     # ICONO DE ESTADO
                     l['Estado'] = "🟢 OK" if l.get('terminado') else "🔴 PENDIENTE"
