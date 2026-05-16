@@ -1441,6 +1441,7 @@ def dashboard_simulador_costos(controller):
                                     "moneda": "moneda", 
                                     "costo_unitario": "costo_unitario", 
                                     "PAX": "cantidad_pax", 
+                                    "TC": "tipo_cambio",
                                     "terminado": "terminado",
                                     "Hora": "hora_servicio",
                                     "Guía": "nombre_guia",
