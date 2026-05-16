@@ -62,7 +62,7 @@ class PagoOperativoController:
             
             flat_data.append({
                 "id_pago_op": p['id_pago_op'],
-                "Fecha": p['fecha_pago'],
+                "Fecha": pd.to_datetime(p['fecha_pago']).date() if p.get('fecha_pago') else None,
                 "Monto": float(p['monto_pagado']),
                 "Moneda": p.get('moneda', 'USD'),
                 "TC": float(p.get('tasa_cambio') or 1.0),
