@@ -1430,9 +1430,10 @@ def dashboard_simulador_costos(controller):
                     state = st.session_state.editor_liq_master
                     cambios_pendientes = state.get("edited_rows", {})
                     agregados_pendientes = state.get("added_rows", [])
+                    borrados_pendientes = state.get("deleted_rows", [])
                     
-                    if cambios_pendientes or agregados_pendientes:
-                        st.warning(f"⚠️ Tienes {len(cambios_pendientes)} cambios y {len(agregados_pendientes)} filas nuevas pendientes de guardar.")
+                    if cambios_pendientes or agregados_pendientes or borrados_pendientes:
+                        st.warning(f"⚠️ Tienes {len(cambios_pendientes)} cambios, {len(agregados_pendientes)} añadidos y {len(borrados_pendientes)} eliminaciones pendientes.")
                         if st.button("💾 Guardar Cambios en Operativa", type="primary", use_container_width=True):
                             exitos = 0
                             errores = []
@@ -1552,8 +1553,18 @@ def dashboard_simulador_costos(controller):
                                 except Exception as e:
                                     errores.append(f"Error al añadir fila (Día {n_lin}): {str(e)}")
                             
-                            if exitos > 0 or exitos_nuevos > 0:
-                                st.success(f"✅ Se actualizaron {exitos} servicios y se añadieron {exitos_nuevos} nuevos.")
+                            # --- PROCESAR FILAS ELIMINADAS ---
+                            exitos_borrados = 0
+                            for row_idx in borrados_pendientes:
+                                reg_id = df_edit.iloc[row_idx]['id']
+                                try:
+                                    controller.client.table('venta_servicio_proveedor').delete().eq('id', reg_id).execute()
+                                    exitos_borrados += 1
+                                except Exception as e:
+                                    errores.append(f"Error al eliminar fila {row_idx+1}: {str(e)}")
+                            
+                            if exitos > 0 or exitos_nuevos > 0 or exitos_borrados > 0:
+                                st.success(f"✅ Se actualizaron {exitos}, se añadieron {exitos_nuevos} y se eliminaron {exitos_borrados} servicios.")
                                 # Limpiar el editor forzando un reset
                                 st.rerun()
                             if errores:
