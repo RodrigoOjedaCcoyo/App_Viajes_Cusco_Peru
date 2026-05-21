@@ -274,7 +274,8 @@ class ExcelController:
             ])
         else:
             datos_v.extend([
-                ["Ingreso Total", monto_venta, "RECAUDADO"],
+                ["Total Depositado", v.get('monto_pagado') or 0, "DEPOSITOS"],
+            ["Total Reembolsado", v.get('total_reembolsado') or 0, "EGRESOS"],
                 ["1º Método Pago", v.get('metodo_pago_primer'), f"DEP 1: {v.get('monto_primer_deposito')}"],
                 ["2º Método Pago", v.get('metodo_pago_segundo'), f"DEP 2: {v.get('monto_segundo_deposito')}"],
                 ["Costo Total", costo_total_liq, "COSTO NETO"],
@@ -329,7 +330,7 @@ class ExcelController:
             cancel_cell.alignment = center_al
             current_row += 1
 
-        headers_it = ["Día", "Fecha", "Hora", "Servicio / Tour", "Proveedor Sugerido", "Pax", "Tipo", "Observaciones"]
+        headers_it = ["Día", "Fecha", "Hora", "Servicio / Tour", "Proveedor Sugerido", "Pax", "Tipo", "Observaciones", "Estado"]
         for c_idx, h in enumerate(headers_it, 1):
             cell = ws.cell(row=current_row, column=c_idx, value=h)
             cell.fill = subheader_fill
@@ -354,7 +355,15 @@ class ExcelController:
             ws.cell(row=current_row, column=6, value=s.get('Pax'))
             ws.cell(row=current_row, column=7, value=s.get('Tipo'))
             ws.cell(row=current_row, column=8, value=s.get('observacion') or "")
-            for c in range(1, 9): ws.cell(row=current_row, column=c).border = thin_border
+            # Estado (cancelado o vacío)
+            estado_val = "CANCELADO" if es_cancelado else ""
+            ws.cell(row=current_row, column=9, value=estado_val)
+            # Si está cancelado, colorear toda la fila en rojo claro
+            if es_cancelado:
+                cancel_row_fill = PatternFill(start_color="FADBD8", end_color="FADBD8", fill_type="solid")
+                for c in range(1, 10):
+                    ws.cell(row=current_row, column=c).fill = cancel_row_fill
+            for c in range(1, 10): ws.cell(row=current_row, column=c).border = thin_border
             current_row += 1
 
         current_row += 2 # Espacio
