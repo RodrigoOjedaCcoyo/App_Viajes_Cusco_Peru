@@ -21,7 +21,7 @@ except:
 
 # NUEVO: Renderiza el Botón para el Excel Maestro Operativo.
 @st.cache_data(show_spinner=False, ttl=0)
-
+def render_operational_master_download(controller, id_venta, label="📊 Generar Informe Maestro", key=None):
     """
     Recopila toda la información de la operación y ofrece la descarga del Excel Maestro.
     """
