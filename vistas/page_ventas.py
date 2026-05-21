@@ -1143,8 +1143,14 @@ def seguimiento_ventas_vendedor():
             with st.container(border=True):
                 # ── Fila superior: info + botones principales ──
                 col1, col2, col3 = st.columns([3, 2, 2])
-                col1.markdown(f"👤 **{nombre_cliente}**")
-                col1.caption(f"📅 {fecha_inicio} | 🎫 {tour_nombre} | ID: {id_venta}")
+                
+                estado = v.get('estado_venta', '')
+                if estado == 'CANCELADO':
+                    col1.markdown(f"👤 **~~{nombre_cliente}~~** ❌ :red[**(CANCELADO)**]")
+                    col1.caption(f"📅 ~~{fecha_inicio}~~ | 🎫 ~~{tour_nombre}~~ | ID: {id_venta}")
+                else:
+                    col1.markdown(f"👤 **{nombre_cliente}**")
+                    col1.caption(f"📅 {fecha_inicio} | 🎫 {tour_nombre} | ID: {id_venta}")
 
                 # Botón Sincronizar
                 if col2.button("🔄 Sincronizar Itinerario", key=f"sync_v_{id_venta}",

@@ -191,10 +191,17 @@ def render_sales_dashboard_visual(supabase_client):
                 c1, c2, c3, c4, c5, c6 = st.columns([1.2, 1.2, 2.5, 3.0, 1.0, 0.5])
                 
                 f_v = row['fecha_venta'].strftime('%Y-%m-%d') if hasattr(row['fecha_venta'], 'strftime') else str(row['fecha_venta'])
+                
+                entidad_str = row['entidad']
+                tour_str = row['tour_nombre']
+                if row.get('estado_venta') == 'CANCELADO':
+                    entidad_str = f"❌ <s>{entidad_str}</s> <span style='color:#ff4b4b; font-weight:bold;'>(CANCELADO)</span>"
+                    tour_str = f"<s>{tour_str}</s>"
+                
                 c1.markdown(f"<small>{f_v}</small>", unsafe_allow_html=True)
                 c2.markdown(f"<small>{row['tipo']}</small>", unsafe_allow_html=True)
-                c3.markdown(f"<small>{row['entidad']}</small>", unsafe_allow_html=True)
-                c4.markdown(f"<small>{row['tour_nombre']}</small>", unsafe_allow_html=True)
+                c3.markdown(f"<small>{entidad_str}</small>", unsafe_allow_html=True)
+                c4.markdown(f"<small>{tour_str}</small>", unsafe_allow_html=True)
                 c5.markdown(f"<small>{row['moneda']} {row['precio_total_cierre']:,.2f}</small>", unsafe_allow_html=True)
                 
                 # Botón de eliminar con confirmación simple
