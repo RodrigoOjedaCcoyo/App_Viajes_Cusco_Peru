@@ -316,6 +316,19 @@ class ExcelController:
             ws.cell(row=current_row, column=c).alignment = center_al
         current_row += 1
 
+        # Si la venta está cancelada, mostrar banner rojo visible en el cronograma
+        if es_cancelado:
+            ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=8)
+            cancel_cell = ws.cell(row=current_row, column=1,
+                value="⚠️  SERVICIO CANCELADO — Esta reserva fue anulada. Los servicios abajo son solo referencia histórica.")
+            cancel_cell.font = Font(bold=True, color="FFFFFF", size=11)
+            cancel_fill = PatternFill(start_color="C0392B", end_color="C0392B", fill_type="solid")
+            for c in range(1, 9):
+                ws.cell(row=current_row, column=c).fill = cancel_fill
+                ws.cell(row=current_row, column=c).border = thin_border
+            cancel_cell.alignment = center_al
+            current_row += 1
+
         headers_it = ["Día", "Fecha", "Hora", "Servicio / Tour", "Proveedor Sugerido", "Pax", "Tipo", "Observaciones"]
         for c_idx, h in enumerate(headers_it, 1):
             cell = ws.cell(row=current_row, column=c_idx, value=h)
@@ -325,7 +338,14 @@ class ExcelController:
             cell.alignment = center_al
         current_row += 1
 
-        for s in it:
+        # Filtrar filas ancla autogeneradas (no deben aparecer en el reporte)
+        it_filtrado = [
+            s for s in it
+            if not str(s.get('Servicio', '')).lower().startswith('fila auto')
+            and not str(s.get('observacion', '')).lower().startswith('fila auto')
+        ]
+
+        for s in it_filtrado:
             ws.cell(row=current_row, column=1, value=s.get('Día Itin.'))
             ws.cell(row=current_row, column=2, value=s.get('Fecha'))
             ws.cell(row=current_row, column=3, value=s.get('Hora'))
