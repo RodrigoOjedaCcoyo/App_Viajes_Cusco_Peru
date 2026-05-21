@@ -65,7 +65,13 @@ def render_operational_master_download(controller, id_venta, label="📊 Generar
         # 2. Calcular Pagos e Información de Depósito
         res_p = controller.client.table('pago').select('*').eq('id_venta', id_venta).order('fecha_pago', desc=False).execute()
         pagos = res_p.data or []
-        v_data['monto_pagado'] = sum(float(p['monto_pagado'] or 0) for p in pagos)
+        
+        # Calcular sumas correctamente separando ingresos de egresos (reembolsos)
+        ingresos = sum(float(p['monto_pagado'] or 0) for p in pagos if p.get('tipo_pago') != 'REEMBOLSO')
+        reembolsos = sum(float(p['monto_pagado'] or 0) for p in pagos if p.get('tipo_pago') == 'REEMBOLSO')
+        
+        v_data['monto_pagado'] = ingresos
+        v_data['total_reembolsado'] = reembolsos
         
         # Extraer primer y segundo depósito
         if pagos:

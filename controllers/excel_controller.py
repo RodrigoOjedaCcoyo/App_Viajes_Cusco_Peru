@@ -231,7 +231,19 @@ class ExcelController:
 
         costo_total_liq = sum(float(l.get('costo_unitario') or 0) * (int(l.get('cantidad_pax') or v.get('num_pasajeros', 1))) for l in liq)
         monto_venta = float(v.get('monto_total') or 0)
-        utilidad = monto_venta - costo_total_liq
+        
+        estado_venta = v.get('estado_venta', '')
+        es_cancelado = estado_venta == 'CANCELADO'
+        
+        ingreso_real = float(v.get('monto_pagado') or 0)
+        reembolsos = float(v.get('total_reembolsado') or 0)
+        
+        if es_cancelado:
+            utilidad = ingreso_real - reembolsos - costo_total_liq
+            rentabilidad_str = "N/A"
+        else:
+            utilidad = monto_venta - costo_total_liq
+            rentabilidad_str = f"{(utilidad / monto_venta * 100):.2f}%" if monto_venta > 0 else "0%"
 
         # --- SECCIÓN 1: PANEL DE CONTROL FINANCIERO ---
         ws.merge_cells('A1:H1')
@@ -245,18 +257,30 @@ class ExcelController:
             ["Cliente Principal", v.get('nombre_cliente'), v.get('fecha_inicio')],
             ["Teléfono", v.get('telefono'), "Fecha Fin"],
             ["Servicio", v.get('tour_nombre'), v.get('fecha_fin')],
-            ["Total Pax", f"{v.get('num_pasajeros')} PAX", ""],
-            ["Carpeta Drive", v.get('drive_url') or "No vinculado", ""],
+            ["Total Pax", f"{v.get('num_pasajeros')} PAX", "Estado Venta"],
+            ["Carpeta Drive", v.get('drive_url') or "No vinculado", estado_venta or '---'],
             ["", "", ""],
             ["RESUMEN FINANCIERO", "", ""],
             ["Moneda", v.get('moneda'), "Monto Venta"],
-            ["Ingreso Total", monto_venta, "RECAUDADO"],
-            ["1º Método Pago", v.get('metodo_pago_primer'), f"DEP 1: {v.get('monto_primer_deposito')}"],
-            ["2º Método Pago", v.get('metodo_pago_segundo'), f"DEP 2: {v.get('monto_segundo_deposito')}"],
-            ["Costo Total", costo_total_liq, "COSTO NETO"],
-            ["UTILIDAD ESTIMADA", utilidad, "MARGEN"],
-            ["Rentabilidad", f"{(utilidad / monto_venta * 100):.2f}%" if monto_venta > 0 else "0%", ""],
         ]
+        
+        if es_cancelado:
+            datos_v.extend([
+                ["Precio Original", monto_venta, "RECAUDADO"],
+                ["Total Depositado", ingreso_real, "INGRESOS"],
+                ["Total Reembolsado", reembolsos, "EGRESOS"],
+                ["Costo Operativo", costo_total_liq, "COSTO NETO"],
+                ["BALANCE FINAL CAJA", utilidad, "RESULTADO"],
+            ])
+        else:
+            datos_v.extend([
+                ["Ingreso Total", monto_venta, "RECAUDADO"],
+                ["1º Método Pago", v.get('metodo_pago_primer'), f"DEP 1: {v.get('monto_primer_deposito')}"],
+                ["2º Método Pago", v.get('metodo_pago_segundo'), f"DEP 2: {v.get('monto_segundo_deposito')}"],
+                ["Costo Total", costo_total_liq, "COSTO NETO"],
+                ["UTILIDAD ESTIMADA", utilidad, "MARGEN"],
+                ["Rentabilidad", rentabilidad_str, ""],
+            ])
         
         current_row = 3
         for row in datos_v:
