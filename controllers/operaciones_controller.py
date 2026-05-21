@@ -910,7 +910,7 @@ class OperacionesController:
         """
         try:
             # 1. Obtener datos generales de la venta
-            res_v = self.client.table('venta').select('*, cliente(nombre, telefono)').eq('id_venta', id_venta).execute()
+            res_v = self.client.table('venta').select('*, cliente(nombre, lead(numero_celular))').eq('id_venta', id_venta).execute()
             venta = res_v.data[0] if (res_v and res_v.data) else None
             if not venta:
                 return None, "No se encontró la venta especificada."

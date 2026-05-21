@@ -1718,7 +1718,10 @@ def dashboard_simulador_costos(controller):
                 with c1:
                     st.write(f"**ID Venta:** {venta.get('id_venta')}")
                     st.write(f"**Cliente Principal:** {venta.get('cliente', {}).get('nombre') or 'No Registrado'}")
-                    st.write(f"**Teléfono:** {venta.get('cliente', {}).get('telefono') or 'No Registrado'}")
+                    cliente_info = venta.get('cliente') or {}
+                    lead_info = cliente_info.get('lead') or {}
+                    celular = lead_info.get('numero_celular') or cliente_info.get('telefono') or 'No Registrado'
+                    st.write(f"**Teléfono:** {celular}")
                 with c2:
                     st.write(f"**Fecha Inicio:** {venta.get('fecha_inicio') or '---'}")
                     st.write(f"**Fecha Fin:** {venta.get('fecha_fin') or '---'}")
