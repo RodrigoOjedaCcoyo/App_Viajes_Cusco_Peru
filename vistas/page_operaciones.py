@@ -1548,6 +1548,20 @@ def dashboard_simulador_costos(controller):
                                     db_insert['costo_unitario'] = 0.0
                                 
                                 try:
+                                    # Asegurar que el día (n_linea) existe en el itinerario (venta_tour) para la Foreign Key
+                                    try:
+                                        res_vt = controller.client.table('venta_tour').select('n_linea').eq('id_venta', id_actual).eq('n_linea', db_insert["n_linea"]).execute()
+                                        if not res_vt.data:
+                                            # Insertar fila de anclaje para este día
+                                            controller.client.table('venta_tour').insert({
+                                                'id_venta': id_actual,
+                                                'n_linea': db_insert["n_linea"],
+                                                'fecha_servicio': date.today().isoformat(),
+                                                'observacion': 'Fila autogenerada para vinculación de costos adicionales'
+                                            }).execute()
+                                    except Exception as e_vt:
+                                        pass
+                                        
                                     controller.client.table('venta_servicio_proveedor').insert(db_insert).execute()
                                     exitos_nuevos += 1
                                 except Exception as e:
