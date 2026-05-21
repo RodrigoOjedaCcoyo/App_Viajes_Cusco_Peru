@@ -956,7 +956,7 @@ class OperacionesController:
                 })
                 
             # 4. Obtener servicios operativos y costos
-            res_servs = self.client.table('venta_servicio_proveedor').select('*, proveedor(nombre)').eq('id_venta', id_venta).execute()
+            res_servs = self.client.table('venta_servicio_proveedor').select('*, proveedor(nombre_comercial)').eq('id_venta', id_venta).execute()
             servicios = res_servs.data or []
             
             servicios_detalle = []
@@ -972,7 +972,7 @@ class OperacionesController:
                 
                 servicios_detalle.append({
                     "dia": s.get('n_linea'),
-                    "proveedor": s.get('proveedor', {}).get('nombre') or 'Desconocido',
+                    "proveedor": s.get('proveedor', {}).get('nombre_comercial') or 'Desconocido',
                     "tipo_servicio": s.get('tipo_servicio') or 'Servicio',
                     "costo_unitario": c_unit,
                     "cantidad_pax": int(pax),
