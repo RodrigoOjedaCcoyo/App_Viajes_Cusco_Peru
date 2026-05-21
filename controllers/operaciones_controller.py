@@ -1008,8 +1008,7 @@ class OperacionesController:
             self.client.table('venta').update({
                 "estado_venta": "CANCELADO",
                 "cancelada": True,
-                "fecha_cancelacion": now_iso,
-                "observaciones_contables": f"CANCELADO. Obs: {observaciones or 'Sin observaciones'}"
+                "fecha_cancelacion": now_iso
             }).eq('id_venta', id_venta).execute()
             
             # 2. Actualizar los servicios operativos de la venta
