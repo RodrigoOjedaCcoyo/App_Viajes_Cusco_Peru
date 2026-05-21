@@ -1691,6 +1691,190 @@ def dashboard_simulador_costos(controller):
                 else:
                     st.error(msg)
 
+        # Sección de Cancelación y Devoluciones (Matriz Contable)
+        st.divider()
+        with st.expander("❌ Módulo de Cancelaciones y Devoluciones (Matriz Contable)", expanded=False):
+            st.markdown("### 📋 Cálculo Financiero por Cancelación de Reserva")
+            st.caption("Esta herramienta calcula el reembolso sugerido al restar todos los costos incurridos y penalidades de los adelantos recaudados.")
+            
+            # Obtener datos consolidados para la cancelación
+            res_c, err_c = controller.obtener_resumen_financiero_cancelacion(id_actual)
+            
+            if err_c:
+                st.error(err_c)
+            elif res_c:
+                venta = res_c['venta']
+                pasajeros = res_c['pasajeros']
+                pagos = res_c['pagos']
+                ingreso_recaudado = res_c['ingreso_recaudado']
+                servicios = res_c['servicios']
+                costo_incurrido_inicial = res_c['costo_incurrido_total']
+                
+                # ═══════════════════════════════════════════════════════════════
+                # 1. INFORMACIÓN GENERAL
+                # ═══════════════════════════════════════════════════════════════
+                st.markdown("#### 👤 Información General")
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.write(f"**ID Venta:** {venta.get('id_venta')}")
+                    st.write(f"**Cliente Principal:** {venta.get('cliente', {}).get('nombre') or 'No Registrado'}")
+                    st.write(f"**Teléfono:** {venta.get('cliente', {}).get('telefono') or 'No Registrado'}")
+                with c2:
+                    st.write(f"**Fecha Inicio:** {venta.get('fecha_inicio') or '---'}")
+                    st.write(f"**Fecha Fin:** {venta.get('fecha_fin') or '---'}")
+                    st.write(f"**Total Pax:** {venta.get('num_pasajeros') or len(pasajeros)} PAX")
+                
+                # ═══════════════════════════════════════════════════════════════
+                # 2. DETALLE DE LIQUIDACIÓN Y COSTOS (Tabla)
+                # ═══════════════════════════════════════════════════════════════
+                st.markdown("#### 💰 Detalle de Liquidación y Costos")
+                
+                # Mantener en st.session_state las penalidades agregadas para esta venta
+                session_key = f"penalidades_{id_actual}"
+                if session_key not in st.session_state:
+                    st.session_state[session_key] = []
+                
+                # Crear DataFrame con los servicios
+                servs_data = []
+                for s in servicios:
+                    servs_data.append({
+                        "Día": s['dia'],
+                        "Proveedor Real": s['proveedor'],
+                        "Tipo de Servicio": s['tipo_servicio'],
+                        "Costo Unitario": f"{s['moneda']} {s['costo_unitario']:,.2f}",
+                        "Pax/Cant": s['cantidad_pax'],
+                        "TC": s['tc'],
+                        "Total Soles (S/.)": s['total_soles']
+                    })
+                
+                # Agregar las penalidades agregadas interactivamente
+                for pen in st.session_state[session_key]:
+                    servs_data.append({
+                        "Día": "---",
+                        "Proveedor Real": "⚠️ PENALIDAD PROVEEDOR",
+                        "Tipo de Servicio": pen['descripcion'],
+                        "Costo Unitario": f"{pen['moneda']} {pen['monto']:,.2f}",
+                        "Pax/Cant": 1,
+                        "TC": pen['tc'],
+                        "Total Soles (S/.)": pen['total_soles']
+                    })
+                
+                if servs_data:
+                    df_servs = pd.DataFrame(servs_data)
+                    st.dataframe(df_servs, use_container_width=True, hide_index=True)
+                else:
+                    st.info("No hay servicios registrados en la liquidación para calcular costos.")
+                
+                # Formulario para agregar Penalidad por Devolución (Inca Rail/Otros)
+                st.markdown("##### ➕ Agregar Penalidad por Devolución (Proveedores)")
+                col_p1, col_p2, col_p3, col_p4 = st.columns([2, 1, 1, 1])
+                with col_p1:
+                    desc_pen = st.text_input("Descripción de la Penalidad", value="PENALIDA POR DEVOLUCION", key=f"desc_pen_{id_actual}")
+                with col_p2:
+                    monto_pen = st.number_input("Monto", min_value=0.0, value=15.18, step=0.01, key=f"monto_pen_{id_actual}")
+                with col_p3:
+                    moneda_pen = st.selectbox("Moneda", ["USD", "PEN"], index=0, key=f"mon_pen_{id_actual}")
+                with col_p4:
+                    tc_pen = st.number_input("TC", min_value=1.0, value=3.38, step=0.01, key=f"tc_pen_{id_actual}")
+                
+                c_pbtn1, c_pbtn2 = st.columns([3, 1])
+                with c_pbtn1:
+                    if st.button("➕ Añadir Penalidad a Costos", use_container_width=True, key=f"btn_add_pen_{id_actual}"):
+                        pen_total_soles = (monto_pen * tc_pen) if moneda_pen == "USD" else monto_pen
+                        st.session_state[session_key].append({
+                            "descripcion": desc_pen,
+                            "monto": monto_pen,
+                            "moneda": moneda_pen,
+                            "tc": tc_pen,
+                            "total_soles": pen_total_soles
+                        })
+                        st.toast("Penalidad agregada con éxito")
+                        st.rerun()
+                with c_pbtn2:
+                    if st.session_state[session_key]:
+                        if st.button("🧹 Limpiar", use_container_width=True, key=f"btn_clear_pen_{id_actual}"):
+                            st.session_state[session_key] = []
+                            st.toast("Penalidades limpiadas")
+                            st.rerun()
+                
+                # Calcular Costo Total Final (Inicial + Penalidades)
+                costo_penalidades = sum(p['total_soles'] for p in st.session_state[session_key])
+                costo_total_final = costo_incurrido_inicial + costo_penalidades
+                
+                # ═══════════════════════════════════════════════════════════════
+                # 3. RESUMEN FINANCIERO DE CANCELACIÓN (Dashboard)
+                # ═══════════════════════════════════════════════════════════════
+                st.markdown("#### 🏦 Resumen Financiero de Cancelación")
+                
+                col_res1, col_res2, col_res3 = st.columns(3)
+                with col_res1:
+                    st.metric("Total Recaudado (Adelantos)", f"S/. {ingreso_recaudado:,.2f}")
+                with col_res2:
+                    st.metric("Costo Incurrido Total", f"S/. {costo_total_final:,.2f}", delta=f"+S/. {costo_penalidades:,.2f}" if costo_penalidades > 0 else None, delta_color="inverse")
+                
+                diferencia_reembolso = ingreso_recaudado - costo_total_final
+                with col_res3:
+                    if diferencia_reembolso >= 0:
+                        st.metric("Reembolso Máximo Sugerido", f"S/. {diferencia_reembolso:,.2f}", help="Monto máximo que puedes devolverle al cliente para quedar en punto de equilibrio (sin pérdidas).")
+                    else:
+                        st.metric("Riesgo de Pérdida Neta", f"S/. {abs(diferencia_reembolso):,.2f}", delta=f"-S/. {abs(diferencia_reembolso):,.2f}", delta_color="inverse", help="Alerta: Los costos incurridos superan los adelantos recibidos. Se requiere cobrar penalidad adicional.")
+                
+                # Mostrar el desglose de pagos registrados
+                st.markdown("##### Historial de Pagos Recibidos")
+                pagos_data = []
+                for p in pagos:
+                    pagos_data.append({
+                        "ID": p['id_pago'],
+                        "Fecha": p['fecha_pago'],
+                        "Tipo": p['tipo_pago'],
+                        "Monto Original": f"{p['moneda']} {p['monto']:,.2f}",
+                        "TC": p['tc'],
+                        "Total Soles (S/.)": f"S/. {p['monto_soles']:,.2f}"
+                    })
+                if pagos_data:
+                    st.dataframe(pd.DataFrame(pagos_data), use_container_width=True, hide_index=True)
+                else:
+                    st.warning("No hay pagos registrados para este viaje.")
+                
+                # ═══════════════════════════════════════════════════════════════
+                # 4. FORMULARIO DE DEVOLUCIÓN Y CONFIRMACIÓN
+                # ═══════════════════════════════════════════════════════════════
+                st.divider()
+                st.markdown("#### 🔒 Formulario de Confirmación y Devolución")
+                
+                c_form1, c_form2 = st.columns(2)
+                with c_form1:
+                    monto_a_reembolsar = st.number_input("Monto Real a Reembolsar al Cliente (S/.)", min_value=0.0, max_value=max(0.0, float(diferencia_reembolso)), value=max(0.0, float(diferencia_reembolso)), step=1.0, key=f"refund_val_{id_actual}")
+                with c_form2:
+                    metodo_reembolso = st.selectbox("Método de Reembolso", ["TRANSFERENCIA", "EFECTIVO", "YAPE", "PLIN", "INTERBANK", "VISA", "OTRO"], index=0, key=f"refund_method_{id_actual}")
+                
+                obs_cancelacion = st.text_area("Observaciones de la Cancelación (Motivos y Acuerdos)", value="Pasajero cancela por motivos de salud / fuerza mayor.", placeholder="Escribe aquí los detalles del acuerdo...", key=f"refund_obs_{id_actual}")
+                
+                st.warning("⚠️ **ATENCIÓN:** Esta acción marcará el viaje como CANCELADO en el sistema de manera definitiva, desactivando todos los servicios en la lista activa de operaciones y registrando el egreso correspondiente por reembolso. Esta acción no se puede deshacer.")
+                
+                confirmar_check = st.checkbox("Entiendo la acción y confirmo que los datos financieros cuadran perfectamente.", key=f"refund_confirm_{id_actual}")
+                
+                if st.button("❌ Procesar Cancelación Definitiva de Reserva", type="primary", disabled=not confirmar_check, use_container_width=True, key=f"btn_execute_cancel_{id_actual}"):
+                    with st.spinner("Procesando cancelación física y contable..."):
+                        exito, msg = controller.ejecutar_cancelacion_reserva(
+                            id_venta=id_actual,
+                            costo_penalidad=costo_penalidades,
+                            descripcion_penalidad="Penalidad acumulada en cancelación",
+                            monto_reembolsado=monto_a_reembolsar,
+                            metodo_reembolso=metodo_reembolso,
+                            observaciones=obs_cancelacion
+                        )
+                        if exito:
+                            # Limpiar sesión y variables de penalidades
+                            st.session_state[session_key] = []
+                            st.session_state['last_loaded_id_venta'] = None
+                            st.session_state['simulador_adv_data'] = []
+                            st.success("✅ ¡Viaje Cancelado con éxito! Todos los estados han sido actualizados y el reembolso contable ha sido ingresado.")
+                            st.balloons()
+                            st.rerun()
+                        else:
+                            st.error(msg)
+
 def render_directorio_proveedores(supabase_client):
     """Módulo profesional para la gestión de proveedores con soporte JSONB dinámico."""
     from controllers.proveedor_controller import ProveedorController

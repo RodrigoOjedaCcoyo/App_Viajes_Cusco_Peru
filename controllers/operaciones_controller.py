@@ -899,4 +899,138 @@ class OperacionesController:
             err_msg = str(e)
             trace = __import__('traceback').format_exc()
             print(f"Error en Alertas Operativas: {err_msg}\n{trace}")
-            return {"error": err_msg, "trace": trace, "rojo": [], "amarillo": [], "verde": [], "machupicchu": [], "sin_asignar": []}
+            return {"error": err_msg, "trace": trace, "rojo": [], "amarillo": [], "verde": [], "machupicchu": [], "sin_asignar": []}
+
+    def obtener_resumen_financiero_cancelacion(self, id_venta: int):
+        """
+        Recupera el consolidado financiero de una venta para el cálculo de cancelaciones y devoluciones:
+        - Datos generales de la venta (cliente, pasajeros, fechas)
+        - Pagos recibidos (ingreso recaudado)
+        - Costos operativos actuales de los servicios de proveedores
+        """
+        try:
+            # 1. Obtener datos generales de la venta
+            res_v = self.client.table('venta').select('*, cliente(nombre, telefono)').eq('id_venta', id_venta).maybe_single().execute()
+            venta = res_v.data if res_v else None
+            if not venta:
+                return None, "No se encontró la venta especificada."
+            
+            # 2. Obtener pasajeros
+            res_pax = self.client.table('pasajero').select('*').eq('id_venta', id_venta).execute()
+            pasajeros = res_pax.data or []
+            
+            # 3. Obtener pagos
+            res_pagos = self.client.table('pago').select('*').eq('id_venta', id_venta).execute()
+            pagos = res_pagos.data or []
+            
+            # Calcular ingreso recaudado (reembolsos restan)
+            ingreso_recaudado = 0.0
+            pagos_detalle = []
+            for p in pagos:
+                monto = float(p.get('monto_pagado') or 0.0)
+                tc = float(p.get('tasa_cambio') or 1.0)
+                moneda = p.get('moneda') or 'USD'
+                tipo = p.get('tipo_pago') or 'ADELANTO'
+                
+                # Convertir a soles
+                monto_soles = float(p.get('monto_moneda_venta') or monto)
+                if moneda == 'USD':
+                    monto_soles = monto * tc
+                elif moneda == 'PEN':
+                    monto_soles = monto
+                
+                if tipo == 'REEMBOLSO':
+                    ingreso_recaudado -= monto_soles
+                else:
+                    ingreso_recaudado += monto_soles
+                
+                pagos_detalle.append({
+                    "id_pago": p['id_pago'],
+                    "fecha_pago": p['fecha_pago'],
+                    "monto": monto,
+                    "moneda": moneda,
+                    "tc": tc,
+                    "monto_soles": -monto_soles if tipo == 'REEMBOLSO' else monto_soles,
+                    "metodo_pago": p.get('metodo_pago') or '---',
+                    "tipo_pago": tipo
+                })
+                
+            # 4. Obtener servicios operativos y costos
+            res_servs = self.client.table('venta_servicio_proveedor').select('*, proveedor(nombre)').eq('id_venta', id_venta).execute()
+            servicios = res_servs.data or []
+            
+            servicios_detalle = []
+            costo_incurrido_total = 0.0
+            for s in servicios:
+                c_unit = float(s.get('costo_unitario') or 0.0)
+                pax = float(s.get('cantidad_pax') or 1.0)
+                tc = float(s.get('tipo_cambio') or 3.80)
+                moneda = s.get('moneda') or 'USD'
+                
+                total_soles = (c_unit * pax) * tc if moneda == 'USD' else (c_unit * pax)
+                costo_incurrido_total += total_soles
+                
+                servicios_detalle.append({
+                    "dia": s.get('n_linea'),
+                    "proveedor": s.get('proveedor', {}).get('nombre') or 'Desconocido',
+                    "tipo_servicio": s.get('tipo_servicio') or 'Servicio',
+                    "costo_unitario": c_unit,
+                    "cantidad_pax": int(pax),
+                    "moneda": moneda,
+                    "tc": tc,
+                    "total_soles": total_soles
+                })
+                
+            return {
+                "venta": venta,
+                "pasajeros": pasajeros,
+                "pagos": pagos_detalle,
+                "ingreso_recaudado": ingreso_recaudado,
+                "servicios": servicios_detalle,
+                "costo_incurrido_total": costo_incurrido_total
+            }, None
+        except Exception as e:
+            return None, f"Error al consolidar resumen de cancelación: {e}"
+
+    def ejecutar_cancelacion_reserva(self, id_venta: int, costo_penalidad: float = 0.0, descripcion_penalidad: str = None, monto_reembolsado: float = 0.0, metodo_reembolso: str = 'TRANSFERENCIA', observaciones: str = None):
+        """
+        Ejecuta la cancelación física y contable del viaje en el sistema:
+        1. Marca el viaje como CANCELADO en la tabla 'venta'.
+        2. Setea cancelada = True y fecha_cancelacion = now()
+        3. Cambia todos los servicios asociados en 'venta_tour' a CANCELADO / inactivos.
+        4. Si el monto_reembolsado > 0, inserta un egreso contable de tipo 'REEMBOLSO' en 'pago' para cuadrar caja.
+        """
+        try:
+            from datetime import datetime, timezone
+            now_iso = datetime.now(timezone.utc).isoformat()
+            
+            # 1. Actualizar la venta principal
+            self.client.table('venta').update({
+                "estado_venta": "CANCELADO",
+                "cancelada": True,
+                "fecha_cancelacion": now_iso,
+                "observaciones_contables": f"CANCELADO. Obs: {observaciones or 'Sin observaciones'}"
+            }).eq('id_venta', id_venta).execute()
+            
+            # 2. Actualizar los servicios operativos de la venta
+            self.client.table('venta_tour').update({
+                "estado_servicio": "CANCELADO"
+            }).eq('id_venta', id_venta).execute()
+            
+            # 3. Si se definió una penalidad y un reembolso contable:
+            if monto_reembolsado > 0:
+                self.client.table('pago').insert({
+                    "id_venta": id_venta,
+                    "fecha_pago": datetime.now().date().isoformat(),
+                    "monto_pagado": monto_reembolsado, # positivo por CHECK constraint
+                    "moneda": "PEN",
+                    "tasa_cambio": 1.0,
+                    "monto_moneda_venta": monto_reembolsado,
+                    "metodo_pago": metodo_reembolso,
+                    "tipo_pago": "REEMBOLSO",
+                    "observaciones_contables": f"Reembolso de cancelación de viaje. Motivo: {observaciones or 'Ninguno'}"
+                }).execute()
+                
+            return True, "Cancelación procesada correctamente en operaciones y contabilidad."
+        except Exception as e:
+            return False, f"Error al ejecutar cancelación de reserva: {e}"
