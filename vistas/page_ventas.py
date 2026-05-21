@@ -1162,14 +1162,15 @@ def seguimiento_ventas_vendedor():
                     try:
                         res_it = venta_controller.client.table('itinerario_digital') \
                             .select('url_pdf, datos_render') \
-                            .eq('id_itinerario_digital', id_itin).maybe_single().execute()
+                            .eq('id_itinerario_digital', id_itin).execute()
                         if res_it and res_it.data:
                             import json as _json
-                            render_raw = res_it.data.get('datos_render') or {}
+                            row = res_it.data[0]
+                            render_raw = row.get('datos_render') or {}
                             if isinstance(render_raw, str):
                                 try: render_raw = _json.loads(render_raw)
                                 except: render_raw = {}
-                            pdf_link = res_it.data.get('url_pdf') or render_raw.get('url_pdf')
+                            pdf_link = row.get('url_pdf') or render_raw.get('url_pdf')
                             if pdf_link:
                                 col3.link_button("📄 Ver PDF Cloud", pdf_link, use_container_width=True)
                             else:
