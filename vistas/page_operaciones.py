@@ -20,7 +20,8 @@ except:
     pass
 
 # NUEVO: Renderiza el Botón para el Excel Maestro Operativo.
-def render_operational_master_download(controller, id_venta, label="📊 Generar Informe Maestro", key=None):
+@st.cache_data(show_spinner=False, ttl=0)
+
     """
     Recopila toda la información de la operación y ofrece la descarga del Excel Maestro.
     """
@@ -40,19 +41,20 @@ def render_operational_master_download(controller, id_venta, label="📊 Generar
         lead_nest = cliente_nest.get('lead', {}) if isinstance(cliente_nest, dict) else {}
         vendedor_nest = v_raw.get('vendedor', {})
         
-        v_data = {
-            "id_venta": v_raw['id_venta'],
-            "nombre_cliente": cliente_nest.get('nombre', 'Desconocido') if isinstance(cliente_nest, dict) else 'Desconocido',
-            "telefono": lead_nest.get('numero_celular', '---') if isinstance(lead_nest, dict) else '---',
-            "tour_nombre": v_raw.get('tour_nombre', 'Sin Tour'),
-            "fecha_venta": v_raw.get('fecha_venta'),
-            "fecha_inicio": v_raw.get('fecha_inicio'),
-            "fecha_fin": v_raw.get('fecha_fin'),
-            "num_pasajeros": v_raw.get('num_pasajeros', 1),
-            "vendedor": vendedor_nest.get('nombre', '---') if isinstance(vendedor_nest, dict) else '---', 
-            "moneda": v_raw.get('moneda', 'USD'),
-            "monto_total": v_raw.get('precio_total_cierre', 0),
-            "monto_pagado": 0,
+            v_data = {
+                "id_venta": v_raw['id_venta'],
+                "nombre_cliente": cliente_nest.get('nombre', 'Desconocido') if isinstance(cliente_nest, dict) else 'Desconocido',
+                "telefono": lead_nest.get('numero_celular', '---') if isinstance(lead_nest, dict) else '---',
+                "tour_nombre": v_raw.get('tour_nombre', 'Sin Tour'),
+                "estado_venta": v_raw.get('estado_venta', ''),
+                "fecha_venta": v_raw.get('fecha_venta'),
+                "fecha_inicio": v_raw.get('fecha_inicio'),
+                "fecha_fin": v_raw.get('fecha_fin'),
+                "num_pasajeros": v_raw.get('num_pasajeros', 1),
+                "vendedor": vendedor_nest.get('nombre', '---') if isinstance(vendedor_nest, dict) else '---', 
+                "moneda": v_raw.get('moneda', 'USD'),
+                "monto_total": v_raw.get('precio_total_cierre', 0),
+                "monto_pagado": 0,
             "drive_url": v_raw.get('drive_url'),
             "nro_vuelo_internacional": v_raw.get('nro_vuelo_internacional'),
             "correo_cliente": v_raw.get('correo_cliente'),
