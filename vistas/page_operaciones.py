@@ -21,7 +21,7 @@ except:
 
 # NUEVO: Renderiza el Botón para el Excel Maestro Operativo.
 @st.cache_data(show_spinner=False, ttl=0)
-def render_operational_master_download(controller, id_venta, label="📊 Generar Informe Maestro", key=None):
+def render_operational_master_download(_controller, id_venta, label="📊 Generar Informe Maestro", key=None):
     """
     Recopila toda la información de la operación y ofrece la descarga del Excel Maestro.
     """
@@ -30,9 +30,9 @@ def render_operational_master_download(controller, id_venta, label="📊 Generar
         
         # fallback: Obtener toda la data necesaria aquí mismo para evitar problemas de cache del controller
         # 1. Obtener Datos de la Venta
-        vc = VentaController(controller.client)
+        vc = VentaController(_controller.client)
         # Buscar la venta específica en la base de datos para tener datos frescos
-        res_v = controller.client.table('venta').select('*, cliente(nombre, lead(numero_celular)), vendedor(nombre)').eq('id_venta', id_venta).single().execute()
+        res_v = _controller.client.table('venta').select('*, cliente(nombre, lead(numero_celular)), vendedor(nombre)').eq('id_venta', id_venta).single().execute()
         if not res_v.data:
             return
             
@@ -67,7 +67,7 @@ def render_operational_master_download(controller, id_venta, label="📊 Generar
 
 
         # 2. Calcular Pagos e Información de Depósito
-        res_p = controller.client.table('pago').select('*').eq('id_venta', id_venta).order('fecha_pago', desc=False).execute()
+        res_p = _controller.client.table('pago').select('*').eq('id_venta', id_venta).order('fecha_pago', desc=False).execute()
         pagos = res_p.data or []
         
         # Calcular sumas correctamente separando ingresos de egresos (reembolsos)
@@ -100,14 +100,14 @@ def render_operational_master_download(controller, id_venta, label="📊 Generar
             v_data['monto_segundo_deposito'] = ""
 
         # 3. Obtener Itinerario Logístico (Con proveedores asignados)
-        itinerario = controller.get_servicios_rango_fechas(date(2000,1,1), date(2100,1,1))
+        itinerario = _controller.get_servicios_rango_fechas(date(2000,1,1), date(2100,1,1))
         it_venta = [s for s in itinerario if s['ID Venta'] == id_venta]
 
         # 4. Obtener Pasajeros
-        pasajeros = controller.pasajero_model.get_by_venta_id(id_venta)
+        pasajeros = _controller.pasajero_model.get_by_venta_id(id_venta)
 
         # 5. Obtener Liquidación Detallada (Costos)
-        liquidaciones = controller.get_liquidaciones_venta(id_venta)
+        liquidaciones = _controller.get_liquidaciones_venta(id_venta)
 
         # 6. Empaquetar
         data_hoja = {
