@@ -229,9 +229,42 @@ class ExcelController:
         pax = data_hoja.get('pasajeros', [])
         liq = data_hoja.get('liquidaciones', [])
 
-        costo_total_liq = sum(float(l.get('costo_unitario') or 0) * (int(l.get('cantidad_pax') or v.get('num_pasajeros', 1))) for l in liq)
+        v_moneda = v.get('moneda') or 'USD'
+        v_tc_venta = float(v.get('tipo_cambio') or 3.80)
+        if v_tc_venta <= 0:
+            v_tc_venta = 3.80
+
+        # --- CÁLCULO DE COSTOS MULTIMONEDA CON CONVERSIÓN ---
+        costo_total_liq = 0.0
+        liq_converts = []
+        for l in liq:
+            c_unit = float(l.get('costo_unitario') or 0)
+            pax_count = int(l.get('cantidad_pax') or v.get('num_pasajeros', 1))
+            total_linea = c_unit * pax_count
+            
+            l_moneda = l.get('moneda') or 'USD'
+            tc = float(l.get('tipo_cambio') or 3.80)
+            if tc <= 0:
+                tc = 3.80
+                
+            if l_moneda == v_moneda:
+                total_general = total_linea
+            elif v_moneda == 'USD' and l_moneda == 'PEN':
+                total_general = total_linea / tc
+            elif v_moneda == 'PEN' and l_moneda == 'USD':
+                total_general = total_linea * tc
+            else:
+                total_general = total_linea
+                
+            costo_total_liq += total_general
+            liq_converts.append({
+                'liq': l,
+                'total_linea': total_linea,
+                'tc': tc,
+                'total_general': total_general
+            })
+
         monto_venta = float(v.get('monto_total') or 0)
-        
         estado_venta = v.get('estado_venta', '')
         es_cancelado = estado_venta == 'CANCELADO'
         
@@ -261,7 +294,8 @@ class ExcelController:
             ["Carpeta Drive", v.get('drive_url') or "No vinculado", estado_venta or '---'],
             ["", "", ""],
             ["RESUMEN FINANCIERO", "", ""],
-            ["Moneda", v.get('moneda'), "Monto Venta"],
+            ["Moneda Venta", v_moneda, "Monto Venta"],
+            ["Tipo de Cambio Venta", v_tc_venta, ""],
         ]
         
         if es_cancelado:
@@ -275,7 +309,7 @@ class ExcelController:
         else:
             datos_v.extend([
                 ["Total Depositado", v.get('monto_pagado') or 0, "DEPOSITOS"],
-            ["Total Reembolsado", v.get('total_reembolsado') or 0, "EGRESOS"],
+                ["Total Reembolsado", v.get('total_reembolsado') or 0, "EGRESOS"],
                 ["1º Método Pago", v.get('metodo_pago_primer'), f"DEP 1: {v.get('monto_primer_deposito')}"],
                 ["2º Método Pago", v.get('metodo_pago_segundo'), f"DEP 2: {v.get('monto_segundo_deposito')}"],
                 ["Costo Total", costo_total_liq, "COSTO NETO"],
@@ -299,7 +333,7 @@ class ExcelController:
                         cell = ws.cell(row=current_row, column=c_idx, value=val)
                         cell.border = thin_border
                         # Formato especial para links
-                        if row[0] == "Carpeta Drive" and c_idx == 2 and val.startswith("http"):
+                        if row[0] == "Carpeta Drive" and c_idx == 2 and str(val).startswith("http"):
                             cell.hyperlink = val
                             cell.font = Font(color="0000FF", underline="single")
                         elif c_idx % 2 != 0: 
@@ -310,21 +344,21 @@ class ExcelController:
         current_row += 2 # Espacio
 
         # --- SECCIÓN 2: LOGÍSTICA DIARIA (ITINERARIO) ---
-        ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=8)
+        ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=9)
         ws.cell(row=current_row, column=1, value="📅 CRONOGRAMA LOGÍSTICO COMPLETO").font = white_font
-        for c in range(1, 9): 
+        for c in range(1, 10): 
             ws.cell(row=current_row, column=c).fill = section_fill
             ws.cell(row=current_row, column=c).alignment = center_al
         current_row += 1
 
         # Si la venta está cancelada, mostrar banner rojo visible en el cronograma
         if es_cancelado:
-            ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=8)
+            ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=9)
             cancel_cell = ws.cell(row=current_row, column=1,
                 value="⚠️  SERVICIO CANCELADO — Esta reserva fue anulada. Los servicios abajo son solo referencia histórica.")
             cancel_cell.font = Font(bold=True, color="FFFFFF", size=11)
             cancel_fill = PatternFill(start_color="C0392B", end_color="C0392B", fill_type="solid")
-            for c in range(1, 9):
+            for c in range(1, 10):
                 ws.cell(row=current_row, column=c).fill = cancel_fill
                 ws.cell(row=current_row, column=c).border = thin_border
             cancel_cell.alignment = center_al
@@ -369,14 +403,19 @@ class ExcelController:
         current_row += 2 # Espacio
 
         # --- SECCIÓN 3: LIQUIDACIÓN DE COSTOS (DETALLE PROVEEDORES) ---
-        ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=8)
+        ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=12)
         ws.cell(row=current_row, column=1, value="💰 DETALLE DE LIQUIDACIÓN Y PAGOS").font = white_font
-        for c in range(1, 9): 
+        for c in range(1, 13): 
             ws.cell(row=current_row, column=c).fill = section_fill
             ws.cell(row=current_row, column=c).alignment = center_al
         current_row += 1
 
-        headers_l = ["Día", "Proveedor Real", "Tipo Servicio", "Moneda", "Costo Unit.", "Cant/Pax", "Total Línea", "Estado", "Método Pago", "Obs. Contables"]
+        # Columnas actualizadas con Tipo de Cambio (T.C.) y Total General (en la moneda de venta)
+        headers_l = [
+            "Día", "Proveedor Real", "Tipo Servicio", "Moneda", 
+            "Costo Unit.", "Cant/Pax", "Total Línea", "T.C.", 
+            f"Total Gral ({v_moneda})", "Estado", "Método Pago", "Obs. Contables"
+        ]
         for c_idx, h in enumerate(headers_l, 1):
             cell = ws.cell(row=current_row, column=c_idx, value=h)
             cell.fill = subheader_fill
@@ -387,7 +426,12 @@ class ExcelController:
 
         red_font = Font(color="FF0000", bold=True) # Rojo para pendientes
 
-        for l in liq:
+        for item in liq_converts:
+            l = item['liq']
+            total_linea = item['total_linea']
+            tc = item['tc']
+            total_general = item['total_general']
+            
             ws.cell(row=current_row, column=1, value=l.get('n_linea'))
             prov_name = l.get('proveedor', {}).get('nombre_comercial', '---') if isinstance(l.get('proveedor'), dict) else '---'
             ws.cell(row=current_row, column=2, value=prov_name).font = bold_font
@@ -396,29 +440,32 @@ class ExcelController:
             
             c_unit = float(l.get('costo_unitario') or 0)
             pax_count = int(l.get('cantidad_pax') or v.get('num_pasajeros', 1))
+            
             ws.cell(row=current_row, column=5, value=c_unit).number_format = '#,##0.00'
             ws.cell(row=current_row, column=6, value=pax_count)
-            ws.cell(row=current_row, column=7, value=c_unit * pax_count).number_format = '#,##0.00'
+            ws.cell(row=current_row, column=7, value=total_linea).number_format = '#,##0.00'
+            ws.cell(row=current_row, column=8, value=tc).number_format = '0.00'
+            ws.cell(row=current_row, column=9, value=total_general).number_format = '#,##0.00'
             
             # Formateo condicional del estado
             estado_txt = "O.K." if l.get('terminado') else "Pte"
-            cell_est = ws.cell(row=current_row, column=8, value=estado_txt)
+            cell_est = ws.cell(row=current_row, column=10, value=estado_txt)
             if estado_txt == "Pte":
                 cell_est.font = red_font
             
-            # NUEVOS CAMPOS: Método de Pago y Observaciones Contables
-            ws.cell(row=current_row, column=9, value=l.get('metodo_pago', '---'))
-            ws.cell(row=current_row, column=10, value=l.get('observaciones_contables', '---'))
+            # Método de Pago y Observaciones Contables
+            ws.cell(row=current_row, column=11, value=l.get('metodo_pago', '---'))
+            ws.cell(row=current_row, column=12, value=l.get('observaciones_contables', '---'))
             
-            for c in range(1, 11): ws.cell(row=current_row, column=c).border = thin_border
+            for c in range(1, 13): ws.cell(row=current_row, column=c).border = thin_border
             current_row += 1
 
         current_row += 2 # Espacio
 
         # --- SECCIÓN 4: ROOMING LIST ---
-        ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=8)
+        ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=11)
         ws.cell(row=current_row, column=1, value="👥 LISTA DE PASAJEROS (ROOMING LIST)").font = white_font
-        for c in range(1, 9): 
+        for c in range(1, 12): 
             ws.cell(row=current_row, column=c).fill = pax_fill
             ws.cell(row=current_row, column=c).alignment = center_al
         current_row += 1
@@ -448,9 +495,9 @@ class ExcelController:
             for c in range(1, 12): ws.cell(row=current_row, column=c).border = thin_border
             current_row += 1
 
-        # Anchos de columna finales
+        # Anchos de columna finales (Optimizados para las 12 columnas)
         col_letters = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N']
-        anchos = [12, 25, 20, 10, 12, 10, 14, 10, 15, 30]
+        anchos = [8, 25, 20, 10, 12, 10, 14, 10, 16, 10, 15, 30]
         for i, w in enumerate(anchos):
             ws.column_dimensions[col_letters[i]].width = w
 
