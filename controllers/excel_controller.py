@@ -300,11 +300,13 @@ class ExcelController:
         
         if es_cancelado:
             total_retenido = round(ingreso_real - reembolsos, 2)
+            penalidad_aplicada = round(max(0.0, total_retenido - costo_total_liq), 2)
             datos_v.extend([
                 ["Precio Original", monto_venta, "RECAUDADO"],
                 ["Total Depositado", ingreso_real, "INGRESOS"],
                 ["Total Reembolsado", reembolsos, "EGRESOS"],
-                ["Total Retenido (Penalidad Pax)", total_retenido, "RETENIDO"],
+                ["Total Retenido", total_retenido, "RETENIDO"],
+                ["Penalidad Aplicada", penalidad_aplicada, "PENALIDAD"],
                 ["Costo Operativo Real", costo_total_liq, "COSTO NETO"],
                 ["BALANCE FINAL CAJA", utilidad, "RESULTADO"],
             ])
