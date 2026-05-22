@@ -37,7 +37,8 @@ class VentaController:
                                 contacto_emergencia_nombre: Optional[str] = None,
                                 contacto_emergencia_tel: Optional[str] = None,
                                 enviar_correo: bool = False,
-                                adjuntos: Optional[dict] = None
+                                adjuntos: Optional[dict] = None,
+                                fecha_venta: Optional[str] = None
                                 ) -> tuple[bool, str]:
         """Registra una venta con todos los detalles extendidos."""
         
@@ -84,7 +85,8 @@ class VentaController:
             "correo_cliente": correo,
             "nombre_contacto_emergencia": contacto_emergencia_nombre,
             "telefono_contacto_emergencia": contacto_emergencia_tel,
-            "comentarios": comentarios
+            "comentarios": comentarios,
+            "fecha_registro": fecha_venta
         }
         
         # Corregir typo detectado
@@ -132,7 +134,8 @@ class VentaController:
                                   contacto_emergencia_tel: Optional[str] = None,
                                   comentarios: Optional[str] = None,
                                   enviar_correo: bool = True,
-                                  adjuntos: Optional[dict] = None
+                                  adjuntos: Optional[dict] = None,
+                                  fecha_venta: Optional[str] = None
                                   ) -> tuple[bool, str]:
         """Registra una venta proveniente de una agencia externa (B2B)."""
         try:
@@ -163,7 +166,8 @@ class VentaController:
                 "correo_cliente": correo,
                 "nombre_contacto_emergencia": contacto_emergencia_nombre,
                 "telefono_contacto_emergencia": contacto_emergencia_tel or telefono,
-                "comentarios": comentarios
+                "comentarios": comentarios,
+                "fecha_registro": fecha_venta
             }
             
             res_id = self.model.create_venta(venta_data)

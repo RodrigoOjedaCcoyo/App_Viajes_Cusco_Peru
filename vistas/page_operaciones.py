@@ -842,6 +842,9 @@ def registro_ventas_proveedores(supabase_client):
         pax_name = col1.text_input("Pasajero Principal", value=def_pax, disabled=False)
         tel_pax = col1.text_input("Celular Contacto", value=def_cel)
         
+        # Campo de Fecha de Venta (Editable, default hoy)
+        fecha_venta_sel = col1.date_input("Fecha de Venta", value=date.today(), key="b2b_fecha_venta", help="La fecha en la que se realizó/concretó esta venta B2B.")
+        
         vendedor_log = st.session_state.get('user_id', 'Operaciones')
         col1.markdown(f"👤 **Vendedor Resp:** {vendedor_log}")
 
@@ -933,7 +936,8 @@ def registro_ventas_proveedores(supabase_client):
                     contacto_emergencia_tel=cont_tel,
                     comentarios=comentarios_op,
                     enviar_correo=enviar_notif_b2b,
-                    adjuntos={f.name: f.getvalue() for f in archivos_adjuntos_b2b} if archivos_adjuntos_b2b else None
+                    adjuntos={f.name: f.getvalue() for f in archivos_adjuntos_b2b} if archivos_adjuntos_b2b else None,
+                    fecha_venta=fecha_venta_sel.isoformat()
                 )
                 
                 if exito:

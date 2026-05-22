@@ -552,6 +552,9 @@ def registro_ventas_directa():
         def_cel = lead_data.get('numero_celular', '') if lead_data else st.session_state.get(f"val_cel_{id_itinerario_dig}", '')
         tel = col1.text_input("Celular", value=def_cel, disabled=False)
         
+        # Campo de Fecha de Venta (Editable, default hoy)
+        fecha_venta_sel = col1.date_input("Fecha de Venta", value=date.today(), key="b2c_fecha_venta", help="La fecha en la que se realizó/concretó esta venta.")
+        
         vendedor_actual = st.session_state.get('user_id', 'Admin')
         col1.markdown(f"👤 **Vendedor:** {vendedor_actual}")
         
@@ -754,7 +757,8 @@ def registro_ventas_directa():
                             contacto_emergencia_nombre=cont_nom,
                             contacto_emergencia_tel=cont_tel,
                             enviar_correo=enviar_notif,
-                            adjuntos={f.name: f.getvalue() for f in archivos_adjuntos} if archivos_adjuntos else None
+                            adjuntos={f.name: f.getvalue() for f in archivos_adjuntos} if archivos_adjuntos else None,
+                            fecha_venta=fecha_venta_sel.isoformat()
                         )
                 
                 if exito:
