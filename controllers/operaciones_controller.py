@@ -923,9 +923,8 @@ class OperacionesController:
             res_pagos = self.client.table('pago').select('*').eq('id_venta', id_venta).execute()
             pagos = res_pagos.data or []
             
-            # Calcular pagos desglosados: depósitos vs reembolsos previos
-            total_depositado = 0.0
-            total_reembolsado_previo = 0.0
+            # Calcular ingreso recaudado (reembolsos restan)
+            ingreso_recaudado = 0.0
             pagos_detalle = []
             for p in pagos:
                 monto = float(p.get('monto_pagado') or 0.0)
@@ -934,17 +933,16 @@ class OperacionesController:
                 tipo = p.get('tipo_pago') or 'ADELANTO'
                 
                 # Convertir a soles
+                monto_soles = float(p.get('monto_moneda_venta') or monto)
                 if moneda == 'USD':
                     monto_soles = monto * tc
                 elif moneda == 'PEN':
                     monto_soles = monto
-                else:
-                    monto_soles = float(p.get('monto_moneda_venta') or monto)
                 
                 if tipo == 'REEMBOLSO':
-                    total_reembolsado_previo += monto_soles
+                    ingreso_recaudado -= monto_soles
                 else:
-                    total_depositado += monto_soles
+                    ingreso_recaudado += monto_soles
                 
                 pagos_detalle.append({
                     "id_pago": p['id_pago'],
@@ -956,9 +954,6 @@ class OperacionesController:
                     "metodo_pago": p.get('metodo_pago') or '---',
                     "tipo_pago": tipo
                 })
-            
-            # Ingreso neto = lo que pagó menos lo que ya se le devolvió
-            ingreso_recaudado = total_depositado - total_reembolsado_previo
                 
             # 4. Obtener servicios operativos y costos
             res_servs = self.client.table('venta_servicio_proveedor').select('*, proveedor(nombre_comercial)').eq('id_venta', id_venta).execute()
@@ -990,8 +985,6 @@ class OperacionesController:
                 "venta": venta,
                 "pasajeros": pasajeros,
                 "pagos": pagos_detalle,
-                "total_depositado": total_depositado,
-                "total_reembolsado_previo": total_reembolsado_previo,
                 "ingreso_recaudado": ingreso_recaudado,
                 "servicios": servicios_detalle,
                 "costo_incurrido_total": costo_incurrido_total
