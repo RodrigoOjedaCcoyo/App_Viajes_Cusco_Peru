@@ -1841,8 +1841,31 @@ def dashboard_simulador_costos(controller):
                             st.toast("Penalidades limpiadas")
                             st.rerun()
                 
-                # Calcular Costo Total Final (Inicial + Penalidades)
-                costo_penalidades = sum(p['total_soles'] for p in st.session_state[session_key])
+                # --- NUEVO: Penalidad por Pasarela de Pago / Comisión de Tarjeta ---
+                st.markdown("##### 💳 Penalidad por Pasarela de Pago (Comisión de Tarjeta / Banco)")
+                col_gate1, col_gate2 = st.columns([2, 1])
+                with col_gate1:
+                    gateway_fee_pct = st.number_input(
+                        "Porcentaje de Comisión Pasarela (%)", 
+                        min_value=0.0, 
+                        max_value=20.0, 
+                        value=5.0, 
+                        step=0.1, 
+                        help="Porcentaje de comisión cobrado por pasarelas (Visa, Niubiz, Culqi, etc.) sobre los adelantos recaudados.",
+                        key=f"gate_pct_{id_actual}"
+                    )
+                with col_gate2:
+                    monto_comision_pasarela = (ingreso_recaudado * (gateway_fee_pct / 100.0))
+                    st.text_input(
+                        "Monto de Comisión Calculado (S/.)", 
+                        value=f"S/. {monto_comision_pasarela:,.2f}", 
+                        disabled=True,
+                        key=f"gate_val_disp_{id_actual}"
+                    )
+
+                # Calcular Costo Total Final (Inicial + Penalidades de Proveedores + Penalidad de Pasarela)
+                costo_penalidades_prov = sum(p['total_soles'] for p in st.session_state[session_key])
+                costo_penalidades = costo_penalidades_prov + monto_comision_pasarela
                 costo_total_final = costo_incurrido_inicial + costo_penalidades
                 
                 # ═══════════════════════════════════════════════════════════════
