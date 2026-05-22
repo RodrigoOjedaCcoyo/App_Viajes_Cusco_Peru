@@ -272,10 +272,10 @@ class ExcelController:
         reembolsos = float(v.get('total_reembolsado') or 0)
         
         if es_cancelado:
-            utilidad = ingreso_real - reembolsos - costo_total_liq
+            utilidad = round(ingreso_real - reembolsos - costo_total_liq, 2)
             rentabilidad_str = "N/A"
         else:
-            utilidad = monto_venta - costo_total_liq
+            utilidad = round(monto_venta - costo_total_liq, 2)
             rentabilidad_str = f"{(utilidad / monto_venta * 100):.2f}%" if monto_venta > 0 else "0%"
 
         # --- SECCIÓN 1: PANEL DE CONTROL FINANCIERO ---
@@ -299,11 +299,13 @@ class ExcelController:
         ]
         
         if es_cancelado:
+            total_retenido = round(ingreso_real - reembolsos, 2)
             datos_v.extend([
                 ["Precio Original", monto_venta, "RECAUDADO"],
                 ["Total Depositado", ingreso_real, "INGRESOS"],
                 ["Total Reembolsado", reembolsos, "EGRESOS"],
-                ["Costo Operativo", costo_total_liq, "COSTO NETO"],
+                ["Total Retenido (Penalidad Pax)", total_retenido, "RETENIDO"],
+                ["Costo Operativo Real", costo_total_liq, "COSTO NETO"],
                 ["BALANCE FINAL CAJA", utilidad, "RESULTADO"],
             ])
         else:
@@ -339,6 +341,10 @@ class ExcelController:
                         elif c_idx % 2 != 0: 
                             cell.fill = subheader_fill
                             cell.font = bold_font
+                        
+                        # NUEVO: Formato de número de dos decimales para celdas numéricas de dinero
+                        if isinstance(val, (int, float)) and row[0] not in ["ID Venta", "Tipo de Cambio Venta", "Porcentaje de Comisión Pasarela"]:
+                            cell.number_format = '#,##0.00'
             current_row += 1
 
         current_row += 2 # Espacio
