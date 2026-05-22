@@ -19,11 +19,12 @@ try:
 except:
     pass
 
-# NUEVO: Renderiza el Botón para el Excel Maestro Operativo.
-@st.cache_data(show_spinner=False, ttl=0)
-def render_operational_master_download(_controller, id_venta, label="📊 Generar Informe Maestro", key=None):
+# NUEVO: Generación de los Excel en memoria cachada (sin widgets de Streamlit)
+@st.cache_data(show_spinner=False, ttl=60)
+def generate_operational_master_buffers(_controller, id_venta):
     """
-    Recopila toda la información de la operación y ofrece la descarga del Excel Maestro.
+    Recopila toda la información de la operación de forma eficiente y genera
+    los buffers de Excel correspondientes. Evita widgets de Streamlit para no generar warnings de cache.
     """
     try:
         xl_ctrl = ExcelController()
@@ -34,7 +35,7 @@ def render_operational_master_download(_controller, id_venta, label="📊 Genera
         # Buscar la venta específica en la base de datos para tener datos frescos
         res_v = _controller.client.table('venta').select('*, cliente(nombre, lead(numero_celular)), vendedor(nombre)').eq('id_venta', id_venta).single().execute()
         if not res_v.data:
-            return
+            return None, None, None
             
         v_raw = res_v.data
         cliente_nest = v_raw.get('cliente', {})
@@ -63,8 +64,6 @@ def render_operational_master_download(_controller, id_venta, label="📊 Genera
             "origen": v_raw.get('canal_venta'),
             "telefono_cliente": v_raw.get('telefono_cliente')
         }
-
-
 
         # 2. Calcular Pagos e Información de Depósito
         res_p = _controller.client.table('pago').select('*').eq('id_venta', id_venta).order('fecha_pago', desc=False).execute()
@@ -119,12 +118,29 @@ def render_operational_master_download(_controller, id_venta, label="📊 Genera
         
         # Generar Excel
         master_buffer = xl_ctrl.generar_hoja_servicio_maestra_xlsx(data_hoja)
+        ficha_buffer = xl_ctrl.generar_ficha_control_grupos_xlsx(data_hoja)
+        
+        nombre_cliente = v_data.get('nombre_cliente', 'Desconocido')
+        
+        return master_buffer, ficha_buffer, nombre_cliente
+        
+    except Exception as e:
+        print(f"Error generando data de Hoja de Servicio: {e}")
+        return None, None, None
+
+# NUEVO: Renderiza el Botón para el Excel Maestro Operativo (Sin cache).
+def render_operational_master_download(controller, id_venta, label="📊 Generar Informe Maestro", key=None):
+    """
+    Recopila toda la información de la operación utilizando la función cachada y ofrece la descarga de los Excel correspondientes sin warnings de Streamlit.
+    """
+    try:
+        master_buffer, ficha_buffer, nombre_cliente = generate_operational_master_buffers(controller, id_venta)
         
         if master_buffer:
             st.download_button(
                 label=label,
                 data=master_buffer,
-                file_name=f"informe_maestro_{id_venta}_{data_hoja['venta']['nombre_cliente'].replace(' ', '_')}.xlsx",
+                file_name=f"informe_maestro_{id_venta}_{nombre_cliente.replace(' ', '_')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 help="Expediente completo: Resumen Financiero, Logística, Costos Detallados y Pasajeros.",
                 key=key or f"dl_mast_{id_venta}",
@@ -133,20 +149,21 @@ def render_operational_master_download(_controller, id_venta, label="📊 Genera
             )
             
             # --- NUEVO: Botón para Ficha de Control (Replica de Plantilla) ---
-            ficha_buffer = xl_ctrl.generar_ficha_control_grupos_xlsx(data_hoja)
             if ficha_buffer:
                 st.download_button(
                     label="📋 Ficha de Control (Grupos)",
                     data=ficha_buffer,
-                    file_name=f"ficha_control_{id_venta}_{data_hoja['venta']['nombre_cliente'].replace(' ', '_')}.xlsx",
+                    file_name=f"ficha_control_{id_venta}_{nombre_cliente.replace(' ', '_')}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     help="Réplica exacta de la plantilla de control de grupos (Rooming List / Manifiesto).",
                     key=f"dl_ficha_{id_venta}_{key if key else ''}",
                     use_container_width=True
                 )
+        else:
+            st.warning("No se pudo generar el Informe Maestro ni la Ficha de Control en este momento.")
             
     except Exception as e:
-        st.error(f"Error generando Hoja de Servicio: {e}")
+        st.error(f"Error renderizando Hoja de Servicio: {e}")
 
 # Renderiza el Botón para el PDF del Itinerario Simple.
 def render_itinerary_simple_download(render):
