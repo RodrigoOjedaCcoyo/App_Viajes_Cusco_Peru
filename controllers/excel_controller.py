@@ -340,6 +340,10 @@ class ExcelController:
                         if row[0] == "Carpeta Drive" and c_idx == 2 and str(val).startswith("http"):
                             cell.hyperlink = val
                             cell.font = Font(color="0000FF", underline="single")
+                        elif val == "CANCELADO":
+                            # Resaltado premium en rojo para cancelaciones
+                            cell.fill = PatternFill(start_color="FEE2E2", end_color="FEE2E2", fill_type="solid")
+                            cell.font = Font(color="991B1B", bold=True)
                         elif c_idx % 2 != 0: 
                             cell.fill = subheader_fill
                             cell.font = bold_font
