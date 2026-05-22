@@ -1923,13 +1923,25 @@ def dashboard_simulador_costos(controller):
                 
                 if st.button("❌ Procesar Cancelación Definitiva de Reserva", type="primary", disabled=not confirmar_check, use_container_width=True, key=f"btn_execute_cancel_{id_actual}"):
                     with st.spinner("Procesando cancelación física y contable..."):
+                        # Construir desglose financiero para guardarlo en la Base de Datos en el log de pagos
+                        desglose_obs = (
+                            f"{obs_cancelacion}\n\n"
+                            f"--- DESGLOSE CONTABLE DE CANCELACIÓN ---\n"
+                            f"• Total Recaudado (Adelantos): S/. {ingreso_recaudado:,.2f}\n"
+                            f"• Costo Incurrido en Servicios: S/. {costo_incurrido_inicial:,.2f}\n"
+                            f"• Penalidad Pasarela ({gateway_fee_pct}%): S/. {monto_comision_pasarela:,.2f}\n"
+                            f"• Penalidades de Proveedores: S/. {costo_penalidades_prov:,.2f}\n"
+                            f"• Total Retenido (Penalidades): S/. {costo_penalidades:,.2f}\n"
+                            f"• Monto Real Reembolsado: S/. {monto_a_reembolsar:,.2f}"
+                        )
+                        
                         exito, msg = controller.ejecutar_cancelacion_reserva(
                             id_venta=id_actual,
                             costo_penalidad=costo_penalidades,
                             descripcion_penalidad="Penalidad acumulada en cancelación",
                             monto_reembolsado=monto_a_reembolsar,
                             metodo_reembolso=metodo_reembolso,
-                            observaciones=obs_cancelacion
+                            observaciones=desglose_obs
                         )
                         if exito:
                             # Limpiar sesión y variables de penalidades
