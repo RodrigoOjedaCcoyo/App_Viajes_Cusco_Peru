@@ -348,3 +348,126 @@ def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual=
         render_exec_dashboard_visual(supabase_client)
     else:
         st.write(f"Dashboard: {funcionalidad_seleccionada} en construcción.")
+        
+    # Render Master Sales Table for all roles at the bottom
+    render_master_sales_table_visual(supabase_client)
+
+def render_master_sales_table_visual(supabase_client):
+    """Renderiza una tabla visual con el Reporte Maestro de Ventas, filtrable por mes."""
+    st.divider()
+    st.markdown("### 📊 Reporte Maestro de Ventas (Global)")
+    st.caption("Visión detallada de todas las ventas del mes (B2C y B2B). Disponible para todas las áreas.")
+    
+    col_mes, col_anio, _ = st.columns([1, 1, 3])
+    
+    meses_opciones = {
+        1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
+        5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
+        9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
+    }
+    
+    with col_mes:
+        mes_sel_nombre = st.selectbox("Mes Reporte", list(meses_opciones.values()), index=date.today().month - 1, key="master_mes")
+        mes_sel = [k for k, v in meses_opciones.items() if v == mes_sel_nombre][0]
+    
+    with col_anio:
+        anio_actual = date.today().year
+        anios_opciones = list(range(anio_actual - 2, anio_actual + 3))
+        anio_sel = st.selectbox("Año Reporte", anios_opciones, index=anios_opciones.index(anio_actual), key="master_anio")
+        
+    try:
+        res_ventas = supabase_client.table('venta').select('*, cliente(*)').order('fecha_venta', desc=True).execute()
+        ventas_data = res_ventas.data or []
+        res_pagos = supabase_client.table('pago').select('*').order('fecha_pago', desc=False).execute()
+        pagos_data = res_pagos.data or []
+    except Exception as e:
+        st.error(f"Error cargando datos: {e}")
+        return
+
+    # Agrupar pagos
+    pagos_por_venta = {}
+    for p in pagos_data:
+        id_v = p.get('id_venta')
+        if id_v not in pagos_por_venta:
+            pagos_por_venta[id_v] = []
+        pagos_por_venta[id_v].append(p)
+
+    data_rows = []
+    from datetime import datetime
+    for v in ventas_data:
+        f_venta_str = v.get('fecha_venta')
+        if not f_venta_str: continue
+        
+        try:
+            f_obj = datetime.strptime(f_venta_str.split('T')[0], '%Y-%m-%d').date()
+            if f_obj.year != anio_sel or f_obj.month != mes_sel:
+                continue
+        except:
+            continue
+            
+        cliente_info = v.get('cliente') or {}
+        nombre_pax = v.get('nombre_cliente') or cliente_info.get('nombre', 'Desconocido')
+        pax = f"{nombre_pax} x {v.get('num_pasajeros', 1)}"
+        
+        moneda_venta = v.get('moneda', 'USD')
+        monto_orig = float(v.get('precio_total_cierre') or 0.0)
+        tc = float(v.get('tipo_cambio') or 3.80)
+        
+        if moneda_venta == 'USD':
+            monto_total_usd = monto_orig
+            monto_total_pen = monto_orig * tc
+        else:
+            monto_total_pen = monto_orig
+            monto_total_usd = monto_orig / tc if tc > 0 else 0.0
+
+        lista_pagos = pagos_por_venta.get(v.get('id_venta'), [])
+        lista_pagos = [p for p in lista_pagos if p.get('tipo_pago') != 'REEMBOLSO']
+        
+        total_pagado_pen, total_pagado_usd = 0.0, 0.0
+        for p in lista_pagos:
+            p_moneda = p.get('moneda', moneda_venta)
+            p_monto = float(p.get('monto_pagado') or 0.0)
+            if p_moneda == 'USD':
+                total_pagado_usd += p_monto
+                total_pagado_pen += p_monto * tc
+            else:
+                total_pagado_pen += p_monto
+                total_pagado_usd += p_monto / tc if tc > 0 else 0.0
+        
+        dif_pen = monto_total_pen - total_pagado_pen
+        dif_usd = monto_total_usd - total_pagado_usd
+        
+        estado = str(v.get('estado_venta', 'CONFIRMADO')).upper()
+        tipo = "B2B" if v.get('id_agencia_aliada') else "B2C"
+        
+        data_rows.append({
+            "FECHA": f_venta_str,
+            "PAX": pax,
+            "NACIONALIDAD": cliente_info.get('nacionalidad', ''),
+            "TOUR": v.get('fecha_inicio', ''),
+            "TOTAL S/": round(monto_total_pen, 2),
+            "TOTAL $": round(monto_total_usd, 2),
+            "PAGADO S/": round(total_pagado_pen, 2),
+            "PAGADO $": round(total_pagado_usd, 2),
+            "SALDO S/": round(dif_pen, 2),
+            "SALDO $": round(dif_usd, 2),
+            "ESTADO": estado,
+            "TIPO": tipo
+        })
+
+    if data_rows:
+        df = pd.DataFrame(data_rows)
+        # Highlight cancelled rows using pandas styler
+        def highlight_cancelled(row):
+            if row['ESTADO'] == 'CANCELADO':
+                return ['background-color: #FEE2E2; color: #991B1B'] * len(row)
+            return [''] * len(row)
+        
+        styled_df = df.style.apply(highlight_cancelled, axis=1).format({
+            "TOTAL S/": "{:,.2f}", "TOTAL $": "{:,.2f}", 
+            "PAGADO S/": "{:,.2f}", "PAGADO $": "{:,.2f}", 
+            "SALDO S/": "{:,.2f}", "SALDO $": "{:,.2f}"
+        })
+        st.dataframe(styled_df, use_container_width=True, hide_index=True)
+    else:
+        st.info("No hay ventas registradas para este periodo.")
