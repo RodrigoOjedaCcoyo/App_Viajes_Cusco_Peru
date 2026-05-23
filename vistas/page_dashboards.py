@@ -349,42 +349,16 @@ def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual=
     else:
         st.write(f"Dashboard: {funcionalidad_seleccionada} en construcción.")
         
-    # Render Master Sales Table for all roles at the bottom
+    # Render Master Sales Table B2C for all roles
     render_master_sales_table_visual(supabase_client)
 
-def render_master_sales_table_visual(supabase_client):
-    """Renderiza una tabla visual con el Reporte Maestro de Ventas, filtrable por mes."""
-    st.divider()
-    st.markdown("### 📊 Reporte Maestro de Ventas (Global)")
-    st.caption("Visión detallada de todas las ventas del mes (B2C y B2B). Disponible para todas las áreas.")
-    
-    col_mes, col_anio, _ = st.columns([1, 1, 3])
-    
-    meses_opciones = {
-        1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
-        5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
-        9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
-    }
-    
-    with col_mes:
-        mes_sel_nombre = st.selectbox("Mes Reporte", list(meses_opciones.values()), index=date.today().month - 1, key="master_mes")
-        mes_sel = [k for k, v in meses_opciones.items() if v == mes_sel_nombre][0]
-    
-    with col_anio:
-        anio_actual = date.today().year
-        anios_opciones = list(range(anio_actual - 2, anio_actual + 3))
-        anio_sel = st.selectbox("Año Reporte", anios_opciones, index=anios_opciones.index(anio_actual), key="master_anio")
-        
-    try:
-        res_ventas = supabase_client.table('venta').select('*, cliente(*)').order('fecha_venta', desc=True).execute()
-        ventas_data = res_ventas.data or []
-        res_pagos = supabase_client.table('pago').select('*').order('fecha_pago', desc=False).execute()
-        pagos_data = res_pagos.data or []
-    except Exception as e:
-        st.error(f"Error cargando datos: {e}")
-        return
+    # Render B2B list ONLY for Operaciones, Contabilidad, Ejecutivo
+    permitidos_b2b = ["Operaciones", "Contable", "Ejecutivo"]
+    if any(p in funcionalidad_seleccionada for p in permitidos_b2b):
+        render_b2b_sales_table_visual(supabase_client)
 
-    # Agrupar pagos
+def procesar_datos_tabla(ventas_data, pagos_data, anio_sel=None, mes_sel=None, filtro_tipo=None):
+    """Función unificada para formatear las ventas en el DataFrame de los reportes."""
     pagos_por_venta = {}
     for p in pagos_data:
         id_v = p.get('id_venta')
@@ -395,19 +369,33 @@ def render_master_sales_table_visual(supabase_client):
     data_rows = []
     from datetime import datetime
     for v in ventas_data:
+        # Filtrar B2C o B2B
+        es_b2b = bool(v.get('id_agencia_aliada'))
+        tipo = "B2B" if es_b2b else "B2C"
+        
+        if filtro_tipo and tipo != filtro_tipo:
+            continue
+
         f_venta_str = v.get('fecha_venta')
         if not f_venta_str: continue
         
-        try:
-            f_obj = datetime.strptime(f_venta_str.split('T')[0], '%Y-%m-%d').date()
-            if f_obj.year != anio_sel or f_obj.month != mes_sel:
+        if anio_sel and mes_sel:
+            try:
+                f_obj = datetime.strptime(f_venta_str.split('T')[0], '%Y-%m-%d').date()
+                if f_obj.year != anio_sel or f_obj.month != mes_sel:
+                    continue
+            except:
                 continue
-        except:
-            continue
             
         cliente_info = v.get('cliente') or {}
         nombre_pax = v.get('nombre_cliente') or cliente_info.get('nombre', 'Desconocido')
-        pax = f"{nombre_pax} x {v.get('num_pasajeros', 1)}"
+        
+        # Para B2B mostramos también el nombre de la agencia
+        if es_b2b:
+            agencia = v.get('nombre_agencia') or 'Agencia'
+            pax = f"{agencia} / {nombre_pax} x {v.get('num_pasajeros', 1)}"
+        else:
+            pax = f"{nombre_pax} x {v.get('num_pasajeros', 1)}"
         
         moneda_venta = v.get('moneda', 'USD')
         monto_orig = float(v.get('precio_total_cierre') or 0.0)
@@ -438,7 +426,6 @@ def render_master_sales_table_visual(supabase_client):
         dif_usd = monto_total_usd - total_pagado_usd
         
         estado = str(v.get('estado_venta', 'CONFIRMADO')).upper()
-        tipo = "B2B" if v.get('id_agencia_aliada') else "B2C"
         
         data_rows.append({
             "FECHA": f_venta_str,
@@ -454,10 +441,44 @@ def render_master_sales_table_visual(supabase_client):
             "ESTADO": estado,
             "TIPO": tipo
         })
+    return data_rows
+
+def render_master_sales_table_visual(supabase_client):
+    """Renderiza una tabla visual con el Reporte Maestro de Ventas DIRECTAS (B2C), filtrable por mes."""
+    st.divider()
+    st.markdown("### 📊 Reporte Maestro de Ventas (Directas - B2C)")
+    st.caption("Visión detallada de las ventas directas del mes. Disponible para todas las áreas.")
+    
+    col_mes, col_anio, _ = st.columns([1, 1, 3])
+    
+    meses_opciones = {
+        1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
+        5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
+        9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
+    }
+    
+    with col_mes:
+        mes_sel_nombre = st.selectbox("Mes Reporte", list(meses_opciones.values()), index=date.today().month - 1, key="master_mes_b2c")
+        mes_sel = [k for k, v in meses_opciones.items() if v == mes_sel_nombre][0]
+    
+    with col_anio:
+        anio_actual = date.today().year
+        anios_opciones = list(range(anio_actual - 2, anio_actual + 3))
+        anio_sel = st.selectbox("Año Reporte", anios_opciones, index=anios_opciones.index(anio_actual), key="master_anio_b2c")
+        
+    try:
+        res_ventas = supabase_client.table('venta').select('*, cliente(*)').order('fecha_venta', desc=True).execute()
+        ventas_data = res_ventas.data or []
+        res_pagos = supabase_client.table('pago').select('*').order('fecha_pago', desc=False).execute()
+        pagos_data = res_pagos.data or []
+    except Exception as e:
+        st.error(f"Error cargando datos: {e}")
+        return
+
+    data_rows = procesar_datos_tabla(ventas_data, pagos_data, anio_sel=anio_sel, mes_sel=mes_sel, filtro_tipo="B2C")
 
     if data_rows:
         df = pd.DataFrame(data_rows)
-        # Highlight cancelled rows using pandas styler
         def highlight_cancelled(row):
             if row['ESTADO'] == 'CANCELADO':
                 return ['background-color: #FEE2E2; color: #991B1B'] * len(row)
@@ -470,4 +491,38 @@ def render_master_sales_table_visual(supabase_client):
         })
         st.dataframe(styled_df, use_container_width=True, hide_index=True)
     else:
-        st.info("No hay ventas registradas para este periodo.")
+        st.info("No hay ventas B2C registradas para este periodo.")
+
+def render_b2b_sales_table_visual(supabase_client):
+    """Renderiza una tabla visual con el Reporte Maestro de Ventas de AGENCIAS (B2B), sin selector de fecha."""
+    st.divider()
+    st.markdown("### 🤝 Registro Consolidado de Agencias (B2B)")
+    st.caption("Visión global e histórica de todas las ventas B2B. Acceso restringido.")
+    
+    try:
+        res_ventas = supabase_client.table('venta').select('*, cliente(*)').order('fecha_venta', desc=True).execute()
+        ventas_data = res_ventas.data or []
+        res_pagos = supabase_client.table('pago').select('*').order('fecha_pago', desc=False).execute()
+        pagos_data = res_pagos.data or []
+    except Exception as e:
+        st.error(f"Error cargando datos: {e}")
+        return
+
+    # No pasamos anio_sel ni mes_sel, para mostrar TODAS.
+    data_rows = procesar_datos_tabla(ventas_data, pagos_data, anio_sel=None, mes_sel=None, filtro_tipo="B2B")
+
+    if data_rows:
+        df = pd.DataFrame(data_rows)
+        def highlight_cancelled(row):
+            if row['ESTADO'] == 'CANCELADO':
+                return ['background-color: #FEE2E2; color: #991B1B'] * len(row)
+            return [''] * len(row)
+        
+        styled_df = df.style.apply(highlight_cancelled, axis=1).format({
+            "TOTAL S/": "{:,.2f}", "TOTAL $": "{:,.2f}", 
+            "PAGADO S/": "{:,.2f}", "PAGADO $": "{:,.2f}", 
+            "SALDO S/": "{:,.2f}", "SALDO $": "{:,.2f}"
+        })
+        st.dataframe(styled_df, use_container_width=True, hide_index=True)
+    else:
+        st.info("No hay ventas B2B registradas en el sistema.")
