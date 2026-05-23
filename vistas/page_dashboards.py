@@ -349,13 +349,23 @@ def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual=
     else:
         st.write(f"Dashboard: {funcionalidad_seleccionada} en construcción.")
         
+    # --- OPTIMIZACIÓN: Cargar datos una sola vez para evitar errores de conexión (ConnectionTerminated) ---
+    try:
+        res_ventas = supabase_client.table('venta').select('*, cliente(*)').order('fecha_venta', desc=True).execute()
+        ventas_data = res_ventas.data or []
+        res_pagos = supabase_client.table('pago').select('*').order('fecha_pago', desc=False).execute()
+        pagos_data = res_pagos.data or []
+    except Exception as e:
+        st.error(f"Error cargando datos globales: {e}")
+        ventas_data, pagos_data = [], []
+
     # Render Master Sales Table B2C for all roles
-    render_master_sales_table_visual(supabase_client)
+    render_master_sales_table_visual(ventas_data, pagos_data)
 
     # Render B2B list ONLY for Operaciones, Contabilidad, Ejecutivo
     permitidos_b2b = ["Operaciones", "Contable", "Ejecutivo"]
     if any(p in funcionalidad_seleccionada for p in permitidos_b2b):
-        render_b2b_sales_table_visual(supabase_client)
+        render_b2b_sales_table_visual(ventas_data, pagos_data)
 
 def procesar_datos_tabla(ventas_data, pagos_data, anio_sel=None, mes_sel=None, filtro_tipo=None):
     """Función unificada para formatear las ventas en el DataFrame de los reportes."""
@@ -443,7 +453,7 @@ def procesar_datos_tabla(ventas_data, pagos_data, anio_sel=None, mes_sel=None, f
         })
     return data_rows
 
-def render_master_sales_table_visual(supabase_client):
+def render_master_sales_table_visual(ventas_data, pagos_data):
     """Renderiza una tabla visual con el Reporte Maestro de Ventas DIRECTAS (B2C), filtrable por mes."""
     st.divider()
     st.markdown("### 📊 Reporte Maestro de Ventas (Directas - B2C)")
@@ -465,15 +475,6 @@ def render_master_sales_table_visual(supabase_client):
         anio_actual = date.today().year
         anios_opciones = list(range(anio_actual - 2, anio_actual + 3))
         anio_sel = st.selectbox("Año Reporte", anios_opciones, index=anios_opciones.index(anio_actual), key="master_anio_b2c")
-        
-    try:
-        res_ventas = supabase_client.table('venta').select('*, cliente(*)').order('fecha_venta', desc=True).execute()
-        ventas_data = res_ventas.data or []
-        res_pagos = supabase_client.table('pago').select('*').order('fecha_pago', desc=False).execute()
-        pagos_data = res_pagos.data or []
-    except Exception as e:
-        st.error(f"Error cargando datos: {e}")
-        return
 
     data_rows = procesar_datos_tabla(ventas_data, pagos_data, anio_sel=anio_sel, mes_sel=mes_sel, filtro_tipo="B2C")
 
@@ -493,20 +494,11 @@ def render_master_sales_table_visual(supabase_client):
     else:
         st.info("No hay ventas B2C registradas para este periodo.")
 
-def render_b2b_sales_table_visual(supabase_client):
+def render_b2b_sales_table_visual(ventas_data, pagos_data):
     """Renderiza una tabla visual con el Reporte Maestro de Ventas de AGENCIAS (B2B), sin selector de fecha."""
     st.divider()
     st.markdown("### 🤝 Registro Consolidado de Agencias (B2B)")
     st.caption("Visión global e histórica de todas las ventas B2B. Acceso restringido.")
-    
-    try:
-        res_ventas = supabase_client.table('venta').select('*, cliente(*)').order('fecha_venta', desc=True).execute()
-        ventas_data = res_ventas.data or []
-        res_pagos = supabase_client.table('pago').select('*').order('fecha_pago', desc=False).execute()
-        pagos_data = res_pagos.data or []
-    except Exception as e:
-        st.error(f"Error cargando datos: {e}")
-        return
 
     # No pasamos anio_sel ni mes_sel, para mostrar TODAS.
     data_rows = procesar_datos_tabla(ventas_data, pagos_data, anio_sel=None, mes_sel=None, filtro_tipo="B2B")
