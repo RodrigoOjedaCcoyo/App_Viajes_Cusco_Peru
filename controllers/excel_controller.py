@@ -922,4 +922,163 @@ class ExcelController:
         output.seek(0)
         return output
 
+    def generar_reporte_ventas_consolidado_xlsx(self, supabase_client) -> BytesIO:
+        """Genera el Reporte Maestro de Ventas (Tabla Consolidada)."""
+        import openpyxl
+        from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+        import datetime
+        from io import BytesIO
+
+        try:
+            # Traer ventas y pagos
+            res_ventas = supabase_client.table('venta').select('*, cliente(*)').order('fecha_venta', desc=True).execute()
+            ventas_data = res_ventas.data or []
+            
+            res_pagos = supabase_client.table('pago').select('*').order('fecha_pago', desc=False).execute()
+            pagos_data = res_pagos.data or []
+        except Exception as e:
+            print(f"Error fetching data for master report: {e}")
+            ventas_data = []
+            pagos_data = []
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "REPORTE MAESTRO VENTAS"
+
+        # --- ESTILOS ---
+        header_fill = PatternFill(start_color="3B82F6", end_color="3B82F6", fill_type="solid") # Azul
+        white_text = Font(color="FFFFFF", bold=True)
+        center_al = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        border_style = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+
+        headers = [
+            "FECHA VENTA", "PAX", "NACIONALIDAD", "FECHA DE TOUR", 
+            "MONTO TOTAL S/.", "MONTO TOTAL $", 
+            "PRIMER PAGO (FECHA)", "PRIMER PAGO S/.", "PRIMER PAGO $", "PRIMER PAGO MODALIDAD",
+            "SEGUNDO PAGO (FECHA)", "SEGUNDO PAGO S/.", "SEGUNDO PAGO $", "SEGUNDO PAGO MODALIDAD",
+            "TOTAL PAGADO S/.", "TOTAL PAGADO $", 
+            "DIFERENCIA S/.", "DIFERENCIA $", 
+            "ESTADO", "TIPO (B2C/B2B)"
+        ]
+
+        for col_num, header_title in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_num, value=header_title)
+            cell.fill = header_fill
+            cell.font = white_text
+            cell.alignment = center_al
+            cell.border = border_style
+            ws.column_dimensions[openpyxl.utils.get_column_letter(col_num)].width = 18
+
+        # Agrupar pagos por venta
+        pagos_por_venta = {}
+        for p in pagos_data:
+            id_v = p.get('id_venta')
+            if id_v not in pagos_por_venta:
+                pagos_por_venta[id_v] = []
+            pagos_por_venta[id_v].append(p)
+
+        curr_row = 2
+        for v in ventas_data:
+            cliente_info = v.get('cliente') or {}
+            
+            # Fechas y Básicos
+            f_venta = v.get('fecha_venta')
+            nombre_pax = v.get('nombre_cliente') or cliente_info.get('nombre', 'Desconocido')
+            pax = f"{nombre_pax} x {v.get('num_pasajeros', 1)}"
+            nacionalidad = cliente_info.get('nacionalidad', '')
+            f_tour = v.get('fecha_inicio', '')
+            
+            # Montos
+            moneda_venta = v.get('moneda', 'USD')
+            monto_orig = float(v.get('precio_total_cierre') or 0.0)
+            tc = float(v.get('tipo_cambio') or 3.80)
+            
+            if moneda_venta == 'USD':
+                monto_total_usd = monto_orig
+                monto_total_pen = monto_orig * tc
+            else:
+                monto_total_pen = monto_orig
+                monto_total_usd = monto_orig / tc if tc > 0 else 0.0
+
+            # Pagos
+            lista_pagos = pagos_por_venta.get(v.get('id_venta'), [])
+            # Filtrar reembolsos
+            lista_pagos = [p for p in lista_pagos if p.get('tipo_pago') != 'REEMBOLSO']
+            
+            p1_fecha, p1_pen, p1_usd, p1_mod = "", 0.0, 0.0, ""
+            p2_fecha, p2_pen, p2_usd, p2_mod = "", 0.0, 0.0, ""
+            total_pagado_pen, total_pagado_usd = 0.0, 0.0
+
+            if len(lista_pagos) > 0:
+                p1 = lista_pagos[0]
+                p1_fecha = p1.get('fecha_pago', '')
+                p1_mod = p1.get('metodo_pago', '')
+                p_moneda = p1.get('moneda', moneda_venta)
+                p_monto = float(p1.get('monto_pagado') or 0.0)
+                if p_moneda == 'USD':
+                    p1_usd = p_monto
+                    p1_pen = p_monto * tc
+                else:
+                    p1_pen = p_monto
+                    p1_usd = p_monto / tc if tc > 0 else 0.0
+
+            if len(lista_pagos) > 1:
+                p2 = lista_pagos[1]
+                p2_fecha = p2.get('fecha_pago', '')
+                p2_mod = p2.get('metodo_pago', '')
+                p_moneda = p2.get('moneda', moneda_venta)
+                p_monto = float(p2.get('monto_pagado') or 0.0)
+                if p_moneda == 'USD':
+                    p2_usd = p_monto
+                    p2_pen = p_monto * tc
+                else:
+                    p2_pen = p_monto
+                    p2_usd = p_monto / tc if tc > 0 else 0.0
+            
+            for p in lista_pagos:
+                p_moneda = p.get('moneda', moneda_venta)
+                p_monto = float(p.get('monto_pagado') or 0.0)
+                if p_moneda == 'USD':
+                    total_pagado_usd += p_monto
+                    total_pagado_pen += p_monto * tc
+                else:
+                    total_pagado_pen += p_monto
+                    total_pagado_usd += p_monto / tc if tc > 0 else 0.0
+            
+            dif_pen = monto_total_pen - total_pagado_pen
+            dif_usd = monto_total_usd - total_pagado_usd
+            
+            estado = str(v.get('estado_venta', 'CONFIRMADO')).upper()
+            tipo = "B2B" if v.get('id_agencia_aliada') else "B2C"
+
+            row_data = [
+                f_venta, pax, nacionalidad, f_tour,
+                monto_total_pen, monto_total_usd,
+                p1_fecha, p1_pen, p1_usd, p1_mod,
+                p2_fecha, p2_pen, p2_usd, p2_mod,
+                total_pagado_pen, total_pagado_usd,
+                dif_pen, dif_usd,
+                estado, tipo
+            ]
+            
+            for col_num, value in enumerate(row_data, 1):
+                cell = ws.cell(row=curr_row, column=col_num, value=value)
+                cell.border = border_style
+                cell.alignment = center_al
+                # Format numbers
+                if isinstance(value, float):
+                    cell.number_format = '#,##0.00'
+            
+            if estado == 'CANCELADO':
+                for col_num in range(1, len(row_data) + 1):
+                    ws.cell(row=curr_row, column=col_num).fill = PatternFill(start_color="FEE2E2", end_color="FEE2E2", fill_type="solid")
+                    ws.cell(row=curr_row, column=col_num).font = Font(color="991B1B")
+
+            curr_row += 1
+
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        return output
+
 

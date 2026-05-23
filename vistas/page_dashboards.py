@@ -146,6 +146,20 @@ def render_sales_dashboard_visual(supabase_client):
         st.write("### 📜 Registro Consolidado de Ventas")
         st.caption("Visualización de las ventas más recientes (B2C y B2B).")
         
+        col_excel, _ = st.columns([1, 2])
+        from controllers.excel_controller import ExcelController
+        xl_ctrl = ExcelController()
+        excel_buffer = xl_ctrl.generar_reporte_ventas_consolidado_xlsx(supabase_client)
+        
+        col_excel.download_button(
+            label="📥 Descargar Reporte Maestro de Ventas (Excel)",
+            data=excel_buffer.getvalue(),
+            file_name=f"reporte_maestro_ventas_{date.today().isoformat()}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            type="primary"
+        )
+        
         # 1. Obtener Ventas B2C
         ventas_b2c = venta_ctrl.obtener_ventas_directas() or []
         # 2. Obtener Ventas B2B
