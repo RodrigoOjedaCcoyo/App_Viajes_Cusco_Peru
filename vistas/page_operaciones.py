@@ -28,11 +28,8 @@ def generate_operational_master_buffers(_controller, id_venta):
     """
     try:
         xl_ctrl = ExcelController()
-        
-        # fallback: Obtener toda la data necesaria aquí mismo para evitar problemas de cache del controller
-        # 1. Obtener Datos de la Venta
-        vc = VentaController(_controller.client)
-        # Buscar la venta específica en la base de datos para tener datos frescos
+
+        # 1. Obtener Datos de la Venta (frescos desde la BD)
         res_v = _controller.client.table('venta').select('*, cliente(nombre, lead(numero_celular)), vendedor(nombre)').eq('id_venta', id_venta).single().execute()
         if not res_v.data:
             return None, None, None
@@ -41,7 +38,7 @@ def generate_operational_master_buffers(_controller, id_venta):
         cliente_nest = v_raw.get('cliente', {})
         lead_nest = cliente_nest.get('lead', {}) if isinstance(cliente_nest, dict) else {}
         vendedor_nest = v_raw.get('vendedor', {})
-        
+
         v_data = {
             "id_venta": v_raw['id_venta'],
             "nombre_cliente": cliente_nest.get('nombre', 'Desconocido') if isinstance(cliente_nest, dict) else 'Desconocido',
@@ -68,20 +65,17 @@ def generate_operational_master_buffers(_controller, id_venta):
         # 2. Calcular Pagos e Información de Depósito
         res_p = _controller.client.table('pago').select('*').eq('id_venta', id_venta).order('fecha_pago', desc=False).execute()
         pagos = res_p.data or []
-        
-        # Calcular sumas correctamente separando ingresos de egresos (reembolsos)
+
         ingresos = sum(float(p['monto_pagado'] or 0) for p in pagos if p.get('tipo_pago') != 'REEMBOLSO')
         reembolsos = sum(float(p['monto_pagado'] or 0) for p in pagos if p.get('tipo_pago') == 'REEMBOLSO')
-        
+
         v_data['monto_pagado'] = ingresos
         v_data['total_reembolsado'] = reembolsos
-        
-        # Extraer primer y segundo depósito
+
         if pagos:
             v_data['fecha_primer_deposito'] = pagos[0].get('fecha_pago')
             v_data['metodo_pago_primer'] = pagos[0].get('metodo_pago')
             v_data['monto_primer_deposito'] = pagos[0].get('monto_pagado')
-            
             if len(pagos) > 1:
                 v_data['fecha_segundo_deposito'] = pagos[1].get('fecha_pago')
                 v_data['metodo_pago_segundo'] = pagos[1].get('metodo_pago')
@@ -98,7 +92,7 @@ def generate_operational_master_buffers(_controller, id_venta):
             v_data['metodo_pago_segundo'] = ""
             v_data['monto_segundo_deposito'] = ""
 
-        # 3. Obtener Itinerario Logístico (Con proveedores asignados)
+        # 3. Obtener Itinerario Logístico
         itinerario = _controller.get_servicios_rango_fechas(date(2000,1,1), date(2100,1,1))
         it_venta = [s for s in itinerario if s['ID Venta'] == id_venta]
 
@@ -108,15 +102,14 @@ def generate_operational_master_buffers(_controller, id_venta):
         # 5. Obtener Liquidación Detallada (Costos)
         liquidaciones = _controller.get_liquidaciones_venta(id_venta)
 
-        # 6. Empaquetar
+        # 6. Empaquetar y generar Excel
         data_hoja = {
             "venta": v_data,
             "itinerario": it_venta,
             "pasajeros": pasajeros,
             "liquidaciones": liquidaciones
         }
-        
-        # Generar Excel
+
         master_buffer = xl_ctrl.generar_hoja_servicio_maestra_xlsx(data_hoja)
         ficha_buffer = xl_ctrl.generar_ficha_control_grupos_xlsx(data_hoja)
         
@@ -161,7 +154,6 @@ def render_operational_master_download(controller, id_venta, label="📊 Generar
                 )
         else:
             st.warning("No se pudo generar el Informe Maestro ni la Ficha de Control en este momento.")
-            
     except Exception as e:
         st.error(f"Error renderizando Hoja de Servicio: {e}")
 
@@ -2207,3 +2199,19 @@ def render_directorio_proveedores(supabase_client):
             hide_index=True,
             use_container_width=True
         )
+
+        st.write("---")
+        with st.expander("🗑️ Eliminar Proveedor", expanded=False):
+            st.warning("⚠️ Cuidado: Eliminar un proveedor es una acción irreversible.")
+            opciones_eliminar = {f"{p['nombre_comercial']} (RUC: {p.get('ruc', 'N/A')})": p['id_proveedor'] for p in proveedores}
+            prov_a_eliminar = st.selectbox("Seleccione un proveedor para eliminar:", ["---"] + list(opciones_eliminar.keys()), key="del_prov_sel")
+            
+            if prov_a_eliminar != "---":
+                if st.button("🚨 Confirmar Eliminación", type="primary", key="btn_del_prov"):
+                    id_eliminar = opciones_eliminar[prov_a_eliminar]
+                    exito, msg = prov_ctrl.eliminar_proveedor(id_eliminar)
+                    if exito:
+                        st.success(msg)
+                        st.rerun()
+                    else:
+                        st.error(msg)

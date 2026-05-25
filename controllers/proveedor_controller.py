@@ -79,3 +79,19 @@ class ProveedorController:
                 return False, "No se encontraron cambios o el proveedor no existe."
         except Exception as e:
             return False, f"Error al actualizar: {str(e)}"
+
+    def eliminar_proveedor(self, id_proveedor: int) -> Tuple[bool, str]:
+        """
+        Elimina un proveedor de la base de datos por su ID.
+        """
+        if not id_proveedor:
+            return False, "ID de proveedor no proporcionado."
+            
+        try:
+            exito = self.model.delete_by_id(id_proveedor)
+            if exito:
+                return True, "Proveedor eliminado exitosamente."
+            else:
+                return False, "El proveedor no pudo ser eliminado o no existe."
+        except Exception as e:
+            return False, f"Error al eliminar: {str(e)}"
