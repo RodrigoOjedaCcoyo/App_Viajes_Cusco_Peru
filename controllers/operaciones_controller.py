@@ -569,7 +569,8 @@ class OperacionesController:
 
     def get_liquidaciones_venta(self, id_venta: int):
         """
-        Obtiene el detalle de costos (liquidación) vinculado a una venta.
+        Obtiene el detalle de costos (liquidación) vinculado a una venta,
+        cruzado con los pagos operativos para método de pago y observaciones.
         """
         try:
             # 1. Obtener los costos/servicios
@@ -581,36 +582,44 @@ class OperacionesController:
             )
             servicios = res.data or []
             
-            # 2. Obtener los pagos operativos asociados a esta venta
+            # 2. Obtener TODOS los pagos operativos asociados a esta venta
             res_pagos = (
                 self.client.table('pago_operativo')
-                .select('n_linea, metodo_pago, observaciones_contables, observaciones')
+                .select('n_linea, metodo_pago, observaciones, observaciones_contables')
                 .eq('id_venta', id_venta)
+                .order('created_at', desc=False)
                 .execute()
             )
-            pagos_map = {}
+            
+            # 3. Agrupar pagos por n_linea (puede haber múltiples pagos por línea)
+            pagos_por_linea = {}
             for p in (res_pagos.data or []):
                 nl = p.get('n_linea')
                 if nl is not None:
-                    # Si hay varios pagos, tomamos el último o consolidamos (aquí tomamos el primero encontrado por simplicidad)
-                    if nl not in pagos_map:
-                        pagos_map[nl] = p
+                    if nl not in pagos_por_linea:
+                        pagos_por_linea[nl] = []
+                    pagos_por_linea[nl].append(p)
             
-            # 3. Cruzar datos
+            # 4. Cruzar datos - cada servicio con sus pagos correspondientes
             for s in servicios:
-                p_info = pagos_map.get(s['n_linea'], {})
+                pagos_linea = pagos_por_linea.get(s['n_linea'], [])
                 
-                # Método de pago: priorizar venta_servicio_proveedor, luego pago_operativo
-                m_pago = s.get('metodo_pago') or p_info.get('metodo_pago') or '---'
-                s['metodo_pago'] = m_pago if m_pago else '---'
-                
-                # Observaciones del pago (reserva, nombre, etc.)
-                obs_pago = p_info.get('observaciones') or '---'
-                s['observaciones_pago'] = obs_pago if obs_pago else '---'
-                
-                # Observaciones contables (contabilidad)
-                obs_cont = s.get('observaciones_contables') or p_info.get('observaciones_contables') or '---'
-                s['observaciones_contables'] = obs_cont if obs_cont else '---'
+                if pagos_linea:
+                    # Método de pago: usar el del último pago registrado
+                    s['metodo_pago'] = pagos_linea[-1].get('metodo_pago') or '---'
+                    
+                    # Observaciones del pago: concatenar todas las no vacías
+                    obs_list = [p.get('observaciones') for p in pagos_linea if p.get('observaciones')]
+                    s['observaciones_pago'] = ' | '.join(obs_list) if obs_list else '---'
+                    
+                    # Observaciones contables: concatenar todas las no vacías
+                    obs_cont_list = [p.get('observaciones_contables') for p in pagos_linea if p.get('observaciones_contables')]
+                    s['observaciones_contables'] = ' | '.join(obs_cont_list) if obs_cont_list else '---'
+                else:
+                    # Sin pagos registrados para esta línea
+                    s['metodo_pago'] = s.get('metodo_pago') or '---'
+                    s['observaciones_pago'] = '---'
+                    s['observaciones_contables'] = s.get('observaciones_contables') or '---'
                 
             return servicios
         except Exception as e:
