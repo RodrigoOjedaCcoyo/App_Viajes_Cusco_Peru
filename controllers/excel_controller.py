@@ -930,8 +930,8 @@ class ExcelController:
         from io import BytesIO
 
         try:
-            # Traer ventas y pagos
-            res_ventas = supabase_client.table('venta').select('*, cliente(*)').order('fecha_venta', desc=True).execute()
+            # Traer ventas, datos del cliente/lead, pasajeros y pagos
+            res_ventas = supabase_client.table('venta').select('*, cliente(nombre, lead(pais_origen)), pasajero(nacionalidad, es_principal)').order('fecha_venta', desc=True).execute()
             ventas_data = res_ventas.data or []
             
             res_pagos = supabase_client.table('pago').select('*').order('fecha_pago', desc=False).execute()
@@ -980,12 +980,22 @@ class ExcelController:
         curr_row = 2
         for v in ventas_data:
             cliente_info = v.get('cliente') or {}
+            lead_info = cliente_info.get('lead') or {} if isinstance(cliente_info, dict) else {}
+            pax_info = v.get('pasajero', [])
             
             # Fechas y Básicos
             f_venta = v.get('fecha_venta')
             nombre_pax = v.get('nombre_cliente') or cliente_info.get('nombre', 'Desconocido')
             pax = f"{nombre_pax} x {v.get('num_pasajeros', 1)}"
-            nacionalidad = cliente_info.get('nacionalidad', '')
+            
+            # Lógica para Nacionalidad (Principal > Lead > Default)
+            nacionalidad = "Nacional"
+            if pax_info:
+                principal = next((p for p in pax_info if p.get('es_principal')), pax_info[0])
+                nacionalidad = principal.get('nacionalidad') or "Nacional"
+            else:
+                nacionalidad = lead_info.get('pais_origen') or "Nacional"
+                
             f_tour = v.get('fecha_inicio', '')
             
             # Montos
