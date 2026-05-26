@@ -201,6 +201,7 @@ def dashboard_pagos_operativos(supabase_client):
                 id_v_tmp, nl_tmp = mapa_serv[serv_sel]
                 res_mon = supabase_client.table('venta_servicio_proveedor')\
                     .select('moneda, costo_unitario, cantidad_pax')\
+                    .eq('id_proveedor', id_prov)\
                     .eq('id_venta', id_v_tmp)\
                     .eq('n_linea', nl_tmp)\
                     .limit(1).execute()
