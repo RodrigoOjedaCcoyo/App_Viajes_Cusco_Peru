@@ -584,7 +584,7 @@ class OperacionesController:
             # 2. Obtener los pagos operativos asociados a esta venta
             res_pagos = (
                 self.client.table('pago_operativo')
-                .select('n_linea, metodo_pago, observaciones_contables')
+                .select('n_linea, metodo_pago, observaciones_contables, observaciones')
                 .eq('id_venta', id_venta)
                 .execute()
             )
@@ -602,7 +602,7 @@ class OperacionesController:
                 
                 # Priorizar el valor guardado en venta_servicio_proveedor (tabla nativa), luego buscar en pago_operativo
                 m_pago = s.get('metodo_pago') or p_info.get('metodo_pago') or '---'
-                obs_cont = s.get('observaciones_contables') or p_info.get('observaciones_contables') or '---'
+                obs_cont = s.get('observaciones_contables') or p_info.get('observaciones_contables') or p_info.get('observaciones') or '---'
                 
                 s['metodo_pago'] = m_pago if m_pago else '---'
                 s['observaciones_contables'] = obs_cont if obs_cont else '---'
