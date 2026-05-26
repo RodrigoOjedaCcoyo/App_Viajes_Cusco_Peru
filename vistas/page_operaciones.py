@@ -1243,6 +1243,29 @@ def dashboard_simulador_costos(controller):
         if url_actual:
             st.link_button("👉 Abrir Carpeta de Archivos (Drive)", url_actual, use_container_width=True, type="secondary")
 
+        # --- NUEVO: EDITAR LOGÍSTICA DE VENTA ---
+        st.markdown("### 🛡️ Información Logística y de Emergencia")
+        with st.expander("📝 Ver / Editar Datos de Logística", expanded=False):
+            with st.form(f"form_logistica_op_{id_venta_act}"):
+                col_log1, col_log2 = st.columns(2)
+                v_nro = col_log1.text_input("Nro de Vuelo Internacional", value=v_live.get('nro_vuelo_internacional') or "")
+                v_correo = col_log2.text_input("Correo Electrónico", value=v_live.get('correo_cliente') or "")
+                v_cont = col_log1.text_input("Contacto de Emergencia", value=v_live.get('nombre_contacto_emergencia') or "")
+                v_tel = col_log2.text_input("Teléfono de Emergencia", value=v_live.get('telefono_contacto_emergencia') or "")
+                
+                if st.form_submit_button("💾 Guardar Datos Logísticos", use_container_width=True):
+                    try:
+                        controller.client.table('venta').update({
+                            'nro_vuelo_internacional': v_nro,
+                            'correo_cliente': v_correo,
+                            'nombre_contacto_emergencia': v_cont,
+                            'telefono_contacto_emergencia': v_tel
+                        }).eq('id_venta', id_venta_act).execute()
+                        st.success("✅ Datos logísticos actualizados correctamente.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al guardar logística: {e}")
+
         # Botón Maestro Operativo (Independiente del Itinerario Digital)
         # Se pone fuera del bloque anterior para que funcione aunque no haya Itinerario JSON
         st.markdown("---")

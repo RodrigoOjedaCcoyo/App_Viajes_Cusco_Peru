@@ -1192,6 +1192,28 @@ def seguimiento_ventas_vendedor():
                 else:
                     col3.caption("🚫 Sin itinerario")
 
+                # --- NUEVO: Panel de Datos Logísticos y Emergencia ---
+                with st.expander(f"📝 Actualizar Logística y Vuelo — ID {id_venta}"):
+                    with st.form(f"form_logistica_v_{id_venta}"):
+                        col_log1, col_log2 = st.columns(2)
+                        v_nro = col_log1.text_input("Nro de Vuelo Internacional", value=v.get('nro_vuelo_internacional') or "")
+                        v_correo = col_log2.text_input("Correo Electrónico", value=v.get('correo_cliente') or "")
+                        v_cont = col_log1.text_input("Contacto de Emergencia", value=v.get('nombre_contacto_emergencia') or "")
+                        v_tel = col_log2.text_input("Teléfono de Emergencia", value=v.get('telefono_contacto_emergencia') or "")
+                        
+                        if st.form_submit_button("💾 Guardar Datos Logísticos", use_container_width=True):
+                            try:
+                                venta_controller.client.table('venta').update({
+                                    'nro_vuelo_internacional': v_nro,
+                                    'correo_cliente': v_correo,
+                                    'nombre_contacto_emergencia': v_cont,
+                                    'telefono_contacto_emergencia': v_tel
+                                }).eq('id_venta', id_venta).execute()
+                                st.success("✅ Datos logísticos actualizados correctamente.")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error al guardar logística: {e}")
+
                 # ── Panel de documentos adicionales ──
                 with st.expander(f"📎 Adjuntar y Reenviar Documentos — ID {id_venta}"):
                     st.caption(
