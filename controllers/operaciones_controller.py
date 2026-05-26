@@ -599,8 +599,13 @@ class OperacionesController:
             # 3. Cruzar datos
             for s in servicios:
                 p_info = pagos_map.get(s['n_linea'], {})
-                s['metodo_pago'] = p_info.get('metodo_pago', '---')
-                s['observaciones_contables'] = p_info.get('observaciones_contables', '---')
+                
+                # Priorizar el valor guardado en venta_servicio_proveedor (tabla nativa), luego buscar en pago_operativo
+                m_pago = s.get('metodo_pago') or p_info.get('metodo_pago') or '---'
+                obs_cont = s.get('observaciones_contables') or p_info.get('observaciones_contables') or '---'
+                
+                s['metodo_pago'] = m_pago if m_pago else '---'
+                s['observaciones_contables'] = obs_cont if obs_cont else '---'
                 
             return servicios
         except Exception as e:
