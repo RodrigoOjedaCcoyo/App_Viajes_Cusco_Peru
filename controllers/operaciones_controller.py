@@ -600,11 +600,16 @@ class OperacionesController:
             for s in servicios:
                 p_info = pagos_map.get(s['n_linea'], {})
                 
-                # Priorizar el valor guardado en venta_servicio_proveedor (tabla nativa), luego buscar en pago_operativo
+                # Método de pago: priorizar venta_servicio_proveedor, luego pago_operativo
                 m_pago = s.get('metodo_pago') or p_info.get('metodo_pago') or '---'
-                obs_cont = s.get('observaciones_contables') or p_info.get('observaciones_contables') or p_info.get('observaciones') or '---'
-                
                 s['metodo_pago'] = m_pago if m_pago else '---'
+                
+                # Observaciones del pago (reserva, nombre, etc.)
+                obs_pago = p_info.get('observaciones') or '---'
+                s['observaciones_pago'] = obs_pago if obs_pago else '---'
+                
+                # Observaciones contables (contabilidad)
+                obs_cont = s.get('observaciones_contables') or p_info.get('observaciones_contables') or '---'
                 s['observaciones_contables'] = obs_cont if obs_cont else '---'
                 
             return servicios

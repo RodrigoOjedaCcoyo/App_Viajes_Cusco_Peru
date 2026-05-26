@@ -415,9 +415,9 @@ class ExcelController:
         current_row += 2 # Espacio
 
         # --- SECCIÓN 3: LIQUIDACIÓN DE COSTOS (DETALLE PROVEEDORES) ---
-        ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=12)
+        ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=13)
         ws.cell(row=current_row, column=1, value="💰 DETALLE DE LIQUIDACIÓN Y PAGOS").font = white_font
-        for c in range(1, 13): 
+        for c in range(1, 14): 
             ws.cell(row=current_row, column=c).fill = section_fill
             ws.cell(row=current_row, column=c).alignment = center_al
         current_row += 1
@@ -426,7 +426,7 @@ class ExcelController:
         headers_l = [
             "Día", "Proveedor Real", "Tipo Servicio", "Moneda", 
             "Costo Unit.", "Cant/Pax", "Total Línea", "T.C.", 
-            f"Total Gral ({v_moneda})", "Estado", "Método Pago", "Obs. Contables"
+            f"Total Gral ({v_moneda})", "Estado", "Método Pago", "Observaciones", "Obs. Contables"
         ]
         for c_idx, h in enumerate(headers_l, 1):
             cell = ws.cell(row=current_row, column=c_idx, value=h)
@@ -465,11 +465,12 @@ class ExcelController:
             if estado_txt == "Pte":
                 cell_est.font = red_font
             
-            # Método de Pago y Observaciones Contables
+            # Método de Pago, Observaciones y Obs. Contables
             ws.cell(row=current_row, column=11, value=l.get('metodo_pago', '---'))
-            ws.cell(row=current_row, column=12, value=l.get('observaciones_contables', '---'))
+            ws.cell(row=current_row, column=12, value=l.get('observaciones_pago', '---'))
+            ws.cell(row=current_row, column=13, value=l.get('observaciones_contables', '---'))
             
-            for c in range(1, 13): ws.cell(row=current_row, column=c).border = thin_border
+            for c in range(1, 14): ws.cell(row=current_row, column=c).border = thin_border
             current_row += 1
 
         current_row += 2 # Espacio
