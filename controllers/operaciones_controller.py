@@ -585,24 +585,25 @@ class OperacionesController:
             # 2. Obtener TODOS los pagos operativos asociados a esta venta
             res_pagos = (
                 self.client.table('pago_operativo')
-                .select('n_linea, metodo_pago, observaciones, observaciones_contables')
+                .select('n_linea, id_proveedor, metodo_pago, observaciones, observaciones_contables')
                 .eq('id_venta', id_venta)
                 .order('created_at', desc=False)
                 .execute()
             )
             
-            # 3. Agrupar pagos por n_linea (puede haber múltiples pagos por línea)
-            pagos_por_linea = {}
+            # 3. Agrupar pagos por n_linea y proveedor (evita mezclar obs de diferentes proveedores en el mismo día)
+            pagos_agrupados = {}
             for p in (res_pagos.data or []):
-                nl = p.get('n_linea')
-                if nl is not None:
-                    if nl not in pagos_por_linea:
-                        pagos_por_linea[nl] = []
-                    pagos_por_linea[nl].append(p)
+                key = (p.get('n_linea'), p.get('id_proveedor'))
+                if key[0] is not None and key[1] is not None:
+                    if key not in pagos_agrupados:
+                        pagos_agrupados[key] = []
+                    pagos_agrupados[key].append(p)
             
             # 4. Cruzar datos - cada servicio con sus pagos correspondientes
             for s in servicios:
-                pagos_linea = pagos_por_linea.get(s['n_linea'], [])
+                key = (s.get('n_linea'), s.get('id_proveedor'))
+                pagos_linea = pagos_agrupados.get(key, [])
                 
                 if pagos_linea:
                     # Método de pago: usar el del último pago registrado
