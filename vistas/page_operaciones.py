@@ -1254,17 +1254,46 @@ def dashboard_simulador_costos(controller):
     st.markdown("### 📝 Gestión de Información Externa")
     st.info("Suba los archivos correspondientes para el cierre y control de pasajeros.")
 
-    # NUEVO: Botón de Plantilla
+    # NUEVO: Botón de Plantilla con Listas Desplegables
     import io
-    template_df = pd.DataFrame(columns=["Dia", "Hora", "Tipo de Servicio", "Proveedor", "Nombre del Guia", "Observacion", "Pax"])
+    import openpyxl
+    from openpyxl.worksheet.datavalidation import DataValidation
+    
     buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-        template_df.to_excel(writer, index=False, sheet_name='Plantilla')
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Plantilla"
+    
+    # Headers
+    headers = ["Dia", "Hora", "Tipo de Servicio", "Proveedor", "Nombre del Guia", "Observacion", "Pax"]
+    for col_num, header in enumerate(headers, 1):
+        ws.cell(row=1, column=col_num, value=header)
+        
+    # Obtener proveedores de la BD
+    try:
+        res_prov = controller.client.table('proveedor').select('nombre_comercial').execute()
+        lista_provs = sorted(list(set([str(p['nombre_comercial']).strip() for p in (res_prov.data or []) if p.get('nombre_comercial')])))
+    except:
+        lista_provs = []
+        
+    if lista_provs:
+        ws_listas = wb.create_sheet("Listas")
+        ws_listas.sheet_state = 'hidden'
+        for i, prov in enumerate(lista_provs, 1):
+            ws_listas.cell(row=i, column=1, value=prov)
+            
+        # Validación de datos para Proveedor (Columna D = 4)
+        dv_prov = DataValidation(type="list", formula1=f"Listas!$A$1:$A${len(lista_provs)}", allow_blank=True)
+        ws.add_data_validation(dv_prov)
+        dv_prov.add("D2:D100")
+        
+    wb.save(buffer)
+    buffer.seek(0)
     
     st.download_button(
-        label="📥 Descargar Plantilla Excel para Endoses",
+        label="📥 Descargar Plantilla Inteligente (Excel)",
         data=buffer.getvalue(),
-        file_name="plantilla_endoses.xlsx",
+        file_name="plantilla_endoses_inteligente.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     

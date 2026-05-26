@@ -608,12 +608,20 @@ class OperacionesController:
                     # Método de pago: usar el del último pago registrado
                     s['metodo_pago'] = pagos_linea[-1].get('metodo_pago') or '---'
                     
-                    # Observaciones del pago: concatenar todas las no vacías
-                    obs_list = [p.get('observaciones') for p in pagos_linea if p.get('observaciones')]
+                    # Observaciones del pago: extraer únicas no vacías
+                    obs_list = []
+                    for p in pagos_linea:
+                        obs = str(p.get('observaciones') or '').strip()
+                        if obs and obs != 'None' and obs not in obs_list:
+                            obs_list.append(obs)
                     s['observaciones_pago'] = ' | '.join(obs_list) if obs_list else '---'
                     
-                    # Observaciones contables: concatenar todas las no vacías
-                    obs_cont_list = [p.get('observaciones_contables') for p in pagos_linea if p.get('observaciones_contables')]
+                    # Observaciones contables: extraer únicas no vacías
+                    obs_cont_list = []
+                    for p in pagos_linea:
+                        obs_cont = str(p.get('observaciones_contables') or '').strip()
+                        if obs_cont and obs_cont != 'None' and obs_cont not in obs_cont_list:
+                            obs_cont_list.append(obs_cont)
                     s['observaciones_contables'] = ' | '.join(obs_cont_list) if obs_cont_list else '---'
                 else:
                     # Sin pagos registrados para esta línea
