@@ -128,11 +128,10 @@ def main():
         st.title("🔐 Sistema Latitud VCP - Iniciar Sesión")
         st.warning("Ingrese su correo y su contraseña de su área para acceder .")
         
-        with st.form("login_form"):
-            email = st.text_input("Correo Electronico")
-            password = st.text_input("Contraseña", type="password")
-
-            submitted = st.form_submit_button("Entrar")
+        login_form = st.form(key="login_form")
+        email = login_form.text_input("Correo Electrónico")
+        password = login_form.text_input("Contraseña", type="password")
+        submitted = login_form.form_submit_button("Entrar")
 
         if submitted:
                 handle_login_supabase(email, password)
