@@ -931,7 +931,7 @@ class ExcelController:
 
         try:
             # Traer ventas, datos del cliente/lead, pasajeros y pagos
-            res_ventas = supabase_client.table('venta').select('*, cliente(nombre, lead(pais_origen)), pasajero(nacionalidad, es_principal)').order('fecha_venta', desc=True).execute()
+            res_ventas = supabase_client.table('venta').select('*, cliente(nombre, lead(pais_origen)), pasajero(nacionalidad, edad, es_principal)').order('fecha_venta', desc=True).execute()
             ventas_data = res_ventas.data or []
             
             res_pagos = supabase_client.table('pago').select('*').order('fecha_pago', desc=False).execute()
@@ -952,7 +952,7 @@ class ExcelController:
         border_style = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
 
         headers = [
-            "FECHA VENTA", "PAX", "NACIONALIDAD", "FECHA DE TOUR", 
+            "FECHA VENTA", "PAX", "NACIONALIDAD", "EDAD", "FECHA DE TOUR", 
             "MONTO TOTAL S/.", "MONTO TOTAL $", 
             "PRIMER PAGO (FECHA)", "PRIMER PAGO S/.", "PRIMER PAGO $", "PRIMER PAGO MODALIDAD",
             "SEGUNDO PAGO (FECHA)", "SEGUNDO PAGO S/.", "SEGUNDO PAGO $", "SEGUNDO PAGO MODALIDAD",
@@ -988,13 +988,15 @@ class ExcelController:
             nombre_pax = v.get('nombre_cliente') or cliente_info.get('nombre', 'Desconocido')
             pax = f"{nombre_pax} x {v.get('num_pasajeros', 1)}"
             
-            # Lógica para Nacionalidad (Principal > Lead > Default)
-            nacionalidad = "Nacional"
+            # Lógica para Nacionalidad y Edad (Pasajero Principal > Lead > Blanco)
+            nacionalidad = ""
+            edad = ""
             if pax_info:
                 principal = next((p for p in pax_info if p.get('es_principal')), pax_info[0])
-                nacionalidad = principal.get('nacionalidad') or "Nacional"
+                nacionalidad = principal.get('nacionalidad') or ""
+                edad = principal.get('edad') or ""
             else:
-                nacionalidad = lead_info.get('pais_origen') or "Nacional"
+                nacionalidad = lead_info.get('pais_origen') or ""
                 
             f_tour = v.get('fecha_inicio', '')
             
@@ -1062,7 +1064,7 @@ class ExcelController:
             tipo = "B2B" if v.get('id_agencia_aliada') else "B2C"
 
             row_data = [
-                f_venta, pax, nacionalidad, f_tour,
+                f_venta, pax, nacionalidad, edad, f_tour,
                 monto_total_pen, monto_total_usd,
                 p1_fecha, p1_pen, p1_usd, p1_mod,
                 p2_fecha, p2_pen, p2_usd, p2_mod,
