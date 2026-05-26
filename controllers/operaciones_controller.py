@@ -573,72 +573,57 @@ class OperacionesController:
         cruzado con los pagos operativos para método de pago y observaciones.
         """
         try:
-            # 1. Obtener los costos/servicios
+            # 1. Obtener los costos/servicios (solo los que tienen costo real)
             res = (
                 self.client.table('venta_servicio_proveedor')
                 .select('*, proveedor(nombre_comercial)')
                 .eq('id_venta', id_venta)
                 .execute()
             )
-            servicios = res.data or []
+            # Filtrar filas sin costo o sin proveedor (evita filas vacías en el Excel)
+            servicios = [
+                s for s in (res.data or [])
+                if s.get('id_proveedor') and float(s.get('costo_unitario') or 0) > 0
+            ]
             
             # 2. Obtener TODOS los pagos operativos asociados a esta venta
+            # Ordenamos desc=True para que el más reciente quede primero
             res_pagos = (
                 self.client.table('pago_operativo')
                 .select('n_linea, id_proveedor, metodo_pago, observaciones, observaciones_contables')
                 .eq('id_venta', id_venta)
-                .order('created_at', desc=False)
+                .order('created_at', desc=True)  # Más reciente primero
                 .execute()
             )
             
-            # 3. Agrupar pagos por n_linea y proveedor (evita mezclar obs de diferentes proveedores en el mismo día)
-            pagos_agrupados = {}
+            # 3. Guardar SOLO el pago más reciente por (n_linea, id_proveedor)
+            # Como ordenamos desc, el primero que encontremos por clave es el más reciente
+            ultimo_pago_por_proveedor = {}
             for p in (res_pagos.data or []):
                 key = (p.get('n_linea'), p.get('id_proveedor'))
                 if key[0] is not None and key[1] is not None:
-                    if key not in pagos_agrupados:
-                        pagos_agrupados[key] = []
-                    pagos_agrupados[key].append(p)
+                    if key not in ultimo_pago_por_proveedor:
+                        # Solo guardamos el primero (que es el más reciente por el order desc)
+                        ultimo_pago_por_proveedor[key] = p
             
-            # 4. Cruzar datos - cada servicio con sus pagos correspondientes
+            # 4. Cruzar datos - cada servicio con su pago más reciente
             for s in servicios:
                 key = (s.get('n_linea'), s.get('id_proveedor'))
-                pagos_linea = pagos_agrupados.get(key, [])
+                pago = ultimo_pago_por_proveedor.get(key)
                 
-                if pagos_linea:
-                    # Método de pago: usar el del último pago registrado
-                    s['metodo_pago'] = pagos_linea[-1].get('metodo_pago') or '---'
+                if pago:
+                    # Usar directamente los datos del pago más reciente (limpio y sin duplicados)
+                    s['metodo_pago'] = pago.get('metodo_pago') or '---'
                     
-                    # Función auxiliar para limpiar duplicados y subcadenas
-                    def clean_obs(raw_list):
-                        valid_obs = [str(o).strip() for o in raw_list if o and str(o).strip() and str(o).strip() != 'None']
-                        if not valid_obs:
-                            return '---'
-                        
-                        # Ordenar de mayor a menor longitud
-                        valid_obs_sorted = sorted(valid_obs, key=len, reverse=True)
-                        final_obs = []
-                        
-                        for obs in valid_obs_sorted:
-                            # Solo agregamos si NO está contenido en uno más largo ya agregado
-                            if not any(obs in existing for existing in final_obs):
-                                final_obs.append(obs)
-                                
-                        # Invertir para mantener un orden más cronológico (los más largos suelen ser los últimos)
-                        final_obs.reverse()
-                        return ' | '.join(final_obs)
-
-                    # Observaciones del pago: extraer únicas y limpiar subcadenas
-                    raw_obs = [p.get('observaciones') for p in pagos_linea]
-                    s['observaciones_pago'] = clean_obs(raw_obs)
+                    obs = str(pago.get('observaciones') or '').strip()
+                    s['observaciones_pago'] = obs if obs and obs != 'None' else '---'
                     
-                    # Observaciones contables: extraer únicas y limpiar subcadenas
-                    raw_obs_cont = [p.get('observaciones_contables') for p in pagos_linea]
-                    s['observaciones_contables'] = clean_obs(raw_obs_cont)
+                    obs_cont = str(pago.get('observaciones_contables') or '').strip()
+                    s['observaciones_contables'] = obs_cont if obs_cont and obs_cont != 'None' else '---'
                 else:
-                    # Sin pagos registrados para esta línea
+                    # Sin pagos registrados para este servicio/proveedor
                     s['metodo_pago'] = s.get('metodo_pago') or '---'
-                    s['observaciones_pago'] = '---'
+                    s['observaciones_pago'] = 'Sin pago registrado'
                     s['observaciones_contables'] = s.get('observaciones_contables') or '---'
                 
             return servicios
@@ -731,11 +716,19 @@ class OperacionesController:
                 res_serv = self.client.table('venta_servicio_proveedor').select('id_venta, n_linea, id_proveedor, costo_unitario, cantidad_pax, moneda').eq('id', id_registro).single().execute()
                 if res_serv.data:
                     s = res_serv.data
-                    # Buscar si ya existe un pago para este servicio
-                    res_p = self.client.table('pago_operativo').select('id_pago_op').eq('id_venta', s['id_venta']).eq('n_linea', s['n_linea']).execute()
+                    # Buscar si ya existe un pago para este servicio (por n_linea Y proveedor)
+                    res_p = (
+                        self.client.table('pago_operativo')
+                        .select('id_pago_op')
+                        .eq('id_venta', s['id_venta'])
+                        .eq('n_linea', s['n_linea'])
+                        .eq('id_proveedor', s['id_proveedor'])
+                        .order('created_at', desc=True)  # El más reciente primero
+                        .execute()
+                    )
                     
                     if res_p.data:
-                        # Actualizar existente
+                        # Actualizar el más reciente (solo el primero de la lista)
                         id_pago = res_p.data[0]['id_pago_op']
                         self.client.table('pago_operativo').update(campos_pago).eq('id_pago_op', id_pago).execute()
                     else:
