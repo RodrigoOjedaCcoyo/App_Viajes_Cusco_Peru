@@ -667,16 +667,16 @@ def render_reporte_maestro_cobranzas(supabase_client):
         # 3. Construir filas del reporte
         data_maestra = []
         for v in ventas:
-            # Extraer Nacionalidad (Prioridad: Pasajero Principal > Lead > 'Nacional')
-            nacionalidad = "Nacional"
+            # Extraer Nacionalidad (Prioridad: Pasajero Principal > Lead > Blanco)
+            nacionalidad = ""
             pax_list = v.get('pasajero', [])
             if pax_list:
                 principal = next((p for p in pax_list if p.get('es_principal')), pax_list[0])
-                nacionalidad = principal.get('nacionalidad') or "Nacional"
+                nacionalidad = principal.get('nacionalidad') or ""
             else:
                 c_info = v.get('cliente') or {}
                 l_info = c_info.get('lead') or {}
-                nacionalidad = l_info.get('pais_origen') or "Nacional"
+                nacionalidad = l_info.get('pais_origen') or ""
 
             # Datos base de la venta
             monto_total = float(v.get('precio_total_cierre') or 0)
