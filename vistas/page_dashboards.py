@@ -351,7 +351,7 @@ def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual=
         
     # --- OPTIMIZACIÓN: Cargar datos una sola vez para evitar errores de conexión (ConnectionTerminated) ---
     try:
-        res_ventas = supabase_client.table('venta').select('*, cliente(*)').order('fecha_venta', desc=True).execute()
+        res_ventas = supabase_client.table('venta').select('*, cliente(*), pasajero(nacionalidad, es_principal)').order('fecha_venta', desc=True).execute()
         ventas_data = res_ventas.data or []
         res_pagos = supabase_client.table('pago').select('*').order('fecha_pago', desc=False).execute()
         pagos_data = res_pagos.data or []
@@ -437,10 +437,18 @@ def procesar_datos_tabla(ventas_data, pagos_data, anio_sel=None, mes_sel=None, f
         
         estado = str(v.get('estado_venta', 'CONFIRMADO')).upper()
         
+        # Extraer nacionalidad desde PASAJEROS (tabla pasajero), no del lead
+        nacionalidad = ""
+        pax_info = v.get('pasajero', [])
+        if pax_info and isinstance(pax_info, list):
+            # Prioridad: pasajero marcado como principal, si no el primero
+            principal = next((p for p in pax_info if p.get('es_principal')), pax_info[0])
+            nacionalidad = str(principal.get('nacionalidad') or '').upper()
+                
         data_rows.append({
             "FECHA": f_venta_str,
             "PAX": pax,
-            "NACIONALIDAD": cliente_info.get('nacionalidad', ''),
+            "NACIONALIDAD": nacionalidad,
             "TOUR": v.get('fecha_inicio', ''),
             "TOTAL S/": round(monto_total_pen, 2),
             "TOTAL $": round(monto_total_usd, 2),

@@ -61,7 +61,7 @@ class ReporteController:
             ventas = self.venta_model.get_all()
             if not ventas: return []
             
-            res_c = self.client.table('cliente').select('id_cliente, nombre, lead(numero_celular)').execute()
+            res_c = self.client.table('cliente').select('id_cliente, nombre, lead(numero_celular, pais_origen)').execute()
             cli_map = {}
             tel_map = {}
             for c in res_c.data:
@@ -94,7 +94,7 @@ class ReporteController:
                 vend_map = {v['id_vendedor']: v['nombre'] for v in res_v.data}
                 df_ventas['vendedor'] = df_ventas['id_vendedor'].map(vend_map)
                     
-                res_c = self.client.table('cliente').select('id_cliente, nombre, lead(numero_celular)').execute()
+                res_c = self.client.table('cliente').select('id_cliente, nombre, lead(numero_celular, pais_origen)').execute()
                 cli_map = {c['id_cliente']: c['nombre'] for c in res_c.data}
                 tel_map = {}
                 for c in res_c.data:

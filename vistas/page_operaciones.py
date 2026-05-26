@@ -30,7 +30,7 @@ def generate_operational_master_buffers(_controller, id_venta):
         xl_ctrl = ExcelController()
 
         # 1. Obtener Datos de la Venta (frescos desde la BD)
-        res_v = _controller.client.table('venta').select('*, cliente(nombre, lead(numero_celular)), vendedor(nombre)').eq('id_venta', id_venta).single().execute()
+        res_v = _controller.client.table('venta').select('*, cliente(nombre, lead(numero_celular, pais_origen)), vendedor(nombre)').eq('id_venta', id_venta).single().execute()
         if not res_v.data:
             return None, None, None
             
@@ -1149,7 +1149,7 @@ def dashboard_simulador_costos(controller):
     # --- NUEVO: RECUPERAR DATOS DEL ITINERARIO PARA DESCARGA ---
     try:
         # Recuperar Venta Live de forma estándar (sin alias complejos para evitar fallos de PostgREST)
-        res_v_live = controller.client.table('venta').select('*, cliente(nombre, lead(numero_celular))').eq('id_venta', id_venta_act).single().execute()
+        res_v_live = controller.client.table('venta').select('*, cliente(nombre, lead(numero_celular, pais_origen))').eq('id_venta', id_venta_act).single().execute()
         v_live = res_v_live.data or {}
         
         id_itin_dig = v_live.get('id_itinerario_digital')

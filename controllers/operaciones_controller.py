@@ -80,7 +80,7 @@ class OperacionesController:
             ids_clientes = list(set([v['id_cliente'] for v in ventas_map.values() if v.get('id_cliente')]))
             clientes_map = {}
             if ids_clientes:
-                res_c = self.client.table('cliente').select('id_cliente, nombre, lead(numero_celular)').in_('id_cliente', ids_clientes).execute()
+                res_c = self.client.table('cliente').select('id_cliente, nombre, lead(numero_celular, pais_origen)').in_('id_cliente', ids_clientes).execute()
                 for c in res_c.data:
                     # PostgREST devuelve el lead como un objeto o lista
                     lead_data = c.get('lead')
@@ -643,7 +643,7 @@ class OperacionesController:
         Recopila toda la información de la operación para el Reporte Maestro.
         """
         # 1. Obtener Datos de la Venta básica
-        res_v = self.client.table('venta').select('*, cliente(nombre, lead(numero_celular))').eq('id_venta', id_venta).single().execute()
+        res_v = self.client.table('venta').select('*, cliente(nombre, lead(numero_celular, pais_origen))').eq('id_venta', id_venta).single().execute()
         if not res_v.data:
             raise Exception("No se pudo recuperar la información de la venta.")
             
@@ -942,7 +942,7 @@ class OperacionesController:
         """
         try:
             # 1. Obtener datos generales de la venta
-            res_v = self.client.table('venta').select('*, cliente(nombre, lead(numero_celular))').eq('id_venta', id_venta).execute()
+            res_v = self.client.table('venta').select('*, cliente(nombre, lead(numero_celular, pais_origen))').eq('id_venta', id_venta).execute()
             venta = res_v.data[0] if (res_v and res_v.data) else None
             if not venta:
                 return None, "No se encontró la venta especificada."
