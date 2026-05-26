@@ -191,20 +191,75 @@ def dashboard_pagos_operativos(supabase_client):
             
             serv_sel = col2.selectbox("2. Vincular a Servicio (Opcional):", opciones_serv)
             
-            # --- Inteligencia de Moneda ---
+            # --- Inteligencia de Moneda y Resumen Financiero ---
             moneda_deuda = "USD" # Default
+            costo_total_deuda = 0.0
+            ya_pagado_deuda = 0.0
+
             if serv_sel != opciones_serv[0]:
-                # Buscar moneda pactada para este servicio
+                # Buscar moneda, costo y pagos para este servicio específico
                 id_v_tmp, nl_tmp = mapa_serv[serv_sel]
                 res_mon = supabase_client.table('venta_servicio_proveedor')\
-                    .select('moneda')\
+                    .select('moneda, costo_unitario, cantidad_pax')\
                     .eq('id_venta', id_v_tmp)\
                     .eq('n_linea', nl_tmp)\
                     .limit(1).execute()
                 if res_mon.data:
-                    moneda_deuda = res_mon.data[0]['moneda']
-            
+                    srv = res_mon.data[0]
+                    moneda_deuda = srv.get('moneda', 'USD')
+                    costo_total_deuda = float(srv.get('costo_unitario') or 0) * int(srv.get('cantidad_pax') or 1)
+
+                # Cuánto ya se pagó para este servicio específico
+                res_pagos_srv = supabase_client.table('pago_operativo')\
+                    .select('monto_en_moneda_costo')\
+                    .eq('id_proveedor', id_prov)\
+                    .eq('id_venta', id_v_tmp)\
+                    .eq('n_linea', nl_tmp)\
+                    .execute()
+                if res_pagos_srv.data:
+                    ya_pagado_deuda = sum(float(p.get('monto_en_moneda_costo') or 0) for p in res_pagos_srv.data)
+            else:
+                # Pago general al proveedor: calcular deuda total y pagos totales sin filtro de servicio
+                res_costos_gen = supabase_client.table('venta_servicio_proveedor')\
+                    .select('moneda, costo_unitario, cantidad_pax')\
+                    .eq('id_proveedor', id_prov)\
+                    .execute()
+                if res_costos_gen.data:
+                    # Usar la moneda más común (primer registro)
+                    moneda_deuda = res_costos_gen.data[0].get('moneda', 'USD')
+                    for c in res_costos_gen.data:
+                        if c.get('moneda') == moneda_deuda:
+                            costo_total_deuda += float(c.get('costo_unitario') or 0) * int(c.get('cantidad_pax') or 1)
+
+                res_pag_gen = supabase_client.table('pago_operativo')\
+                    .select('monto_en_moneda_costo')\
+                    .eq('id_proveedor', id_prov)\
+                    .execute()
+                if res_pag_gen.data:
+                    ya_pagado_deuda = sum(float(p.get('monto_en_moneda_costo') or 0) for p in res_pag_gen.data)
+
+            saldo_pendiente = costo_total_deuda - ya_pagado_deuda
+
+            # --- Panel de Resumen Financiero ---
             st.markdown(f"Deuda pactada en: **{moneda_deuda}**")
+            if costo_total_deuda > 0:
+                m1, m2, m3 = st.columns(3)
+                m1.metric(
+                    label=f"💰 Costo Total del Servicio ({moneda_deuda})",
+                    value=f"{moneda_deuda} {costo_total_deuda:,.2f}"
+                )
+                m2.metric(
+                    label=f"✅ Ya Pagado ({moneda_deuda})",
+                    value=f"{moneda_deuda} {ya_pagado_deuda:,.2f}",
+                    delta=f"-{ya_pagado_deuda:,.2f}" if ya_pagado_deuda > 0 else None,
+                    delta_color="normal"
+                )
+                m3.metric(
+                    label=f"🔴 Saldo Pendiente ({moneda_deuda})",
+                    value=f"{moneda_deuda} {saldo_pendiente:,.2f}",
+                    delta="SALDADO ✅" if saldo_pendiente <= 0.01 else f"Falta {moneda_deuda} {saldo_pendiente:,.2f}",
+                    delta_color="normal" if saldo_pendiente <= 0.01 else "inverse"
+                )
             st.markdown("---")
             
             c3, c4, c5 = st.columns(3)
