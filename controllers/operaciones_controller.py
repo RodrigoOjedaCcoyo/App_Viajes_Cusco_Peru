@@ -608,21 +608,32 @@ class OperacionesController:
                     # Método de pago: usar el del último pago registrado
                     s['metodo_pago'] = pagos_linea[-1].get('metodo_pago') or '---'
                     
-                    # Observaciones del pago: extraer únicas no vacías
-                    obs_list = []
-                    for p in pagos_linea:
-                        obs = str(p.get('observaciones') or '').strip()
-                        if obs and obs != 'None' and obs not in obs_list:
-                            obs_list.append(obs)
-                    s['observaciones_pago'] = ' | '.join(obs_list) if obs_list else '---'
+                    # Función auxiliar para limpiar duplicados y subcadenas
+                    def clean_obs(raw_list):
+                        valid_obs = [str(o).strip() for o in raw_list if o and str(o).strip() and str(o).strip() != 'None']
+                        if not valid_obs:
+                            return '---'
+                        
+                        # Ordenar de mayor a menor longitud
+                        valid_obs_sorted = sorted(valid_obs, key=len, reverse=True)
+                        final_obs = []
+                        
+                        for obs in valid_obs_sorted:
+                            # Solo agregamos si NO está contenido en uno más largo ya agregado
+                            if not any(obs in existing for existing in final_obs):
+                                final_obs.append(obs)
+                                
+                        # Invertir para mantener un orden más cronológico (los más largos suelen ser los últimos)
+                        final_obs.reverse()
+                        return ' | '.join(final_obs)
+
+                    # Observaciones del pago: extraer únicas y limpiar subcadenas
+                    raw_obs = [p.get('observaciones') for p in pagos_linea]
+                    s['observaciones_pago'] = clean_obs(raw_obs)
                     
-                    # Observaciones contables: extraer únicas no vacías
-                    obs_cont_list = []
-                    for p in pagos_linea:
-                        obs_cont = str(p.get('observaciones_contables') or '').strip()
-                        if obs_cont and obs_cont != 'None' and obs_cont not in obs_cont_list:
-                            obs_cont_list.append(obs_cont)
-                    s['observaciones_contables'] = ' | '.join(obs_cont_list) if obs_cont_list else '---'
+                    # Observaciones contables: extraer únicas y limpiar subcadenas
+                    raw_obs_cont = [p.get('observaciones_contables') for p in pagos_linea]
+                    s['observaciones_contables'] = clean_obs(raw_obs_cont)
                 else:
                     # Sin pagos registrados para esta línea
                     s['metodo_pago'] = s.get('metodo_pago') or '---'
