@@ -1396,10 +1396,18 @@ def dashboard_simulador_costos(controller):
                         for col_esperada, col_actual in cols_mapeadas.items():
                             for idx, col in enumerate(df_preview.columns):
                                 if str(col).strip().lower() == col_actual:
-                                    rename_dict[col] = col_esperada.replace('_', ' ').title()
+                                    # BUGFIX: Usar los nombres exactos esperados por vincular_endoses_masivos
+                                    # 'dia' -> 'Dia', 'tipo_de_servicio' -> 'Tipo de Servicio', etc
+                                    if col_esperada == 'dia':
+                                        rename_dict[col] = 'Dia'
+                                    elif col_esperada == 'tipo_de_servicio':
+                                        rename_dict[col] = 'Tipo de Servicio'
+                                    elif col_esperada == 'proveedor':
+                                        rename_dict[col] = 'Proveedor'
                         
                         if rename_dict:
                             df_preview = df_preview.rename(columns=rename_dict)
+                            print(f"DEBUG - Columnas renombradas: {rename_dict}")  # ✅ LOGGING
                         
                         # --- CONFIGURACIÓN DE TIPO DE CAMBIO PARA LA CARGA ---
                         tc_carga = st.number_input("💱 Tipo de Cambio para esta Carga (USD -> PEN):", min_value=0.1, value=3.80, format="%.3f", help="Se usará para convertir costos si la moneda del proveedor es distinta a la de la venta.")

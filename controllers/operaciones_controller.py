@@ -478,10 +478,31 @@ class OperacionesController:
                         if res_check.data:
                             # Actualizar
                             id_reg = res_check.data[0]['id']
-                            self.client.table('venta_servicio_proveedor').update(data_ins).eq('id', id_reg).execute()
+                            try:
+                                res_update = self.client.table('venta_servicio_proveedor').update(data_ins).eq('id', id_reg).execute()
+                                print(f"DEBUG - UPDATE Fila {idx+1}: res.data = {res_update.data}, type = {type(res_update.data)}")
+                                if not res_update.data:
+                                    resultados["errores"].append(f"Fila {idx+1}: Error al actualizar en BD (UPDATE falló silenciosamente). Response: {res_update}")
+                                    print(f"DEBUG - UPDATE FALLÓ para fila {idx+1}")
+                                    continue
+                            except Exception as update_err:
+                                resultados["errores"].append(f"Fila {idx+1}: Exception en UPDATE: {str(update_err)}")
+                                print(f"DEBUG - UPDATE Exception fila {idx+1}: {update_err}")
+                                continue
                         else:
                             # Insertar nuevo
-                            self.client.table('venta_servicio_proveedor').insert(data_ins).execute()
+                            try:
+                                print(f"DEBUG - INSERT Fila {idx+1}: data_ins = {data_ins}")
+                                res_insert = self.client.table('venta_servicio_proveedor').insert(data_ins).execute()
+                                print(f"DEBUG - INSERT Fila {idx+1}: res.data = {res_insert.data}, type = {type(res_insert.data)}")
+                                if not res_insert.data:
+                                    resultados["errores"].append(f"Fila {idx+1}: Error al insertar en BD (INSERT falló silenciosamente). Response: {res_insert}")
+                                    print(f"DEBUG - INSERT FALLÓ para fila {idx+1}")
+                                    continue
+                            except Exception as insert_err:
+                                resultados["errores"].append(f"Fila {idx+1}: Exception en INSERT: {str(insert_err)}")
+                                print(f"DEBUG - INSERT Exception fila {idx+1}: {insert_err}")
+                                continue
                         
                         # --- ACTUALIZACIÓN DE VENTA_TOUR (COSTO TOTAL POR LÍNEA) ---
                         res_tot = self.client.table('venta_servicio_proveedor') \
@@ -510,7 +531,11 @@ class OperacionesController:
                         if "ENDOSE" in tipo_norm.upper():
                             update_data["es_endoso"] = True
                         
-                        self.client.table('venta_tour').update(update_data).eq('id_venta', id_venta).eq('n_linea', nl).execute()
+                        res_vt_update = self.client.table('venta_tour').update(update_data).eq('id_venta', id_venta).eq('n_linea', nl).execute()
+                        if not res_vt_update.data:
+                            resultados["errores"].append(f"Fila {idx+1}: Advertencia: Se guardó el servicio pero falló la actualización de costos en venta_tour")
+                            # Aún contamos como éxito porque el servicio se guardó
+                        
                         resultados["exitos"] += 1
                     except Exception as e:
                         resultados["errores"].append(f"Fila {idx+1}: Error al guardar en BD: {str(e)}")
@@ -540,14 +565,16 @@ class OperacionesController:
         """
         try:
             # 1. Borrar en venta_servicio_proveedor
-            self.client.table('venta_servicio_proveedor').delete().eq('id_venta', id_venta).execute()
+            res_del = self.client.table('venta_servicio_proveedor').delete().eq('id_venta', id_venta).execute()
+            print(f"DEBUG - DELETE venta_servicio_proveedor: res.data = {res_del.data}")
 
             # 2. Resetear en venta_tour
-            self.client.table('venta_tour').update({
+            res_update = self.client.table('venta_tour').update({
                 "costo_unitario": 0,
                 "es_endoso": False,
                 "id_proveedor": None
             }).eq('id_venta', id_venta).execute()
+            print(f"DEBUG - UPDATE venta_tour: res.data = {res_update.data}")
 
             return True, "Costos y proveedores reseteados exitosamente."
         except Exception as e:
@@ -612,8 +639,17 @@ class OperacionesController:
                         "es_principal": es_p
                     }
                     
-                    self.client.table('pasajero').insert(data_ins).execute()
-                    resultados["exitos"] += 1
+                    try:
+                        res_pax_insert = self.client.table('pasajero').insert(data_ins).execute()
+                        print(f"DEBUG - INSERT Pasajero Fila {idx+1}: res.data = {res_pax_insert.data}")
+                        if not res_pax_insert.data:
+                            resultados["errores"].append(f"Fila {idx+1}: Error al insertar pasajero (INSERT falló silenciosamente)")
+                            continue
+                        resultados["exitos"] += 1
+                    except Exception as pax_insert_err:
+                        resultados["errores"].append(f"Fila {idx+1}: Error al insertar pasajero: {str(pax_insert_err)}")
+                        print(f"DEBUG - Error INSERT pasajero {idx+1}: {pax_insert_err}")
+                        continue
                 except Exception as e:
                     resultados["errores"].append(f"Fila {idx+1}: {str(e)}")
                     print(f"DEBUG - Error en fila de pasajero {idx+1}: {str(e)}")  # ✅ LOGGING PARA DEBUG
