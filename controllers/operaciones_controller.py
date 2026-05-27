@@ -492,34 +492,36 @@ class OperacionesController:
                             except: pass
 
                         # --- LÓGICA DE GUARDADO INTELIGENTE ---
-                        # Normalizar tipo_servicio para evitar duplicados inconsistentes
-                        tipo_norm = f"{tipo} ({str(prov_nombre_raw).strip().upper()})"
-                        tipo_servicio_final = tipo_norm[:50] if len(tipo_norm) > 50 else tipo_norm
-                        data_ins["tipo_servicio"] = tipo_servicio_final
+                        # Usar el tipo de servicio tal cual, sin modificar
                         
-                        # Estrategia: DELETE + INSERT para garantizar actualización
                         try:
-                            print(f"DEBUG - DELETE + INSERT Fila {idx+1}")
+                            print(f"DEBUG - Guardando Fila {idx+1}: tipo={tipo}, proveedor={id_prov}")
                             
-                            # Paso 1: Buscar si existe
-                            res_check = self.client.table('venta_servicio_proveedor') \
-                                .select('id') \
-                                .eq('id_venta', id_venta) \
-                                .eq('n_linea', nl) \
-                                .eq('tipo_servicio', tipo_servicio_final) \
-                                .execute()
-                            
-                            if res_check.data:
-                                # Existe: hacer UPDATE
-                                id_reg = res_check.data[0]['id']
-                                print(f"DEBUG - UPDATE Fila {idx+1}: id={id_reg}")
-                                res_update = self.client.table('venta_servicio_proveedor').update(data_ins).eq('id', id_reg).execute()
-                                print(f"DEBUG - UPDATE SUCCESS Fila {idx+1}")
-                            else:
-                                # No existe: hacer INSERT
+                            # Intentar INSERT - si falla por unique constraint, hacer UPDATE
+                            try:
                                 print(f"DEBUG - INSERT Fila {idx+1}: data_ins = {data_ins}")
                                 res_insert = self.client.table('venta_servicio_proveedor').insert(data_ins).execute()
                                 print(f"DEBUG - INSERT SUCCESS Fila {idx+1}")
+                            except Exception as insert_err:
+                                # Si falla por duplicate, hacer UPDATE
+                                if "duplicate" in str(insert_err).lower() or "23505" in str(insert_err):
+                                    print(f"DEBUG - INSERT falló por duplicate, intentando UPDATE Fila {idx+1}")
+                                    # Buscar el registro existente
+                                    res_check = self.client.table('venta_servicio_proveedor') \
+                                        .select('id') \
+                                        .eq('id_venta', id_venta) \
+                                        .eq('n_linea', nl) \
+                                        .eq('tipo_servicio', tipo) \
+                                        .execute()
+                                    
+                                    if res_check.data:
+                                        id_reg = res_check.data[0]['id']
+                                        res_update = self.client.table('venta_servicio_proveedor').update(data_ins).eq('id', id_reg).execute()
+                                        print(f"DEBUG - UPDATE SUCCESS Fila {idx+1}: id={id_reg}")
+                                    else:
+                                        raise insert_err
+                                else:
+                                    raise insert_err
                             
                         except Exception as save_err:
                             resultados["errores"].append(f"Fila {idx+1}: Exception al guardar: {str(save_err)}")
@@ -552,7 +554,7 @@ class OperacionesController:
                             total_n_linea += (c_u * c_p)
 
                         update_data = {"costo_unitario": total_n_linea}
-                        if "ENDOSE" in tipo_norm.upper():
+                        if "ENDOSE" in tipo.upper():
                             update_data["es_endoso"] = True
                         
                         res_vt_update = self.client.table('venta_tour').update(update_data).eq('id_venta', id_venta).eq('n_linea', nl).execute()
