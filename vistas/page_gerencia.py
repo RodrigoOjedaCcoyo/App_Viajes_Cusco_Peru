@@ -433,9 +433,15 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual, user_id, supabase_cli
     ctrl_op = OperacionesController(supabase_client)
     render_centro_alertas(ctrl_op)
 
-    if funcionalidad_seleccionada in ["Control de Liquidaciones"]:
-        render_control_financiero_liquidaciones(supabase_client)
-    elif funcionalidad_seleccionada in ["Gestión de Registros", "Gestión Ejecutiva"]:
+    # El selector lateral de Gerencia envía textos como:
+    # - "Dashboard Ejecutivo"
+    # - "Auditoría de Gestión"
+    # - "Control de Liquidaciones"
+    if funcionalidad_seleccionada in ["Dashboard Ejecutivo"]:
+        dashboard_ejecutivo(controller)
+    elif funcionalidad_seleccionada in ["Auditoría de Gestión", "Gestión de Registros", "Gestión Ejecutiva"]:
         auditoria_maestra(controller)
+    elif funcionalidad_seleccionada in ["Control de Liquidaciones"]:
+        render_control_financiero_liquidaciones(supabase_client)
     else:
-        st.info("Utilice el Dashboard Ejecutivo para ver métricas de alto nivel.")
+        st.info("Selecciona una opción del menú: `Dashboard Ejecutivo`, `Auditoría de Gestión` o `Control de Liquidaciones`.")
