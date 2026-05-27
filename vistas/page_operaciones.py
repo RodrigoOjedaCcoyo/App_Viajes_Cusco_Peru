@@ -1831,7 +1831,24 @@ def dashboard_simulador_costos(controller):
                         if exito_r: st.success(msg_r); st.rerun()
                         else: st.error(msg_r)
             else:
-                st.info("Aún no has cargado la liquidación (Excel) para esta venta.")
+                # Diagnóstico: diferenciar "no hay registros" vs "hay registros pero no están listos"
+                try:
+                    res_cnt = controller.client.table('venta_servicio_proveedor') \
+                        .select('id', count='exact') \
+                        .eq('id_venta', id_actual) \
+                        .execute()
+                    total_regs = getattr(res_cnt, "count", None)
+                except Exception:
+                    total_regs = None
+                
+                if total_regs and int(total_regs) > 0:
+                    st.warning(
+                        f"⚠️ Se detectaron {int(total_regs)} registros en la BD para esta venta, "
+                        "pero no se pueden renderizar aún en el panel."
+                    )
+                    st.info("💡 Suele ocurrir si faltan campos clave (por ejemplo proveedor) o hubo un problema en la carga. Reintenta sincronizar y recarga.")
+                else:
+                    st.info("Aún no has cargado la liquidación (Excel) para esta venta.")
         except Exception as e:
             st.error(f"Error cargando liquidaciones: {e}")
 

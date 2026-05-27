@@ -731,18 +731,19 @@ class OperacionesController:
         cruzado con los pagos operativos para método de pago y observaciones.
         """
         try:
-            # 1. Obtener los costos/servicios (solo los que tienen costo real)
+            # 1. Obtener los costos/servicios
             res = (
                 self.client.table('venta_servicio_proveedor')
                 .select('*, proveedor(nombre_comercial)')
                 .eq('id_venta', id_venta)
                 .execute()
             )
-            # Filtrar filas sin costo o sin proveedor (evita filas vacías en el Excel)
-            servicios = [
-                s for s in (res.data or [])
-                if s.get('id_proveedor') and float(s.get('costo_unitario') or 0) > 0
-            ]
+            # IMPORTANTE:
+            # Antes filtrábamos por "costo_unitario > 0". En Operaciones muchos servicios (p.ej. GUIA)
+            # se cargan inicialmente con 0 o quedan en blanco para completar luego, lo cual hacía que
+            # el panel muestre "Aún no has cargado la liquidación" aunque sí existan registros.
+            # Aquí retornamos todos los registros con proveedor, incluso con costo 0.
+            servicios = [s for s in (res.data or []) if s.get('id_proveedor')]
             
             # 2. Obtener TODOS los pagos operativos asociados a esta venta
             # Ordenamos desc=True para que el más reciente quede primero
