@@ -1070,6 +1070,12 @@ def dashboard_simulador_costos(controller):
     """
     st.subheader("📊 Panel de Control Profesional", divider='rainbow')
 
+    # ✅ INICIALIZAR VARIABLES DE SESIÓN CRÍTICAS
+    if 'last_loaded_id_venta' not in st.session_state:
+        st.session_state['last_loaded_id_venta'] = None
+    if 'master_pax_count' not in st.session_state:
+        st.session_state['master_pax_count'] = 1
+
     # Pre-cargar proveedores para evitar errores de scope
     prov_items = []
     try:
@@ -1321,9 +1327,19 @@ def dashboard_simulador_costos(controller):
     )
     
     c_arch1, c_arch2 = st.columns(2)
+    
+    # ✅ VALIDACIÓN ANTES DE MOSTRAR UPLOADER
+    id_venta_para_archivos = st.session_state.get('last_loaded_id_venta')
+    if not id_venta_para_archivos:
+        with c_arch1:
+            st.warning("⚠️ Selecciona una venta arriba para cargar archivos.", icon="🔴")
+        with c_arch2:
+            st.warning("⚠️ Selecciona una venta arriba para cargar pasajeros.", icon="🔴")
+        return
+    
     with c_arch1:
         st.subheader("📊 Panel de Control")
-        f_liq = st.file_uploader("Cierre de Operaciones (Excel/CSV):", type=['xlsx', 'xls', 'csv'], key="up_liqrar_final")
+        f_liq = st.file_uploader("Cierre de Operaciones (Excel/CSV):", type=['xlsx', 'xls', 'csv'], key="up_liqrar_final", help="Carga el archivo de endoses con columnas: Día, Tipo de Servicio, Proveedor")
         
         # FUNCIÓN AUXILIAR: Normalizar nombres de columnas
         def normalizar_columnas(df):
@@ -1389,22 +1405,43 @@ def dashboard_simulador_costos(controller):
                         tc_carga = st.number_input("💱 Tipo de Cambio para esta Carga (USD -> PEN):", min_value=0.1, value=3.80, format="%.3f", help="Se usará para convertir costos si la moneda del proveedor es distinta a la de la venta.")
                         
                         if st.button("📦 Procesar y Guardar Endoses en DB", type="primary", use_container_width=True):
-                            with st.spinner("⏳ Procesando archivo... esto puede tomar unos segundos"):
-                                # Llamar al controlador (estamos en dashboard_simulador_costos(controller))
-                                res_bulk = controller.vincular_endoses_masivos(st.session_state['last_loaded_id_venta'], df_preview, tc_manual=tc_carga)
+                            # ✅ VALIDACIÓN FINAL ANTES DE PROCESAR
+                            if not id_venta_para_archivos:
+                                st.error("❌ Error interno: No hay venta seleccionada. Recarga la página e intenta de nuevo.")
+                                st.stop()
                             
-                            if res_bulk['exitos'] > 0:
-                                st.success(f"✅ Se vincularon {res_bulk['exitos']} registros correctamente.")
-                            
-                            if res_bulk['errores']:
-                                st.warning(f"⚠️ Se encontraron {len(res_bulk['errores'])} advertencias:")
-                                with st.expander("📋 Ver detalles de errores"):
-                                    for err in res_bulk['errores']:
-                                        st.write(f"• {err}")
-                            
-                            if res_bulk['exitos'] > 0:
-                                st.balloons()
-                                st.rerun()
+                            try:
+                                with st.spinner("⏳ Procesando archivo... esto puede tomar unos segundos"):
+                                    res_bulk = controller.vincular_endoses_masivos(id_venta_para_archivos, df_preview, tc_manual=tc_carga)
+                                
+                                # ✅ VALIDACIÓN MEJORADA DE RESPUESTA
+                                exitos = res_bulk.get('exitos', 0)
+                                errores = res_bulk.get('errores', [])
+                                
+                                if exitos == 0 and not errores:
+                                    st.error("❌ La operación completó sin guardar datos. Verifica que la venta tenga itinerario sincronizado.")
+                                elif exitos > 0:
+                                    st.success(f"✅ Se vincularon {exitos} registros correctamente.")
+                                    if errores:
+                                        st.warning(f"⚠️ Se encontraron {len(errores)} advertencias:")
+                                        with st.expander("📋 Ver detalles de errores", expanded=False):
+                                            for err in errores:
+                                                st.write(f"• {err}")
+                                    st.balloons()
+                                    st.rerun()
+                                else:
+                                    if errores:
+                                        st.error(f"❌ No se guardó ningún registro. Errores encontrados ({len(errores)}):")
+                                        for err in errores:
+                                            st.write(f"• {err}")
+                                    else:
+                                        st.error("❌ Error desconocido al procesar el archivo.")
+                            except Exception as process_error:
+                                st.error(f"❌ Error al procesar: {str(process_error)}")
+                                st.info("💡 Verifica que:")
+                                st.write("• La venta tiene un itinerario sincronizado")
+                                st.write("• Los proveedores del archivo existen en el sistema")
+                                st.write("• Los días (1,2,3...) corresponden a los días del itinerario")
                     else:
                         # Mostrar diagnóstico detallado
                         st.error(f"❌ No se encontraron todas las columnas requeridas")
@@ -1423,6 +1460,8 @@ def dashboard_simulador_costos(controller):
                 st.write("• El archivo no está corrupto")
                 st.write("• Es un Excel (.xlsx, .xls) o CSV válido")
                 st.write("• Contiene al menos una fila de datos")
+        else:
+            st.info("📁 Carga un archivo de endoses para procesarlo")
 
     with c_arch2:
         st.subheader("👥 Pasajeros")
@@ -1440,7 +1479,7 @@ def dashboard_simulador_costos(controller):
             use_container_width=True
         )
 
-        f_pax = st.file_uploader("Lista de Pasajeros / Rooming (Excel/CSV):", type=['xlsx', 'xls', 'csv'], key="up_paxrar_final")
+        f_pax = st.file_uploader("Lista de Pasajeros / Rooming (Excel/CSV):", type=['xlsx', 'xls', 'csv'], key="up_paxrar_final", help="Carga el rooming con información de los pasajeros")
         if f_pax:
             try:
                 if f_pax.name.endswith('.csv'):
@@ -1451,16 +1490,35 @@ def dashboard_simulador_costos(controller):
                 st.dataframe(df_pax, use_container_width=True, hide_index=True)
                 
                 if st.button("👥 Cargar Rooming a la DB", type="primary", use_container_width=True):
-                    res_pax = controller.vincular_pasajeros_masivos(st.session_state['last_loaded_id_venta'], df_pax)
-                    if res_pax['exitos'] > 0:
-                        st.success(f"✅ Se cargaron {res_pax['exitos']} pasajeros.")
-                    if res_pax['errores']:
-                        with st.expander("⚠️ Errores"):
-                            for e in res_pax['errores']: st.error(e)
-                    if res_pax['exitos'] > 0:
-                        st.rerun()
+                    # ✅ VALIDACIÓN FINAL ANTES DE PROCESAR
+                    if not id_venta_para_archivos:
+                        st.error("❌ Error interno: No hay venta seleccionada. Recarga la página e intenta de nuevo.")
+                        st.stop()
+                    
+                    try:
+                        with st.spinner("⏳ Cargando pasajeros..."):
+                            res_pax = controller.vincular_pasajeros_masivos(id_venta_para_archivos, df_pax)
+                        
+                        exitos_pax = res_pax.get('exitos', 0)
+                        errores_pax = res_pax.get('errores', [])
+                        
+                        if exitos_pax > 0:
+                            st.success(f"✅ Se cargaron {exitos_pax} pasajeros correctamente.")
+                            if errores_pax:
+                                with st.expander("⚠️ Advertencias", expanded=False):
+                                    for e in errores_pax:
+                                        st.warning(e)
+                            st.rerun()
+                        else:
+                            st.error("❌ No se guardó ningún pasajero.")
+                            if errores_pax:
+                                with st.expander("📋 Ver errores"):
+                                    for e in errores_pax:
+                                        st.write(f"• {e}")
+                    except Exception as pax_error:
+                        st.error(f"❌ Error al cargar pasajeros: {str(pax_error)}")
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"❌ Error al leer archivo de pasajeros: {e}")
 
     st.divider()
 

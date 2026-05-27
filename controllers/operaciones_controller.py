@@ -272,6 +272,15 @@ class OperacionesController:
         """
         resultados = {"exitos": 0, "errores": []}
         
+        # ✅ VALIDACIÓN INICIAL DE PARÁMETROS
+        if not id_venta:
+            resultados["errores"].append("❌ No se especificó una venta. Selecciona una venta antes de procesar.")
+            return resultados
+        
+        if df_liq is None or len(df_liq) == 0:
+            resultados["errores"].append("❌ El DataFrame está vacío.")
+            return resultados
+        
         try:
             # 0. Obtener moneda de la venta para normalización
             res_v = self.client.table('venta').select('moneda').eq('id_venta', id_venta).single().execute()
@@ -282,14 +291,16 @@ class OperacionesController:
             # 1. Cargar proveedores activos para mapeo de nombres (con búsqueda fuzzy)
             res_p = self.client.table('proveedor').select('id_proveedor, nombre_comercial').eq('activo', True).execute()
             if not res_p.data:
-                return {"exitos": 0, "errores": ["No hay proveedores activos registrados en el sistema. Registra proveedores primero."]}
+                resultados["errores"].append("❌ No hay proveedores activos registrados en el sistema. Registra proveedores primero.")
+                return resultados
             
             # Crear mapeos múltiples para búsqueda flexible
             mapa_prov_exact = {str(p['nombre_comercial']).strip().upper(): p['id_proveedor'] for p in res_p.data}
             mapa_prov_list = [(str(p['nombre_comercial']).strip().upper(), p['id_proveedor']) for p in res_p.data]
             
         except Exception as e:
-            return {"exitos": 0, "errores": [f"❌ Error al cargar proveedores: {str(e)}"]}
+            resultados["errores"].append(f"❌ Error al cargar proveedores: {str(e)}")
+            return resultados
 
         try:
             # 2. Obtener todos los servicios de la venta con su descripción para el Smart Match
@@ -304,10 +315,12 @@ class OperacionesController:
                     servicios_por_dia[dia].append(s)
             
             if not servicios_por_dia:
-                return {"exitos": 0, "errores": ["No se encontró itinerario sincronizado para esta venta. Sincronice primero."]}
+                resultados["errores"].append("❌ No se encontró itinerario sincronizado para esta venta. Sincroniza el itinerario primero.")
+                return resultados
                 
         except Exception as e:
-            return {"exitos": 0, "errores": [f"Error al obtener servicios de la venta: {str(e)}"]}
+            resultados["errores"].append(f"❌ Error al obtener servicios de la venta: {str(e)}")
+            return resultados
 
         # Diccionario para rastrear qué (n_linea, tipo) ya hemos usado en esta carga
         # Esto evita que dos filas de 'TICKET' en el Excel se amontonen en el mismo n_linea si hay otros disponibles
@@ -326,50 +339,51 @@ class OperacionesController:
         }
 
         # 3. Procesar filas del Excel
-        for idx, row in df_liq.iterrows():
-            try:
-                # Limpieza de datos del Excel
-                dia_excel = row.get('Dia')
-                prov_nombre_raw = str(row.get('Proveedor', '')).strip()
-                tipo = str(row.get('Tipo de Servicio', 'ENDOSE')).strip().upper()
-                
-                # Validación de datos críticos
-                if not dia_excel or pd.isna(dia_excel):
-                    resultados["errores"].append(f"Fila {idx+1}: La columna 'Dia' está vacía.")
-                    continue
-                
-                if not prov_nombre_raw or prov_nombre_raw.lower() in ['nan', 'none', '']:
-                    resultados["errores"].append(f"Fila {idx+1}: El proveedor no puede estar vacío.")
-                    continue
-                
-                if not tipo or tipo in ['NAN', 'NONE', '']:
-                    resultados["errores"].append(f"Fila {idx+1}: El 'Tipo de Servicio' no puede estar vacío.")
-                    continue
-                
+        try:
+            for idx, row in df_liq.iterrows():
                 try:
-                    dia_excel = int(float(dia_excel))
-                except:
-                    resultados["errores"].append(f"Fila {idx+1}: El Día '{dia_excel}' no es un número válido.")
-                    continue
-                
-                costo_unit = float(row.get('Costo Unitario', 0)) if not pd.isna(row.get('Costo Unitario')) else 0
-                pax = int(float(row.get('Pax', 1))) if not pd.isna(row.get('Pax')) else 1
-                moneda = str(row.get('Moneda', 'USD')).strip().upper() if not pd.isna(row.get('Moneda')) else "USD"
-                
-                if moneda not in ['USD', 'PEN', 'EUR']:
-                    moneda = 'USD'
+                    # Limpieza de datos del Excel
+                    dia_excel = row.get('Dia')
+                    prov_nombre_raw = str(row.get('Proveedor', '')).strip()
+                    tipo = str(row.get('Tipo de Servicio', 'ENDOSE')).strip().upper()
+                    
+                    # Validación de datos críticos
+                    if not dia_excel or pd.isna(dia_excel):
+                        resultados["errores"].append(f"Fila {idx+1}: La columna 'Dia' está vacía.")
+                        continue
+                    
+                    if not prov_nombre_raw or prov_nombre_raw.lower() in ['nan', 'none', '']:
+                        resultados["errores"].append(f"Fila {idx+1}: El proveedor no puede estar vacío.")
+                        continue
+                    
+                    if not tipo or tipo in ['NAN', 'NONE', '']:
+                        resultados["errores"].append(f"Fila {idx+1}: El 'Tipo de Servicio' no puede estar vacío.")
+                        continue
+                    
+                    try:
+                        dia_excel = int(float(dia_excel))
+                    except:
+                        resultados["errores"].append(f"Fila {idx+1}: El Día '{dia_excel}' no es un número válido.")
+                        continue
+                    
+                    costo_unit = float(row.get('Costo Unitario', 0)) if not pd.isna(row.get('Costo Unitario')) else 0
+                    pax = int(float(row.get('Pax', 1))) if not pd.isna(row.get('Pax')) else 1
+                    moneda = str(row.get('Moneda', 'USD')).strip().upper() if not pd.isna(row.get('Moneda')) else "USD"
+                    
+                    if moneda not in ['USD', 'PEN', 'EUR']:
+                        moneda = 'USD'
 
-                # --- BÚSQUEDA FLEXIBLE DE PROVEEDOR (Exacta + Parcial) ---
-                prov_nombre_up = prov_nombre_raw.upper()
-                id_prov = mapa_prov_exact.get(prov_nombre_up)
-                
-                # Si no hay coincidencia exacta, buscar parcial
-                if not id_prov:
-                    for prov_name_bd, prov_id in mapa_prov_list:
-                        if prov_nombre_up in prov_name_bd or prov_name_bd in prov_nombre_up:
-                            id_prov = prov_id
-                            break
-                
+                    # --- BÚSQUEDA FLEXIBLE DE PROVEEDOR (Exacta + Parcial) ---
+                    prov_nombre_up = prov_nombre_raw.upper()
+                    id_prov = mapa_prov_exact.get(prov_nombre_up)
+                    
+                    # Si no hay coincidencia exacta, buscar parcial
+                    if not id_prov:
+                        for prov_name_bd, prov_id in mapa_prov_list:
+                            if prov_nombre_up in prov_name_bd or prov_name_bd in prov_nombre_up:
+                                id_prov = prov_id
+                                break
+                    
                 if not id_prov:
                     proveedores_disponibles = ', '.join([p['nombre_comercial'] for p in res_p.data])
                     resultados["errores"].append(f"Fila {idx+1}: Proveedor '{prov_nombre_raw}' no encontrado. Disponibles: {proveedores_disponibles[:80]}...")
@@ -500,8 +514,23 @@ class OperacionesController:
                     resultados["exitos"] += 1
                 except Exception as e:
                     resultados["errores"].append(f"Fila {idx+1}: Error al guardar en BD: {str(e)}")
+                    print(f"DEBUG - Error en fila {idx+1}: {str(e)}")  # ✅ LOGGING PARA DEBUG
             except Exception as e:
                 resultados["errores"].append(f"Fila {idx+1}: {str(e)}")
+                print(f"DEBUG - Error procesando fila {idx+1}: {str(e)}")  # ✅ LOGGING PARA DEBUG
+        except Exception as outer_error:
+            # ✅ CAPTURA DE ERRORES INESPERADOS EN EL PROCESAMIENTO GENERAL
+            resultados["errores"].append(f"❌ Error general al procesar el archivo: {str(outer_error)}")
+            print(f"DEBUG - Error general en vincular_endoses_masivos: {str(outer_error)}")
+
+        # ✅ VALIDACIÓN FINAL: Asegurar que siempre se retorna un diccionario válido
+        if not isinstance(resultados, dict):
+            resultados = {"exitos": 0, "errores": ["Error interno: respuesta no válida"]}
+        
+        if 'exitos' not in resultados:
+            resultados['exitos'] = 0
+        if 'errores' not in resultados:
+            resultados['errores'] = []
 
         return resultados
 
@@ -530,53 +559,77 @@ class OperacionesController:
         """
         resultados = {"exitos": 0, "errores": []}
         
-        for idx, row in df_pax.iterrows():
-            try:
-                nombre = str(row.get('Nombre', row.get('Nombre Completo', ''))).strip()
-                apellidos = str(row.get('Apellidos', '')).strip()
-                nombre_completo = f"{nombre} {apellidos}".strip() if apellidos else nombre
-                if not nombre_completo:
-                    resultados["errores"].append(f"Fila {idx+1}: Nombre vacío.")
-                    continue
-                
-                doc = str(row.get('Documento', row.get('PASAPORTE', ''))).strip()
-                tipo_doc = str(row.get('Tipo Doc', 'PASAPORTE')).strip().upper()
-                nac = str(row.get('Nacionalidad', row.get('NACIONALIDAD', ''))).strip()
-                f_nac = row.get('Fecha Nacimiento', row.get('FECHA NAC.', ''))
-                f_cad = row.get('Fecha Caducidad', row.get('CADUCIDAD', ''))
-                edad = row.get('Edad', None)
-                genero = str(row.get('Genero', row.get('SEXO', ''))).strip()
-                cuidados = str(row.get('Cuidados', row.get('DIETA', ''))).strip()
-                
-                # Nuevos campos logísticos
-                habitacion = str(row.get('Tipo Habitacion', row.get('Habitación', row.get('TIPO DE ACOMODACIÓN', '')))).strip()
+        # ✅ VALIDACIÓN INICIAL
+        if not id_venta:
+            resultados["errores"].append("❌ No se especificó una venta. Selecciona una venta antes de procesar.")
+            return resultados
+        
+        if df_pax is None or len(df_pax) == 0:
+            resultados["errores"].append("❌ El archivo de pasajeros está vacío.")
+            return resultados
+        
+        try:
+            for idx, row in df_pax.iterrows():
+                try:
+                    nombre = str(row.get('Nombre', row.get('Nombre Completo', ''))).strip()
+                    apellidos = str(row.get('Apellidos', '')).strip()
+                    nombre_completo = f"{nombre} {apellidos}".strip() if apellidos else nombre
+                    if not nombre_completo:
+                        resultados["errores"].append(f"Fila {idx+1}: Nombre vacío.")
+                        continue
+                    
+                    doc = str(row.get('Documento', row.get('PASAPORTE', ''))).strip()
+                    tipo_doc = str(row.get('Tipo Doc', 'PASAPORTE')).strip().upper()
+                    nac = str(row.get('Nacionalidad', row.get('NACIONALIDAD', ''))).strip()
+                    f_nac = row.get('Fecha Nacimiento', row.get('FECHA NAC.', ''))
+                    f_cad = row.get('Fecha Caducidad', row.get('CADUCIDAD', ''))
+                    edad = row.get('Edad', None)
+                    genero = str(row.get('Genero', row.get('SEXO', ''))).strip()
+                    cuidados = str(row.get('Cuidados', row.get('DIETA', ''))).strip()
+                    
+                    # Nuevos campos logísticos
+                    habitacion = str(row.get('Tipo Habitacion', row.get('Habitación', row.get('TIPO DE ACOMODACIÓN', '')))).strip()
 
-                # Lógica robusta para 'Es Principal'
-                es_p_raw = str(row.get('Es Principal', '')).strip().upper()
-                es_p = es_p_raw in ['SI', 'SÍ', 'TRUE', '1', 'VERDADERO']
+                    # Lógica robusta para 'Es Principal'
+                    es_p_raw = str(row.get('Es Principal', '')).strip().upper()
+                    es_p = es_p_raw in ['SI', 'SÍ', 'TRUE', '1', 'VERDADERO']
 
-                if tipo_doc not in ['DNI', 'PASAPORTE', 'CARNET_EXTRANJERIA', 'DIE']:
-                    tipo_doc = 'PASAPORTE'
+                    if tipo_doc not in ['DNI', 'PASAPORTE', 'CARNET_EXTRANJERIA', 'DIE']:
+                        tipo_doc = 'PASAPORTE'
 
-                data_ins = {
-                    "id_venta": id_venta,
-                    "nombre_completo": nombre_completo,
-                    "numero_documento": doc if doc else None,
-                    "tipo_documento": tipo_doc,
-                    "nacionalidad": nac if nac else None,
-                    "fecha_nacimiento": str(f_nac) if pd.notnull(f_nac) else None,
-                    "fecha_caducidad_doc": str(f_cad) if pd.notnull(f_cad) else None,
-                    "edad": int(edad) if pd.notnull(edad) else None,
-                    "genero": genero if genero else None,
-                    "cuidados_especiales": cuidados if cuidados else None,
-                    "acomodacion": habitacion if habitacion else None,
-                    "es_principal": es_p
-                }
-                
-                self.client.table('pasajero').insert(data_ins).execute()
-                resultados["exitos"] += 1
-            except Exception as e:
-                resultados["errores"].append(f"Fila {idx+1}: {e}")
+                    data_ins = {
+                        "id_venta": id_venta,
+                        "nombre_completo": nombre_completo,
+                        "numero_documento": doc if doc else None,
+                        "tipo_documento": tipo_doc,
+                        "nacionalidad": nac if nac else None,
+                        "fecha_nacimiento": str(f_nac) if pd.notnull(f_nac) else None,
+                        "fecha_caducidad_doc": str(f_cad) if pd.notnull(f_cad) else None,
+                        "edad": int(edad) if pd.notnull(edad) else None,
+                        "genero": genero if genero else None,
+                        "cuidados_especiales": cuidados if cuidados else None,
+                        "acomodacion": habitacion if habitacion else None,
+                        "es_principal": es_p
+                    }
+                    
+                    self.client.table('pasajero').insert(data_ins).execute()
+                    resultados["exitos"] += 1
+                except Exception as e:
+                    resultados["errores"].append(f"Fila {idx+1}: {str(e)}")
+                    print(f"DEBUG - Error en fila de pasajero {idx+1}: {str(e)}")  # ✅ LOGGING PARA DEBUG
+        except Exception as outer_error:
+            # ✅ CAPTURA DE ERRORES INESPERADOS
+            resultados["errores"].append(f"❌ Error general al procesar pasajeros: {str(outer_error)}")
+            print(f"DEBUG - Error general en vincular_pasajeros_masivos: {str(outer_error)}")
+        
+        # ✅ VALIDACIÓN FINAL
+        if not isinstance(resultados, dict):
+            resultados = {"exitos": 0, "errores": ["Error interno: respuesta no válida"]}
+        
+        if 'exitos' not in resultados:
+            resultados['exitos'] = 0
+        if 'errores' not in resultados:
+            resultados['errores'] = []
         
         return resultados
 
