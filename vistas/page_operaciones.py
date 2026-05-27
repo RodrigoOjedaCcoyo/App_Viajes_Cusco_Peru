@@ -2183,6 +2183,190 @@ def dashboard_simulador_costos(controller):
                         else:
                             st.error(msg)
 
+        # Cancelación parcial (solo algunos pasajeros del paquete)
+        st.divider()
+        with st.expander("🟠 Cancelación Parcial por Pasajero (Matriz Contable)", expanded=False):
+            render_modulo_cancelacion_parcial(controller, id_actual)
+
+def render_modulo_cancelacion_parcial(controller, id_venta):
+    """
+    Matriz de cancelación cuando solo parte del grupo cancela (ej. 2 de 10 pax).
+    No cancela la venta completa ni los servicios del resto del grupo.
+    """
+    st.markdown("### 👥 Cancelación parcial del grupo")
+    st.caption(
+        "Selecciona los pasajeros que se dan de baja. El viaje sigue activo para los demás. "
+        "Los montos se prorratean según cantidad de pax cancelados vs total de la venta."
+    )
+
+    res_base, err_base = controller.obtener_resumen_financiero_cancelacion(id_venta)
+    if err_base:
+        st.error(err_base)
+        return
+    if not res_base:
+        st.warning("No hay datos de la venta.")
+        return
+
+    todos = res_base.get('pasajeros') or []
+    activos = [p for p in todos if str(p.get('estado_pasajero') or 'ACTIVO').upper() != 'CANCELADO']
+    ya_cancelados = [p for p in todos if str(p.get('estado_pasajero') or '').upper() == 'CANCELADO']
+
+    if ya_cancelados:
+        with st.expander(f"Ver {len(ya_cancelados)} pasajero(s) ya cancelados en esta venta", expanded=False):
+            for p in ya_cancelados:
+                st.write(f"• {p.get('nombre_completo', '---')} — {p.get('fecha_cancelacion', '')[:10] if p.get('fecha_cancelacion') else 'sin fecha'}")
+
+    if not activos:
+        st.info("No hay pasajeros activos en esta venta. Todos fueron cancelados o no hay rooming cargado.")
+        return
+
+    opciones = {
+        f"{p.get('nombre_completo', 'Sin nombre')} | Doc: {p.get('numero_documento') or '---'}": int(p['id_pasajero'])
+        for p in activos
+    }
+    labels_sel = st.multiselect(
+        "Pasajeros a cancelar",
+        options=list(opciones.keys()),
+        help="Elige solo quienes se retiran del paquete.",
+        key=f"pax_cancel_sel_{id_venta}",
+    )
+    ids_sel = [opciones[l] for l in labels_sel]
+
+    if not ids_sel:
+        st.info("Selecciona uno o más pasajeros para ver la matriz financiera.")
+        return
+
+    res_p, err_p = controller.obtener_resumen_cancelacion_parcial(id_venta, ids_sel)
+    if err_p:
+        st.error(err_p)
+        return
+
+    venta = res_p['venta']
+    st.markdown("#### 📋 Resumen del grupo")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Pax a cancelar", res_p['n_cancelar'])
+    c2.metric("Pax que continúan", len(res_p['pasajeros_activos_restantes']))
+    c3.metric("Referencia venta (total pax)", res_p['n_total_ref'])
+
+    st.markdown(
+        f"**Prorrateo aplicado:** {res_p['n_cancelar']} / {res_p['n_total_ref']} "
+        f"= **{res_p['factor']*100:.1f}%** del ingreso y costos de la venta."
+    )
+
+    session_key = f"penalidades_parcial_{id_venta}"
+    if session_key not in st.session_state:
+        st.session_state[session_key] = []
+
+    st.markdown("#### 💰 Costos y penalidades (porción de los pax seleccionados)")
+    st.caption(f"Costo operativo prorrateado: S/. {res_p['costo_prorrateado']:,.2f}")
+
+    col_p1, col_p2, col_p3, col_p4 = st.columns([2, 1, 1, 1])
+    with col_p1:
+        desc_pen = st.text_input("Descripción penalidad", value="PENALIDAD CANCELACIÓN PARCIAL", key=f"desc_pen_p_{id_venta}")
+    with col_p2:
+        monto_pen = st.number_input("Monto", min_value=0.0, value=0.0, step=0.01, key=f"monto_pen_p_{id_venta}")
+    with col_p3:
+        moneda_pen = st.selectbox("Moneda", ["USD", "PEN"], index=0, key=f"mon_pen_p_{id_venta}")
+    with col_p4:
+        tc_pen = st.number_input("TC", min_value=1.0, value=float(venta.get('tipo_cambio') or 3.8), step=0.01, key=f"tc_pen_p_{id_venta}")
+
+    if st.button("➕ Añadir penalidad", key=f"btn_add_pen_p_{id_venta}"):
+        total_s = (monto_pen * tc_pen) if moneda_pen == "USD" else monto_pen
+        st.session_state[session_key].append({
+            "descripcion": desc_pen, "monto": monto_pen, "moneda": moneda_pen, "tc": tc_pen, "total_soles": total_s
+        })
+        st.rerun()
+
+    for pen in st.session_state[session_key]:
+        st.write(f"• {pen['descripcion']}: S/. {pen['total_soles']:,.2f}")
+
+    gateway_fee_pct = st.number_input(
+        "Comisión pasarela (%) sobre ingreso prorrateado",
+        min_value=0.0, max_value=20.0, value=5.0, step=0.1,
+        key=f"gate_pct_p_{id_venta}",
+    )
+    ingreso_prorr = float(res_p['ingreso_prorrateado'])
+    costo_prorr = float(res_p['costo_prorrateado'])
+    pen_prov = sum(p['total_soles'] for p in st.session_state[session_key])
+    pen_pasarela = ingreso_prorr * (gateway_fee_pct / 100.0)
+    penalidades = pen_prov + pen_pasarela
+    costo_total_parcial = costo_prorr + penalidades
+    reembolso_sugerido = ingreso_prorr - costo_total_parcial
+
+    st.markdown("#### 🏦 Matriz financiera (parcial)")
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Ingreso prorrateado", f"S/. {ingreso_prorr:,.2f}")
+    m2.metric("Costos + penalidades", f"S/. {costo_total_parcial:,.2f}")
+    if reembolso_sugerido >= 0:
+        m3.metric("Reembolso sugerido", f"S/. {reembolso_sugerido:,.2f}")
+    else:
+        m3.metric("Penalidad adicional", f"S/. {abs(reembolso_sugerido):,.2f}", help="Los costos superan lo prorrateado recaudado.")
+    m4.metric("Valor ref. venta (pax)", f"S/. {res_p['valor_referencia_pax_pen']:,.2f}")
+
+    st.markdown("##### Pasajeros que se cancelan")
+    for p in res_p['pasajeros_seleccionados']:
+        st.write(f"• {p.get('nombre_completo', '---')}")
+
+    st.divider()
+    st.markdown("#### 🔒 Confirmar cancelación parcial")
+    monto_reemb = st.number_input(
+        "Monto real a reembolsar (S/.)",
+        min_value=0.0,
+        value=max(0.0, float(reembolso_sugerido)),
+        step=1.0,
+        key=f"refund_parcial_{id_venta}",
+    )
+    metodo = st.selectbox(
+        "Método de reembolso",
+        ["TRANSFERENCIA", "EFECTIVO", "YAPE", "PLIN", "INTERBANK", "OTRO"],
+        key=f"method_parcial_{id_venta}",
+    )
+    obs = st.text_area("Motivo / acuerdo", key=f"obs_parcial_{id_venta}")
+    ajustar_pax = st.checkbox(
+        "Reducir cantidad en calendario operativo (venta_tour)",
+        value=True,
+        help="Resta los pax cancelados del campo cantidad en cada día del itinerario.",
+        key=f"adj_vt_p_{id_venta}",
+    )
+    st.warning(
+        "Solo se marcarán como cancelados los pasajeros elegidos. "
+        "El resto del grupo sigue en operaciones. Ejecuta la migración SQL si es la primera vez."
+    )
+    confirm = st.checkbox("Confirmo la cancelación parcial y el monto de reembolso.", key=f"confirm_parcial_{id_venta}")
+
+    if st.button(
+        "🟠 Procesar cancelación parcial",
+        type="primary",
+        disabled=not confirm,
+        use_container_width=True,
+        key=f"btn_parcial_{id_venta}",
+    ):
+        desglose = (
+            f"{obs}\n\n--- CANCELACIÓN PARCIAL ---\n"
+            f"Pax: {', '.join([p.get('nombre_completo','') for p in res_p['pasajeros_seleccionados']])}\n"
+            f"Prorrateo: {res_p['n_cancelar']}/{res_p['n_total_ref']}\n"
+            f"Ingreso prorr.: S/. {ingreso_prorr:,.2f}\n"
+            f"Costo prorr.: S/. {costo_prorr:,.2f}\n"
+            f"Penalidades: S/. {penalidades:,.2f}\n"
+            f"Reembolso: S/. {monto_reemb:,.2f}"
+        )
+        with st.spinner("Registrando baja parcial..."):
+            ok, msg = controller.ejecutar_cancelacion_parcial(
+                id_venta=id_venta,
+                ids_pasajeros=ids_sel,
+                monto_reembolsado=monto_reemb,
+                metodo_reembolso=metodo,
+                observaciones=desglose,
+                penalidad_total_soles=penalidades,
+                ajustar_cantidad_itinerario=ajustar_pax,
+            )
+        if ok:
+            st.session_state[session_key] = []
+            st.success(msg)
+            st.rerun()
+        else:
+            st.error(msg)
+
 def render_directorio_proveedores(supabase_client):
     """Módulo profesional para la gestión de proveedores con soporte JSONB dinámico."""
     from controllers.proveedor_controller import ProveedorController

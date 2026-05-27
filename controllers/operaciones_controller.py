@@ -1183,6 +1183,161 @@ class OperacionesController:
         except Exception as e:
             return None, f"Error al consolidar resumen de cancelación: {e}"
 
+    def _pasajero_esta_activo(self, p: dict) -> bool:
+        return str(p.get('estado_pasajero') or 'ACTIVO').upper() != 'CANCELADO'
+
+    def obtener_resumen_cancelacion_parcial(self, id_venta: int, ids_pasajeros: list):
+        """
+        Matriz contable para cancelación de uno o más pasajeros (no toda la venta).
+        Prorratea ingresos y costos según cantidad de pax a cancelar vs total del grupo.
+        """
+        if not ids_pasajeros:
+            return None, "Selecciona al menos un pasajero para la cancelación parcial."
+
+        res_base, err = self.obtener_resumen_financiero_cancelacion(id_venta)
+        if err or not res_base:
+            return None, err or "No se pudo cargar la venta."
+
+        venta = res_base['venta']
+        todos_pax = res_base['pasajeros'] or []
+        activos = [p for p in todos_pax if self._pasajero_esta_activo(p)]
+        ids_set = {int(i) for i in ids_pasajeros}
+
+        seleccionados = [p for p in activos if int(p['id_pasajero']) in ids_set]
+        if not seleccionados:
+            return None, "Los pasajeros seleccionados no están activos o no pertenecen a esta venta."
+
+        if len(seleccionados) >= len(activos) and len(activos) > 0:
+            return None, (
+                f"Has seleccionado todos los pasajeros activos ({len(activos)}). "
+                "Usa el módulo de cancelación total en su lugar."
+            )
+
+        num_total_ref = int(venta.get('num_pasajeros') or len(todos_pax) or len(activos) or 1)
+        if num_total_ref < 1:
+            num_total_ref = 1
+        n_cancel = len(seleccionados)
+        factor = n_cancel / float(num_total_ref)
+
+        ingreso_total = float(res_base['ingreso_recaudado'] or 0)
+        costo_total = float(res_base['costo_incurrido_total'] or 0)
+        ingreso_prorr = ingreso_total * factor
+        costo_prorr = costo_total * factor
+
+        precio_venta = float(venta.get('precio_total_cierre') or 0)
+        tc_v = float(venta.get('tipo_cambio') or 3.80)
+        moneda_v = venta.get('moneda') or 'USD'
+        valor_pax_venta = precio_venta / num_total_ref
+        if moneda_v == 'USD':
+            valor_pax_pen = valor_pax_venta * tc_v
+        else:
+            valor_pax_pen = valor_pax_venta
+
+        return {
+            "venta": venta,
+            "pasajeros_seleccionados": seleccionados,
+            "pasajeros_activos_restantes": [p for p in activos if int(p['id_pasajero']) not in ids_set],
+            "pasajeros_cancelados_previo": [p for p in todos_pax if not self._pasajero_esta_activo(p)],
+            "n_cancelar": n_cancel,
+            "n_total_ref": num_total_ref,
+            "n_activos": len(activos),
+            "factor": factor,
+            "ingreso_total_venta": ingreso_total,
+            "costo_total_venta": costo_total,
+            "ingreso_prorrateado": ingreso_prorr,
+            "costo_prorrateado": costo_prorr,
+            "valor_referencia_pax_pen": valor_pax_pen * n_cancel,
+            "pagos": res_base['pagos'],
+            "servicios": res_base['servicios'],
+        }, None
+
+    def ejecutar_cancelacion_parcial(
+        self,
+        id_venta: int,
+        ids_pasajeros: list,
+        monto_reembolsado: float = 0.0,
+        metodo_reembolso: str = 'TRANSFERENCIA',
+        observaciones: str = None,
+        penalidad_total_soles: float = 0.0,
+        ajustar_cantidad_itinerario: bool = True,
+    ):
+        """
+        Cancela solo los pasajeros indicados. El viaje sigue activo para el resto del grupo.
+        """
+        try:
+            from datetime import datetime, timezone
+            resumen, err = self.obtener_resumen_cancelacion_parcial(id_venta, ids_pasajeros)
+            if err or not resumen:
+                return False, err or "No se pudo validar la cancelación parcial."
+
+            now_iso = datetime.now(timezone.utc).isoformat()
+            n_cancel = resumen['n_cancelar']
+            ids_set = [int(p['id_pasajero']) for p in resumen['pasajeros_seleccionados']]
+            nombres = ", ".join([p.get('nombre_completo', 'Pax') for p in resumen['pasajeros_seleccionados']])
+
+            for pid in ids_set:
+                try:
+                    self.client.table('pasajero').update({
+                        "estado_pasajero": "CANCELADO",
+                        "fecha_cancelacion": now_iso,
+                        "monto_reembolso_pax": round(monto_reembolsado / max(n_cancel, 1), 2) if monto_reembolsado > 0 else None,
+                        "observaciones_cancelacion": (observaciones or "")[:2000],
+                    }).eq('id_pasajero', pid).execute()
+                except Exception as e_up:
+                    if "estado_pasajero" in str(e_up).lower() or "column" in str(e_up).lower():
+                        return False, (
+                            "Falta aplicar la migración de cancelación parcial en Supabase. "
+                            "Ejecuta: migrations/add_pasajero_cancelacion_parcial.sql"
+                        )
+                    raise
+
+            venta = resumen['venta']
+            num_actual = int(venta.get('num_pasajeros') or resumen['n_total_ref'])
+            nuevo_num = max(1, num_actual - n_cancel)
+            self.client.table('venta').update({
+                "num_pasajeros": nuevo_num,
+            }).eq('id_venta', id_venta).execute()
+
+            if ajustar_cantidad_itinerario:
+                res_vt = self.client.table('venta_tour').select('n_linea, cantidad').eq('id_venta', id_venta).execute()
+                for vt in (res_vt.data or []):
+                    cant = int(vt.get('cantidad') or num_actual or 1)
+                    nueva_cant = max(1, cant - n_cancel)
+                    if nueva_cant != cant:
+                        self.client.table('venta_tour').update({"cantidad": nueva_cant}).eq(
+                            'id_venta', id_venta
+                        ).eq('n_linea', vt['n_linea']).execute()
+
+            if monto_reembolsado > 0:
+                obs_pago = (
+                    f"CANCELACIÓN PARCIAL ({n_cancel} pax): {nombres}\n"
+                    f"Penalidades retenidas (S/.): {penalidad_total_soles:,.2f}\n"
+                    f"{observaciones or ''}"
+                )
+                self.client.table('pago').insert({
+                    "id_venta": id_venta,
+                    "fecha_pago": datetime.now().date().isoformat(),
+                    "monto_pagado": monto_reembolsado,
+                    "moneda": "PEN",
+                    "tasa_cambio": 1.0,
+                    "monto_moneda_venta": monto_reembolsado,
+                    "metodo_pago": metodo_reembolso,
+                    "tipo_pago": "REEMBOLSO",
+                    "observaciones_contables": obs_pago[:4000],
+                }).execute()
+
+            restantes = len(resumen['pasajeros_activos_restantes'])
+            msg = (
+                f"Cancelación parcial registrada: {n_cancel} pasajero(s). "
+                f"Quedan {restantes} activo(s) en la venta #{id_venta}."
+            )
+            if restantes == 0:
+                msg += " Atención: no quedan pasajeros activos; valora cerrar la venta con cancelación total."
+
+            return True, msg
+        except Exception as e:
+            return False, f"Error en cancelación parcial: {e}"
+
     def ejecutar_cancelacion_reserva(self, id_venta: int, costo_penalidad: float = 0.0, descripcion_penalidad: str = None, monto_reembolsado: float = 0.0, metodo_reembolso: str = 'TRANSFERENCIA', observaciones: str = None):
         """
         Ejecuta la cancelación física y contable del viaje en el sistema:
