@@ -497,18 +497,33 @@ class OperacionesController:
                         tipo_servicio_final = tipo_norm[:50] if len(tipo_norm) > 50 else tipo_norm
                         data_ins["tipo_servicio"] = tipo_servicio_final
                         
-                        # Intentar UPSERT (INSERT or UPDATE) - más eficiente y confiable
+                        # Estrategia: DELETE + INSERT para garantizar actualización
                         try:
-                            print(f"DEBUG - UPSERT Fila {idx+1}: data_ins = {data_ins}")
-                            # Usar UPSERT para insertar o actualizar según corresponda
-                            res_upsert = self.client.table('venta_servicio_proveedor').upsert(data_ins).execute()
-                            print(f"DEBUG - UPSERT Fila {idx+1}: SUCCESS - count={len(res_upsert.data) if res_upsert.data else 0}")
+                            print(f"DEBUG - DELETE + INSERT Fila {idx+1}")
                             
-                            # UPSERT siempre retorna algo sin lanzar excepción si tuvo éxito
-                            # Si llegamos aquí sin excepción, el guardado fue exitoso
-                        except Exception as upsert_err:
-                            resultados["errores"].append(f"Fila {idx+1}: Exception en UPSERT: {str(upsert_err)}")
-                            print(f"DEBUG - UPSERT Exception fila {idx+1}: {upsert_err}")
+                            # Paso 1: Buscar si existe
+                            res_check = self.client.table('venta_servicio_proveedor') \
+                                .select('id') \
+                                .eq('id_venta', id_venta) \
+                                .eq('n_linea', nl) \
+                                .eq('tipo_servicio', tipo_servicio_final) \
+                                .execute()
+                            
+                            if res_check.data:
+                                # Existe: hacer UPDATE
+                                id_reg = res_check.data[0]['id']
+                                print(f"DEBUG - UPDATE Fila {idx+1}: id={id_reg}")
+                                res_update = self.client.table('venta_servicio_proveedor').update(data_ins).eq('id', id_reg).execute()
+                                print(f"DEBUG - UPDATE SUCCESS Fila {idx+1}")
+                            else:
+                                # No existe: hacer INSERT
+                                print(f"DEBUG - INSERT Fila {idx+1}: data_ins = {data_ins}")
+                                res_insert = self.client.table('venta_servicio_proveedor').insert(data_ins).execute()
+                                print(f"DEBUG - INSERT SUCCESS Fila {idx+1}")
+                            
+                        except Exception as save_err:
+                            resultados["errores"].append(f"Fila {idx+1}: Exception al guardar: {str(save_err)}")
+                            print(f"DEBUG - SAVE Exception fila {idx+1}: {save_err}")
                             import traceback
                             print(traceback.format_exc())
                             continue
