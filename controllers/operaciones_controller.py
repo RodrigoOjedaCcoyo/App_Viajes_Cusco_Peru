@@ -272,27 +272,39 @@ class OperacionesController:
         """
         resultados = {"exitos": 0, "errores": []}
         
-        # ✅ VALIDACIÓN INICIAL DE PARÁMETROS
-        if not id_venta:
-            resultados["errores"].append("❌ No se especificó una venta. Selecciona una venta antes de procesar.")
-            return resultados
-        
-        if df_liq is None or len(df_liq) == 0:
+        try:  # ✅ ENVOLVIMIENTO EXTERIOR para capturar TODOS los errores
+            # ✅ VALIDACIÓN INICIAL DE PARÁMETROS
+            if not id_venta:
+                resultados["errores"].append("❌ No se especificó una venta. Selecciona una venta antes de procesar.")
+                return resultados
+            
+            if df_liq is None or len(df_liq) == 0:
             resultados["errores"].append("❌ El DataFrame está vacío.")
             return resultados
         
         try:
             # 0. Obtener moneda de la venta para normalización
+            print(f"\n🔵 [vincular_endoses_masivos] Iniciando...")
+            print(f"   ID Venta: {id_venta}")
+            
             res_v = self.client.table('venta').select('moneda').eq('id_venta', id_venta).single().execute()
             moneda_v = (res_v.data or {}).get('moneda', 'USD')
             if not moneda_v:
                 moneda_v = 'USD'
+            print(f"   Moneda de venta: {moneda_v}")
 
             # 1. Cargar proveedores activos para mapeo de nombres (con búsqueda fuzzy)
+            print(f"\n🟡 Cargando proveedores activos...")
             res_p = self.client.table('proveedor').select('id_proveedor, nombre_comercial').eq('activo', True).execute()
+            
             if not res_p.data:
                 resultados["errores"].append("❌ No hay proveedores activos registrados en el sistema. Registra proveedores primero.")
+                print(f"❌ NO HAY PROVEEDORES en la BD")
                 return resultados
+            
+            print(f"✅ Proveedores cargados: {len(res_p.data)}")
+            for p in res_p.data[:3]:
+                print(f"   - {p['nombre_comercial']} (ID: {p['id_proveedor']})")
             
             # Crear mapeos múltiples para búsqueda flexible
             mapa_prov_exact = {str(p['nombre_comercial']).strip().upper(): p['id_proveedor'] for p in res_p.data}
@@ -300,11 +312,22 @@ class OperacionesController:
             
         except Exception as e:
             resultados["errores"].append(f"❌ Error al cargar proveedores: {str(e)}")
+            print(f"❌ Exception en cargar proveedores: {e}")
+            import traceback
+            print(traceback.format_exc())
             return resultados
 
         try:
             # 2. Obtener todos los servicios de la venta con su descripción para el Smart Match
+            print(f"\n🟡 Cargando servicios (venta_tour) para venta {id_venta}...")
             res_s = self.client.table('venta_tour').select('n_linea, id_itinerario_dia_index, observacion').eq('id_venta', id_venta).execute()
+            
+            if not res_s.data:
+                print(f"❌ No hay datos en venta_tour para esta venta")
+                resultados["errores"].append("❌ No se encontró itinerario sincronizado para esta venta. Sincroniza el itinerario primero.")
+                return resultados
+            
+            print(f"✅ Servicios encontrados: {len(res_s.data)}")
             
             # Agrupar servicios por día
             servicios_por_dia = {}
@@ -314,12 +337,20 @@ class OperacionesController:
                     if dia not in servicios_por_dia: servicios_por_dia[dia] = []
                     servicios_por_dia[dia].append(s)
             
+            print(f"✅ Servicios agrupados por {len(servicios_por_dia)} días")
+            for dia, servicios in sorted(servicios_por_dia.items())[:3]:
+                print(f"   Día {dia}: {len(servicios)} servicios")
+            
             if not servicios_por_dia:
                 resultados["errores"].append("❌ No se encontró itinerario sincronizado para esta venta. Sincroniza el itinerario primero.")
+                print(f"❌ servicios_por_dia está vacío")
                 return resultados
                 
         except Exception as e:
             resultados["errores"].append(f"❌ Error al obtener servicios de la venta: {str(e)}")
+            print(f"❌ Exception cargando servicios: {e}")
+            import traceback
+            print(traceback.format_exc())
             return resultados
 
         # Diccionario para rastrear qué (n_linea, tipo) ya hemos usado en esta carga
@@ -547,6 +578,13 @@ class OperacionesController:
             # ✅ CAPTURA DE ERRORES INESPERADOS EN EL PROCESAMIENTO GENERAL
             resultados["errores"].append(f"❌ Error general al procesar el archivo: {str(outer_error)}")
             print(f"DEBUG - Error general en vincular_endoses_masivos: {str(outer_error)}")
+        
+        except Exception as outer_outer_error:
+            # ✅ CAPTURA DE ERRORES INESPERADOS EN EL NIVEL MÁS EXTERIOR
+            resultados["errores"].append(f"❌ Error crítico inesperado: {str(outer_outer_error)}")
+            print(f"DEBUG - Error crítico exterior en vincular_endoses_masivos: {str(outer_outer_error)}")
+            import traceback
+            print(traceback.format_exc())
 
         # ✅ VALIDACIÓN FINAL: Asegurar que siempre se retorna un diccionario válido
         if not isinstance(resultados, dict):
@@ -556,6 +594,11 @@ class OperacionesController:
             resultados['exitos'] = 0
         if 'errores' not in resultados:
             resultados['errores'] = []
+        
+        print(f"\nDEBUG - RESULTADO FINAL vincular_endoses_masivos:")
+        print(f"  Éxitos: {resultados.get('exitos', 0)}")
+        print(f"  Errores: {len(resultados.get('errores', []))}")
+        print(f"  Diccionario válido: {isinstance(resultados, dict)}\n")
 
         return resultados
 

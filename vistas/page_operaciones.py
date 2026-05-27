@@ -1419,15 +1419,41 @@ def dashboard_simulador_costos(controller):
                                 st.stop()
                             
                             try:
+                                print(f"\n{'='*60}")
+                                print(f"🔵 INICIANDO CARGA DE ENDOSES")
+                                print(f"ID VENTA: {id_venta_para_archivos}")
+                                print(f"FILAS A PROCESAR: {len(df_preview)}")
+                                print(f"COLUMNAS: {list(df_preview.columns)}")
+                                print(f"TIPO DE CAMBIO: {tc_carga}")
+                                print(f"{'='*60}\n")
+                                
                                 with st.spinner("⏳ Procesando archivo... esto puede tomar unos segundos"):
+                                    print(f"🟡 Llamando a vincular_endoses_masivos...")
                                     res_bulk = controller.vincular_endoses_masivos(id_venta_para_archivos, df_preview, tc_manual=tc_carga)
+                                    print(f"🔵 Respuesta recibida: {res_bulk}")
+                                    print(f"Tipo de respuesta: {type(res_bulk)}")
                                 
                                 # ✅ VALIDACIÓN MEJORADA DE RESPUESTA
+                                if not isinstance(res_bulk, dict):
+                                    st.error(f"❌ ERROR CRÍTICO: Respuesta inválida del servidor. Tipo: {type(res_bulk)}")
+                                    print(f"❌ ERROR: res_bulk no es diccionario: {res_bulk}")
+                                    st.stop()
+                                
                                 exitos = res_bulk.get('exitos', 0)
                                 errores = res_bulk.get('errores', [])
                                 
+                                print(f"\n📊 RESULTADO:")
+                                print(f"  Éxitos: {exitos}")
+                                print(f"  Errores: {len(errores)}")
+                                for e in errores[:5]:  # Mostrar primeros 5 errores
+                                    print(f"    - {e}")
+                                
                                 if exitos == 0 and not errores:
                                     st.error("❌ La operación completó sin guardar datos. Verifica que la venta tenga itinerario sincronizado.")
+                                    st.info("💡 Datos de diagnóstico (para tu equipo técnico):\n" + 
+                                           f"- ID Venta: {id_venta_para_archivos}\n" +
+                                           f"- Filas en archivo: {len(df_preview)}\n" +
+                                           f"- Respuesta: {res_bulk}")
                                 elif exitos > 0:
                                     st.success(f"✅ Se vincularon {exitos} registros correctamente.")
                                     if errores:
@@ -1436,16 +1462,27 @@ def dashboard_simulador_costos(controller):
                                             for err in errores:
                                                 st.write(f"• {err}")
                                     st.balloons()
+                                    print(f"\n✅ ÉXITO - Guardados {exitos} registros\n")
                                     st.rerun()
                                 else:
                                     if errores:
                                         st.error(f"❌ No se guardó ningún registro. Errores encontrados ({len(errores)}):")
-                                        for err in errores:
+                                        for err in errores[:10]:  # Mostrar hasta 10 errores
                                             st.write(f"• {err}")
                                     else:
                                         st.error("❌ Error desconocido al procesar el archivo.")
                             except Exception as process_error:
+                                print(f"\n{'='*60}")
+                                print(f"❌ EXCEPCIÓN EN PROCESAMIENTO:")
+                                print(f"{type(process_error).__name__}: {str(process_error)}")
+                                import traceback
+                                print(traceback.format_exc())
+                                print(f"{'='*60}\n")
+                                
                                 st.error(f"❌ Error al procesar: {str(process_error)}")
+                                st.info("💡 Detalles técnicos (para tu equipo):\n```\n" + 
+                                       f"{type(process_error).__name__}: {str(process_error)}\n```")
+
                                 st.info("💡 Verifica que:")
                                 st.write("• La venta tiene un itinerario sincronizado")
                                 st.write("• Los proveedores del archivo existen en el sistema")
