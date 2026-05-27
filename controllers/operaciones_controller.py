@@ -279,8 +279,8 @@ class OperacionesController:
                 return resultados
             
             if df_liq is None or len(df_liq) == 0:
-            resultados["errores"].append("❌ El DataFrame está vacío.")
-            return resultados
+                resultados["errores"].append("❌ El DataFrame está vacío.")
+                return resultados
         
         try:
             # 0. Obtener moneda de la venta para normalización
