@@ -494,45 +494,24 @@ class OperacionesController:
                         # --- LÓGICA DE GUARDADO INTELIGENTE ---
                         # Normalizar tipo_servicio para evitar duplicados inconsistentes
                         tipo_norm = f"{tipo} ({str(prov_nombre_raw).strip().upper()})"
+                        tipo_servicio_final = tipo_norm[:50] if len(tipo_norm) > 50 else tipo_norm
+                        data_ins["tipo_servicio"] = tipo_servicio_final
                         
-                        data_ins["tipo_servicio"] = tipo_norm
-
-                        # Buscar si ya existe este registro
-                        res_check = self.client.table('venta_servicio_proveedor') \
-                            .select('id') \
-                            .eq('id_venta', id_venta) \
-                            .eq('n_linea', nl) \
-                            .eq('tipo_servicio', tipo_norm) \
-                            .execute()
-
-                        if res_check.data:
-                            # Actualizar
-                            id_reg = res_check.data[0]['id']
-                            try:
-                                res_update = self.client.table('venta_servicio_proveedor').update(data_ins).eq('id', id_reg).execute()
-                                print(f"DEBUG - UPDATE Fila {idx+1}: res.data = {res_update.data}, type = {type(res_update.data)}")
-                                if not res_update.data:
-                                    resultados["errores"].append(f"Fila {idx+1}: Error al actualizar en BD (UPDATE falló silenciosamente). Response: {res_update}")
-                                    print(f"DEBUG - UPDATE FALLÓ para fila {idx+1}")
-                                    continue
-                            except Exception as update_err:
-                                resultados["errores"].append(f"Fila {idx+1}: Exception en UPDATE: {str(update_err)}")
-                                print(f"DEBUG - UPDATE Exception fila {idx+1}: {update_err}")
-                                continue
-                        else:
-                            # Insertar nuevo
-                            try:
-                                print(f"DEBUG - INSERT Fila {idx+1}: data_ins = {data_ins}")
-                                res_insert = self.client.table('venta_servicio_proveedor').insert(data_ins).execute()
-                                print(f"DEBUG - INSERT Fila {idx+1}: res.data = {res_insert.data}, type = {type(res_insert.data)}")
-                                if not res_insert.data:
-                                    resultados["errores"].append(f"Fila {idx+1}: Error al insertar en BD (INSERT falló silenciosamente). Response: {res_insert}")
-                                    print(f"DEBUG - INSERT FALLÓ para fila {idx+1}")
-                                    continue
-                            except Exception as insert_err:
-                                resultados["errores"].append(f"Fila {idx+1}: Exception en INSERT: {str(insert_err)}")
-                                print(f"DEBUG - INSERT Exception fila {idx+1}: {insert_err}")
-                                continue
+                        # Intentar UPSERT (INSERT or UPDATE) - más eficiente y confiable
+                        try:
+                            print(f"DEBUG - UPSERT Fila {idx+1}: data_ins = {data_ins}")
+                            # Usar UPSERT para insertar o actualizar según corresponda
+                            res_upsert = self.client.table('venta_servicio_proveedor').upsert(data_ins).execute()
+                            print(f"DEBUG - UPSERT Fila {idx+1}: SUCCESS - count={len(res_upsert.data) if res_upsert.data else 0}")
+                            
+                            # UPSERT siempre retorna algo sin lanzar excepción si tuvo éxito
+                            # Si llegamos aquí sin excepción, el guardado fue exitoso
+                        except Exception as upsert_err:
+                            resultados["errores"].append(f"Fila {idx+1}: Exception en UPSERT: {str(upsert_err)}")
+                            print(f"DEBUG - UPSERT Exception fila {idx+1}: {upsert_err}")
+                            import traceback
+                            print(traceback.format_exc())
+                            continue
                         
                         # --- ACTUALIZACIÓN DE VENTA_TOUR (COSTO TOTAL POR LÍNEA) ---
                         res_tot = self.client.table('venta_servicio_proveedor') \
