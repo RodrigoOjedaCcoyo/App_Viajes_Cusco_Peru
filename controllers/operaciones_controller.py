@@ -272,17 +272,16 @@ class OperacionesController:
         """
         resultados = {"exitos": 0, "errores": []}
         
-        try:  # ✅ ENVOLVIMIENTO EXTERIOR para capturar TODOS los errores
-            # ✅ VALIDACIÓN INICIAL DE PARÁMETROS
-            if not id_venta:
-                resultados["errores"].append("❌ No se especificó una venta. Selecciona una venta antes de procesar.")
-                return resultados
-            
-            if df_liq is None or len(df_liq) == 0:
-                resultados["errores"].append("❌ El DataFrame está vacío.")
-                return resultados
+        # ✅ VALIDACIÓN INICIAL DE PARÁMETROS
+        if not id_venta:
+            resultados["errores"].append("❌ No se especificó una venta. Selecciona una venta antes de procesar.")
+            return resultados
         
-        try:
+        if df_liq is None or len(df_liq) == 0:
+            resultados["errores"].append("❌ El DataFrame está vacío.")
+            return resultados
+        
+        try:  # ✅ ENVOLVIMIENTO EXTERIOR para capturar TODOS los errores
             # 0. Obtener moneda de la venta para normalización
             print(f"\n🔵 [vincular_endoses_masivos] Iniciando...")
             print(f"   ID Venta: {id_venta}")
@@ -578,14 +577,9 @@ class OperacionesController:
             # ✅ CAPTURA DE ERRORES INESPERADOS EN EL PROCESAMIENTO GENERAL
             resultados["errores"].append(f"❌ Error general al procesar el archivo: {str(outer_error)}")
             print(f"DEBUG - Error general en vincular_endoses_masivos: {str(outer_error)}")
-        
-        except Exception as outer_outer_error:
-            # ✅ CAPTURA DE ERRORES INESPERADOS EN EL NIVEL MÁS EXTERIOR
-            resultados["errores"].append(f"❌ Error crítico inesperado: {str(outer_outer_error)}")
-            print(f"DEBUG - Error crítico exterior en vincular_endoses_masivos: {str(outer_outer_error)}")
             import traceback
             print(traceback.format_exc())
-
+        
         # ✅ VALIDACIÓN FINAL: Asegurar que siempre se retorna un diccionario válido
         if not isinstance(resultados, dict):
             resultados = {"exitos": 0, "errores": ["Error interno: respuesta no válida"]}
