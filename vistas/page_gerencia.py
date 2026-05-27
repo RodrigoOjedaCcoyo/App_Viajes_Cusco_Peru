@@ -7,6 +7,58 @@ from controllers.operaciones_controller import OperacionesController
 from controllers.venta_controller import VentaController
 from datetime import date
 
+def _normalizar_genero(val):
+    s = str(val or "").strip().upper()
+    if not s or s in {"NONE", "NAN", "---"}:
+        return "SIN DATO"
+    # Normalizaciones comunes
+    if s in {"M", "MAS", "MASC", "MASCULINO", "H", "HOMBRE", "MALE"}:
+        return "MASCULINO"
+    if s in {"F", "FEM", "FEMENINO", "MUJER", "WOMAN", "FEMALE"}:
+        return "FEMENINO"
+    if s in {"OTRO", "OTRA", "NO BINARIO", "NB", "NON-BINARY"}:
+        return "OTRO"
+    return s
+
+def _normalizar_pais(val):
+    s = str(val or "").strip()
+    if not s or s.upper() in {"NONE", "NAN", "---"}:
+        return "SIN DATO"
+    return s.title()
+
+def _cargar_demografia_clientes(supabase_client):
+    """
+    Usa tabla `pasajero` como fuente única para:
+    - Género (`genero`)
+    - País/Nacionalidad (`nacionalidad`)
+    - Edad (`edad`)
+    """
+    try:
+        res = (
+            supabase_client.table("pasajero")
+            .select("genero, nacionalidad, edad")
+            .execute()
+        )
+        df = pd.DataFrame(res.data or [])
+        if df.empty:
+            return df
+        if "genero" in df.columns:
+            df["genero_norm"] = df["genero"].apply(_normalizar_genero)
+        else:
+            df["genero_norm"] = "SIN DATO"
+        if "nacionalidad" in df.columns:
+            df["pais_norm"] = df["nacionalidad"].apply(_normalizar_pais)
+        else:
+            df["pais_norm"] = "SIN DATO"
+        if "edad" in df.columns:
+            df["edad_num"] = pd.to_numeric(df["edad"], errors="coerce")
+        else:
+            df["edad_num"] = pd.NA
+        return df
+    except Exception as e:
+        print(f"Error cargando demografía (pasajero): {e}")
+        return pd.DataFrame()
+
 def dashboard_ejecutivo(controller):
     """Interfaz del Dashboard Principal de Gerencia."""
     st.subheader("📊 Panel de Control Ejecutivo", divider='rainbow')
@@ -91,6 +143,68 @@ def auditoria_maestra(controller):
         df_ventas_limpio = controller.get_detalle_ventas_limpio()
         df_desempeno = controller.get_desempeno_vendedores()
         df_leads_origen = controller.get_distribucion_origen_leads()
+        # NUEVO: Demografía (Género / País / Edades)
+        df_demo = _cargar_demografia_clientes(controller.client)
+
+    # --- 0. DEMOGRAFÍA DE CLIENTES (NUEVO) ---
+    st.markdown("#### 🧑‍🤝‍🧑 Demografía de Clientes (Pasajeros)")
+    d1, d2, d3 = st.columns(3)
+    if df_demo is None or df_demo.empty:
+        st.info("Sin datos de pasajeros para graficar demografía.")
+    else:
+        # A) Diagrama circular de género
+        with d1:
+            st.markdown("##### Género")
+            df_g = df_demo.groupby("genero_norm").size().reset_index(name="Cantidad")
+            fig_g = px.pie(
+                df_g,
+                names="genero_norm",
+                values="Cantidad",
+                hole=0.4,
+                color_discrete_sequence=px.colors.qualitative.Safe,
+            )
+            fig_g.update_layout(height=320, margin=dict(l=0, r=0, t=30, b=0), showlegend=False)
+            st.plotly_chart(fig_g, use_container_width=True)
+
+        # B) Barras de países (top 10)
+        with d2:
+            st.markdown("##### País / Nacionalidad (Top 10)")
+            df_p = (
+                df_demo.groupby("pais_norm")
+                .size()
+                .reset_index(name="Cantidad")
+                .sort_values("Cantidad", ascending=False)
+                .head(10)
+            )
+            fig_p = px.bar(
+                df_p,
+                x="pais_norm",
+                y="Cantidad",
+                text="Cantidad",
+                color_discrete_sequence=["#8E24AA"],
+            )
+            fig_p.update_layout(height=320, margin=dict(l=0, r=0, t=30, b=0))
+            fig_p.update_xaxes(title=None)
+            st.plotly_chart(fig_p, use_container_width=True)
+
+        # C) Histograma de edades
+        with d3:
+            st.markdown("##### Edades (Histograma)")
+            df_e = df_demo.dropna(subset=["edad_num"]).copy()
+            # Filtrado defensivo para edades absurdas
+            df_e = df_e[(df_e["edad_num"] >= 0) & (df_e["edad_num"] <= 120)]
+            if df_e.empty:
+                st.info("Sin edades registradas.")
+            else:
+                fig_e = px.histogram(
+                    df_e,
+                    x="edad_num",
+                    nbins=12,
+                    color_discrete_sequence=["#1E88E5"],
+                )
+                fig_e.update_layout(height=320, margin=dict(l=0, r=0, t=30, b=0))
+                fig_e.update_xaxes(title="Edad")
+                st.plotly_chart(fig_e, use_container_width=True)
 
     # --- 1. RESUMEN EJECUTIVO DE AUDITORÍA (Métricas Rápidas) ---
     m1, m2, m3 = st.columns(3)
