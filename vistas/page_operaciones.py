@@ -1325,6 +1325,29 @@ def dashboard_simulador_costos(controller):
         st.subheader("📊 Panel de Control")
         f_liq = st.file_uploader("Cierre de Operaciones (Excel/CSV):", type=['xlsx', 'xls', 'csv'], key="up_liqrar_final")
         
+        # FUNCIÓN AUXILIAR: Normalizar nombres de columnas
+        def normalizar_columnas(df):
+            """Convierte columnas a lowercase, sin espacios extras, para flexible matching"""
+            df.columns = [str(col).strip().lower() for col in df.columns]
+            return df
+        
+        def mapear_columnas_flexible(df_norm):
+            """Mapea columnas normalizadas a las esperadas, siendo flexible"""
+            mapeo = {
+                'dia': ['dia', 'día', 'n_linea', 'nlinea', 'línea', 'linea', 'day'],
+                'tipo_de_servicio': ['tipo_de_servicio', 'tipo de servicio', 'tipo_servicio', 'servicio', 'tipo', 'service_type'],
+                'proveedor': ['proveedor', 'provider', 'supplier', 'nombre_proveedor', 'empresa']
+            }
+            
+            cols_encontradas = {}
+            for col_esperada, aliases in mapeo.items():
+                for col_actual in df_norm.columns:
+                    if col_actual in aliases or any(alias in col_actual for alias in aliases):
+                        cols_encontradas[col_esperada] = col_actual
+                        break
+            
+            return cols_encontradas
+        
         # PROCESAMIENTO DE ENDOSES
         if f_liq:
             try:
@@ -1334,34 +1357,72 @@ def dashboard_simulador_costos(controller):
                 else:
                     df_preview = pd.read_excel(f_liq)
                 
-                # Previsualización
-                st.write("**Previsualización de datos a cargar:**")
-                st.dataframe(df_preview, use_container_width=True, hide_index=True)
+                # Limpiar filas vacías
+                df_preview = df_preview.dropna(how='all')
                 
-                # Validar columnas (Mínimo requerido para Operaciones)
-                cols_req = ["Dia", "Tipo de Servicio", "Proveedor"]
-                if all(c in df_preview.columns for c in cols_req):
-                    # --- CONFIGURACIÓN DE TIPO DE CAMBIO PARA LA CARGA ---
-                    tc_carga = st.number_input("💱 Tipo de Cambio para esta Carga (USD -> PEN):", min_value=0.0, value=3.80, format="%.3f", help="Se usará para convertir costos si la moneda del proveedor es distinta a la de la venta.")
-                    
-                    if st.button("📦 Procesar y Guardar Endoses en DB", type="primary", use_container_width=True):
-                        # Llamar al controlador (estamos en dashboard_simulador_costos(controller))
-                        res_bulk = controller.vincular_endoses_masivos(st.session_state['last_loaded_id_venta'], df_preview, tc_manual=tc_carga)
-                        
-                        if res_bulk['exitos'] > 0:
-                            st.success(f"✅ Se vincularon {res_bulk['exitos']} registros correctamente.")
-                        if res_bulk['errores']:
-                            with st.expander("⚠️ Ver errores de carga"):
-                                for err in res_bulk['errores']:
-                                    st.error(err)
-                        
-                        if res_bulk['exitos'] > 0:
-                            st.balloons()
-                            st.rerun()
+                if df_preview.empty:
+                    st.error("❌ El archivo está vacío. Completa la plantilla y vuelve a intentar.")
                 else:
-                    st.error(f"El archivo debe tener las columnas: {', '.join(cols_req)}")
+                    # Previsualización
+                    st.write("**Previsualización de datos a cargar:**")
+                    st.dataframe(df_preview, use_container_width=True, hide_index=True)
+                    
+                    # Validar columnas con flexibilidad
+                    cols_req = ["Dia", "Tipo de Servicio", "Proveedor"]
+                    df_norm = normalizar_columnas(df_preview.copy())
+                    cols_mapeadas = mapear_columnas_flexible(df_norm)
+                    
+                    if len(cols_mapeadas) == len(cols_req):
+                        st.success(f"✅ Columnas detectadas correctamente: {list(cols_mapeadas.keys())}")
+                        
+                        # Renombrar columnas en el dataframe original para compatibilidad
+                        rename_dict = {}
+                        for col_esperada, col_actual in cols_mapeadas.items():
+                            for idx, col in enumerate(df_preview.columns):
+                                if str(col).strip().lower() == col_actual:
+                                    rename_dict[col] = col_esperada.replace('_', ' ').title()
+                        
+                        if rename_dict:
+                            df_preview = df_preview.rename(columns=rename_dict)
+                        
+                        # --- CONFIGURACIÓN DE TIPO DE CAMBIO PARA LA CARGA ---
+                        tc_carga = st.number_input("💱 Tipo de Cambio para esta Carga (USD -> PEN):", min_value=0.1, value=3.80, format="%.3f", help="Se usará para convertir costos si la moneda del proveedor es distinta a la de la venta.")
+                        
+                        if st.button("📦 Procesar y Guardar Endoses en DB", type="primary", use_container_width=True):
+                            with st.spinner("⏳ Procesando archivo... esto puede tomar unos segundos"):
+                                # Llamar al controlador (estamos en dashboard_simulador_costos(controller))
+                                res_bulk = controller.vincular_endoses_masivos(st.session_state['last_loaded_id_venta'], df_preview, tc_manual=tc_carga)
+                            
+                            if res_bulk['exitos'] > 0:
+                                st.success(f"✅ Se vincularon {res_bulk['exitos']} registros correctamente.")
+                            
+                            if res_bulk['errores']:
+                                st.warning(f"⚠️ Se encontraron {len(res_bulk['errores'])} advertencias:")
+                                with st.expander("📋 Ver detalles de errores"):
+                                    for err in res_bulk['errores']:
+                                        st.write(f"• {err}")
+                            
+                            if res_bulk['exitos'] > 0:
+                                st.balloons()
+                                st.rerun()
+                    else:
+                        # Mostrar diagnóstico detallado
+                        st.error(f"❌ No se encontraron todas las columnas requeridas")
+                        st.info("**Columnas esperadas:**")
+                        st.write(f"• `Dia` (o 'Día', 'N Linea', 'Línea', 'Day')")
+                        st.write(f"• `Tipo de Servicio` (o 'Tipo Servicio', 'Servicio', 'Service')")
+                        st.write(f"• `Proveedor` (o 'Provider', 'Supplier', 'Empresa')")
+                        
+                        st.info("**Columnas detectadas en tu archivo:**")
+                        st.write(f"{', '.join(df_preview.columns.tolist())}")
+                        
+                        st.info("💡 Descarga la plantilla predefinida y complétala para evitar errores de formato.")
             except Exception as e:
-                st.error(f"Error al leer el archivo: {e}")
+                st.error(f"❌ Error al leer el archivo: {str(e)}")
+                st.info("💡 Asegúrate de que:")
+                st.write("• El archivo no está corrupto")
+                st.write("• Es un Excel (.xlsx, .xls) o CSV válido")
+                st.write("• Contiene al menos una fila de datos")
 
     with c_arch2:
         st.subheader("👥 Pasajeros")

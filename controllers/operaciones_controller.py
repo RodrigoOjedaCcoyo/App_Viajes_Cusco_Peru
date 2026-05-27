@@ -276,12 +276,20 @@ class OperacionesController:
             # 0. Obtener moneda de la venta para normalización
             res_v = self.client.table('venta').select('moneda').eq('id_venta', id_venta).single().execute()
             moneda_v = (res_v.data or {}).get('moneda', 'USD')
+            if not moneda_v:
+                moneda_v = 'USD'
 
-            # 1. Cargar proveedores activos para mapeo de nombres
+            # 1. Cargar proveedores activos para mapeo de nombres (con búsqueda fuzzy)
             res_p = self.client.table('proveedor').select('id_proveedor, nombre_comercial').eq('activo', True).execute()
-            mapa_prov = {str(p['nombre_comercial']).strip().upper(): p['id_proveedor'] for p in res_p.data}
+            if not res_p.data:
+                return {"exitos": 0, "errores": ["No hay proveedores activos registrados en el sistema. Registra proveedores primero."]}
+            
+            # Crear mapeos múltiples para búsqueda flexible
+            mapa_prov_exact = {str(p['nombre_comercial']).strip().upper(): p['id_proveedor'] for p in res_p.data}
+            mapa_prov_list = [(str(p['nombre_comercial']).strip().upper(), p['id_proveedor']) for p in res_p.data]
+            
         except Exception as e:
-            return {"exitos": 0, "errores": [f"Error al cargar proveedores: {str(e)}"]}
+            return {"exitos": 0, "errores": [f"❌ Error al cargar proveedores: {str(e)}"]}
 
         try:
             # 2. Obtener todos los servicios de la venta con su descripción para el Smart Match
@@ -321,18 +329,50 @@ class OperacionesController:
         for idx, row in df_liq.iterrows():
             try:
                 # Limpieza de datos del Excel
-                dia_excel = int(row.get('Dia', 0))
+                dia_excel = row.get('Dia')
                 prov_nombre_raw = str(row.get('Proveedor', '')).strip()
-                prov_nombre_up = prov_nombre_raw.upper()
                 tipo = str(row.get('Tipo de Servicio', 'ENDOSE')).strip().upper()
+                
+                # Validación de datos críticos
+                if not dia_excel or pd.isna(dia_excel):
+                    resultados["errores"].append(f"Fila {idx+1}: La columna 'Dia' está vacía.")
+                    continue
+                
+                if not prov_nombre_raw or prov_nombre_raw.lower() in ['nan', 'none', '']:
+                    resultados["errores"].append(f"Fila {idx+1}: El proveedor no puede estar vacío.")
+                    continue
+                
+                if not tipo or tipo in ['NAN', 'NONE', '']:
+                    resultados["errores"].append(f"Fila {idx+1}: El 'Tipo de Servicio' no puede estar vacío.")
+                    continue
+                
+                try:
+                    dia_excel = int(float(dia_excel))
+                except:
+                    resultados["errores"].append(f"Fila {idx+1}: El Día '{dia_excel}' no es un número válido.")
+                    continue
+                
                 costo_unit = float(row.get('Costo Unitario', 0)) if not pd.isna(row.get('Costo Unitario')) else 0
                 pax = int(float(row.get('Pax', 1))) if not pd.isna(row.get('Pax')) else 1
                 moneda = str(row.get('Moneda', 'USD')).strip().upper() if not pd.isna(row.get('Moneda')) else "USD"
+                
+                if moneda not in ['USD', 'PEN', 'EUR']:
+                    moneda = 'USD'
 
-                # Buscar ID del proveedor
-                id_prov = mapa_prov.get(prov_nombre_up)
+                # --- BÚSQUEDA FLEXIBLE DE PROVEEDOR (Exacta + Parcial) ---
+                prov_nombre_up = prov_nombre_raw.upper()
+                id_prov = mapa_prov_exact.get(prov_nombre_up)
+                
+                # Si no hay coincidencia exacta, buscar parcial
                 if not id_prov:
-                    resultados["errores"].append(f"Fila {idx+1}: Proveedor '{prov_nombre_raw}' no encontrado en el Directorio.")
+                    for prov_name_bd, prov_id in mapa_prov_list:
+                        if prov_nombre_up in prov_name_bd or prov_name_bd in prov_nombre_up:
+                            id_prov = prov_id
+                            break
+                
+                if not id_prov:
+                    proveedores_disponibles = ', '.join([p['nombre_comercial'] for p in res_p.data])
+                    resultados["errores"].append(f"Fila {idx+1}: Proveedor '{prov_nombre_raw}' no encontrado. Disponibles: {proveedores_disponibles[:80]}...")
                     continue
 
                 servicios_dia = servicios_por_dia.get(dia_excel, [])
@@ -350,14 +390,7 @@ class OperacionesController:
                     if prov_nombre_up in obs:
                         target_service = s
                         break
-                    # O si alguna keyword del proveedor coincide
-                    for p_key, kws in keywords_map.items():
-                        if p_key in prov_nombre_up:
-                            if any(kw in obs for kw in kws):
-                                target_service = s
-                                break
-                    if target_service: break
-
+                
                 # Intento 2: Si no hubo match, buscar por "Tipo de Servicio" en la descripción
                 if not target_service:
                     for s in servicios_dia:
@@ -414,27 +447,29 @@ class OperacionesController:
                                     except: continue
                         except: pass
 
-                    # --- LÓGICA DE GUARDADO INTELIGENTE (BYPASS UNIQUE CONSTRAINT) ---
-                    # Para permitir múltiples "TICKET" en un mismo servicio, hacemos que el tipo sea único
-                    # añadiendo el nombre del proveedor al tipo si es necesario.
-                    tipo_unico = f"{tipo} ({prov_nombre_raw})"
+                    # --- LÓGICA DE GUARDADO INTELIGENTE ---
+                    # Normalizar tipo_servicio para evitar duplicados inconsistentes
+                    tipo_norm = f"{tipo} ({str(prov_nombre_raw).strip().upper()})"
                     
-                    data_ins["tipo_servicio"] = tipo_unico
+                    data_ins["tipo_servicio"] = tipo_norm
 
+                    # Buscar si ya existe este registro
                     res_check = self.client.table('venta_servicio_proveedor') \
                         .select('id') \
                         .eq('id_venta', id_venta) \
                         .eq('n_linea', nl) \
-                        .eq('tipo_servicio', tipo_unico) \
+                        .eq('tipo_servicio', tipo_norm) \
                         .execute()
 
                     if res_check.data:
+                        # Actualizar
                         id_reg = res_check.data[0]['id']
                         self.client.table('venta_servicio_proveedor').update(data_ins).eq('id', id_reg).execute()
                     else:
+                        # Insertar nuevo
                         self.client.table('venta_servicio_proveedor').insert(data_ins).execute()
                     
-                    # --- ACTUALIZACIÓN DE VENTA_TOUR (COSTO ACUMULADO) ---
+                    # --- ACTUALIZACIÓN DE VENTA_TOUR (COSTO TOTAL POR LÍNEA) ---
                     res_tot = self.client.table('venta_servicio_proveedor') \
                         .select('costo_unitario, cantidad_pax, moneda') \
                         .eq('id_venta', id_venta) \
@@ -452,20 +487,21 @@ class OperacionesController:
                             if c_m == 'USD' and moneda_v == 'PEN':
                                 c_u = c_u * tc_manual
                             elif c_m == 'PEN' and moneda_v == 'USD':
-                                c_u = c_u / tc_manual
+                                if tc_manual > 0:
+                                    c_u = c_u / tc_manual
                         
                         total_n_linea += (c_u * c_p)
 
                     update_data = {"costo_unitario": total_n_linea}
-                    if "ENDOSE" in tipo_unico.upper():
+                    if "ENDOSE" in tipo_norm.upper():
                         update_data["es_endoso"] = True
                     
                     self.client.table('venta_tour').update(update_data).eq('id_venta', id_venta).eq('n_linea', nl).execute()
                     resultados["exitos"] += 1
                 except Exception as e:
-                    resultados["errores"].append(f"Fila {idx+1}: Error al guardar en DB: {str(e)}")
+                    resultados["errores"].append(f"Fila {idx+1}: Error al guardar en BD: {str(e)}")
             except Exception as e:
-                resultados["errores"].append(f"Fila {idx+1}: Error de formato o datos: {str(e)}")
+                resultados["errores"].append(f"Fila {idx+1}: {str(e)}")
 
         return resultados
 
@@ -1064,4 +1100,4 @@ class OperacionesController:
                 
             return True, "Cancelación procesada correctamente en operaciones y contabilidad."
         except Exception as e:
-            return False, f"Error al ejecutar cancelación de reserva: {e}"
+            return False, f"Error al ejecutar cancelación de reserva: {e}"

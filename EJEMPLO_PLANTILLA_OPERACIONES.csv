@@ -1,0 +1,7 @@
+Dia,Tipo de Servicio,Proveedor,Costo Unitario,Pax,Moneda,Hora,Nombre del Guia,Observacion
+1,TRANSPORTE,CONSETTUR SUBIDA MAPI,50.00,4,USD,06:30,MIGUEL PAQARI,Traslado a Machu Picchu
+1,GUIA,MIGUEL PAQARI,0.00,4,USD,08:00,MIGUEL PAQARI,Guiado en Machu Picchu
+2,TRANSPORTE,CONSETTUR,45.00,4,USD,14:00,MIGUEL PAQARI,Retorno a Cusco
+2,TICKETS,COSITUC,75.00,4,USD,09:00,,Entrada al Centro Arqueologico
+3,ALOJAMIENTO,FENIX MACHUPICCHU,0.00,4,PEN,12:00,,Hotel 3 estrellas
+3,ALIMENTACION,RESTAURANTE,45.00,4,USD,13:00,,Almuerzo incluido
