@@ -351,7 +351,13 @@ def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual=
         
     # --- OPTIMIZACIÓN: Cargar datos una sola vez para evitar errores de conexión (ConnectionTerminated) ---
     try:
-        res_ventas = supabase_client.table('venta').select('*, cliente(*), pasajero(nacionalidad, es_principal)').order('fecha_venta', desc=True).execute()
+        # Incluir agencia_aliada(nombre) para que el reporte B2B muestre el nombre real de la agencia
+        res_ventas = (
+            supabase_client.table('venta')
+            .select('*, cliente(*), pasajero(nacionalidad, es_principal), agencia_aliada(nombre)')
+            .order('fecha_venta', desc=True)
+            .execute()
+        )
         ventas_data = res_ventas.data or []
         res_pagos = supabase_client.table('pago').select('*').order('fecha_pago', desc=False).execute()
         pagos_data = res_pagos.data or []
@@ -402,7 +408,11 @@ def procesar_datos_tabla(ventas_data, pagos_data, anio_sel=None, mes_sel=None, f
         
         # Para B2B mostramos también el nombre de la agencia
         if es_b2b:
-            agencia = v.get('nombre_agencia') or 'Agencia'
+            # PostgREST devuelve la relación como dict o lista de 1 elemento
+            ag_obj = v.get('agencia_aliada') or {}
+            if isinstance(ag_obj, list):
+                ag_obj = ag_obj[0] if ag_obj else {}
+            agencia = (v.get('nombre_agencia') or ag_obj.get('nombre') or 'Agencia')
             pax = f"{agencia} / {nombre_pax} x {v.get('num_pasajeros', 1)}"
         else:
             pax = f"{nombre_pax} x {v.get('num_pasajeros', 1)}"
