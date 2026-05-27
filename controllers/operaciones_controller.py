@@ -384,140 +384,140 @@ class OperacionesController:
                                 id_prov = prov_id
                                 break
                     
-                if not id_prov:
-                    proveedores_disponibles = ', '.join([p['nombre_comercial'] for p in res_p.data])
-                    resultados["errores"].append(f"Fila {idx+1}: Proveedor '{prov_nombre_raw}' no encontrado. Disponibles: {proveedores_disponibles[:80]}...")
-                    continue
+                    if not id_prov:
+                        proveedores_disponibles = ', '.join([p['nombre_comercial'] for p in res_p.data])
+                        resultados["errores"].append(f"Fila {idx+1}: Proveedor '{prov_nombre_raw}' no encontrado. Disponibles: {proveedores_disponibles[:80]}...")
+                        continue
 
-                servicios_dia = servicios_por_dia.get(dia_excel, [])
-                if not servicios_dia:
-                    resultados["errores"].append(f"Fila {idx+1}: El Día {dia_excel} no existe en el itinerario de esta venta.")
-                    continue
-                
-                # --- LÓGICA DE SMART MATCH (Encontrar el servicio correcto) ---
-                target_service = None
-                
-                # Intento 1: Coincidencia por palabras clave en la descripción
-                for s in servicios_dia:
-                    obs = str(s.get('observacion', '')).upper()
-                    # Si el nombre del proveedor está en la descripción (ej: "TREN INCARAIL")
-                    if prov_nombre_up in obs:
-                        target_service = s
-                        break
-                
-                # Intento 2: Si no hubo match, buscar por "Tipo de Servicio" en la descripción
-                if not target_service:
+                    servicios_dia = servicios_por_dia.get(dia_excel, [])
+                    if not servicios_dia:
+                        resultados["errores"].append(f"Fila {idx+1}: El Día {dia_excel} no existe en el itinerario de esta venta.")
+                        continue
+                    
+                    # --- LÓGICA DE SMART MATCH (Encontrar el servicio correcto) ---
+                    target_service = None
+                    
+                    # Intento 1: Coincidencia por palabras clave en la descripción
                     for s in servicios_dia:
-                        if tipo in str(s.get('observacion', '')).upper():
+                        obs = str(s.get('observacion', '')).upper()
+                        # Si el nombre del proveedor está en la descripción (ej: "TREN INCARAIL")
+                        if prov_nombre_up in obs:
                             target_service = s
                             break
-
-                # Intento 3: Si aún no hay match, usar el primero disponible para ese día/tipo que no hayamos usado aún
-                if not target_service:
-                    for s in servicios_dia:
-                        key_check = (s['n_linea'], tipo)
-                        if key_check not in usados_en_carga:
-                            target_service = s
-                            break
-                    # Fallback final: primer servicio del día
+                    
+                    # Intento 2: Si no hubo match, buscar por "Tipo de Servicio" en la descripción
                     if not target_service:
-                        target_service = servicios_dia[0]
+                        for s in servicios_dia:
+                            if tipo in str(s.get('observacion', '')).upper():
+                                target_service = s
+                                break
 
-                nl = target_service['n_linea']
-                usados_en_carga.add((nl, tipo))
+                    # Intento 3: Si aún no hay match, usar el primero disponible para ese día/tipo que no hayamos usado aún
+                    if not target_service:
+                        for s in servicios_dia:
+                            key_check = (s['n_linea'], tipo)
+                            if key_check not in usados_en_carga:
+                                target_service = s
+                                break
+                        # Fallback final: primer servicio del día
+                        if not target_service:
+                            target_service = servicios_dia[0]
 
-                # Extraer campos adicionales
-                hora_excel = row.get('Hora')
-                obs_excel = row.get('Observacion')
-                guia_excel = row.get('Nombre del Guia')
-                f_conf_excel = row.get('Fecha de Confirmacion')
+                    nl = target_service['n_linea']
+                    usados_en_carga.add((nl, tipo))
 
-                try:
-                    data_ins = {
-                        "id_venta": id_venta,
-                        "n_linea": nl,
-                        "id_proveedor": id_prov,
-                        "tipo_servicio": tipo,
-                        "costo_unitario": costo_unit,
-                        "moneda": moneda,
-                        "cantidad_pax": pax,
-                        "tipo_cambio": tc_manual,
-                        "hora_servicio": str(hora_excel).strip() if not pd.isna(hora_excel) else None,
-                        "observacion": str(obs_excel).strip() if not pd.isna(obs_excel) else None,
-                        "nombre_guia": str(guia_excel).strip() if not pd.isna(guia_excel) else None
-                    }
-                    
-                    # Parsear Fecha de Confirmación
-                    if not pd.isna(f_conf_excel) and str(f_conf_excel).strip():
-                        try:
-                            if isinstance(f_conf_excel, (datetime, pd.Timestamp)):
-                                data_ins["fecha_confirmacion"] = f_conf_excel.strftime("%Y-%m-%d")
-                            else:
-                                f_str = str(f_conf_excel).strip()
-                                for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%Y-%m-%d %H:%M:%S"]:
-                                    try:
-                                        data_ins["fecha_confirmacion"] = datetime.strptime(f_str, fmt).strftime("%Y-%m-%d")
-                                        break
-                                    except: continue
-                        except: pass
+                    # Extraer campos adicionales
+                    hora_excel = row.get('Hora')
+                    obs_excel = row.get('Observacion')
+                    guia_excel = row.get('Nombre del Guia')
+                    f_conf_excel = row.get('Fecha de Confirmacion')
 
-                    # --- LÓGICA DE GUARDADO INTELIGENTE ---
-                    # Normalizar tipo_servicio para evitar duplicados inconsistentes
-                    tipo_norm = f"{tipo} ({str(prov_nombre_raw).strip().upper()})"
-                    
-                    data_ins["tipo_servicio"] = tipo_norm
-
-                    # Buscar si ya existe este registro
-                    res_check = self.client.table('venta_servicio_proveedor') \
-                        .select('id') \
-                        .eq('id_venta', id_venta) \
-                        .eq('n_linea', nl) \
-                        .eq('tipo_servicio', tipo_norm) \
-                        .execute()
-
-                    if res_check.data:
-                        # Actualizar
-                        id_reg = res_check.data[0]['id']
-                        self.client.table('venta_servicio_proveedor').update(data_ins).eq('id', id_reg).execute()
-                    else:
-                        # Insertar nuevo
-                        self.client.table('venta_servicio_proveedor').insert(data_ins).execute()
-                    
-                    # --- ACTUALIZACIÓN DE VENTA_TOUR (COSTO TOTAL POR LÍNEA) ---
-                    res_tot = self.client.table('venta_servicio_proveedor') \
-                        .select('costo_unitario, cantidad_pax, moneda') \
-                        .eq('id_venta', id_venta) \
-                        .eq('n_linea', nl) \
-                        .execute()
-                    
-                    total_n_linea = 0
-                    for c in (res_tot.data or []):
-                        c_u = float(c.get('costo_unitario', 0) or 0)
-                        c_p = float(c.get('cantidad_pax', 1) or 1)
-                        c_m = c.get('moneda', 'USD')
-
-                        # Normalizar a la moneda de la venta (moneda_v)
-                        if c_m != moneda_v:
-                            if c_m == 'USD' and moneda_v == 'PEN':
-                                c_u = c_u * tc_manual
-                            elif c_m == 'PEN' and moneda_v == 'USD':
-                                if tc_manual > 0:
-                                    c_u = c_u / tc_manual
+                    try:
+                        data_ins = {
+                            "id_venta": id_venta,
+                            "n_linea": nl,
+                            "id_proveedor": id_prov,
+                            "tipo_servicio": tipo,
+                            "costo_unitario": costo_unit,
+                            "moneda": moneda,
+                            "cantidad_pax": pax,
+                            "tipo_cambio": tc_manual,
+                            "hora_servicio": str(hora_excel).strip() if not pd.isna(hora_excel) else None,
+                            "observacion": str(obs_excel).strip() if not pd.isna(obs_excel) else None,
+                            "nombre_guia": str(guia_excel).strip() if not pd.isna(guia_excel) else None
+                        }
                         
-                        total_n_linea += (c_u * c_p)
+                        # Parsear Fecha de Confirmación
+                        if not pd.isna(f_conf_excel) and str(f_conf_excel).strip():
+                            try:
+                                if isinstance(f_conf_excel, (datetime, pd.Timestamp)):
+                                    data_ins["fecha_confirmacion"] = f_conf_excel.strftime("%Y-%m-%d")
+                                else:
+                                    f_str = str(f_conf_excel).strip()
+                                    for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%Y-%m-%d %H:%M:%S"]:
+                                        try:
+                                            data_ins["fecha_confirmacion"] = datetime.strptime(f_str, fmt).strftime("%Y-%m-%d")
+                                            break
+                                        except: continue
+                            except: pass
 
-                    update_data = {"costo_unitario": total_n_linea}
-                    if "ENDOSE" in tipo_norm.upper():
-                        update_data["es_endoso"] = True
-                    
-                    self.client.table('venta_tour').update(update_data).eq('id_venta', id_venta).eq('n_linea', nl).execute()
-                    resultados["exitos"] += 1
+                        # --- LÓGICA DE GUARDADO INTELIGENTE ---
+                        # Normalizar tipo_servicio para evitar duplicados inconsistentes
+                        tipo_norm = f"{tipo} ({str(prov_nombre_raw).strip().upper()})"
+                        
+                        data_ins["tipo_servicio"] = tipo_norm
+
+                        # Buscar si ya existe este registro
+                        res_check = self.client.table('venta_servicio_proveedor') \
+                            .select('id') \
+                            .eq('id_venta', id_venta) \
+                            .eq('n_linea', nl) \
+                            .eq('tipo_servicio', tipo_norm) \
+                            .execute()
+
+                        if res_check.data:
+                            # Actualizar
+                            id_reg = res_check.data[0]['id']
+                            self.client.table('venta_servicio_proveedor').update(data_ins).eq('id', id_reg).execute()
+                        else:
+                            # Insertar nuevo
+                            self.client.table('venta_servicio_proveedor').insert(data_ins).execute()
+                        
+                        # --- ACTUALIZACIÓN DE VENTA_TOUR (COSTO TOTAL POR LÍNEA) ---
+                        res_tot = self.client.table('venta_servicio_proveedor') \
+                            .select('costo_unitario, cantidad_pax, moneda') \
+                            .eq('id_venta', id_venta) \
+                            .eq('n_linea', nl) \
+                            .execute()
+                        
+                        total_n_linea = 0
+                        for c in (res_tot.data or []):
+                            c_u = float(c.get('costo_unitario', 0) or 0)
+                            c_p = float(c.get('cantidad_pax', 1) or 1)
+                            c_m = c.get('moneda', 'USD')
+
+                            # Normalizar a la moneda de la venta (moneda_v)
+                            if c_m != moneda_v:
+                                if c_m == 'USD' and moneda_v == 'PEN':
+                                    c_u = c_u * tc_manual
+                                elif c_m == 'PEN' and moneda_v == 'USD':
+                                    if tc_manual > 0:
+                                        c_u = c_u / tc_manual
+                            
+                            total_n_linea += (c_u * c_p)
+
+                        update_data = {"costo_unitario": total_n_linea}
+                        if "ENDOSE" in tipo_norm.upper():
+                            update_data["es_endoso"] = True
+                        
+                        self.client.table('venta_tour').update(update_data).eq('id_venta', id_venta).eq('n_linea', nl).execute()
+                        resultados["exitos"] += 1
+                    except Exception as e:
+                        resultados["errores"].append(f"Fila {idx+1}: Error al guardar en BD: {str(e)}")
+                        print(f"DEBUG - Error en fila {idx+1}: {str(e)}")  # ✅ LOGGING PARA DEBUG
                 except Exception as e:
-                    resultados["errores"].append(f"Fila {idx+1}: Error al guardar en BD: {str(e)}")
-                    print(f"DEBUG - Error en fila {idx+1}: {str(e)}")  # ✅ LOGGING PARA DEBUG
-            except Exception as e:
-                resultados["errores"].append(f"Fila {idx+1}: {str(e)}")
-                print(f"DEBUG - Error procesando fila {idx+1}: {str(e)}")  # ✅ LOGGING PARA DEBUG
+                    resultados["errores"].append(f"Fila {idx+1}: {str(e)}")
+                    print(f"DEBUG - Error procesando fila {idx+1}: {str(e)}")  # ✅ LOGGING PARA DEBUG
         except Exception as outer_error:
             # ✅ CAPTURA DE ERRORES INESPERADOS EN EL PROCESAMIENTO GENERAL
             resultados["errores"].append(f"❌ Error general al procesar el archivo: {str(outer_error)}")
