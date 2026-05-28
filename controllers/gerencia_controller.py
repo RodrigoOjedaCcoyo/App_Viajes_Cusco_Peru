@@ -155,12 +155,20 @@ class GerenciaController:
             print(f"Error Distribución Lead Origen: {e}")
             return pd.DataFrame()
     def get_ventas_por_canal(self):
-        """Obtiene el monto total de ventas por cada canal (WEB, DIRECTO, etc.)."""
+        """Obtiene el monto total de ventas por cada canal, excluyendo B2B del canal DIRECTO."""
         try:
-            res = self.client.table('venta').select('canal_venta, precio_total_cierre').execute()
+            res = self.client.table('venta').select('canal_venta, precio_total_cierre, id_agencia_aliada').execute()
             df = pd.DataFrame(res.data or [])
             if df.empty: return pd.DataFrame()
-            
+
+            df['precio_total_cierre'] = pd.to_numeric(df['precio_total_cierre'], errors='coerce').fillna(0)
+
+            # El canal DIRECTO debe sumar solo ventas B2C (sin agencia aliada).
+            mask_directo_b2b = (
+                df['canal_venta'].fillna('').astype(str).str.upper().eq('DIRECTO')
+            ) & df['id_agencia_aliada'].notna()
+            df = df[~mask_directo_b2b].copy()
+
             resumen = df.groupby('canal_venta')['precio_total_cierre'].sum().reset_index()
             resumen.columns = ['Canal', 'Monto']
             return resumen.sort_values('Monto', ascending=False)
