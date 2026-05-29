@@ -8,56 +8,72 @@ class GerenciaController:
     def __init__(self, supabase_client: Client):
         self.client = supabase_client
 
-    def get_kpis_financieros(self):
-        """Calcula Ventas Totales, Recaudado y Pendiente, normalizado a Soles (PEN)."""
+    def get_kpis_financieros(self, moneda_destino: str = 'PEN'):
+        """Calcula Ventas Totales, Recaudado y Pendiente, normalizado a la moneda de destino ('PEN' o 'USD')."""
         try:
-            # 1. Ventas Totales (normalizado a PEN)
+            # 1. Ventas Totales
             res_ventas = self.client.table('venta').select('precio_total_cierre, moneda, tipo_cambio').execute()
             ventas_data = res_ventas.data or []
             
-            total_ventas_pen = 0.0
+            total_ventas = 0.0
             for v in ventas_data:
                 monto = float(v.get('precio_total_cierre') or 0)
-                moneda = v.get('moneda') or 'USD'
+                moneda_orig = (v.get('moneda') or 'USD').strip().upper()
                 tc = float(v.get('tipo_cambio') or 3.80)
                 if tc <= 0:
                     tc = 3.80
                 
-                if moneda == 'USD':
-                    total_ventas_pen += monto * tc
+                if moneda_destino == 'PEN':
+                    # Todo a Soles
+                    if moneda_orig == 'USD':
+                        total_ventas += monto * tc
+                    else:
+                        total_ventas += monto
                 else:
-                    total_ventas_pen += monto
+                    # Todo a Dólares
+                    if moneda_orig == 'PEN':
+                        total_ventas += monto / tc
+                    else:
+                        total_ventas += monto
 
-            # 2. Pagos Recaudados (normalizado a PEN)
+            # 2. Pagos Recaudados
             res_pagos = self.client.table('pago').select('monto_pagado, moneda, tasa_cambio, tipo_pago').execute()
             pagos_data = res_pagos.data or []
             
-            total_recaudado_pen = 0.0
+            total_recaudado = 0.0
             for p in pagos_data:
                 monto = float(p.get('monto_pagado') or 0)
-                moneda = p.get('moneda') or 'USD'
+                moneda_orig = (p.get('moneda') or 'USD').strip().upper()
                 tc = float(p.get('tasa_cambio') or 1.0)
                 if tc <= 0:
                     tc = 3.80
                 tipo = p.get('tipo_pago') or 'ADELANTO'
                 
-                if moneda == 'USD':
-                    monto_soles = monto * tc
+                if moneda_destino == 'PEN':
+                    # Todo a Soles
+                    if moneda_orig == 'USD':
+                        monto_dest = monto * tc
+                    else:
+                        monto_dest = monto
                 else:
-                    monto_soles = monto
-                    
+                    # Todo a Dólares
+                    if moneda_orig == 'PEN':
+                        monto_dest = monto / tc
+                    else:
+                        monto_dest = monto
+                        
                 if tipo == 'REEMBOLSO':
-                    total_recaudado_pen -= monto_soles
+                    total_recaudado -= monto_dest
                 else:
-                    total_recaudado_pen += monto_soles
+                    total_recaudado += monto_dest
 
             # 3. Cálculo de Pendiente
-            total_pendiente_pen = total_ventas_pen - total_recaudado_pen
+            total_pendiente = total_ventas - total_recaudado
 
             return {
-                'ventas_totales': total_ventas_pen,
-                'total_recaudado': total_recaudado_pen,
-                'total_pendiente': total_pendiente_pen
+                'ventas_totales': total_ventas,
+                'total_recaudado': total_recaudado,
+                'total_pendiente': total_pendiente
             }
         except Exception as e:
             print(f"Error Gerencia Financiero: {e}")
@@ -116,8 +132,8 @@ class GerenciaController:
             print(f"Error Gerencia Alertas: {e}")
             return []
 
-    def get_ventas_mensuales(self):
-        """Agrupa ventas por mes para el gráfico de barras, normalizado a PEN."""
+    def get_ventas_mensuales(self, moneda_destino: str = 'PEN'):
+        """Agrupa ventas por mes para el gráfico de barras, normalizado a la moneda de destino ('PEN' o 'USD')."""
         try:
             res_ventas = self.client.table('venta').select('precio_total_cierre, fecha_venta, moneda, tipo_cambio').execute()
             if not res_ventas.data:
@@ -128,16 +144,22 @@ class GerenciaController:
             df['tipo_cambio'] = pd.to_numeric(df['tipo_cambio'], errors='coerce').fillna(3.80)
             df.loc[df['tipo_cambio'] <= 0, 'tipo_cambio'] = 3.80
 
-            # Normalizar a PEN
-            df['monto_pen'] = df.apply(
-                lambda row: row['precio_total_cierre'] * row['tipo_cambio'] if row['moneda'] == 'USD' else row['precio_total_cierre'],
-                axis=1
-            )
+            # Normalizar
+            if moneda_destino == 'PEN':
+                df['monto_dest'] = df.apply(
+                    lambda row: row['precio_total_cierre'] * row['tipo_cambio'] if row['moneda'] == 'USD' else row['precio_total_cierre'],
+                    axis=1
+                )
+            else:
+                df['monto_dest'] = df.apply(
+                    lambda row: row['precio_total_cierre'] / row['tipo_cambio'] if row['moneda'] == 'PEN' else row['precio_total_cierre'],
+                    axis=1
+                )
 
             df['fecha_venta'] = pd.to_datetime(df['fecha_venta'])
             df['Mes'] = df['fecha_venta'].dt.strftime('%Y-%m')
             
-            resumen = df.groupby('Mes')['monto_pen'].sum().reset_index()
+            resumen = df.groupby('Mes')['monto_dest'].sum().reset_index()
             resumen.columns = ['Mes', 'Ventas']
             return resumen.sort_values('Mes')
         except Exception as e:

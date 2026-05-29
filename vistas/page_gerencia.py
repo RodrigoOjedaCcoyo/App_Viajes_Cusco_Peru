@@ -61,23 +61,31 @@ def _cargar_demografia_clientes(supabase_client):
 
 def dashboard_ejecutivo(controller):
     """Interfaz del Dashboard Principal de Gerencia."""
-    st.subheader("📊 Panel de Control Ejecutivo", divider='rainbow')
+    # Selector de Moneda elegante
+    c_title, c_sel = st.columns([2, 1])
+    with c_title:
+        st.subheader("📊 Panel de Control Ejecutivo", divider='rainbow')
+    with c_sel:
+        moneda_sel = st.selectbox("Moneda / Currency:", ["PEN (Soles S/)", "USD (Dólares $)"], index=0, key="gerencia_dashboard_currency")
+        
+    moneda_dest = 'PEN' if "PEN" in moneda_sel else 'USD'
+    symbol = 'S/' if moneda_dest == 'PEN' else '$'
 
     # --- 1. OBTENER DATOS ---
     with st.spinner("Calculando métricas..."):
-        finan = controller.get_kpis_financieros()
+        finan = controller.get_kpis_financieros(moneda_destino=moneda_dest)
         comer = controller.get_metricas_comerciales()
         pax_tot = controller.get_pax_totales()
         alertas = controller.get_alertas_gestion()
-        ventas_mes = controller.get_ventas_mensuales()
+        ventas_mes = controller.get_ventas_mensuales(moneda_destino=moneda_dest)
 
     # --- 2. KPIs FINANCIEROS (Fila 1) ---
-    st.markdown("#### 💰 Resumen Financiero")
+    st.markdown(f"#### 💰 Resumen Financiero ({moneda_dest})")
     col1, col2, col3 = st.columns(3)
     
-    col1.metric("Ventas Totales", f"S/ {finan['ventas_totales']:,.0f}", delta="Cifra Bruta")
-    col2.metric("Recaudado Real", f"S/ {finan['total_recaudado']:,.0f}", delta="En Banco", delta_color="normal")
-    col3.metric("Saldo Pendiente", f"S/ {finan['total_pendiente']:,.0f}", delta="- Deuda Clientes", delta_color="inverse")
+    col1.metric("Ventas Totales", f"{symbol} {finan['ventas_totales']:,.0f}", delta="Cifra Bruta")
+    col2.metric("Recaudado Real", f"{symbol} {finan['total_recaudado']:,.0f}", delta="En Banco", delta_color="normal")
+    col3.metric("Saldo Pendiente", f"{symbol} {finan['total_pendiente']:,.0f}", delta="- Deuda Clientes", delta_color="inverse")
 
     st.markdown("---")
 

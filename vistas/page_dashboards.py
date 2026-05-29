@@ -309,14 +309,23 @@ def render_contable_dashboard_visual(supabase_client):
 
 def render_exec_dashboard_visual(supabase_client):
     """Dashboard Ejecutivo para Gerencia."""
-    st.title("🏛️ Reporte Ejecutivo 360")
+    # Selector de Moneda elegante
+    c_title, c_sel = st.columns([2, 1])
+    with c_title:
+        st.title("🏛️ Reporte Ejecutivo 360")
+    with c_sel:
+        moneda_sel = st.selectbox("Moneda / Currency:", ["PEN (Soles S/)", "USD (Dólares $)"], index=0, key="exec_dashboard_currency")
+        
+    moneda_dest = 'PEN' if "PEN" in moneda_sel else 'USD'
+    symbol = 'S/' if moneda_dest == 'PEN' else '$'
+
     from controllers.gerencia_controller import GerenciaController
     controller = GerenciaController(supabase_client)
     
     # Resumen Multi-área
     c1, c2, c3 = st.columns(3)
-    finan = controller.get_kpis_financieros()
-    c1.metric("Ingresos Totales", f"S/ {finan['ventas_totales']:,.0f}")
+    finan = controller.get_kpis_financieros(moneda_destino=moneda_dest)
+    c1.metric(f"Ingresos Totales ({moneda_dest})", f"{symbol} {finan['ventas_totales']:,.0f}")
     
     comer = controller.get_metricas_comerciales()
     c2.metric("Conversión Lead", f"{comer['tasa_conversion']:.1f}%")
@@ -326,10 +335,10 @@ def render_exec_dashboard_visual(supabase_client):
 
     # Gráfico Mix
     st.divider()
-    df_v_canal = controller.get_ventas_por_canal()
+    df_v_canal = controller.get_ventas_por_canal(moneda_destino=moneda_dest)
     if not df_v_canal.empty:
         import plotly.express as px
-        fig = px.pie(df_v_canal, values='Monto', names='Canal', title="Ventas por Canal de Captación")
+        fig = px.pie(df_v_canal, values='Monto', names='Canal', title=f"Ventas por Canal de Captación ({moneda_dest})")
         st.plotly_chart(fig, use_container_width=True)
 
 def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual='Desconocido', user_id=None):
