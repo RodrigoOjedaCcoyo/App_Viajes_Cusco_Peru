@@ -566,13 +566,22 @@ class VentaController:
                 prefix = "\n🔗 VOUCHER: " if obs_final else "🔗 VOUCHER: "
                 obs_final += f"{prefix}{comprobante_url}"
 
+            # Normalizar tipo_pago para cumplir con el CHECK constraint de la base de datos:
+            # ('ADELANTO', 'SALDO', 'TOTAL', 'PARCIAL', 'REEMBOLSO')
+            tipo_pago_norm = str(tipo_pago or 'PARCIAL').strip().upper()
+            if tipo_pago_norm not in ['ADELANTO', 'SALDO', 'TOTAL', 'PARCIAL', 'REEMBOLSO']:
+                if tipo_pago_norm == 'ABONO':
+                    tipo_pago_norm = 'ADELANTO'
+                else:
+                    tipo_pago_norm = 'PARCIAL'
+
             pago_data = {
                 "id_venta": id_venta,
                 "fecha_pago": fecha_pago,
                 "monto_pagado": monto_pagado,
                 "moneda": moneda_pago,
                 "metodo_pago": metodo,
-                "tipo_pago": tipo_pago,
+                "tipo_pago": tipo_pago_norm,
                 "tipo_comprobante": comprobante,
                 "tasa_cambio": tasa_cambio,
                 "monto_moneda_venta": monto_equivalente,

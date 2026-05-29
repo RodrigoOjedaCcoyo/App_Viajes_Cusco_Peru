@@ -664,7 +664,7 @@ def dashboard_cuentas_por_cobrar_unified(supabase_client):
                     tasa_cambio=3.7, 
                     fecha_pago=fecha_p.isoformat(), 
                     metodo=metodo_p, 
-                    tipo_pago="ABONO", 
+                    tipo_pago="ADELANTO", 
                     comprobante=tipo_comp,
                     observaciones_contables=obs_cont,
                     comprobante_url=voucher_url
