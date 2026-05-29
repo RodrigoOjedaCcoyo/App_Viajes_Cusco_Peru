@@ -1,6 +1,7 @@
 # controllers/reporte_controller.py
 from models.venta_model import VentaModel
 from models.lead_model import LeadModel
+from models.meta_mensual_model import MetaMensualModel
 import pandas as pd
 
 class ReporteController:
@@ -13,6 +14,7 @@ class ReporteController:
         self.client = supabase_client
         self.venta_model = VentaModel(supabase_client)
         self.lead_model = LeadModel(supabase_client)
+        self.meta_model = MetaMensualModel(supabase_client)
         
     def obtener_requerimientos(self):
         """Obtiene la lista de requerimientos (Pagos operativos pendientes en itinerarios)."""
@@ -121,3 +123,21 @@ class ReporteController:
             df_reqs = pd.DataFrame()
             
         return df_ventas, df_reqs
+
+    def obtener_meta_mensual(self, periodo: str) -> tuple[float, bool]:
+        """
+        Retorna una tupla: (monto_meta, esta_congelada).
+        Si no existe en base de datos, retorna (10000.0, False).
+        """
+        try:
+            meta = self.meta_model.obtener_meta_por_periodo(periodo)
+            if meta:
+                return float(meta.get('monto_meta', 10000.0)), True
+            return 10000.0, False
+        except Exception as e:
+            print(f"Error al obtener meta mensual para {periodo}: {e}")
+            return 10000.0, False
+
+    def guardar_meta_mensual(self, periodo: str, monto: float) -> bool:
+        """Guarda y congela la meta para un periodo específico."""
+        return self.meta_model.registrar_meta(periodo, monto)

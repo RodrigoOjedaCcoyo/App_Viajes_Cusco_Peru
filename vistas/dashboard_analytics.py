@@ -3,19 +3,53 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-def render_sales_dashboard(df_ventas):
-    """Genera el Dashboard Comercial (Objetivos B2C - SOLES)."""
+def render_sales_dashboard(df_ventas, supabase_client=None, periodo=None):
+    """Genera el Dashboard Comercial (Objetivos B2C - SOLES) con metas mensuales congeladas en BD."""
     st.subheader("🎯 Dashboard de Objetivos (B2C)")
     
-    # --- META DE VENTAS ---
-    if 'meta_ventas' not in st.session_state:
-        st.session_state['meta_ventas'] = 10000.0  # Meta por defecto en Soles
-        
-    c_meta, c_info = st.columns([1, 2])
-    with c_meta:
-        meta_actual = st.number_input("Establecer Meta Mensual (S/)", min_value=1.0, value=st.session_state['meta_ventas'], step=1000.0)
-        st.session_state['meta_ventas'] = meta_actual
-        
+    meta_actual = 10000.0
+    esta_congelada = False
+    
+    # 1. Intentar obtener de la BD
+    if supabase_client is not None and periodo is not None:
+        try:
+            from controllers.reporte_controller import ReporteController
+            reporte_ctrl = ReporteController(supabase_client)
+            meta_actual, esta_congelada = reporte_ctrl.obtener_meta_mensual(periodo)
+        except Exception as e:
+            print(f"Error cargando meta de la BD: {e}")
+            
+    # 2. Renderizar Interfaz según estado
+    if esta_congelada:
+        with st.container(border=True):
+            st.markdown(f"### 🔒 Meta Mensual Establecida: **S/ {meta_actual:,.2f}**")
+            st.info(f"💡 La meta de ventas para el periodo **{periodo}** está guardada en la base de datos y se encuentra congelada para resguardar la integridad del reporte mensual.")
+    else:
+        # Si no está congelada, permitimos que la establezcan por primera vez
+        c_meta, c_btn = st.columns([1, 1])
+        with c_meta:
+            meta_actual = st.number_input(
+                f"Establecer Meta de {periodo} (S/)", 
+                min_value=1.0, 
+                value=float(st.session_state.get('meta_ventas', meta_actual)), 
+                step=1000.0
+            )
+            st.session_state['meta_ventas'] = meta_actual
+        with c_btn:
+            st.write("")  # Spacing
+            st.write("")  # Spacing
+            if st.button("🔒 Establecer y Congelar Meta", type="primary", use_container_width=True):
+                if supabase_client is not None and periodo is not None:
+                    from controllers.reporte_controller import ReporteController
+                    reporte_ctrl = ReporteController(supabase_client)
+                    if reporte_ctrl.guardar_meta_mensual(periodo, meta_actual):
+                        st.success(f"¡Meta de S/ {meta_actual:,.2f} congelada con éxito!")
+                        st.rerun()
+                    else:
+                        st.error("Error al guardar la meta. Intente nuevamente.")
+                else:
+                    st.warning("No hay conexión con la base de datos para congelar la meta.")
+
     if df_ventas.empty:
         st.info("No hay datos de ventas B2C para mostrar el avance aún.")
         total_sales_pen = 0.0

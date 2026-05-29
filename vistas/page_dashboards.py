@@ -132,7 +132,8 @@ def render_sales_dashboard_visual(supabase_client):
     with tab_metricas:
         # Llamar al renderizador de objetivos visuales (Gauge Chart)
         from vistas.dashboard_analytics import render_sales_dashboard
-        render_sales_dashboard(df_ventas)
+        periodo_str = f"{anio_sel:04d}-{mes_sel:02d}"
+        render_sales_dashboard(df_ventas, supabase_client=supabase_client, periodo=periodo_str)
 
     with tab_calendario:
         # Agregar Calendario de Operaciones al Dashboard Comercial
