@@ -137,31 +137,68 @@ def render_operations_dashboard(df_servicios):
         if not df_servicios.empty:
             st.write("Columnas disponibles:", df_servicios.columns.tolist())
 
-def render_financial_dashboard(df_ventas, df_gastos_op=None):
-    """Genera el Dashboard Financiero (Liquidación)."""
+def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=None):
+    """Genera el Dashboard Financiero con gastos reales desde pago_operativo."""
     st.subheader("Resultados Financieros")
-    
-    total_ingresos = df_ventas['monto_total'].sum() if not df_ventas.empty else 0
-    total_gastos = df_gastos_op['total'].sum() if df_gastos_op is not None and not df_gastos_op.empty else 0
-    
+
+    # --- INGRESOS: suma de precio_total_cierre normalizado a USD ---
+    total_ingresos = 0.0
+    if not df_ventas.empty:
+        for _, row in df_ventas.iterrows():
+            monto = float(row.get('precio_total_cierre') or row.get('monto_total') or 0)
+            moneda = str(row.get('moneda') or 'USD').strip().upper()
+            tc = float(row.get('tipo_cambio') or 3.80)
+            if tc <= 0:
+                tc = 3.80
+            if moneda == 'PEN':
+                total_ingresos += monto / tc
+            else:
+                total_ingresos += monto
+
+    # --- GASTOS: leer pago_operativo directamente desde Supabase ---
+    total_gastos = 0.0
+    if supabase_client is not None:
+        try:
+            res_op = supabase_client.table('pago_operativo').select(
+                'monto_pagado, moneda, tasa_cambio'
+            ).execute()
+            for p in (res_op.data or []):
+                monto = float(p.get('monto_pagado') or 0)
+                moneda = str(p.get('moneda') or 'USD').strip().upper()
+                tc = float(p.get('tasa_cambio') or 3.80)
+                if tc <= 0:
+                    tc = 3.80
+                if moneda == 'PEN':
+                    total_gastos += monto / tc
+                else:
+                    total_gastos += monto
+        except Exception as e:
+            st.warning(f"No se pudieron cargar los gastos operativos: {e}")
+    elif df_gastos_op is not None and not df_gastos_op.empty and 'total' in df_gastos_op.columns:
+        total_gastos = float(df_gastos_op['total'].sum())
+
     utilidad = total_ingresos - total_gastos
     margen = (utilidad / total_ingresos * 100) if total_ingresos > 0 else 0
-    
-    # Scorecard
+
+    # --- SCORECARDS ---
     sc1, sc2, sc3 = st.columns(3)
-    sc1.metric("Total Ingresos (Ventas)", f"${float(total_ingresos or 0):,.2f}", delta="Proyección")
-    sc2.metric("Total Gastos Ops (Estimado)", f"${float(total_gastos or 0):,.2f}", delta_color="inverse")
-    sc3.metric("Utilidad Operativa", f"${float(utilidad or 0):,.2f}", delta=f"{float(margen or 0):.1f}%")
-    
-    # Waterfall Chart (Simplificado)
+    sc1.metric("Total Ingresos (Ventas)", f"${total_ingresos:,.2f}", delta="Cifra Bruta")
+    sc2.metric("Total Gastos Operativos", f"${total_gastos:,.2f}", delta_color="inverse",
+               help="Suma de todos los pagos a proveedores registrados en Pago Operativo")
+    sc3.metric("Utilidad Operativa", f"${utilidad:,.2f}", delta=f"{margen:.1f}% margen")
+
+    # --- WATERFALL CHART ---
     fig_wf = go.Figure(go.Waterfall(
-        name = "Flujo", orientation = "v",
-        measure = ["relative", "relative", "total"],
-        x = ["Ventas", "Costos Operativos", "Utilidad"],
-        textposition = "outside",
-        text = [f"${total_ingresos/1000:.1f}k", f"-${total_gastos/1000:.1f}k", f"${utilidad/1000:.1f}k"],
-        y = [total_ingresos, -total_gastos, utilidad],
-        connector = {"line":{"color":"rgb(63, 63, 63)"}},
+        name="Flujo", orientation="v",
+        measure=["relative", "relative", "total"],
+        x=["Ingresos Ventas", "Costos Operativos", "Utilidad Neta"],
+        textposition="outside",
+        text=[f"${total_ingresos/1000:.1f}k", f"-${total_gastos/1000:.1f}k", f"${utilidad/1000:.1f}k"],
+        y=[total_ingresos, -total_gastos, utilidad],
+        connector={"line": {"color": "rgb(63, 63, 63)"}},
+        decreasing={"marker": {"color": "#EF5350"}},
+        increasing={"marker": {"color": "#66BB6A"}},
+        totals={"marker": {"color": "#42A5F5"}}
     ))
-    fig_wf.update_layout(title = "Cascada de Rentabilidad")
+    fig_wf.update_layout(title="Cascada de Rentabilidad (USD)", showlegend=False, height=420)
     st.plotly_chart(fig_wf, use_container_width=True)

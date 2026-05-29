@@ -294,7 +294,7 @@ def render_contable_dashboard_visual(supabase_client):
     from vistas.dashboard_analytics import render_financial_dashboard
     
     df_ventas, df_reqs = reporte_ctrl.get_data_for_dashboard()
-    render_financial_dashboard(df_ventas, df_reqs)
+    render_financial_dashboard(df_ventas, df_reqs, supabase_client=supabase_client)
     
     st.divider()
     st.write("### 📋 Últimas Transacciones")
