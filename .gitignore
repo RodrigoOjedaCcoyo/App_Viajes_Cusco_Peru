@@ -1,1 +1,3 @@
 Sistema/
+__pycache__/
+*.pyc
