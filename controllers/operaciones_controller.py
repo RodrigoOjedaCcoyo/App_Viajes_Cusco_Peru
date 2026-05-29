@@ -16,34 +16,207 @@ class OperacionesController:
     # LÓGICA DE TABLERO DE EJECUCIÓN DIARIA (Dashboard #2)
     # ------------------------------------------------------------------
 
-    def get_fechas_con_servicios(self, year: int, month: int):
+    # ------------------------------------------------------------------
+    # SEMÁFORO DE COLORES (7 estados de progreso del pasajero)
+    # ------------------------------------------------------------------
+    # Prioridad (de mayor urgencia a más avanzado):
+    #   🟣 Morado  → Cancelado
+    #   ⬜ Gris    → Aprobado por Gerencia
+    #   🔴 Rojo    → Sin ningún check
+    #   🟡 Amarillo → Al menos 1 check "terminado"
+    #   🟢 Verde   → Todos los checks "terminado"
+    #   🔵 Azul    → Al menos 1 check "contratado"
+    #   🟠 Naranja → Todos los checks "contratado"
+    # ------------------------------------------------------------------
+
+    def get_color_venta(self, id_venta: int) -> str:
+        """Calcula el color semáforo de una venta según el estado real de sus checks."""
+        try:
+            # 1. Estado de la venta (cancelada / aprobada gerencia)
+            res_v = (
+                self.client.table('venta')
+                .select('cancelada, aprobado_gerencia')
+                .eq('id_venta', id_venta)
+                .single()
+                .execute()
+            )
+            v = res_v.data or {}
+            if v.get('cancelada'):
+                return '🟣'
+            if v.get('aprobado_gerencia'):
+                return '⬜'
+
+            # 2. Estado de los servicios (terminado / contratado)
+            res_s = (
+                self.client.table('venta_servicio_proveedor')
+                .select('terminado, contratado')
+                .eq('id_venta', id_venta)
+                .execute()
+            )
+            servicios = res_s.data or []
+            if not servicios:
+                return '🔴'
+
+            total = len(servicios)
+            terminados = sum(1 for s in servicios if s.get('terminado'))
+            contratados = sum(1 for s in servicios if s.get('contratado'))
+
+            # Prioridad: naranja > azul > verde > amarillo > rojo
+            if contratados == total:
+                return '🟠'
+            if contratados > 0:
+                return '🔵'
+            if terminados == total:
+                return '🟢'
+            if terminados > 0:
+                return '🟡'
+            return '🔴'
+        except Exception as e:
+            print(f"Error calculando color venta {id_venta}: {e}")
+            return '🔴'
+
+    def get_fechas_con_colores(self, year: int, month: int) -> dict:
+        """Devuelve un dict {date: emoji_color} con el color de mayor prioridad de cada día."""
+        # Prioridad de color (índice más bajo = más urgente al mostrar)
+        PRIORIDAD = {'🟣': 0, '🔴': 1, '🟡': 2, '🟢': 3, '🔵': 4, '🟠': 5, '⬜': 6}
+
         try:
             start_date = date(year, month, 1)
-            if month == 12:
-                end_date = date(year + 1, 1, 1)
-            else:
-                end_date = date(year, month + 1, 1)
-                
+            end_date = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
+
+            # Obtener ventas únicas del mes
             res = (
                 self.client.table('venta_tour')
-                .select('fecha_servicio')
+                .select('fecha_servicio, id_venta')
                 .gte('fecha_servicio', start_date.isoformat())
                 .lt('fecha_servicio', end_date.isoformat())
                 .execute()
             )
-            
-            fechas_activas = set()
-            if res.data:
-                for item in res.data:
-                    try:
-                        f_raw = item['fecha_servicio']
-                        f_date = pd.to_datetime(f_raw).date()
-                        fechas_activas.add(f_date)
-                    except:
-                        pass
-            return list(fechas_activas)
+            if not res.data:
+                return {}
+
+            # Mapear fecha → lista de id_venta únicos
+            fecha_ventas: dict = {}
+            for item in res.data:
+                try:
+                    f_date = pd.to_datetime(item['fecha_servicio']).date()
+                    id_v = item['id_venta']
+                    if f_date not in fecha_ventas:
+                        fecha_ventas[f_date] = set()
+                    fecha_ventas[f_date].add(id_v)
+                except:
+                    pass
+
+            # Obtener estado de todas las ventas involucradas de un solo query
+            todos_ids = list(set(v for s in fecha_ventas.values() for v in s))
+
+            res_ventas = (
+                self.client.table('venta')
+                .select('id_venta, cancelada, aprobado_gerencia')
+                .in_('id_venta', todos_ids)
+                .execute()
+            )
+            ventas_estado = {v['id_venta']: v for v in (res_ventas.data or [])}
+
+            res_srv = (
+                self.client.table('venta_servicio_proveedor')
+                .select('id_venta, terminado, contratado')
+                .in_('id_venta', todos_ids)
+                .execute()
+            )
+            # Agrupar servicios por venta
+            srv_por_venta: dict = {}
+            for s in (res_srv.data or []):
+                iid = s['id_venta']
+                if iid not in srv_por_venta:
+                    srv_por_venta[iid] = []
+                srv_por_venta[iid].append(s)
+
+            def _color_de_venta(id_v: int) -> str:
+                v = ventas_estado.get(id_v, {})
+                if v.get('cancelada'):
+                    return '🟣'
+                if v.get('aprobado_gerencia'):
+                    return '⬜'
+                servicios = srv_por_venta.get(id_v, [])
+                if not servicios:
+                    return '🔴'
+                total = len(servicios)
+                terminados = sum(1 for s in servicios if s.get('terminado'))
+                contratados = sum(1 for s in servicios if s.get('contratado'))
+                if contratados == total:
+                    return '🟠'
+                if contratados > 0:
+                    return '🔵'
+                if terminados == total:
+                    return '🟢'
+                if terminados > 0:
+                    return '🟡'
+                return '🔴'
+
+            # Para cada día, calcular el color de mayor urgencia
+            resultado = {}
+            for f_date, ids in fecha_ventas.items():
+                colores_dia = [_color_de_venta(iid) for iid in ids]
+                # Tomar el de menor índice de prioridad (más urgente)
+                resultado[f_date] = min(colores_dia, key=lambda c: PRIORIDAD.get(c, 99))
+
+            return resultado
         except Exception as e:
-            print(f"Error en Calendario: {e}")
+            print(f"Error en Colores Calendario: {e}")
+            return {}
+
+    def get_fechas_con_servicios(self, year: int, month: int):
+        """Compatibilidad: devuelve lista de fechas con servicios (sin color)."""
+        return list(self.get_fechas_con_colores(year, month).keys())
+
+    def set_aprobacion_gerencia(self, id_venta: int, aprobado: bool) -> tuple:
+        """Guarda la aprobación de gerencia en la venta."""
+        try:
+            payload = {
+                'aprobado_gerencia': aprobado,
+                'fecha_aprobacion_gerencia': date.today().isoformat() if aprobado else None
+            }
+            res = (
+                self.client.table('venta')
+                .update(payload)
+                .eq('id_venta', id_venta)
+                .execute()
+            )
+            if res.data:
+                return True, "OK"
+            return False, "Sin datos devueltos"
+        except Exception as e:
+            return False, str(e)
+
+    def get_ventas_para_revision_gerencia(self) -> list:
+        """Obtiene todas las ventas activas con su estado de aprobación para el panel de gerencia."""
+        try:
+            res = (
+                self.client.table('venta')
+                .select('id_venta, tour_nombre, fecha_inicio, fecha_venta, cancelada, aprobado_gerencia, fecha_aprobacion_gerencia, cliente(nombre)')
+                .eq('cancelada', False)
+                .order('fecha_inicio', desc=False)
+                .execute()
+            )
+            resultado = []
+            for v in (res.data or []):
+                cliente_data = v.get('cliente') or {}
+                if isinstance(cliente_data, list):
+                    cliente_data = cliente_data[0] if cliente_data else {}
+                nombre_cliente = cliente_data.get('nombre', 'Sin nombre')
+                resultado.append({
+                    'id_venta': v['id_venta'],
+                    'Cliente': nombre_cliente,
+                    'Tour': v.get('tour_nombre', '---'),
+                    'Fecha Viaje': v.get('fecha_inicio'),
+                    'Fecha Venta': v.get('fecha_venta'),
+                    'aprobado_gerencia': v.get('aprobado_gerencia', False),
+                    'Fecha Aprobación': v.get('fecha_aprobacion_gerencia'),
+                })
+            return resultado
+        except Exception as e:
+            print(f"Error en get_ventas_para_revision_gerencia: {e}")
             return []
 
     def get_servicios_rango_fechas(self, start_date: date, end_date: date):

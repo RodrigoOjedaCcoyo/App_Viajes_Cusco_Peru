@@ -286,7 +286,23 @@ def render_centro_alertas(controller):
 def dashboard_tablero_diario(controller):
     """Dashboard 2: Tablero con vistas Duplicadas (Mensual/Semanal)."""
     st.subheader("2️⃣ Tablero de Planificación Logística", divider='green')
-    
+
+    # --- LEYENDA DE COLORES ---
+    st.markdown(
+        """
+        <div style='display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;'>
+            <span style='background:#1a1a1a;border:1px solid #333;border-radius:20px;padding:4px 12px;font-size:12px;'>🔴 Registrado (sin checks)</span>
+            <span style='background:#1a1a1a;border:1px solid #333;border-radius:20px;padding:4px 12px;font-size:12px;'>🟡 En progreso (algún check)</span>
+            <span style='background:#1a1a1a;border:1px solid #333;border-radius:20px;padding:4px 12px;font-size:12px;'>🟢 Confirmado (todos los checks)</span>
+            <span style='background:#1a1a1a;border:1px solid #333;border-radius:20px;padding:4px 12px;font-size:12px;'>🔵 Contratando (algún contrato)</span>
+            <span style='background:#1a1a1a;border:1px solid #333;border-radius:20px;padding:4px 12px;font-size:12px;'>🟠 Contratado (todos los contratos)</span>
+            <span style='background:#1a1a1a;border:1px solid #333;border-radius:20px;padding:4px 12px;font-size:12px;'>🟣 Cancelado</span>
+            <span style='background:#1a1a1a;border:1px solid #333;border-radius:20px;padding:4px 12px;font-size:12px;'>⬜ Aprobado por Gerencia</span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
     if 'cal_current_date' not in st.session_state:
         st.session_state['cal_current_date'] = date.today()
     if 'cal_selected_date' not in st.session_state:
@@ -321,7 +337,8 @@ def dashboard_tablero_diario(controller):
 
         st.markdown("---")
         cal_grid = calendar.monthcalendar(year, month)
-        fechas_activas = controller.get_fechas_con_servicios(year, month)
+        # Obtener colores reales de cada día del mes
+        fechas_colores = controller.get_fechas_con_colores(year, month)
         
         cols = st.columns(7)
         headers = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
@@ -333,8 +350,8 @@ def dashboard_tablero_diario(controller):
                 if day != 0:
                     d_obj = date(year, month, day)
                     sel = (d_obj == st.session_state['cal_selected_date'])
-                    act = d_obj in fechas_activas
-                    lbl = f"{day}{' 🟢' if act else ''}"
+                    color_emoji = fechas_colores.get(d_obj, '')  # '' si no hay servicios ese día
+                    lbl = f"{day}{(' ' + color_emoji) if color_emoji else ''}"
                     if d_obj == date.today(): lbl += "\n(Hoy)"
                     if cols[i].button(lbl, key=f"d_{d_obj}", use_container_width=True, type="primary" if sel else "secondary"):
                         st.session_state['cal_selected_date'] = d_obj
@@ -419,10 +436,13 @@ def dashboard_tablero_diario(controller):
                 c_row[1].write(f"**{serv_name}**")
                 
                 c_row[2].write(f"**{s.get('Pax', 1)}**")
-                c_row[3].write(s.get('Cliente', '---'))
+
+                # Mostrar cliente con badge de color semáforo
+                id_v = s.get('ID Venta')
+                color_badge = controller.get_color_venta(id_v) if id_v else ''
+                c_row[3].write(f"{color_badge} {s.get('Cliente', '---')}")
                 
                 with c_row[4]:
-                    id_v = s.get('ID Venta')
                     if id_v:
                         render_operational_master_download(controller, id_v, label="📁 Maestro", key=f"dl_cal_{id_v}_{i}")
                     else:

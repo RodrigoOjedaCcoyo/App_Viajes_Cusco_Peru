@@ -174,7 +174,10 @@
       nro_vuelo_internacional TEXT,
       correo_cliente TEXT,
       nombre_contacto_emergencia TEXT,
-      telefono_contacto_emergencia TEXT
+      telefono_contacto_emergencia TEXT,
+      -- Semáforo de Gerencia
+      aprobado_gerencia BOOLEAN DEFAULT FALSE,
+      fecha_aprobacion_gerencia DATE
   );
 
   CREATE TABLE venta_tour (

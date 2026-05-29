@@ -430,6 +430,95 @@ def render_control_financiero_liquidaciones(supabase_client):
         except Exception as e:
             st.error(f"Error en panel financiero: {e}")
 
+def panel_revision_gerencia(supabase_client):
+    """Panel donde Gerencia revisa y aprueba cada venta/pasajero. Al aprobar, el calendario muestra ⬜."""
+    st.subheader("📋 Panel de Revisión de Pasajeros", divider='blue')
+    st.caption("Marca como aprobadas las ventas que ya revisaste. El calendario mostrará ⬜ en lugar del color de estado.")
+
+    # --- LEYENDA DE REFERENCIA ---
+    st.markdown(
+        """
+        <div style='display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px;'>
+            <span style='background:#1a1a1a;border:1px solid #333;border-radius:20px;padding:4px 12px;font-size:12px;'>🔴 Sin checks (recién registrado)</span>
+            <span style='background:#1a1a1a;border:1px solid #333;border-radius:20px;padding:4px 12px;font-size:12px;'>🟡 Confirmación en progreso</span>
+            <span style='background:#1a1a1a;border:1px solid #333;border-radius:20px;padding:4px 12px;font-size:12px;'>🟢 Totalmente confirmado</span>
+            <span style='background:#1a1a1a;border:1px solid #333;border-radius:20px;padding:4px 12px;font-size:12px;'>🔵 Contratación en progreso</span>
+            <span style='background:#1a1a1a;border:1px solid #333;border-radius:20px;padding:4px 12px;font-size:12px;'>🟠 Totalmente contratado</span>
+            <span style='background:#1a1a1a;border:1px solid #333;border-radius:20px;padding:4px 12px;font-size:12px;'>⬜ Aprobado por Gerencia (tú)</span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    op_ctrl = OperacionesController(supabase_client)
+
+    with st.spinner("Cargando ventas activas..."):
+        ventas = op_ctrl.get_ventas_para_revision_gerencia()
+
+    if not ventas:
+        st.info("ℹ️ No hay ventas activas para revisar.")
+        return
+
+    # Calcular color semáforo de cada venta
+    for v in ventas:
+        v['Color'] = op_ctrl.get_color_venta(v['id_venta'])
+        v['Aprobado ✔'] = v.get('aprobado_gerencia', False)
+
+    df = pd.DataFrame(ventas)
+
+    # Columnas a mostrar
+    cols_visible = ['Color', 'Aprobado ✔', 'Cliente', 'Tour', 'Fecha Viaje', 'Fecha Venta', 'Fecha Aprobación']
+
+    edited = st.data_editor(
+        df[cols_visible],
+        column_config={
+            'Color': st.column_config.TextColumn('🚦 Estado', width='small'),
+            'Aprobado ✔': st.column_config.CheckboxColumn('Aprobado ✔', help='Marcar como revisado y aprobado por Gerencia'),
+            'Cliente': st.column_config.TextColumn('Pasajero', width='medium'),
+            'Tour': st.column_config.TextColumn('Tour / Paquete', width='large'),
+            'Fecha Viaje': st.column_config.DateColumn('Fecha Viaje', format='DD/MM/YYYY'),
+            'Fecha Venta': st.column_config.DateColumn('Fecha Venta', format='DD/MM/YYYY'),
+            'Fecha Aprobación': st.column_config.DateColumn('Aprobado el', format='DD/MM/YYYY'),
+        },
+        disabled=['Color', 'Cliente', 'Tour', 'Fecha Viaje', 'Fecha Venta', 'Fecha Aprobación'],
+        hide_index=True,
+        use_container_width=True,
+        key='editor_revision_gerencia'
+    )
+
+    # Procesar cambios en checkboxes
+    if 'editor_revision_gerencia' in st.session_state:
+        cambios = st.session_state.editor_revision_gerencia.get('edited_rows', {})
+        if cambios:
+            st.warning(f"⚠️ {len(cambios)} aprobaciones pendientes de guardar.")
+            if st.button("💾 Guardar Aprobaciones", type='primary', use_container_width=True):
+                exitos = 0
+                errores = []
+                for row_idx, changes in cambios.items():
+                    if 'Aprobado ✔' in changes:
+                        id_v = df.iloc[row_idx]['id_venta']
+                        aprobado = changes['Aprobado ✔']
+                        ok, msg = op_ctrl.set_aprobacion_gerencia(int(id_v), aprobado)
+                        if ok:
+                            exitos += 1
+                        else:
+                            errores.append(f"Venta #{id_v}: {msg}")
+                if exitos > 0:
+                    st.success(f"✅ {exitos} aprobaciones guardadas. El tablero ahora mostrará ⬜ para las ventas aprobadas.")
+                    st.rerun()
+                for e in errores:
+                    st.error(e)
+
+    # Resumen rápido
+    total = len(ventas)
+    aprobados = sum(1 for v in ventas if v.get('aprobado_gerencia'))
+    st.markdown(f"---")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("📋 Total Ventas Activas", total)
+    col2.metric("✅ Aprobadas por Gerencia", aprobados)
+    col3.metric("⏳ Pendientes de Revisión", total - aprobados)
+
+
 def mostrar_pagina(funcionalidad_seleccionada, rol_actual, user_id, supabase_client):
     controller = GerenciaController(supabase_client)
     
@@ -451,5 +540,8 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual, user_id, supabase_cli
         auditoria_maestra(controller)
     elif funcionalidad_seleccionada in ["Control de Liquidaciones"]:
         render_control_financiero_liquidaciones(supabase_client)
+    elif funcionalidad_seleccionada in ["Revisión de Pasajeros", "Panel de Revisión", "Revisión Operativa"]:
+        panel_revision_gerencia(supabase_client)
     else:
-        st.info("Selecciona una opción del menú: `Dashboard Ejecutivo`, `Auditoría de Gestión` o `Control de Liquidaciones`.")
+        st.info("Selecciona una opción del menú: `Dashboard Ejecutivo`, `Auditoría de Gestión`, `Control de Liquidaciones` o `Revisión de Pasajeros`.")
+
