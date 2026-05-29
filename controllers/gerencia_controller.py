@@ -9,25 +9,55 @@ class GerenciaController:
         self.client = supabase_client
 
     def get_kpis_financieros(self):
-        """Calcula Ventas Totales, Recaudado y Pendiente."""
+        """Calcula Ventas Totales, Recaudado y Pendiente, normalizado a Soles (PEN)."""
         try:
-            # 1. Ventas Totales
-            res_ventas = self.client.table('venta').select('precio_total_cierre').execute()
+            # 1. Ventas Totales (normalizado a PEN)
+            res_ventas = self.client.table('venta').select('precio_total_cierre, moneda, tipo_cambio').execute()
             ventas_data = res_ventas.data or []
-            total_ventas = sum([v.get('precio_total_cierre') or 0 for v in ventas_data])
+            
+            total_ventas_pen = 0.0
+            for v in ventas_data:
+                monto = float(v.get('precio_total_cierre') or 0)
+                moneda = v.get('moneda') or 'USD'
+                tc = float(v.get('tipo_cambio') or 3.80)
+                if tc <= 0:
+                    tc = 3.80
+                
+                if moneda == 'USD':
+                    total_ventas_pen += monto * tc
+                else:
+                    total_ventas_pen += monto
 
-            # 2. Pagos Recaudados
-            res_pagos = self.client.table('pago').select('monto_pagado').execute()
+            # 2. Pagos Recaudados (normalizado a PEN)
+            res_pagos = self.client.table('pago').select('monto_pagado, moneda, tasa_cambio, tipo_pago').execute()
             pagos_data = res_pagos.data or []
-            total_recaudado = sum([p.get('monto_pagado') or 0 for p in pagos_data])
+            
+            total_recaudado_pen = 0.0
+            for p in pagos_data:
+                monto = float(p.get('monto_pagado') or 0)
+                moneda = p.get('moneda') or 'USD'
+                tc = float(p.get('tasa_cambio') or 1.0)
+                if tc <= 0:
+                    tc = 3.80
+                tipo = p.get('tipo_pago') or 'ADELANTO'
+                
+                if moneda == 'USD':
+                    monto_soles = monto * tc
+                else:
+                    monto_soles = monto
+                    
+                if tipo == 'REEMBOLSO':
+                    total_recaudado_pen -= monto_soles
+                else:
+                    total_recaudado_pen += monto_soles
 
             # 3. Cálculo de Pendiente
-            total_pendiente = total_ventas - total_recaudado
+            total_pendiente_pen = total_ventas_pen - total_recaudado_pen
 
             return {
-                'ventas_totales': total_ventas,
-                'total_recaudado': total_recaudado,
-                'total_pendiente': total_pendiente
+                'ventas_totales': total_ventas_pen,
+                'total_recaudado': total_recaudado_pen,
+                'total_pendiente': total_pendiente_pen
             }
         except Exception as e:
             print(f"Error Gerencia Financiero: {e}")
@@ -87,17 +117,27 @@ class GerenciaController:
             return []
 
     def get_ventas_mensuales(self):
-        """Agrupa ventas por mes para el gráfico de barras."""
+        """Agrupa ventas por mes para el gráfico de barras, normalizado a PEN."""
         try:
-            res_ventas = self.client.table('venta').select('precio_total_cierre, fecha_venta').execute()
+            res_ventas = self.client.table('venta').select('precio_total_cierre, fecha_venta, moneda, tipo_cambio').execute()
             if not res_ventas.data:
                 return pd.DataFrame()
 
             df = pd.DataFrame(res_ventas.data)
+            df['precio_total_cierre'] = pd.to_numeric(df['precio_total_cierre'], errors='coerce').fillna(0)
+            df['tipo_cambio'] = pd.to_numeric(df['tipo_cambio'], errors='coerce').fillna(3.80)
+            df.loc[df['tipo_cambio'] <= 0, 'tipo_cambio'] = 3.80
+
+            # Normalizar a PEN
+            df['monto_pen'] = df.apply(
+                lambda row: row['precio_total_cierre'] * row['tipo_cambio'] if row['moneda'] == 'USD' else row['precio_total_cierre'],
+                axis=1
+            )
+
             df['fecha_venta'] = pd.to_datetime(df['fecha_venta'])
             df['Mes'] = df['fecha_venta'].dt.strftime('%Y-%m')
             
-            resumen = df.groupby('Mes')['precio_total_cierre'].sum().reset_index()
+            resumen = df.groupby('Mes')['monto_pen'].sum().reset_index()
             resumen.columns = ['Mes', 'Ventas']
             return resumen.sort_values('Mes')
         except Exception as e:
@@ -155,13 +195,21 @@ class GerenciaController:
             print(f"Error Distribución Lead Origen: {e}")
             return pd.DataFrame()
     def get_ventas_por_canal(self):
-        """Obtiene el monto total de ventas por cada canal, excluyendo B2B del canal DIRECTO."""
+        """Obtiene el monto total de ventas por cada canal, excluyendo B2B del canal DIRECTO, normalizado a PEN."""
         try:
-            res = self.client.table('venta').select('canal_venta, precio_total_cierre, id_agencia_aliada').execute()
+            res = self.client.table('venta').select('canal_venta, precio_total_cierre, id_agencia_aliada, moneda, tipo_cambio').execute()
             df = pd.DataFrame(res.data or [])
             if df.empty: return pd.DataFrame()
 
             df['precio_total_cierre'] = pd.to_numeric(df['precio_total_cierre'], errors='coerce').fillna(0)
+            df['tipo_cambio'] = pd.to_numeric(df['tipo_cambio'], errors='coerce').fillna(3.80)
+            df.loc[df['tipo_cambio'] <= 0, 'tipo_cambio'] = 3.80
+
+            # Normalizar a PEN
+            df['monto_pen'] = df.apply(
+                lambda row: row['precio_total_cierre'] * row['tipo_cambio'] if row['moneda'] == 'USD' else row['precio_total_cierre'],
+                axis=1
+            )
 
             # El canal DIRECTO debe sumar solo ventas B2C (sin agencia aliada).
             mask_directo_b2b = (
@@ -169,7 +217,7 @@ class GerenciaController:
             ) & df['id_agencia_aliada'].notna()
             df = df[~mask_directo_b2b].copy()
 
-            resumen = df.groupby('canal_venta')['precio_total_cierre'].sum().reset_index()
+            resumen = df.groupby('canal_venta')['monto_pen'].sum().reset_index()
             resumen.columns = ['Canal', 'Monto']
             return resumen.sort_values('Monto', ascending=False)
         except Exception as e:
