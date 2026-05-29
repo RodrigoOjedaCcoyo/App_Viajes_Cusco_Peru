@@ -24,6 +24,7 @@
   DROP TABLE IF EXISTS lead CASCADE;
   DROP TABLE IF EXISTS vendedor CASCADE;
   DROP TABLE IF EXISTS usuarios_app CASCADE;
+  DROP TABLE IF EXISTS meta_mensual CASCADE;
 
   -- Asegurar extensiones para UUIDs y Seguridad
   CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -1031,6 +1032,7 @@ BEGIN
   ALTER TABLE usuarios_app ENABLE ROW LEVEL SECURITY;
   ALTER TABLE vendedor ENABLE ROW LEVEL SECURITY;
   ALTER TABLE venta ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE meta_mensual ENABLE ROW LEVEL SECURITY;
   -- (Opcional: aplicar a todas las demás tablas)
 
   -- Políticas permisivas (MODO DESARROLLO)
@@ -1054,6 +1056,20 @@ BEGIN
   CREATE POLICY "Subida Libre Itinerarios" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'itinerarios');
   CREATE POLICY "Acceso Público Vouchers" ON storage.objects FOR SELECT USING (bucket_id = 'vouchers');
   CREATE POLICY "Subida Libre Vouchers" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'vouchers');
+
+  -- ==============================================================
+  -- SECCIÓN 6: METAS MENSUALES (HISTORIAL CONGELADO)
+  -- ==============================================================
+
+  CREATE TABLE meta_mensual (
+      id_meta SERIAL PRIMARY KEY,
+      periodo VARCHAR(7) UNIQUE NOT NULL, -- Formato "AAAA-MM" (Ej: "2026-05")
+      monto_meta NUMERIC(12, 2) NOT NULL DEFAULT 10000.0,
+      creado_en TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+      actualizado_en TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+  );
+
+  COMMENT ON TABLE meta_mensual IS 'Almacena las metas de ventas B2C congeladas por cada mes/año.';
 
   -- ==============================================================
   -- ✅ FIN DEL SCRIPT: INSTALACIÓN EXITOSA
