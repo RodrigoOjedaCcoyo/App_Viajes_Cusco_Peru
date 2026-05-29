@@ -216,8 +216,8 @@ class GerenciaController:
         except Exception as e:
             print(f"Error Distribución Lead Origen: {e}")
             return pd.DataFrame()
-    def get_ventas_por_canal(self):
-        """Obtiene el monto total de ventas por cada canal, excluyendo B2B del canal DIRECTO, normalizado a PEN."""
+    def get_ventas_por_canal(self, moneda_destino: str = 'PEN'):
+        """Obtiene el monto total de ventas por cada canal, excluyendo B2B del canal DIRECTO, normalizado a la moneda de destino ('PEN' o 'USD')."""
         try:
             res = self.client.table('venta').select('canal_venta, precio_total_cierre, id_agencia_aliada, moneda, tipo_cambio').execute()
             df = pd.DataFrame(res.data or [])
@@ -227,11 +227,17 @@ class GerenciaController:
             df['tipo_cambio'] = pd.to_numeric(df['tipo_cambio'], errors='coerce').fillna(3.80)
             df.loc[df['tipo_cambio'] <= 0, 'tipo_cambio'] = 3.80
 
-            # Normalizar a PEN
-            df['monto_pen'] = df.apply(
-                lambda row: row['precio_total_cierre'] * row['tipo_cambio'] if row['moneda'] == 'USD' else row['precio_total_cierre'],
-                axis=1
-            )
+            # Normalizar a la moneda destino
+            if moneda_destino == 'PEN':
+                df['monto_dest'] = df.apply(
+                    lambda row: row['precio_total_cierre'] * row['tipo_cambio'] if row['moneda'] == 'USD' else row['precio_total_cierre'],
+                    axis=1
+                )
+            else:
+                df['monto_dest'] = df.apply(
+                    lambda row: row['precio_total_cierre'] / row['tipo_cambio'] if row['moneda'] == 'PEN' else row['precio_total_cierre'],
+                    axis=1
+                )
 
             # El canal DIRECTO debe sumar solo ventas B2C (sin agencia aliada).
             mask_directo_b2b = (
@@ -239,7 +245,7 @@ class GerenciaController:
             ) & df['id_agencia_aliada'].notna()
             df = df[~mask_directo_b2b].copy()
 
-            resumen = df.groupby('canal_venta')['monto_pen'].sum().reset_index()
+            resumen = df.groupby('canal_venta')['monto_dest'].sum().reset_index()
             resumen.columns = ['Canal', 'Monto']
             return resumen.sort_values('Monto', ascending=False)
         except Exception as e:
