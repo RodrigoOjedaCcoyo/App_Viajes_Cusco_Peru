@@ -1612,7 +1612,7 @@ def dashboard_simulador_costos(controller):
                     except:
                         l['F. Contratación'] = None
                     
-                    l['Estado Contrato'] = "🔵 OK" if l.get('contratado') else "⚪ PENDIENTE"
+                    l['Estado Contrato'] = "🟢 OK" if l.get('contratado') else "⚪ PENDIENTE"
                     
                     # Mantener cálculos internos por si se usan luego (pueden estar ocultos)
                     c_unit = float(l.get('costo_unitario', 0))
@@ -1622,7 +1622,7 @@ def dashboard_simulador_costos(controller):
                     l['TOTAL (PEN)'] = (c_unit * pax) * float(l['TC']) if l.get('moneda') == 'USD' else (c_unit * pax)
                     
                     # ICONO DE ESTADO
-                    l['Estado'] = "🟢 OK" if l.get('terminado') else "🔴 PENDIENTE"
+                    l['Estado'] = "🟡 OK" if l.get('terminado') else "🔴 PENDIENTE"
                     display_data.append(l)
 
                 df_edit = pd.DataFrame(display_data)
