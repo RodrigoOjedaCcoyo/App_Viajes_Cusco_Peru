@@ -1709,26 +1709,26 @@ def dashboard_simulador_costos(controller):
                         if st.button("💾 Guardar Cambios en Operativa", type="primary", use_container_width=True):
                             exitos = 0
                             errores = []
+                            # Renombrar campos internos a nombres de DB
+                            mapping = {
+                                "moneda": "moneda", 
+                                "costo_unitario": "costo_unitario", 
+                                "PAX": "cantidad_pax", 
+                                "TC": "tipo_cambio",
+                                "terminado": "terminado",
+                                "Hora": "hora_servicio",
+                                "Guía": "nombre_guia",
+                                "Observacion": "observacion",
+                                "F. Confirmación": "fecha_confirmacion",
+                                "F. Contratación": "fecha_contratacion",
+                                "contratado": "contratado",
+                                "Resp. Contrato": "responsable_contratacion",
+                                "metodo_pago": "metodo_pago",
+                                "observaciones_pago": "observaciones_pago",
+                                "observaciones_contables": "observaciones_contables"
+                            }
                             for row_idx, changes in cambios_pendientes.items():
                                 reg_id = df_edit.iloc[row_idx]['id']
-                                # Renombrar campos internos a nombres de DB
-                                mapping = {
-                                    "moneda": "moneda", 
-                                    "costo_unitario": "costo_unitario", 
-                                    "PAX": "cantidad_pax", 
-                                    "TC": "tipo_cambio",
-                                    "terminado": "terminado",
-                                    "Hora": "hora_servicio",
-                                    "Guía": "nombre_guia",
-                                    "Observacion": "observacion",
-                                    "F. Confirmación": "fecha_confirmacion",
-                                    "F. Contratación": "fecha_contratacion",
-                                    "contratado": "contratado",
-                                    "Resp. Contrato": "responsable_contratacion",
-                                    "metodo_pago": "metodo_pago",
-                                    "observaciones_pago": "observaciones_pago",
-                                    "observaciones_contables": "observaciones_contables"
-                                }
                                 # Renombrar campos internos a nombres de DB y convertir fechas a string
                                 db_changes = {}
                                 for k, v in changes.items():
