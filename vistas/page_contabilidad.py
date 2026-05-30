@@ -495,44 +495,76 @@ def estructurador_liquidacion_pro(controller):
             if liq_data:
                 display_data = []
                 for l in liq_data:
-                    l['Dia'] = l.get('n_linea')
-                    l['Hora'] = l.get('hora_servicio') or "---"
+                    n_lin = l.get('n_linea')
+                    l['Dia'] = n_lin
+                    l['Hora'] = l.get('hora_servicio') or "08:00 AM"
                     l['Tipo de Servicio'] = l.get('tipo_servicio', '---')
                     l['Proveedor'] = l.get('proveedor', {}).get('nombre_comercial') if l.get('proveedor') else "---"
                     l['Guía'] = l.get('nombre_guia', '---')
-                    l['F. Confirmación'] = l.get('fecha_confirmacion', '---')
+                    
+                    f_raw = l.get('fecha_confirmacion')
+                    try:
+                        l['F. Confirmación'] = pd.to_datetime(f_raw).date() if f_raw else None
+                    except:
+                        l['F. Confirmación'] = None
+                        
                     l['Observacion'] = l.get('observacion', '---')
                     
-                    c_u = float(l.get('costo_unitario', 0))
-                    p = float(l.get('cantidad_pax') or 1)
-                    l['moneda'] = l.get('moneda', 'USD')
-                    l['costo_unitario'] = c_u
-                    l['PAX'] = int(p)
-                    l['TOTAL (PEN)'] = (c_u * p) * tc_v if l['moneda'] == 'USD' else (c_u * p)
-                    l['Estado'] = "🟢 OK" if l.get('terminado') else "🔴 PENDIENTE"
+                    f_cont = l.get('fecha_contratacion')
+                    try:
+                        l['F. Contratación'] = pd.to_datetime(f_cont).date() if f_cont else None
+                    except:
+                        l['F. Contratación'] = None
+                    
+                    l['Estado Contrato'] = "🟢 PAGADO" if l.get('contratado') else "⚪ PENDIENTE"
+                    
+                    c_unit = float(l.get('costo_unitario', 0))
+                    pax = float(l.get('cantidad_pax') or l.get('cantidad_items') or 1)
+                    l['PAX'] = int(pax)
+                    l['TC'] = l.get('tipo_cambio') or tc_v
+                    l['TOTAL (PEN)'] = (c_unit * pax) * float(l['TC']) if l.get('moneda') == 'USD' else (c_unit * pax)
+                    
+                    # ICONO DE ESTADO
+                    l['Estado'] = "🟡 OK" if l.get('terminado') else "🔴 PENDIENTE"
                     display_data.append(l)
 
                 df_edit = pd.DataFrame(display_data)
+                
+                # Definir columnas visibles: Logística + Finanzas
                 cols_visible = [
-                    'Estado', 'terminado', 'Dia', 'Hora', 'Tipo de Servicio', 
-                    'Proveedor', 'Guía', 'metodo_pago', 'observaciones_contables',
-                    'Observacion', 'moneda', 'costo_unitario', 'PAX', 'TOTAL (PEN)'
+                    'Estado', 'terminado', 
+                    'Estado Contrato', 'contratado', 'F. Contratación',
+                    'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'F. Confirmación',
+                    'metodo_pago', 'observaciones_pago', 'observaciones_contables',
+                    'Observacion', 'moneda', 'costo_unitario', 'PAX', 'TC', 'TOTAL (PEN)'
                 ]
                 
+                # 2. Renderizar Editor de Datos
                 edited_result = st.data_editor(
                     df_edit[cols_visible],
                     column_config={
-                        "Estado": st.column_config.TextColumn("Status", width="small"),
-                        "terminado": st.column_config.CheckboxColumn("OK", help="Cerrar Servicio"),
-                        "metodo_pago": st.column_config.SelectboxColumn("Método Pago", options=["YAPE", "PLIN", "TRANSFERENCIA", "EFECTIVO", "OTRO"]),
-                        "observaciones_contables": st.column_config.TextColumn("Obs. Contables"),
-                        "Guía": st.column_config.TextColumn("Guía"),
-                        "moneda": st.column_config.SelectboxColumn("Moneda", options=["USD", "PEN", "EUR"]),
+                        "Estado": st.column_config.TextColumn("Visual", width="small"),
+                        "terminado": st.column_config.CheckboxColumn("Check", help="Marcar como Confirmado"),
+                        "Estado Contrato": st.column_config.TextColumn("Visual Pago", width="small"),
+                        "contratado": st.column_config.CheckboxColumn("Check Pago", help="Marcar como Pagado"),
+                        "F. Contratación": st.column_config.DateColumn("F. Pago", width="small"),
+                        "Dia": st.column_config.NumberColumn("Día", format="%d", width="small"),
+                        "Hora": st.column_config.TextColumn("Hora", width="small"),
+                        "Tipo de Servicio": st.column_config.TextColumn("Tipo de Servicio", width="medium"),
+                        "Proveedor": st.column_config.TextColumn("Proveedor", width="medium"),
+                        "Guía": st.column_config.TextColumn("Guía", width="medium"),
+                        "TC": st.column_config.NumberColumn("TC", format="%.3f", width="small"),
+                        "F. Confirmación": st.column_config.DateColumn("Confirmación", width="small"),
+                        "metodo_pago": st.column_config.SelectboxColumn("Método Pago", options=["YAPE", "PLIN", "TRANSFERENCIA", "EFECTIVO", "OTRO"], width="medium"),
+                        "observaciones_pago": st.column_config.TextColumn("Observación Pago", width="medium"),
+                        "observaciones_contables": st.column_config.TextColumn("Obs. Contables", width="medium"),
+                        "Observacion": st.column_config.TextColumn("Observación", width="large"),
+                        "moneda": st.column_config.SelectboxColumn("Moneda", options=["USD", "PEN", "EUR"], width="small"),
                         "costo_unitario": st.column_config.NumberColumn("Costo Unit.", format="%.2f"),
-                        "PAX": st.column_config.NumberColumn("Pax"),
-                        "TOTAL (PEN)": st.column_config.NumberColumn("Total (S/.)", format="S/. %.2f")
+                        "PAX": st.column_config.NumberColumn("Pax", width="small"),
+                        "TOTAL (PEN)": st.column_config.NumberColumn("Costo Total (S/.)", format="S/. %.2f")
                     },
-                    disabled=['Estado', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'Observacion', 'TOTAL (PEN)'],
+                    disabled=['Estado', 'terminado', 'Estado Contrato', 'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'F. Confirmación', 'Observacion', 'TOTAL (PEN)'],
                     hide_index=True,
                     use_container_width=True,
                     key="editor_liq_contabilidad"
@@ -551,16 +583,34 @@ def estructurador_liquidacion_pro(controller):
                                     "moneda": "moneda", 
                                     "costo_unitario": "costo_unitario", 
                                     "PAX": "cantidad_pax", 
-                                    "terminado": "terminado",
+                                    "TC": "tipo_cambio",
+                                    "F. Contratación": "fecha_contratacion",
+                                    "contratado": "contratado",
                                     "metodo_pago": "metodo_pago",
+                                    "observaciones_pago": "observaciones_pago",
                                     "observaciones_contables": "observaciones_contables"
                                 }
-                                db_changes = {mapping[k]: v for k, v in changes.items() if k in mapping}
+                                db_changes = {}
+                                for k, v in changes.items():
+                                    if k in mapping:
+                                        val = v
+                                        if hasattr(v, 'isoformat'):
+                                            val = v.isoformat()
+                                        db_changes[mapping[k]] = val
                                 
-                                if changes.get('terminado') is True:
-                                    db_changes['fecha_confirmacion'] = date.today().isoformat()
-                                elif changes.get('terminado') is False:
-                                    db_changes['fecha_confirmacion'] = None
+                                # Lógica para fecha_contratacion automática
+                                if 'contratado' in changes:
+                                    if changes['contratado'] is True:
+                                        if not (changes.get('F. Contratación') or df_edit.iloc[row_idx].get('F. Contratación')):
+                                            db_changes['fecha_contratacion'] = date.today().isoformat()
+                                    else:
+                                        db_changes['fecha_contratacion'] = None
+                                
+                                if 'F. Contratación' in changes:
+                                    if changes['F. Contratación']:
+                                        db_changes['contratado'] = True
+                                    else:
+                                        db_changes['contratado'] = False
 
                                 if db_changes:
                                     res_up, _ = op_ctrl.actualizar_campos_liquidacion(reg_id, db_changes)

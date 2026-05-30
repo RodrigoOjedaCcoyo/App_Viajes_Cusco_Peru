@@ -1047,6 +1047,7 @@ class OperacionesController:
             campos_pago = {}
             if 'metodo_pago' in campos: campos_pago['metodo_pago'] = campos.pop('metodo_pago')
             if 'observaciones_contables' in campos: campos_pago['observaciones_contables'] = campos.pop('observaciones_contables')
+            if 'observaciones_pago' in campos: campos_pago['observaciones'] = campos.pop('observaciones_pago')
 
             # 2. Actualizar venta_servicio_proveedor (Costo, Pax, Moneda, Terminados)
             if campos:
@@ -1094,6 +1095,7 @@ class OperacionesController:
                             "monto_en_moneda_costo": monto_total,
                             "fecha_pago": date.today().isoformat(),
                             "metodo_pago": campos_pago.get('metodo_pago', 'TRANSFERENCIA'),
+                            "observaciones": campos_pago.get('observaciones', ''),
                             "observaciones_contables": campos_pago.get('observaciones_contables', '')
                         }
                         self.client.table('pago_operativo').insert(nuevo_pago).execute()

@@ -1632,7 +1632,7 @@ def dashboard_simulador_costos(controller):
                     except:
                         l['F. Contratación'] = None
                     
-                    l['Estado Contrato'] = "🟢 OK" if l.get('contratado') else "⚪ PENDIENTE"
+                    l['Estado Contrato'] = "🟢 PAGADO" if l.get('contratado') else "⚪ PENDIENTE"
                     
                     # Mantener cálculos internos por si se usan luego (pueden estar ocultos)
                     c_unit = float(l.get('costo_unitario', 0))
@@ -1651,7 +1651,9 @@ def dashboard_simulador_costos(controller):
                 cols_visible = [
                     'Estado', 'terminado', 
                     'Estado Contrato', 'contratado', 'F. Contratación',
-                    'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'F. Confirmación', 'Resp. Contrato', 'Observacion', 'moneda', 'costo_unitario', 'PAX', 'TC', 'TOTAL (PEN)'
+                    'Dia', 'Hora', 'Tipo de Servicio', 'Proveedor', 'Guía', 'F. Confirmación', 'Resp. Contrato',
+                    'metodo_pago', 'observaciones_pago', 'observaciones_contables',
+                    'Observacion', 'moneda', 'costo_unitario', 'PAX', 'TC', 'TOTAL (PEN)'
                 ]
                 
                 # 2. Renderizar Editor de Datos
@@ -1660,9 +1662,9 @@ def dashboard_simulador_costos(controller):
                     column_config={
                         "Estado": st.column_config.TextColumn("Visual", width="small"),
                         "terminado": st.column_config.CheckboxColumn("Check", help="Marcar como Confirmado"),
-                        "Estado Contrato": st.column_config.TextColumn("Visual Contrato", width="small"),
-                        "contratado": st.column_config.CheckboxColumn("Check Contrato", help="Marcar como Contratado"),
-                        "F. Contratación": st.column_config.DateColumn("F. Contratación", width="small"),
+                        "Estado Contrato": st.column_config.TextColumn("Visual Pago", width="small"),
+                        "contratado": st.column_config.CheckboxColumn("Check Pago", help="Marcar como Pagado"),
+                        "F. Contratación": st.column_config.DateColumn("F. Pago", width="small"),
                         "Dia": st.column_config.NumberColumn("Día", format="%d", width="small"),
                         "Hora": st.column_config.TextColumn("Hora", width="small"),
                         "Tipo de Servicio": st.column_config.TextColumn("Tipo de Servicio", width="medium"),
@@ -1671,6 +1673,9 @@ def dashboard_simulador_costos(controller):
                         "TC": st.column_config.NumberColumn("TC", format="%.3f", width="small"),
                         "F. Confirmación": st.column_config.DateColumn("Confirmación", width="small"),
                         "Resp. Contrato": st.column_config.TextColumn("Resp. Contrato", width="medium"),
+                        "metodo_pago": st.column_config.SelectboxColumn("Método Pago", options=["YAPE", "PLIN", "TRANSFERENCIA", "EFECTIVO", "OTRO"], width="medium"),
+                        "observaciones_pago": st.column_config.TextColumn("Observación Pago", width="medium"),
+                        "observaciones_contables": st.column_config.TextColumn("Obs. Contables", width="medium"),
                         "Observacion": st.column_config.TextColumn("Observación", width="large"),
                         "moneda": st.column_config.SelectboxColumn("Moneda", options=["USD", "PEN", "EUR"], width="small"),
                         "costo_unitario": st.column_config.NumberColumn("Costo Unit.", format="%.2f"),
@@ -1711,7 +1716,10 @@ def dashboard_simulador_costos(controller):
                                     "F. Confirmación": "fecha_confirmacion",
                                     "F. Contratación": "fecha_contratacion",
                                     "contratado": "contratado",
-                                    "Resp. Contrato": "responsable_contratacion"
+                                    "Resp. Contrato": "responsable_contratacion",
+                                    "metodo_pago": "metodo_pago",
+                                    "observaciones_pago": "observaciones_pago",
+                                    "observaciones_contables": "observaciones_contables"
                                 }
                                 # Renombrar campos internos a nombres de DB y convertir fechas a string
                                 db_changes = {}
