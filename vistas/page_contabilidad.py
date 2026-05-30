@@ -415,6 +415,9 @@ def estructurador_liquidacion_pro(controller):
         ventas_data = vc.obtener_ventas_directas()
 
     if ventas_data:
+        # Excluir ventas aprobadas por gerencia para contabilidad
+        ventas_data = [v for v in ventas_data if not v.get('aprobado_gerencia', False)]
+        
         opciones_p = [f"{v['nombre_cliente']} | {v.get('tour_nombre', 'Sin Tour')} ({v['id_venta']})" for v in ventas_data]
         mapa_v = {opciones_p[i]: v for i, v in enumerate(ventas_data)}
         

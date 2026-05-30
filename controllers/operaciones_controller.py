@@ -201,6 +201,8 @@ class OperacionesController:
             )
             resultado = []
             for v in (res.data or []):
+                if v.get('aprobado_gerencia', False):
+                    continue
                 cliente_data = v.get('cliente') or {}
                 if isinstance(cliente_data, list):
                     cliente_data = cliente_data[0] if cliente_data else {}

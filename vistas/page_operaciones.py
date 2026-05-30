@@ -1151,6 +1151,9 @@ def dashboard_simulador_costos(controller):
     
     # PASO 3: Seleccionar Venta Específica
     if ventas_age:
+        # Excluir ventas aprobadas por gerencia para operaciones
+        ventas_age = [v for v in ventas_age if not v.get('aprobado_gerencia', False)]
+        
         opciones_pax = [f"{v['nombre_cliente']} | {v.get('tour_nombre', 'Sin Tour')} ({v['id_venta']})" for v in ventas_age]
         mapa_ventas_pax = {f"{v['nombre_cliente']} | {v.get('tour_nombre', 'Sin Tour')} ({v['id_venta']})": v for v in ventas_age}
         
