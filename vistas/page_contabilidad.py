@@ -494,7 +494,7 @@ def estructurador_liquidacion_pro(controller):
             
             if liq_data:
                 # Obtener lista de proveedores activos para el dropdown
-                res_prov_drop = supabase_client.table('proveedor').select('nombre_comercial').eq('activo', True).order('nombre_comercial').execute()
+                res_prov_drop = vc.client.table('proveedor').select('nombre_comercial').eq('activo', True).order('nombre_comercial').execute()
                 lista_proveedores = [p['nombre_comercial'] for p in res_prov_drop.data] if res_prov_drop.data else []
 
                 display_data = []
