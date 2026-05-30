@@ -928,35 +928,54 @@ class OperacionesController:
                 .execute()
             )
             
-            # 3. Guardar SOLO el pago más reciente por (n_linea, id_proveedor)
-            # Como ordenamos desc, el primero que encontremos por clave es el más reciente
-            ultimo_pago_por_proveedor = {}
-            for p in (res_pagos.data or []):
-                key = (p.get('n_linea'), p.get('id_proveedor'))
-                if key[0] is not None and key[1] is not None:
-                    if key not in ultimo_pago_por_proveedor:
-                        # Solo guardamos el primero (que es el más reciente por el order desc)
-                        ultimo_pago_por_proveedor[key] = p
-            
-            # 4. Cruzar datos - cada servicio con su pago más reciente
+            # 3. Cruzar datos - consolidar todos los pagos para cada servicio/proveedor
+            pagos_list = res_pagos.data or []
             for s in servicios:
-                key = (s.get('n_linea'), s.get('id_proveedor'))
-                pago = ultimo_pago_por_proveedor.get(key)
+                s_nl = s.get('n_linea')
+                s_prov = s.get('id_proveedor')
                 
-                if pago:
-                    # Usar directamente los datos del pago más reciente (limpio y sin duplicados)
-                    s['metodo_pago'] = pago.get('metodo_pago') or '---'
+                # Buscar todos los pagos específicos para esta línea y proveedor
+                pagos_relacionados = [
+                    p for p in pagos_list
+                    if p.get('id_proveedor') == s_prov and p.get('n_linea') == s_nl
+                ]
+                
+                # Si no hay pagos específicos, buscar pagos generales (n_linea es None)
+                if not pagos_relacionados:
+                    pagos_relacionados = [
+                        p for p in pagos_list
+                        if p.get('id_proveedor') == s_prov and p.get('n_linea') is None
+                    ]
+                
+                if pagos_relacionados:
+                    # Consolidar métodos de pago (sin duplicados, manteniendo orden)
+                    metodos = []
+                    for p in pagos_relacionados:
+                        met = str(p.get('metodo_pago') or '').strip()
+                        if met and met not in metodos and met.upper() != 'NONE' and met != '---':
+                            metodos.append(met)
+                    s['metodo_pago'] = ", ".join(metodos) if metodos else '---'
                     
-                    obs = str(pago.get('observaciones') or '').strip()
-                    s['observaciones_pago'] = obs if obs and obs != 'None' else '---'
+                    # Consolidar observaciones (sin duplicados, manteniendo orden)
+                    observaciones = []
+                    for p in pagos_relacionados:
+                        obs = str(p.get('observaciones') or '').strip()
+                        if obs and obs not in observaciones and obs.upper() != 'NONE' and obs != '---' and obs != 'Sin pago registrado':
+                            observaciones.append(obs)
+                    s['observaciones_pago'] = ", ".join(observaciones) if observaciones else '---'
                     
-                    obs_cont = str(pago.get('observaciones_contables') or '').strip()
-                    s['observaciones_contables'] = obs_cont if obs_cont and obs_cont != 'None' else '---'
+                    # Consolidar observaciones contables (sin duplicados, manteniendo orden)
+                    obs_contables = []
+                    for p in pagos_relacionados:
+                        obs_c = str(p.get('observaciones_contables') or '').strip()
+                        if obs_c and obs_c not in obs_contables and obs_c.upper() != 'NONE' and obs_c != '---':
+                            obs_contables.append(obs_c)
+                    s['observaciones_contables'] = ", ".join(obs_contables) if obs_contables else '---'
                 else:
-                    # Sin pagos registrados para este servicio/proveedor
-                    s['metodo_pago'] = s.get('metodo_pago') or '---'
+                    # Sin pagos registrados
+                    s['metodo_pago'] = '---'
                     s['observaciones_pago'] = 'Sin pago registrado'
-                    s['observaciones_contables'] = s.get('observaciones_contables') or '---'
+                    s['observaciones_contables'] = '---'
                 
             return servicios
         except Exception as e:
