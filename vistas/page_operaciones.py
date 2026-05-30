@@ -1055,7 +1055,7 @@ def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
     
     st.markdown("---")
     
-    if nombre_modulo in ["Gestión de Registros", "Logística y Proveedores"]:
+    if nombre_modulo in ["Gestión de Registros", "Logística y Proveedores", "Gestión de Operaciones"]:
         tab1, tab2, tab3 = st.tabs([
             "📊 Estructurador de Gastos (Master Sheet)",
             "🤝 Ventas B2B (Entrada)",

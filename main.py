@@ -37,7 +37,8 @@ MODULOS_VISIBLES = {
     ],
     "CONTABILIDAD": [
         ("Dashboard Contable", "page_dashboards"),
-        ("Gestión de Registros", "page_contabilidad")
+        ("Gestión de Registros", "page_contabilidad"),
+        ("Gestión de Operaciones", "page_operaciones")
     ],
     "GERENCIA": [
         ("Dashboard Ejecutivo", "page_dashboards"),
