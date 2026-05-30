@@ -509,6 +509,33 @@ def panel_revision_gerencia(supabase_client):
                 for e in errores:
                     st.error(e)
 
+    # --- NUEVO: Sección de Descargas para Auditoría ---
+    st.markdown("---")
+    st.markdown("### 📥 Descarga de Archivos de Auditoría")
+    st.caption("Genera y descarga el Informe Maestro y la Ficha de Control (Grupos) de cualquier pasajero:")
+    
+    from vistas.page_operaciones import render_operational_master_download
+    
+    opciones_descarga = [f"{v['Cliente']} | {v['Tour']} (#{v['id_venta']})" for v in ventas]
+    mapa_descarga = {f"{v['Cliente']} | {v['Tour']} (#{v['id_venta']})": v for v in ventas}
+    
+    col_sel_desc, col_btns_desc = st.columns([1, 1])
+    
+    with col_sel_desc:
+        v_descarga_sel = st.selectbox(
+            "Seleccione el Pasajero/Venta para generar archivos:", 
+            ["--- Seleccione ---"] + opciones_descarga, 
+            key="ger_descarga_pax_sel"
+        )
+        
+    with col_btns_desc:
+        if v_descarga_sel != "--- Seleccione ---":
+            v_selected = mapa_descarga[v_descarga_sel]
+            id_venta_sel = v_selected['id_venta']
+            render_operational_master_download(op_ctrl, id_venta_sel, label="📊 Generar Informe Maestro", key=f"ger_mast_{id_venta_sel}")
+        else:
+            st.info("💡 Selecciona un pasajero de la lista de la izquierda para habilitar las descargas.")
+
     # Resumen rápido
     total = len(ventas)
     aprobados = sum(1 for v in ventas if v.get('aprobado_gerencia'))
