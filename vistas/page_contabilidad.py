@@ -160,7 +160,7 @@ def dashboard_pagos_operativos(supabase_client):
             
             # Intentar buscar ventas/servicios pendientes para este proveedor para ayudar a la vinculación
             res_serv = supabase_client.table('venta_servicio_proveedor')\
-                .select('id_venta, n_linea, tipo_servicio')\
+                .select('id_venta, n_linea, tipo_servicio, observacion, costo_unitario, cantidad_pax, moneda')\
                 .eq('id_proveedor', id_prov)\
                 .execute()
             
@@ -185,7 +185,9 @@ def dashboard_pagos_operativos(supabase_client):
                 
                 for s in res_serv.data:
                     v_info = mapa_nombres_ventas.get(s['id_venta'], {})
-                    lbl = f"Venta {s['id_venta']} | {v_info.get('nombre_cliente', 'ID '+str(s['id_venta']))} - {s['tipo_servicio']} ({v_info.get('tour_nombre', 'Tour')})"
+                    costo_total = float(s.get('costo_unitario') or 0) * int(s.get('cantidad_pax') or 1)
+                    desc_obs = f" - {s.get('observacion')}" if s.get('observacion') else ""
+                    lbl = f"Venta {s['id_venta']} | Línea {s['n_linea']} | {s['tipo_servicio']}{desc_obs} ({s.get('moneda', 'USD')} {costo_total:,.2f})"
                     opciones_serv.append(lbl)
                     mapa_serv[lbl] = (s['id_venta'], s['n_linea'])
             
