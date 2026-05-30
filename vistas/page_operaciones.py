@@ -10,6 +10,7 @@ import urllib.parse
 from controllers.operaciones_controller import OperacionesController
 from controllers.venta_controller import VentaController
 from controllers.excel_controller import ExcelController
+from services.exchange_service import ExchangeService
 import importlib
 
 # Asegurar que los controladores se recarguen si hay cambios (Entorno de desarrollo)
@@ -790,7 +791,8 @@ def registro_ventas_proveedores(supabase_client):
     moneda_sel = c_p0.selectbox("Moneda", monedas_list, index=idx_m, key="b2b_final_moneda")
     
     # TC: Tipo de Cambio "Foto"
-    tipo_cambio = c_p1.number_input("TC (Foto)", min_value=0.0, value=3.80, format="%.3f", key="b2b_tc")
+    default_tc = ExchangeService.get_current_tc()
+    tipo_cambio = c_p1.number_input("TC (Foto)", min_value=0.0, value=default_tc, format="%.3f", key="b2b_tc")
 
     # --- RECÁLCULO DINÁMICO B2B: Usar el TC del usuario para actualizar el total ---
     if id_itinerario_dig and tipo_cambio > 0:
