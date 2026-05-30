@@ -1607,6 +1607,14 @@ def dashboard_simulador_costos(controller):
             liq_data = controller.get_liquidaciones_venta(id_actual)
             
             if liq_data:
+                # Obtener lista de proveedores activos para el dropdown
+                res_prov_drop = controller.client.table('proveedor').select('id_proveedor, nombre_comercial').eq('activo', True).order('nombre_comercial').execute()
+                lista_proveedores = []
+                mapa_proveedores_id = {}
+                if res_prov_drop.data:
+                    lista_proveedores = [p['nombre_comercial'] for p in res_prov_drop.data]
+                    mapa_proveedores_id = {p['nombre_comercial']: p['id_proveedor'] for p in res_prov_drop.data}
+
                 # 1. Preparar datos para el editor
                 display_data = []
                 for l in liq_data:
@@ -1668,7 +1676,7 @@ def dashboard_simulador_costos(controller):
                         "Dia": st.column_config.NumberColumn("Día", format="%d", width="small"),
                         "Hora": st.column_config.TextColumn("Hora", width="small"),
                         "Tipo de Servicio": st.column_config.TextColumn("Tipo de Servicio", width="medium"),
-                        "Proveedor": st.column_config.TextColumn("Proveedor", width="medium"),
+                        "Proveedor": st.column_config.SelectboxColumn("Proveedor", options=lista_proveedores, width="medium"),
                         "Guía": st.column_config.TextColumn("Guía", width="medium"),
                         "TC": st.column_config.NumberColumn("TC", format="%.3f", width="small"),
                         "F. Confirmación": st.column_config.DateColumn("Confirmación", width="small"),
@@ -1770,12 +1778,15 @@ def dashboard_simulador_costos(controller):
                                 # Lógica especial para Proveedor (Búsqueda por nombre)
                                 if "Proveedor" in changes:
                                     nom_prov = changes["Proveedor"]
-                                    # Buscar ID del proveedor por nombre comercial
-                                    res_p = controller.client.table('proveedor').select('id_proveedor').ilike('nombre_comercial', f"%{nom_prov}%").limit(1).execute()
-                                    if res_p.data:
-                                        db_changes['id_proveedor'] = res_p.data[0]['id_proveedor']
+                                    if nom_prov in mapa_proveedores_id:
+                                        db_changes['id_proveedor'] = mapa_proveedores_id[nom_prov]
                                     else:
-                                        errores.append(f"⚠️ No se encontró el proveedor '{nom_prov}'. Se guardarán los demás cambios.")
+                                        # Buscar ID del proveedor por nombre comercial
+                                        res_p = controller.client.table('proveedor').select('id_proveedor').ilike('nombre_comercial', f"%{nom_prov}%").limit(1).execute()
+                                        if res_p.data:
+                                            db_changes['id_proveedor'] = res_p.data[0]['id_proveedor']
+                                        else:
+                                            errores.append(f"⚠️ No se encontró el proveedor '{nom_prov}'. Se guardarán los demás cambios.")
                                 
                                 # La lógica de vinculación anterior ya cubre los casos de automatización
                                 
@@ -1804,11 +1815,14 @@ def dashboard_simulador_costos(controller):
                                 # Proveedor
                                 if "Proveedor" in new_row and new_row["Proveedor"]:
                                     nom_prov = new_row["Proveedor"]
-                                    res_p = controller.client.table('proveedor').select('id_proveedor').ilike('nombre_comercial', f"%{nom_prov}%").limit(1).execute()
-                                    if res_p.data:
-                                        db_insert['id_proveedor'] = res_p.data[0]['id_proveedor']
+                                    if nom_prov in mapa_proveedores_id:
+                                        db_insert['id_proveedor'] = mapa_proveedores_id[nom_prov]
                                     else:
-                                        errores.append(f"⚠️ Proveedor '{nom_prov}' no encontrado para nueva fila. Se creará sin proveedor asignado.")
+                                        res_p = controller.client.table('proveedor').select('id_proveedor').ilike('nombre_comercial', f"%{nom_prov}%").limit(1).execute()
+                                        if res_p.data:
+                                            db_insert['id_proveedor'] = res_p.data[0]['id_proveedor']
+                                        else:
+                                            errores.append(f"⚠️ Proveedor '{nom_prov}' no encontrado para nueva fila. Se creará sin proveedor asignado.")
                                 
                                 # Validaciones de BD
                                 if 'costo_unitario' not in db_insert or db_insert['costo_unitario'] is None:

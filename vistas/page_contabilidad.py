@@ -493,6 +493,10 @@ def estructurador_liquidacion_pro(controller):
             liq_data = op_ctrl.get_liquidaciones_venta(v_act['id_venta'])
             
             if liq_data:
+                # Obtener lista de proveedores activos para el dropdown
+                res_prov_drop = supabase_client.table('proveedor').select('nombre_comercial').eq('activo', True).order('nombre_comercial').execute()
+                lista_proveedores = [p['nombre_comercial'] for p in res_prov_drop.data] if res_prov_drop.data else []
+
                 display_data = []
                 for l in liq_data:
                     n_lin = l.get('n_linea')
@@ -551,7 +555,7 @@ def estructurador_liquidacion_pro(controller):
                         "Dia": st.column_config.NumberColumn("Día", format="%d", width="small"),
                         "Hora": st.column_config.TextColumn("Hora", width="small"),
                         "Tipo de Servicio": st.column_config.TextColumn("Tipo de Servicio", width="medium"),
-                        "Proveedor": st.column_config.TextColumn("Proveedor", width="medium"),
+                        "Proveedor": st.column_config.SelectboxColumn("Proveedor", options=lista_proveedores, width="medium"),
                         "Guía": st.column_config.TextColumn("Guía", width="medium"),
                         "TC": st.column_config.NumberColumn("TC", format="%.3f", width="small"),
                         "F. Confirmación": st.column_config.DateColumn("Confirmación", width="small"),
