@@ -1732,6 +1732,8 @@ def dashboard_simulador_costos(controller):
                                 "observaciones_pago": "observaciones_pago",
                                 "observaciones_contables": "observaciones_contables"
                             }
+                            # Para nuevas filas solo se insertan columnas válidas en venta_servicio_proveedor.
+                            insert_mapping = {k: v for k, v in mapping.items() if k not in ("metodo_pago", "observaciones_pago", "observaciones_contables")}
                             for row_idx, changes in cambios_pendientes.items():
                                 reg_id = df_edit.iloc[row_idx]['id']
                                 # Renombrar campos internos a nombres de DB y convertir fechas a string
@@ -1794,7 +1796,7 @@ def dashboard_simulador_costos(controller):
                                             errores.append(f"⚠️ No se encontró el proveedor '{nom_prov}'. Se guardarán los demás cambios.")
                                 
                                 # La lógica de vinculación anterior ya cubre los casos de automatización
-                                
+                                 
                                 if db_changes:
                                     exito, msg = controller.actualizar_campos_liquidacion(reg_id, db_changes)
                                     if exito: exitos += 1
@@ -1803,6 +1805,7 @@ def dashboard_simulador_costos(controller):
                             exitos_nuevos = 0
                             for new_row in agregados_pendientes:
                                 db_insert = {"id_venta": id_actual}
+                                pago_fields = {}
                                 
                                 # Calcular N_linea (Día)
                                 n_lin = new_row.get("Dia")
@@ -1810,12 +1813,18 @@ def dashboard_simulador_costos(controller):
                                     n_lin = df_edit['Dia'].max() + 1 if not df_edit.empty else 1
                                 db_insert["n_linea"] = int(n_lin)
                                 
-                                # Aplicar mapeo
+                                # Aplicar mapeo solo a las columnas que pertenecen a venta_servicio_proveedor
                                 for k, v in new_row.items():
-                                    if k in mapping:
+                                    if k in insert_mapping:
                                         val = v
                                         if hasattr(v, 'isoformat'): val = v.isoformat()
-                                        db_insert[mapping[k]] = val
+                                        db_insert[insert_mapping[k]] = val
+                                    elif k == "metodo_pago" and v:
+                                        pago_fields["metodo_pago"] = v
+                                    elif k == "observaciones_pago":
+                                        pago_fields["observaciones"] = v or ""
+                                    elif k == "observaciones_contables":
+                                        pago_fields["observaciones_contables"] = v or ""
                                         
                                 # Proveedor
                                 if "Proveedor" in new_row and new_row["Proveedor"]:
@@ -1849,10 +1858,24 @@ def dashboard_simulador_costos(controller):
                                         pass
                                         
                                     controller.client.table('venta_servicio_proveedor').insert(db_insert).execute()
+                                    if pago_fields:
+                                        monto_total = float(db_insert.get('costo_unitario', 0) or 0) * float(db_insert.get('cantidad_pax', 1) or 1)
+                                        pago_insert = {
+                                            "id_venta": id_actual,
+                                            "n_linea": db_insert["n_linea"],
+                                            "id_proveedor": db_insert.get('id_proveedor'),
+                                            "monto_pagado": monto_total if monto_total > 0 else 0.0,
+                                            "moneda": db_insert.get('moneda', 'USD') or 'USD',
+                                            "monto_en_moneda_costo": monto_total if monto_total > 0 else 0.0,
+                                            "fecha_pago": date.today().isoformat(),
+                                            "metodo_pago": pago_fields.get('metodo_pago', 'TRANSFERENCIA'),
+                                            "observaciones": pago_fields.get('observaciones', ''),
+                                            "observaciones_contables": pago_fields.get('observaciones_contables', '')
+                                        }
+                                        controller.client.table('pago_operativo').insert(pago_insert).execute()
                                     exitos_nuevos += 1
                                 except Exception as e:
                                     errores.append(f"Error al añadir fila (Día {n_lin}): {str(e)}")
-                            
                             # --- PROCESAR FILAS ELIMINADAS ---
                             exitos_borrados = 0
                             for row_idx in borrados_pendientes:
@@ -1869,9 +1892,6 @@ def dashboard_simulador_costos(controller):
                                 st.rerun()
                             if errores:
                                 for e in errores: st.error(e)
-                
-                with st.expander("🚨 Zona de Peligro: Limpieza de Endoses"):
-                    st.warning("Se borrarán todos los costos y proveedores asignados.")
                     confirm_reset = st.checkbox("Confirmar borrado de todos los costos (Liquidación)", key="reset_end_confirm")
                     if st.button("🗑️ Resetear Liquidación", type="primary", disabled=not confirm_reset, use_container_width=True):
                         exito_r, msg_r = controller.borrar_endoses_venta(id_actual)

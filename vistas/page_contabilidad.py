@@ -298,32 +298,37 @@ def dashboard_pagos_operativos(supabase_client):
             voucher = st.text_input("🔗 Link al Voucher (Opcional):", placeholder="https://supabase-storage...")
 
             if st.button("🧧 Confirmar y Registrar Desembolso", type="primary", use_container_width=True):
-                id_v, nl = (None, None)
-                if serv_sel != opciones_serv[0]:
-                    id_v, nl = mapa_serv[serv_sel]
-                
-                exito = po_ctrl.registrar_pago_operativo(
-                    id_proveedor=id_prov,
-                    id_venta=id_v,
-                    n_linea=nl,
-                    monto=monto_pago,
-                    moneda=moneda_pago,
-                    tasa_cambio=tasa_cambio,
-                    monto_equivalente=monto_amortizado,
-                    fecha=fecha.isoformat(),
-                    metodo=metodo,
-                    voucher_url=voucher,
-                    notas=notas,
-                    id_usuario=None,
-                    observaciones_contables=obs_cont
-                )
+                try:
+                    id_v, nl = (None, None)
+                    if serv_sel != opciones_serv[0]:
+                        id_v, nl = mapa_serv[serv_sel]
+                    
+                    exito = po_ctrl.registrar_pago_operativo(
+                        id_proveedor=id_prov,
+                        id_venta=id_v,
+                        n_linea=nl,
+                        monto=monto_pago,
+                        moneda=moneda_pago,
+                        tasa_cambio=tasa_cambio,
+                        monto_equivalente=monto_amortizado,
+                        fecha=fecha.isoformat(),
+                        metodo=metodo,
+                        voucher_url=voucher,
+                        notas=notas,
+                        id_usuario=None,
+                        observaciones_contables=obs_cont
+                    )
 
-                if exito:
-                    st.success(f"✅ Pago de {moneda_pago} {monto_pago:,.2f} registrado con éxito.")
-                    st.balloons()
-                    st.rerun()
-                else:
-                    st.error("No se pudo registrar el pago. Verifique los campos.")
+                    if exito:
+                        st.success(f"✅ Pago de {moneda_pago} {monto_pago:,.2f} registrado con éxito.")
+                        st.balloons()
+                        st.session_state['pago_registrado_exitoso'] = True
+                        st.rerun()
+                    else:
+                        st.error("❌ No se pudo registrar el pago. Por favor verifique los campos e intente de nuevo.")
+                except Exception as e:
+                    st.error(f"❌ Error al registrar el pago: {str(e)}")
+                    st.warning("Si el problema persiste, contacte a soporte.")
 
     # 3. Historial de Pagos (Recientes con Edición)
     with st.expander("🔎 Historial de Pagos Recientes (Editar/Borrar)"):
@@ -354,33 +359,37 @@ def dashboard_pagos_operativos(supabase_client):
                 )
 
                 if st.button("💾 Aplicar Cambios en Historial de Proveedor", key=f"btn_save_hist_{id_prov}", use_container_width=True):
-                    # 1. Procesar Borrados
-                    borrados = edited_hist[edited_hist['Borrar'] == True]
-                    for _, row in borrados.iterrows():
-                        po_ctrl.eliminar_pago_operativo(row['id_pago_op'])
-                    
-                    # 2. Procesar Ediciones
-                    state = st.session_state.get(f"editor_hist_prov_{id_prov}", {})
-                    edits = state.get("edited_rows", {})
-                    for idx, changes in edits.items():
-                        if edited_hist.iloc[idx]['Borrar']: continue
-                        reg_id = edited_hist.iloc[idx]['id_pago_op']
-                        mapping = {
-                            "Fecha": "fecha_pago",
-                            "Monto": "monto_pagado",
-                            "Moneda": "moneda",
-                            "Metodo": "metodo_pago",
-                            "TC": "tasa_cambio",
-                            "Notas": "observaciones",
-                            "Obs. Contables": "observaciones_contables",
-                            "Voucher": "comprobante_url"
-                        }
-                        db_changes = {mapping[k]: (v.isoformat() if hasattr(v, 'isoformat') else v) for k, v in changes.items() if k in mapping}
-                        if db_changes:
-                            po_ctrl.actualizar_pago_operativo(reg_id, db_changes)
-                    
-                    st.success("✅ Cambios aplicados.")
-                    st.rerun()
+                    try:
+                        # 1. Procesar Borrados
+                        borrados = edited_hist[edited_hist['Borrar'] == True]
+                        for _, row in borrados.iterrows():
+                            po_ctrl.eliminar_pago_operativo(row['id_pago_op'])
+                        
+                        # 2. Procesar Ediciones
+                        state = st.session_state.get(f"editor_hist_prov_{id_prov}", {})
+                        edits = state.get("edited_rows", {})
+                        for idx, changes in edits.items():
+                            if edited_hist.iloc[idx]['Borrar']: continue
+                            reg_id = edited_hist.iloc[idx]['id_pago_op']
+                            mapping = {
+                                "Fecha": "fecha_pago",
+                                "Monto": "monto_pagado",
+                                "Moneda": "moneda",
+                                "Metodo": "metodo_pago",
+                                "TC": "tasa_cambio",
+                                "Notas": "observaciones",
+                                "Obs. Contables": "observaciones_contables",
+                                "Voucher": "comprobante_url"
+                            }
+                            db_changes = {mapping[k]: (v.isoformat() if hasattr(v, 'isoformat') else v) for k, v in changes.items() if k in mapping}
+                            if db_changes:
+                                po_ctrl.actualizar_pago_operativo(reg_id, db_changes)
+                        
+                        st.success("✅ Cambios aplicados correctamente.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Error al aplicar cambios: {str(e)}")
+                        st.warning("Si el problema persiste, contacte a soporte.")
             else:
                 st.caption("No se encontraron pagos anteriores para este proveedor.")
         else:
@@ -583,48 +592,58 @@ def estructurador_liquidacion_pro(controller):
                     if cambios:
                         st.warning(f"⚠️ {len(cambios)} cambios financieros pendientes de guardar.")
                         if st.button("💾 Guardar Cambios en Liquidación", type="primary", use_container_width=True):
-                            exitos = 0
-                            for row_idx, changes in cambios.items():
-                                reg_id = df_edit.iloc[row_idx]['id']
-                                mapping = {
-                                    "moneda": "moneda", 
-                                    "costo_unitario": "costo_unitario", 
-                                    "PAX": "cantidad_pax", 
-                                    "TC": "tipo_cambio",
-                                    "F. Contratación": "fecha_contratacion",
-                                    "contratado": "contratado",
-                                    "metodo_pago": "metodo_pago",
-                                    "observaciones_pago": "observaciones_pago",
-                                    "observaciones_contables": "observaciones_contables"
-                                }
-                                db_changes = {}
-                                for k, v in changes.items():
-                                    if k in mapping:
-                                        val = v
-                                        if hasattr(v, 'isoformat'):
-                                            val = v.isoformat()
-                                        db_changes[mapping[k]] = val
-                                
-                                # Lógica para fecha_contratacion automática
-                                if 'contratado' in changes:
-                                    if changes['contratado'] is True:
-                                        if not (changes.get('F. Contratación') or df_edit.iloc[row_idx].get('F. Contratación')):
-                                            db_changes['fecha_contratacion'] = date.today().isoformat()
-                                    else:
-                                        db_changes['fecha_contratacion'] = None
-                                
-                                if 'F. Contratación' in changes:
-                                    if changes['F. Contratación']:
-                                        db_changes['contratado'] = True
-                                    else:
-                                        db_changes['contratado'] = False
+                            try:
+                                exitos = 0
+                                for row_idx, changes in cambios.items():
+                                    reg_id = df_edit.iloc[row_idx]['id']
+                                    mapping = {
+                                        "moneda": "moneda", 
+                                        "costo_unitario": "costo_unitario", 
+                                        "PAX": "cantidad_pax", 
+                                        "TC": "tipo_cambio",
+                                        "F. Contratación": "fecha_contratacion",
+                                        "contratado": "contratado",
+                                        "metodo_pago": "metodo_pago",
+                                        "observaciones_pago": "observaciones_pago",
+                                        "observaciones_contables": "observaciones_contables"
+                                    }
+                                    db_changes = {}
+                                    for k, v in changes.items():
+                                        if k in mapping:
+                                            val = v
+                                            if hasattr(v, 'isoformat'):
+                                                val = v.isoformat()
+                                            db_changes[mapping[k]] = val
+                                    
+                                    # Lógica para fecha_contratacion automática
+                                    if 'contratado' in changes:
+                                        if changes['contratado'] is True:
+                                            if not (changes.get('F. Contratación') or df_edit.iloc[row_idx].get('F. Contratación')):
+                                                db_changes['fecha_contratacion'] = date.today().isoformat()
+                                        else:
+                                            db_changes['fecha_contratacion'] = None
+                                    
+                                    if 'F. Contratación' in changes:
+                                        if changes['F. Contratación']:
+                                            db_changes['contratado'] = True
+                                        else:
+                                            db_changes['contratado'] = False
 
-                                if db_changes:
-                                    res_up, _ = op_ctrl.actualizar_campos_liquidacion(reg_id, db_changes)
-                                    if res_up: exitos += 1
-                            if exitos > 0:
-                                st.success(f"✅ Se actualizaron {exitos} registros de costos.")
-                                st.rerun()
+                                    if db_changes:
+                                        res_up, msg_up = op_ctrl.actualizar_campos_liquidacion(reg_id, db_changes)
+                                        if res_up: 
+                                            exitos += 1
+                                        else:
+                                            st.warning(f"⚠️ Problema en fila {row_idx}: {msg_up}")
+                                
+                                if exitos > 0:
+                                    st.success(f"✅ Se actualizaron {exitos} registros de costos.")
+                                    st.rerun()
+                                else:
+                                    st.warning("⚠️ No se realizaron cambios.")
+                            except Exception as e:
+                                st.error(f"❌ Error al guardar cambios: {str(e)}")
+                                st.warning("Si el problema persiste, contacte a soporte.")
 
                 t_costos = df_edit['TOTAL (PEN)'].sum() if not df_edit.empty else 0.0
                 st.divider()
@@ -652,13 +671,20 @@ def herramienta_carga_masiva_pagos(supabase_client, key_suffix=""):
             df_upload = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
             st.dataframe(df_upload, use_container_width=True, hide_index=True)
             if st.button("🧧 Procesar y Registrar Todo", type="primary", use_container_width=True, key=f"btn_proc_{key_suffix}"):
-                vc = VentaController(supabase_client)
-                resultado = vc.vincular_pagos_masivos(df_upload)
-                if resultado["exitos"] > 0: st.success(f"✅ Se registraron {resultado['exitos']} pagos.")
-                if resultado["errores"]:
-                    with st.expander("⚠️ Ver Errores"):
-                        for err in resultado["errores"]: st.error(err)
-                st.rerun()
+                try:
+                    vc = VentaController(supabase_client)
+                    resultado = vc.vincular_pagos_masivos(df_upload)
+                    if resultado["exitos"] > 0: 
+                        st.success(f"✅ Se registraron {resultado['exitos']} pagos correctamente.")
+                    if resultado["errores"]:
+                        with st.expander("⚠️ Ver Errores"):
+                            for err in resultado["errores"]: 
+                                st.error(err)
+                    if resultado["exitos"] > 0:
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Error al procesar pagos masivos: {str(e)}")
+                    st.warning("Si el problema persiste, contacte a soporte.")
 
 def dashboard_cuentas_por_cobrar_unified(supabase_client):
     st.subheader("💰 Cuentas por Cobrar", divider='orange')
@@ -728,8 +754,12 @@ def dashboard_cuentas_por_cobrar_unified(supabase_client):
                     observaciones_contables=obs_cont,
                     comprobante_url=voucher_url
                 )
-                if exito: st.success(msg); st.rerun()
-                else: st.error(msg)
+                if exito: 
+                    st.success(msg)
+                    st.balloons()
+                    st.rerun()
+                else: 
+                    st.error(msg)
 
             # --- Historial Editable ---
             st.markdown("#### 🔎 Historial de Pagos de esta Venta")
@@ -741,13 +771,19 @@ def dashboard_cuentas_por_cobrar_unified(supabase_client):
                 edited_p = st.data_editor(df_p[['Borrar'] + cols_p], key=f"edit_p_{id_v}", hide_index=True, use_container_width=True)
                 
                 if st.button("💾 Guardar Cambios en Historial", key=f"btn_save_p_{id_v}"):
-                    for _, row in edited_p[edited_p['Borrar']].iterrows(): vc.eliminar_pago(row['id_pago'])
-                    state_p = st.session_state.get(f"edit_p_{id_v}", {}).get("edited_rows", {})
-                    for idx, ch in state_p.items():
-                        if not edited_p.iloc[idx]['Borrar']:
-                            db_ch = {k: (v.isoformat() if hasattr(v, 'isoformat') else v) for k, v in ch.items()}
-                            vc.actualizar_pago(edited_p.iloc[idx]['id_pago'], db_ch)
-                    st.success("Cambios guardados"); st.rerun()
+                    try:
+                        for _, row in edited_p[edited_p['Borrar']].iterrows(): 
+                            vc.eliminar_pago(row['id_pago'])
+                        state_p = st.session_state.get(f"edit_p_{id_v}", {}).get("edited_rows", {})
+                        for idx, ch in state_p.items():
+                            if not edited_p.iloc[idx]['Borrar']:
+                                db_ch = {k: (v.isoformat() if hasattr(v, 'isoformat') else v) for k, v in ch.items()}
+                                vc.actualizar_pago(edited_p.iloc[idx]['id_pago'], db_ch)
+                        st.success("✅ Cambios guardados correctamente")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Error al guardar cambios: {str(e)}")
+                        st.warning("Si el problema persiste, contacte a soporte.")
 def render_reporte_maestro_cobranzas(supabase_client):
     """
     Muestra el reporte maestro de cobranzas con pagos pivoteados (1°, 2°, 3° pago)
