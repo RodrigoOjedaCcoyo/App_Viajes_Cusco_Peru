@@ -298,32 +298,41 @@ def dashboard_pagos_operativos(supabase_client):
             voucher = st.text_input("🔗 Link al Voucher (Opcional):", placeholder="https://supabase-storage...")
 
             if st.button("🧧 Confirmar y Registrar Desembolso", type="primary", use_container_width=True):
-                id_v, nl = (None, None)
-                if serv_sel != opciones_serv[0]:
-                    id_v, nl = mapa_serv[serv_sel]
-                
-                exito = po_ctrl.registrar_pago_operativo(
-                    id_proveedor=id_prov,
-                    id_venta=id_v,
-                    n_linea=nl,
-                    monto=monto_pago,
-                    moneda=moneda_pago,
-                    tasa_cambio=tasa_cambio,
-                    monto_equivalente=monto_amortizado,
-                    fecha=fecha.isoformat(),
-                    metodo=metodo,
-                    voucher_url=voucher,
-                    notas=notas,
-                    id_usuario=None,
-                    observaciones_contables=obs_cont
-                )
-
-                if exito:
-                    st.success(f"✅ Pago de {moneda_pago} {monto_pago:,.2f} registrado con éxito.")
-                    st.balloons()
-                    st.rerun()
+                if monto_pago <= 0:
+                    st.error("El monto debe ser mayor a 0.")
+                elif monto_amortizado <= 0:
+                    st.error("El pago no tiene equivalencia positiva en la moneda de la deuda. Ajuste el monto o la tasa de cambio.")
                 else:
-                    st.error("No se pudo registrar el pago. Verifique los campos.")
+                    try:
+                        id_v, nl = (None, None)
+                        if serv_sel != opciones_serv[0]:
+                            id_v, nl = mapa_serv[serv_sel]
+
+                        exito = po_ctrl.registrar_pago_operativo(
+                            id_proveedor=id_prov,
+                            id_venta=id_v,
+                            n_linea=nl,
+                            monto=monto_pago,
+                            moneda=moneda_pago,
+                            tasa_cambio=tasa_cambio,
+                            monto_equivalente=monto_amortizado,
+                            fecha=fecha.isoformat(),
+                            metodo=metodo,
+                            voucher_url=voucher,
+                            notas=notas,
+                            id_usuario=None,
+                            observaciones_contables=obs_cont
+                        )
+
+                        if exito:
+                            st.success(f"✅ Pago de {moneda_pago} {monto_pago:,.2f} registrado con éxito.")
+                            st.balloons()
+                            st.rerun()
+                        else:
+                            st.error("No se pudo registrar el pago. Verifique los campos.")
+                    except Exception as e:
+                        st.error(f"❌ Error al registrar el pago: {e}")
+                        st.warning("Revise los datos de monto y tasa de cambio antes de intentar de nuevo.")
 
     # 3. Historial de Pagos (Recientes con Edición)
     with st.expander("🔎 Historial de Pagos Recientes (Editar/Borrar)"):
@@ -362,6 +371,7 @@ def dashboard_pagos_operativos(supabase_client):
                     # 2. Procesar Ediciones
                     state = st.session_state.get(f"editor_hist_prov_{id_prov}", {})
                     edits = state.get("edited_rows", {})
+                    problemas = []
                     for idx, changes in edits.items():
                         if edited_hist.iloc[idx]['Borrar']: continue
                         reg_id = edited_hist.iloc[idx]['id_pago_op']
@@ -377,10 +387,15 @@ def dashboard_pagos_operativos(supabase_client):
                         }
                         db_changes = {mapping[k]: (v.isoformat() if hasattr(v, 'isoformat') else v) for k, v in changes.items() if k in mapping}
                         if db_changes:
-                            po_ctrl.actualizar_pago_operativo(reg_id, db_changes)
-                    
-                    st.success("✅ Cambios aplicados.")
-                    st.rerun()
+                            ok, msg = po_ctrl.actualizar_pago_operativo(reg_id, db_changes)
+                            if not ok:
+                                problemas.append(f"Pago {reg_id}: {msg}")
+                    if problemas:
+                        for p in problemas:
+                            st.error(p)
+                    else:
+                        st.success("✅ Cambios aplicados.")
+                        st.rerun()
             else:
                 st.caption("No se encontraron pagos anteriores para este proveedor.")
         else:

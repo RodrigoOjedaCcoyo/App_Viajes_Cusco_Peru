@@ -41,6 +41,14 @@ class PagoOperativoController:
     def actualizar_pago_operativo(self, id_pago_op: int, campos: dict):
         """Actualiza un pago existente y retorna éxito/error."""
         try:
+            if 'monto_pagado' in campos:
+                monto = campos.get('monto_pagado')
+                if monto is None or float(monto) <= 0:
+                    return False, "El monto del pago operativo debe ser mayor a 0."
+            if 'monto_en_moneda_costo' in campos:
+                monto_eq = campos.get('monto_en_moneda_costo')
+                if monto_eq is None or float(monto_eq) <= 0:
+                    return False, "El monto equivalente debe ser mayor a 0."
             self.client.table('pago_operativo').update(campos).eq('id_pago_op', id_pago_op).execute()
             return True, "Pago actualizado correctamente."
         except Exception as e:
