@@ -1104,7 +1104,15 @@ class OperacionesController:
                             "observaciones": campos_pago.get('observaciones', ''),
                             "observaciones_contables": campos_pago.get('observaciones_contables', '')
                         }
-                        self.client.table('pago_operativo').insert(nuevo_pago).execute()
+                        try:
+                            self.client.table('pago_operativo').insert(nuevo_pago).execute()
+                        except Exception as db_err:
+                            err_str = str(db_err)
+                            if 'check constraint' in err_str.lower() or '23514' in err_str:
+                                # DB constraint: monto inválido (probablemente 0)
+                                return False, f"No se creó pago operativo: monto inválido (fila id_registro={id_registro})."
+                            # Fallback: devolver error genérico
+                            return False, f"Error al crear pago operativo: {err_str}"
                         
             return True, "Cambios guardados."
         except Exception as e:

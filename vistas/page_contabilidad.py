@@ -635,8 +635,43 @@ def estructurador_liquidacion_pro(controller):
                                         db_changes['contratado'] = False
 
                                 if db_changes:
-                                    res_up, _ = op_ctrl.actualizar_campos_liquidacion(reg_id, db_changes)
-                                    if res_up: exitos += 1
+                                    # Separar cambios que afectan pagos de los cambios de servicio
+                                    payment_keys = {"metodo_pago", "observaciones_pago", "observaciones_contables", "contratado", "F. Contratación"}
+                                    payment_changes = {k: v for k, v in db_changes.items() if k in payment_keys}
+                                    service_changes = {k: v for k, v in db_changes.items() if k not in payment_keys}
+
+                                    # Calcular monto total resultante para esta fila (usando cambios si están presentes)
+                                    try:
+                                        orig_costo = float(df_edit.iloc[row_idx].get('costo_unitario') or 0)
+                                    except Exception:
+                                        orig_costo = 0.0
+                                    try:
+                                        orig_pax = int(df_edit.iloc[row_idx].get('PAX') or 1)
+                                    except Exception:
+                                        orig_pax = 1
+
+                                    new_costo = float(service_changes.get('costo_unitario', orig_costo) or orig_costo)
+                                    new_pax = int(service_changes.get('PAX', orig_pax) or orig_pax)
+                                    monto_total = new_costo * new_pax
+
+                                    if monto_total <= 0 and payment_changes:
+                                        # No intentar crear/actualizar pagos si no hay monto válido
+                                        st.warning(f"Fila {row_idx+1}: Se omitieron cambios de pago porque el costo resulta en {monto_total:.2f}.")
+                                        # Aplicar sólo cambios de servicio si existen
+                                        if service_changes:
+                                            res_up, msg_up = op_ctrl.actualizar_campos_liquidacion(reg_id, service_changes)
+                                            if res_up:
+                                                exitos += 1
+                                            else:
+                                                st.warning(f"Problema en fila {row_idx+1}: {msg_up}")
+                                    else:
+                                        # Aplicar todos los cambios (servicio + pago)
+                                        combined = {**service_changes, **payment_changes}
+                                        res_up, msg_up = op_ctrl.actualizar_campos_liquidacion(reg_id, combined)
+                                        if res_up:
+                                            exitos += 1
+                                        else:
+                                            st.warning(f"Problema en fila {row_idx+1}: {msg_up}")
                             if exitos > 0:
                                 st.success(f"✅ Se actualizaron {exitos} registros de costos.")
                                 st.rerun()
