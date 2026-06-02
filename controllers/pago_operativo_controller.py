@@ -16,6 +16,11 @@ class PagoOperativoController:
                                 monto_equivalente: float, fecha: str, metodo: str, 
                                 voucher_url: str = None, notas: str = "", id_usuario: int = None, observaciones_contables: str = None):
         """Prepara y registra un pago a proveedor con inteligencia multimoneda."""
+        if monto is None or monto <= 0:
+            raise ValueError("El monto del pago operativo debe ser mayor a 0.")
+        if monto_equivalente is None or monto_equivalente <= 0:
+            raise ValueError("El monto equivalente debe ser mayor a 0.")
+
         data = {
             "id_proveedor": id_proveedor,
             "id_venta": id_venta,

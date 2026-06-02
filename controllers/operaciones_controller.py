@@ -1086,8 +1086,12 @@ class OperacionesController:
                         id_pago = res_p.data[0]['id_pago_op']
                         self.client.table('pago_operativo').update(campos_pago).eq('id_pago_op', id_pago).execute()
                     else:
-                        # Crear nuevo registro de pago (monto por defecto = costo total)
+                        # Crear nuevo registro de pago solo si el servicio tiene costo válido
                         monto_total = float(s['costo_unitario'] or 0) * float(s['cantidad_pax'] or 1)
+                        if monto_total <= 0:
+                            # No crear pagos sin monto válido; los cambios en liquidación quedan guardados.
+                            return True, "Cambios guardados. No se creó pago operativo porque el servicio no tiene costo válido."
+
                         nuevo_pago = {
                             "id_venta": s['id_venta'],
                             "n_linea": s['n_linea'],
