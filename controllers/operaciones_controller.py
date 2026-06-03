@@ -1051,6 +1051,9 @@ class OperacionesController:
             if 'observaciones_contables' in campos: campos_pago['observaciones_contables'] = campos.pop('observaciones_contables')
             if 'observaciones_pago' in campos: campos_pago['observaciones'] = campos.pop('observaciones_pago')
 
+            if 'metodo_pago' in campos_pago and campos_pago['metodo_pago'] == '---':
+                del campos_pago['metodo_pago']
+
             # Obtener info actual del servicio
             res_serv = self.client.table('venta_servicio_proveedor').select('id_venta, n_linea, id_proveedor, costo_unitario, cantidad_pax, moneda').eq('id', id_registro).single().execute()
             s = res_serv.data if res_serv else None
@@ -1063,7 +1066,8 @@ class OperacionesController:
                 
                 res_p = self.client.table('pago_operativo').select('id_pago_op').eq('id_venta', s['id_venta']).eq('n_linea', s['n_linea']).eq('id_proveedor', s['id_proveedor']).order('created_at', desc=True).execute()
                 if not res_p.data and monto_total <= 0:
-                    return False, "Para asignar método de pago o enviar observaciones de pago, el costo debe ser mayor a 0."
+                    # Ignorar los campos de pago si no se puede registrar el pago por costo 0
+                    campos_pago = {}
 
             # 2. Actualizar venta_servicio_proveedor (Costo, Pax, Moneda, Terminados)
             if campos:

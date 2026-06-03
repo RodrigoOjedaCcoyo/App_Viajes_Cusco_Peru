@@ -1690,7 +1690,7 @@ def dashboard_simulador_costos(controller):
                             "TC": st.column_config.NumberColumn("TC", format="%.3f", width="small"),
                             "F. Confirmación": st.column_config.DateColumn("Confirmación", width="small"),
                             "Resp. Contrato": st.column_config.TextColumn("Resp. Contrato", width="medium"),
-                            "metodo_pago": st.column_config.SelectboxColumn("Método Pago", options=["YAPE", "PLIN", "TRANSFERENCIA", "EFECTIVO", "OTRO"], width="medium"),
+                            "metodo_pago": st.column_config.SelectboxColumn("Método Pago", options=["---", "YAPE", "PLIN", "TRANSFERENCIA", "EFECTIVO", "OTRO"], width="medium"),
                             "observaciones_pago": st.column_config.TextColumn("Observación Pago", width="medium"),
                             "observaciones_contables": st.column_config.TextColumn("Obs. Contables", width="medium"),
                             "Observacion": st.column_config.TextColumn("Observación", width="large"),
