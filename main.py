@@ -42,6 +42,7 @@ MODULOS_VISIBLES = {
     ],
     "GERENCIA": [
         ("Dashboard Ejecutivo", "page_dashboards"),
+        ("Gerencia de Marketing", "page_gerencia"),
         ("Auditoría de Gestión", "page_gerencia"),
         ("Control de Liquidaciones", "page_gerencia"),
         ("Revisión de Pasajeros", "page_gerencia")

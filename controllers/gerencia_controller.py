@@ -298,3 +298,66 @@ class GerenciaController:
         except Exception as e:
             print(f"Error Detalle Ventas Limpio: {e}")
             return pd.DataFrame()
+
+    def get_marketing_dashboard_data(self):
+        """Procesa itinerarios digitales vinculados a leads para obtener métricas de Marketing."""
+        import json
+        try:
+            # Traemos los itinerarios con información de su lead
+            res = self.client.table('itinerario_digital').select('id_lead, fecha_generacion, datos_render, lead(red_social)').execute()
+            data = res.data or []
+            
+            resultados = []
+            for d in data:
+                lead_info = d.get('lead') or {}
+                origen = lead_info.get('red_social') or 'DESCONOCIDO'
+                fecha_gen = d.get('fecha_generacion')
+                
+                raw_render = d.get('datos_render')
+                if isinstance(raw_render, str):
+                    try:
+                        render = json.loads(raw_render)
+                    except:
+                        render = {}
+                elif isinstance(raw_render, dict):
+                    render = raw_render
+                else:
+                    render = {}
+                    
+                # Extraer datos de interés (si no hay, defaults)
+                precio = float(render.get('precio_total') or render.get('total') or 0)
+                if not precio and render.get('totales_por_moneda'):
+                    # Intento alternativo de precio
+                    tot = render['totales_por_moneda']
+                    precio = float(tot.get('USD', 0) or tot.get('PEN', 0) / 3.8) # Aproximación USD
+                
+                # Pasajeros
+                num_pax = int(render.get('num_pasajeros') or render.get('pax') or render.get('adultos') or 1)
+                adultos = int(render.get('adultos') or num_pax)
+                ninos = int(render.get('ninos') or 0)
+                tipo_pax = "Familia" if ninos > 0 else ("Pareja" if num_pax == 2 else ("Solo" if num_pax == 1 else "Grupo"))
+                
+                # Fechas y Días
+                fecha_viaje = render.get('fecha_viaje') or render.get('fecha_inicio') or render.get('fecha') or 'SIN FECHA'
+                dias = int(render.get('duracion_dias') or render.get('duracion') or render.get('days') or len(render.get('itinerario_detalles') or render.get('itinerario') or []) or 1)
+                
+                # Tour / Categoría
+                tour = render.get('titulo') or render.get('paquete_nombre') or 'Personalizado'
+                
+                resultados.append({
+                    'Origen': origen,
+                    'Fecha_Cotizacion': fecha_gen,
+                    'Fecha_Viaje': fecha_viaje,
+                    'Precio_USD': precio,
+                    'Pax': num_pax,
+                    'Adultos': adultos,
+                    'Ninos': ninos,
+                    'Tipo_Pax': tipo_pax,
+                    'Dias': dias,
+                    'Tour': tour
+                })
+                
+            return pd.DataFrame(resultados)
+        except Exception as e:
+            print(f"Error Marketing Dashboard Data: {e}")
+            return pd.DataFrame()

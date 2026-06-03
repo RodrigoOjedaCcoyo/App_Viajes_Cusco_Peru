@@ -546,6 +546,74 @@ def panel_revision_gerencia(supabase_client):
     col3.metric("⏳ Pendientes de Revisión", total - aprobados)
 
 
+def panel_marketing(supabase_client):
+    """Panel específico para Gerencia de Marketing."""
+    st.subheader("🎯 Panel de Gerencia de Marketing", divider='orange')
+    st.caption("Análisis de intención de compra basado en cotizaciones de Leads.")
+    
+    from controllers.gerencia_controller import GerenciaController
+    controller = GerenciaController(supabase_client)
+    
+    with st.spinner("Analizando datos de itinerarios de leads..."):
+        df_mkt = controller.get_marketing_dashboard_data()
+        
+    if df_mkt.empty:
+        st.info("No hay suficientes datos de itinerarios enviados a leads para generar el análisis.")
+        return
+        
+    # --- KPIs RÁPIDOS ---
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Total Cotizaciones", len(df_mkt), help="Número de itinerarios creados")
+    m2.metric("Intención de Venta (USD)", f"${df_mkt['Precio_USD'].sum():,.0f}", help="Suma del precio de todas las cotizaciones")
+    m3.metric("Ticket Promedio (USD)", f"${df_mkt['Precio_USD'].mean():,.0f}", help="Precio promedio por cotización")
+    m4.metric("Promedio Pax / Cot", f"{df_mkt['Pax'].mean():.1f}")
+    
+    st.markdown("---")
+    
+    # --- GRÁFICOS ---
+    g1, g2 = st.columns(2)
+    
+    with g1:
+        st.markdown("##### Origen de Cotizaciones (Leads)")
+        df_origen = df_mkt.groupby('Origen').size().reset_index(name='Cantidad')
+        fig_origen = px.pie(df_origen, names='Origen', values='Cantidad', hole=0.4, color_discrete_sequence=px.colors.qualitative.Set2)
+        fig_origen.update_layout(height=350, margin=dict(l=0, r=0, t=30, b=0))
+        st.plotly_chart(fig_origen, use_container_width=True)
+        
+    with g2:
+        st.markdown("##### Tipología de Viajero")
+        df_tipo = df_mkt.groupby('Tipo_Pax').size().reset_index(name='Cantidad')
+        fig_tipo = px.bar(df_tipo, x='Tipo_Pax', y='Cantidad', color='Tipo_Pax', color_discrete_sequence=px.colors.qualitative.Pastel)
+        fig_tipo.update_layout(height=350, margin=dict(l=0, r=0, t=30, b=0), showlegend=False)
+        st.plotly_chart(fig_tipo, use_container_width=True)
+        
+    g3, g4 = st.columns(2)
+    
+    with g3:
+        st.markdown("##### Demanda de Días de Viaje")
+        df_dias = df_mkt.groupby('Dias').size().reset_index(name='Cantidad')
+        # Limpiar datos atípicos para la gráfica de días (ej: 0 días o > 30 días)
+        df_dias = df_dias[(df_dias['Dias'] > 0) & (df_dias['Dias'] <= 30)]
+        fig_dias = px.bar(df_dias, x='Dias', y='Cantidad', text_auto=True)
+        fig_dias.update_xaxes(type='category', title='Cantidad de Días')
+        fig_dias.update_layout(height=350, margin=dict(l=0, r=0, t=30, b=0))
+        st.plotly_chart(fig_dias, use_container_width=True)
+        
+    with g4:
+        st.markdown("##### Top 10 Tours Cotizados")
+        # Filtrar tours nulos o vacíos
+        df_tours = df_mkt[df_mkt['Tour'].notna() & (df_mkt['Tour'] != '')]
+        df_tours = df_tours.groupby('Tour').size().reset_index(name='Cantidad').sort_values('Cantidad', ascending=False).head(10)
+        fig_tours = px.bar(df_tours, y='Tour', x='Cantidad', orientation='h', color_discrete_sequence=['#FFCA28'])
+        fig_tours.update_yaxes(autorange="reversed", title='')
+        fig_tours.update_layout(height=350, margin=dict(l=0, r=0, t=30, b=0))
+        st.plotly_chart(fig_tours, use_container_width=True)
+        
+    # --- TABLA DE DATOS ---
+    st.markdown("#### 📋 Base de Datos de Cotizaciones MKT")
+    st.dataframe(df_mkt, use_container_width=True, hide_index=True)
+
+
 def mostrar_pagina(funcionalidad_seleccionada, rol_actual, user_id, supabase_client):
     controller = GerenciaController(supabase_client)
     
@@ -559,10 +627,13 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual, user_id, supabase_cli
 
     # El selector lateral de Gerencia envía textos como:
     # - "Dashboard Ejecutivo"
+    # - "Gerencia de Marketing"
     # - "Auditoría de Gestión"
     # - "Control de Liquidaciones"
     if funcionalidad_seleccionada in ["Dashboard Ejecutivo"]:
         dashboard_ejecutivo(controller)
+    elif "Marketing" in funcionalidad_seleccionada:
+        panel_marketing(supabase_client)
     elif funcionalidad_seleccionada in ["Auditoría de Gestión", "Gestión de Registros", "Gestión Ejecutiva"]:
         auditoria_maestra(controller)
     elif funcionalidad_seleccionada in ["Control de Liquidaciones"]:
@@ -570,5 +641,5 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual, user_id, supabase_cli
     elif funcionalidad_seleccionada in ["Revisión de Pasajeros", "Panel de Revisión", "Revisión Operativa"]:
         panel_revision_gerencia(supabase_client)
     else:
-        st.info("Selecciona una opción del menú: `Dashboard Ejecutivo`, `Auditoría de Gestión`, `Control de Liquidaciones` o `Revisión de Pasajeros`.")
+        st.info("Selecciona una opción del menú: `Dashboard Ejecutivo`, `Gerencia de Marketing`, `Auditoría de Gestión`, `Control de Liquidaciones` o `Revisión de Pasajeros`.")
 
