@@ -1669,49 +1669,52 @@ def dashboard_simulador_costos(controller):
                     'Observacion', 'moneda', 'costo_unitario', 'PAX', 'TC', 'TOTAL (PEN)'
                 ]
                 
-                # 2. Renderizar Editor de Datos
-                edited_result = st.data_editor(
-                    df_edit[cols_visible],
-                    column_config={
-                        "Estado": st.column_config.TextColumn("Visual", width="small"),
-                        "terminado": st.column_config.CheckboxColumn("Check", help="Marcar como Confirmado"),
-                        "Estado Contrato": st.column_config.TextColumn("Visual Pago", width="small"),
-                        "contratado": st.column_config.CheckboxColumn("Check Pago", help="Marcar como Pagado"),
-                        "F. Contratación": st.column_config.DateColumn("F. Pago", width="small"),
-                        "Dia": st.column_config.NumberColumn("Día", format="%d", width="small"),
-                        "Hora": st.column_config.TextColumn("Hora", width="small"),
-                        "Tipo de Servicio": st.column_config.TextColumn("Tipo de Servicio", width="medium"),
-                        "Proveedor": st.column_config.SelectboxColumn("Proveedor", options=lista_proveedores, width="medium"),
-                        "Guía": st.column_config.TextColumn("Guía", width="medium"),
-                        "TC": st.column_config.NumberColumn("TC", format="%.3f", width="small"),
-                        "F. Confirmación": st.column_config.DateColumn("Confirmación", width="small"),
-                        "Resp. Contrato": st.column_config.TextColumn("Resp. Contrato", width="medium"),
-                        "metodo_pago": st.column_config.SelectboxColumn("Método Pago", options=["YAPE", "PLIN", "TRANSFERENCIA", "EFECTIVO", "OTRO"], width="medium"),
-                        "observaciones_pago": st.column_config.TextColumn("Observación Pago", width="medium"),
-                        "observaciones_contables": st.column_config.TextColumn("Obs. Contables", width="medium"),
-                        "Observacion": st.column_config.TextColumn("Observación", width="large"),
-                        "moneda": st.column_config.SelectboxColumn("Moneda", options=["USD", "PEN", "EUR"], width="small"),
-                        "costo_unitario": st.column_config.NumberColumn("Costo Unit.", format="%.2f"),
-                        "PAX": st.column_config.NumberColumn("Pax", width="small"),
-                        "TOTAL (PEN)": st.column_config.NumberColumn("Costo Total (S/.)", format="S/. %.2f")
-                    },
-                    disabled=['Estado', 'Estado Contrato', 'TOTAL (PEN)'],
-                    hide_index=True,
-                    use_container_width=True,
-                    num_rows="dynamic",
-                    key="editor_liq_master"
-                )
+                # 2. Renderizar Editor de Datos (En Formulario para evitar pérdida de foco)
+                form_key = f"form_liq_master_{id_actual}"
+                editor_key = f"editor_liq_master_{id_actual}"
+                
+                with st.form(key=form_key):
+                    edited_result = st.data_editor(
+                        df_edit[cols_visible],
+                        column_config={
+                            "Estado": st.column_config.TextColumn("Visual", width="small"),
+                            "terminado": st.column_config.CheckboxColumn("Check", help="Marcar como Confirmado"),
+                            "Estado Contrato": st.column_config.TextColumn("Visual Pago", width="small"),
+                            "contratado": st.column_config.CheckboxColumn("Check Pago", help="Marcar como Pagado"),
+                            "F. Contratación": st.column_config.DateColumn("F. Pago", width="small"),
+                            "Dia": st.column_config.NumberColumn("Día", format="%d", width="small"),
+                            "Hora": st.column_config.TextColumn("Hora", width="small"),
+                            "Tipo de Servicio": st.column_config.TextColumn("Tipo de Servicio", width="medium"),
+                            "Proveedor": st.column_config.SelectboxColumn("Proveedor", options=lista_proveedores, width="medium"),
+                            "Guía": st.column_config.TextColumn("Guía", width="medium"),
+                            "TC": st.column_config.NumberColumn("TC", format="%.3f", width="small"),
+                            "F. Confirmación": st.column_config.DateColumn("Confirmación", width="small"),
+                            "Resp. Contrato": st.column_config.TextColumn("Resp. Contrato", width="medium"),
+                            "metodo_pago": st.column_config.SelectboxColumn("Método Pago", options=["YAPE", "PLIN", "TRANSFERENCIA", "EFECTIVO", "OTRO"], width="medium"),
+                            "observaciones_pago": st.column_config.TextColumn("Observación Pago", width="medium"),
+                            "observaciones_contables": st.column_config.TextColumn("Obs. Contables", width="medium"),
+                            "Observacion": st.column_config.TextColumn("Observación", width="large"),
+                            "moneda": st.column_config.SelectboxColumn("Moneda", options=["USD", "PEN", "EUR"], width="small"),
+                            "costo_unitario": st.column_config.NumberColumn("Costo Unit.", format="%.2f"),
+                            "PAX": st.column_config.NumberColumn("Pax", width="small"),
+                            "TOTAL (PEN)": st.column_config.NumberColumn("Costo Total (S/.)", format="S/. %.2f")
+                        },
+                        disabled=['Estado', 'Estado Contrato', 'TOTAL (PEN)'],
+                        hide_index=True,
+                        use_container_width=True,
+                        num_rows="dynamic",
+                        key=editor_key
+                    )
+                    guardar_btn = st.form_submit_button("💾 Guardar Cambios en Operativa", type="primary", use_container_width=True)
 
                 # 3. Procesar cambios mediante botón de confirmación
-                if "editor_liq_master" in st.session_state:
-                    state = st.session_state.editor_liq_master
+                if guardar_btn and editor_key in st.session_state:
+                    state = st.session_state[editor_key]
                     cambios_pendientes = state.get("edited_rows", {})
                     agregados_pendientes = state.get("added_rows", [])
                     borrados_pendientes = state.get("deleted_rows", [])
                     
                     if cambios_pendientes or agregados_pendientes or borrados_pendientes:
-                        st.warning(f"⚠️ Tienes {len(cambios_pendientes)} cambios, {len(agregados_pendientes)} añadidos y {len(borrados_pendientes)} eliminaciones pendientes.")
-                        if st.button("💾 Guardar Cambios en Operativa", type="primary", use_container_width=True):
                             exitos = 0
                             errores = []
                             # Renombrar campos internos a nombres de DB
