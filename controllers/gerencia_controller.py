@@ -307,14 +307,25 @@ class GerenciaController:
             res_leads = self.client.table('lead').select('id_lead', count='exact').limit(1).execute()
             total_leads = res_leads.count if res_leads.count is not None else 0
             
-            # 2. Traemos los itinerarios con información de su lead
-            res = self.client.table('itinerario_digital').select('id_lead, fecha_generacion, datos_render, lead(red_social)').execute()
+            # 2. Traemos los itinerarios con información de su lead, ordenados por fecha desc
+            res = self.client.table('itinerario_digital').select('id_lead, fecha_generacion, datos_render, lead(red_social)').order('fecha_generacion', desc=True).execute()
             data = res.data or []
+            
+            # 3. Quedarnos solo con el ÚLTIMO itinerario por lead
+            leads_vistos = set()
+            data_unica = []
+            for d in data:
+                id_lead = d.get('id_lead')
+                if id_lead and id_lead not in leads_vistos:
+                    leads_vistos.add(id_lead)
+                    data_unica.append(d)
+                elif not id_lead:
+                    data_unica.append(d)  # Si no tiene lead, lo incluimos igual
             
             resultados_paquetes = []
             resultados_tours = []
             
-            for d in data:
+            for d in data_unica:
                 raw_render = d.get('datos_render')
                 if isinstance(raw_render, str):
                     try:
