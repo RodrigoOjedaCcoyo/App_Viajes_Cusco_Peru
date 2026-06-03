@@ -234,5 +234,117 @@ def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=Non
         increasing={"marker": {"color": "#66BB6A"}},
         totals={"marker": {"color": "#42A5F5"}}
     ))
-    fig_wf.update_layout(title="Cascada de Rentabilidad (USD)", showlegend=False, height=420)
+    fig_wf.update_layout(title="Cascada de Rentabilidad Global (USD)", showlegend=False, height=420)
     st.plotly_chart(fig_wf, use_container_width=True)
+    
+    st.divider()
+
+    # =========================================================
+    # INFORME FINANCIERO COMPARATIVO MENSUAL (SEÚN BOCETO)
+    # =========================================================
+    st.subheader("📅 Informe Financiero Mensual (Comparativo Anual)")
+    st.caption("Comparativa de Ingresos, Costos y Utilidad (Ganancia) mes a mes. Basado en fechas de ventas y pagos operativos.")
+    
+    # 1. Extraer y agrupar Ingresos por Mes
+    ingresos_list = []
+    if not df_ventas.empty:
+        for _, row in df_ventas.iterrows():
+            monto = float(row.get('precio_total_cierre') or row.get('monto_total') or 0)
+            moneda = str(row.get('moneda') or 'USD').strip().upper()
+            tc = float(row.get('tipo_cambio') or 3.80)
+            if tc <= 0: tc = 3.80
+            
+            monto_usd = monto / tc if moneda == 'PEN' else monto
+            
+            fecha_str = row.get('fecha_venta')
+            if pd.isna(fecha_str) or not fecha_str:
+                continue
+            
+            try:
+                # Extraemos 'YYYY-MM'
+                mes = pd.to_datetime(str(fecha_str).split('T')[0]).strftime('%Y-%m')
+                ingresos_list.append({'mes': mes, 'Ingresos': monto_usd})
+            except:
+                pass
+
+    # 2. Extraer y agrupar Gastos por Mes
+    gastos_list = []
+    if supabase_client is not None:
+        try:
+            res_op = supabase_client.table('pago_operativo').select('fecha_pago, monto_pagado, moneda, tasa_cambio').execute()
+            for p in (res_op.data or []):
+                monto = float(p.get('monto_pagado') or 0)
+                moneda = str(p.get('moneda') or 'USD').strip().upper()
+                tc = float(p.get('tasa_cambio') or 3.80)
+                if tc <= 0: tc = 3.80
+                
+                monto_usd = monto / tc if moneda == 'PEN' else monto
+                
+                fecha_str = p.get('fecha_pago')
+                if not fecha_str:
+                    continue
+                    
+                try:
+                    mes = pd.to_datetime(str(fecha_str).split('T')[0]).strftime('%Y-%m')
+                    gastos_list.append({'mes': mes, 'Costos': monto_usd})
+                except:
+                    pass
+        except Exception as e:
+            pass
+
+    df_ingresos = pd.DataFrame(ingresos_list)
+    df_gastos = pd.DataFrame(gastos_list)
+    
+    if not df_ingresos.empty:
+        df_ingresos = df_ingresos.groupby('mes')['Ingresos'].sum().reset_index()
+    else:
+        df_ingresos = pd.DataFrame(columns=['mes', 'Ingresos'])
+        
+    if not df_gastos.empty:
+        df_gastos = df_gastos.groupby('mes')['Costos'].sum().reset_index()
+    else:
+        df_gastos = pd.DataFrame(columns=['mes', 'Costos'])
+        
+    # Unir ambos DataFrames
+    df_mensual = pd.merge(df_ingresos, df_gastos, on='mes', how='outer').fillna(0).sort_values('mes')
+    
+    if not df_mensual.empty:
+        # Calcular Utilidad (Ingresos - Costos)
+        df_mensual['Utilidad'] = df_mensual['Ingresos'] - df_mensual['Costos']
+        
+        # Mapear nombres de meses legibles
+        meses_nombres = {
+            '01': 'Enero', '02': 'Febrero', '03': 'Marzo', '04': 'Abril',
+            '05': 'Mayo', '06': 'Junio', '07': 'Julio', '08': 'Agosto',
+            '09': 'Septiembre', '10': 'Octubre', '11': 'Noviembre', '12': 'Diciembre'
+        }
+        df_mensual['Mes_Nombre'] = df_mensual['mes'].apply(lambda x: f"{meses_nombres.get(x.split('-')[1], '')} {x.split('-')[0]}")
+        
+        # --- TABLA COMPARATIVA (TIPO BOCETO) ---
+        # Pivotar para que las columnas sean los meses y las filas los conceptos
+        df_pivot = df_mensual.set_index('Mes_Nombre')[['Ingresos', 'Costos', 'Utilidad']].T
+        
+        st.markdown("**1. Tabla Resumen por Mes (USD)**")
+        st.dataframe(df_pivot.style.format("${:,.2f}"), use_container_width=True)
+        
+        # --- GRÁFICA DE LÍNEAS TIPO CURVA ---
+        st.markdown("**2. Evolución y Tendencia de Utilidad**")
+        fig_line = px.line(df_mensual, x='Mes_Nombre', y=['Ingresos', 'Costos', 'Utilidad'], 
+                           markers=True,
+                           labels={'value': 'Monto (USD)', 'Mes_Nombre': 'Mes', 'variable': 'Categoría'},
+                           color_discrete_sequence=['#42A5F5', '#EF5350', '#66BB6A'])
+        fig_line.update_traces(line_shape='spline', line_width=3, marker=dict(size=8)) # Curvas suaves como en el boceto
+        fig_line.update_layout(legend_title_text='Flujo', hovermode="x unified")
+        st.plotly_chart(fig_line, use_container_width=True)
+        
+        # --- GRÁFICO COMPARATIVO DE BARRAS ---
+        st.markdown("**3. Comparativo Anual de Barras**")
+        fig_bar = px.bar(df_mensual, x='Mes_Nombre', y=['Ingresos', 'Costos', 'Utilidad'], 
+                         barmode='group',
+                         labels={'value': 'Monto (USD)', 'Mes_Nombre': 'Mes', 'variable': 'Categoría'},
+                         color_discrete_sequence=['#90CAF9', '#EF9A9A', '#A5D6A7'])
+        fig_bar.update_layout(legend_title_text='Flujo')
+        st.plotly_chart(fig_bar, use_container_width=True)
+        
+    else:
+        st.info("No hay suficientes datos de ingresos o costos para generar el reporte comparativo mensual.")
