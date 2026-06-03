@@ -592,7 +592,6 @@ def estructurador_liquidacion_pro(controller):
                 if guardar_btn:
                     editor_state = st.session_state.get(editor_key, {})
                     cambios = editor_state.get("edited_rows", {})
-                    st.info(f"🔍 DEBUG: editor_key=`{editor_key}` | en session_state={editor_key in st.session_state} | cambios detectados={cambios}")
                     if cambios:
                         try:
                             exitos = 0

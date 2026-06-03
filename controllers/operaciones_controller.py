@@ -1047,28 +1047,16 @@ class OperacionesController:
         try:
             # 1. Separar campos de pago vs campos de servicio
             campos_pago = {}
-            if 'metodo_pago' in campos: campos_pago['metodo_pago'] = campos.pop('metodo_pago')
+            if 'metodo_pago' in campos:
+                mp = campos.pop('metodo_pago')
+                if mp and mp != '---':
+                    campos_pago['metodo_pago'] = mp
             if 'observaciones_contables' in campos: campos_pago['observaciones_contables'] = campos.pop('observaciones_contables')
             if 'observaciones_pago' in campos: campos_pago['observaciones'] = campos.pop('observaciones_pago')
-
-            if 'metodo_pago' in campos_pago and campos_pago['metodo_pago'] == '---':
-                del campos_pago['metodo_pago']
 
             # Obtener info actual del servicio
             res_serv = self.client.table('venta_servicio_proveedor').select('id_venta, n_linea, id_proveedor, costo_unitario, cantidad_pax, moneda').eq('id', id_registro).single().execute()
             s = res_serv.data if res_serv else None
-
-            # Validar antes de hacer updates si se va a intentar crear un pago con monto 0
-            if campos_pago and s:
-                nuevo_cu = float(campos.get('costo_unitario', s.get('costo_unitario') or 0))
-                nuevo_pax = float(campos.get('cantidad_pax', s.get('cantidad_pax') or 1))
-                monto_total = nuevo_cu * nuevo_pax
-                
-                res_p = self.client.table('pago_operativo').select('id_pago_op').eq('id_venta', s['id_venta']).eq('n_linea', s['n_linea']).eq('id_proveedor', s['id_proveedor']).order('created_at', desc=True).execute()
-                if not res_p.data and monto_total <= 0:
-                    # Se ignora en silencio para no bloquear la experiencia del usuario. 
-                    # El sistema limpiará la celda visualmente al recargar.
-                    campos_pago = {}
 
             # 2. Actualizar venta_servicio_proveedor (Costo, Pax, Moneda, Terminados)
             if campos:
@@ -1083,33 +1071,49 @@ class OperacionesController:
                         self.client.table('venta_tour').update({"costo_unitario": c_u * p})\
                             .eq('id_venta', d['id_venta']).eq('n_linea', d['n_linea']).execute()
             
-            # 3. Actualizar o crear registro en pago_operativo si hay cambios en pago
-            if campos_pago and s:
-                res_p = self.client.table('pago_operativo').select('id_pago_op').eq('id_venta', s['id_venta']).eq('n_linea', s['n_linea']).eq('id_proveedor', s['id_proveedor']).order('created_at', desc=True).execute()
+            # 3. Actualizar o crear registro en pago_operativo si hay cambios de pago
+            if campos_pago and s and s.get('id_proveedor'):
+                id_venta_s = s['id_venta']
+                n_linea_s = s['n_linea']
+                id_prov_s = s['id_proveedor']
+                
+                # Buscar pago existente para este servicio
+                res_p = (
+                    self.client.table('pago_operativo')
+                    .select('id_pago_op')
+                    .eq('id_venta', id_venta_s)
+                    .eq('n_linea', n_linea_s)
+                    .eq('id_proveedor', id_prov_s)
+                    .order('created_at', desc=True)
+                    .execute()
+                )
                 
                 if res_p.data:
-                    # Actualizar el más reciente (solo el primero de la lista)
+                    # Ya existe → solo actualizar los campos de pago (no tocar el monto)
                     id_pago = res_p.data[0]['id_pago_op']
                     self.client.table('pago_operativo').update(campos_pago).eq('id_pago_op', id_pago).execute()
                 else:
-                    # Ya validamos arriba que el monto_total es > 0
+                    # No existe → solo crear si el monto es mayor a 0 (restricción de BD)
                     nuevo_cu = float(campos.get('costo_unitario', s.get('costo_unitario') or 0))
                     nuevo_pax = float(campos.get('cantidad_pax', s.get('cantidad_pax') or 1))
                     monto_total = nuevo_cu * nuevo_pax
                     
-                    nuevo_pago = {
-                        "id_venta": s['id_venta'],
-                        "n_linea": s['n_linea'],
-                        "id_proveedor": s['id_proveedor'],
-                        "monto_pagado": monto_total,
-                        "moneda": s['moneda'] or 'USD',
-                        "monto_en_moneda_costo": monto_total,
-                        "fecha_pago": date.today().isoformat(),
-                        "metodo_pago": campos_pago.get('metodo_pago', 'TRANSFERENCIA'),
-                        "observaciones": campos_pago.get('observaciones', ''),
-                        "observaciones_contables": campos_pago.get('observaciones_contables', '')
-                    }
-                    self.client.table('pago_operativo').insert(nuevo_pago).execute()
+                    if monto_total > 0:
+                        nuevo_pago = {
+                            "id_venta": id_venta_s,
+                            "n_linea": n_linea_s,
+                            "id_proveedor": id_prov_s,
+                            "monto_pagado": monto_total,
+                            "moneda": s['moneda'] or 'USD',
+                            "monto_en_moneda_costo": monto_total,
+                            "fecha_pago": date.today().isoformat(),
+                            "metodo_pago": campos_pago.get('metodo_pago', 'TRANSFERENCIA'),
+                            "observaciones": campos_pago.get('observaciones', ''),
+                            "observaciones_contables": campos_pago.get('observaciones_contables', '')
+                        }
+                        self.client.table('pago_operativo').insert(nuevo_pago).execute()
+                    # Si monto es 0 y no existe pago previo: el campo se ignora silenciosamente.
+                    # No se puede crear un pago de S/0. El usuario debe primero asignar un costo.
                         
             return True, "Cambios guardados."
         except Exception as e:
