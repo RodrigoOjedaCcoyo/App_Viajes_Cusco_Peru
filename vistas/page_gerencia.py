@@ -551,11 +551,20 @@ def panel_marketing(supabase_client):
     st.subheader("🎯 Panel de Gerencia de Marketing", divider='orange')
     st.caption("Análisis de intención de compra basado en cotizaciones de Leads.")
     
+    import importlib
+    import controllers.gerencia_controller as gc_mod
+    importlib.reload(gc_mod)
     from controllers.gerencia_controller import GerenciaController
     controller = GerenciaController(supabase_client)
     
     with st.spinner("Analizando datos de itinerarios de leads..."):
-        total_leads, df_paquetes, df_tours = controller.get_marketing_dashboard_data()
+        resultado = controller.get_marketing_dashboard_data()
+        if isinstance(resultado, tuple) and len(resultado) == 3:
+            total_leads, df_paquetes, df_tours = resultado
+        else:
+            # Compatibilidad con versión anterior (2 valores)
+            total_leads = 0
+            df_paquetes, df_tours = resultado
         
     if df_paquetes.empty:
         st.info("No hay suficientes datos de itinerarios enviados a leads para generar el análisis.")
