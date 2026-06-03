@@ -596,57 +596,57 @@ def estructurador_liquidacion_pro(controller):
                     cambios = state.get("edited_rows", {})
                     if cambios:
                         try:
-                                exitos = 0
-                                for row_idx, changes in cambios.items():
-                                    reg_id = df_edit.iloc[row_idx]['id']
-                                    mapping = {
-                                        "moneda": "moneda", 
-                                        "costo_unitario": "costo_unitario", 
-                                        "PAX": "cantidad_pax", 
-                                        "TC": "tipo_cambio",
-                                        "F. Contratación": "fecha_contratacion",
-                                        "contratado": "contratado",
-                                        "metodo_pago": "metodo_pago",
-                                        "observaciones_pago": "observaciones_pago",
-                                        "observaciones_contables": "observaciones_contables"
-                                    }
-                                    db_changes = {}
-                                    for k, v in changes.items():
-                                        if k in mapping:
-                                            val = v
-                                            if hasattr(v, 'isoformat'):
-                                                val = v.isoformat()
-                                            db_changes[mapping[k]] = val
-                                    
-                                    # Lógica para fecha_contratacion automática
-                                    if 'contratado' in changes:
-                                        if changes['contratado'] is True:
-                                            if not (changes.get('F. Contratación') or df_edit.iloc[row_idx].get('F. Contratación')):
-                                                db_changes['fecha_contratacion'] = date.today().isoformat()
-                                        else:
-                                            db_changes['fecha_contratacion'] = None
-                                    
-                                    if 'F. Contratación' in changes:
-                                        if changes['F. Contratación']:
-                                            db_changes['contratado'] = True
-                                        else:
-                                            db_changes['contratado'] = False
-
-                                    if db_changes:
-                                        res_up, msg_up = op_ctrl.actualizar_campos_liquidacion(reg_id, db_changes)
-                                        if res_up: 
-                                            exitos += 1
-                                        else:
-                                            st.warning(f"⚠️ Problema en fila {row_idx}: {msg_up}")
+                            exitos = 0
+                            for row_idx, changes in cambios.items():
+                                reg_id = df_edit.iloc[row_idx]['id']
+                                mapping = {
+                                    "moneda": "moneda", 
+                                    "costo_unitario": "costo_unitario", 
+                                    "PAX": "cantidad_pax", 
+                                    "TC": "tipo_cambio",
+                                    "F. Contratación": "fecha_contratacion",
+                                    "contratado": "contratado",
+                                    "metodo_pago": "metodo_pago",
+                                    "observaciones_pago": "observaciones_pago",
+                                    "observaciones_contables": "observaciones_contables"
+                                }
+                                db_changes = {}
+                                for k, v in changes.items():
+                                    if k in mapping:
+                                        val = v
+                                        if hasattr(v, 'isoformat'):
+                                            val = v.isoformat()
+                                        db_changes[mapping[k]] = val
                                 
-                                if exitos > 0:
-                                    st.success(f"✅ Se actualizaron {exitos} registros de costos.")
-                                    st.rerun()
-                                else:
-                                    st.warning("⚠️ No se realizaron cambios.")
-                            except Exception as e:
-                                st.error(f"❌ Error al guardar cambios: {str(e)}")
-                                st.warning("Si el problema persiste, contacte a soporte.")
+                                # Lógica para fecha_contratacion automática
+                                if 'contratado' in changes:
+                                    if changes['contratado'] is True:
+                                        if not (changes.get('F. Contratación') or df_edit.iloc[row_idx].get('F. Contratación')):
+                                            db_changes['fecha_contratacion'] = date.today().isoformat()
+                                    else:
+                                        db_changes['fecha_contratacion'] = None
+                                
+                                if 'F. Contratación' in changes:
+                                    if changes['F. Contratación']:
+                                        db_changes['contratado'] = True
+                                    else:
+                                        db_changes['contratado'] = False
+
+                                if db_changes:
+                                    res_up, msg_up = op_ctrl.actualizar_campos_liquidacion(reg_id, db_changes)
+                                    if res_up: 
+                                        exitos += 1
+                                    else:
+                                        st.warning(f"⚠️ Problema en fila {row_idx}: {msg_up}")
+                            
+                            if exitos > 0:
+                                st.success(f"✅ Se actualizaron {exitos} registros de costos.")
+                                st.rerun()
+                            else:
+                                st.warning("⚠️ No se realizaron cambios.")
+                        except Exception as e:
+                            st.error(f"❌ Error al guardar cambios: {str(e)}")
+                            st.warning("Si el problema persiste, contacte a soporte.")
 
                 t_costos = df_edit['TOTAL (PEN)'].sum() if not df_edit.empty else 0.0
                 st.divider()

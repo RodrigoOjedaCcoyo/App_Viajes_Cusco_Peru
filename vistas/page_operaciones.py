@@ -1715,186 +1715,186 @@ def dashboard_simulador_costos(controller):
                     borrados_pendientes = state.get("deleted_rows", [])
                     
                     if cambios_pendientes or agregados_pendientes or borrados_pendientes:
-                            exitos = 0
-                            errores = []
-                            # Renombrar campos internos a nombres de DB
-                            mapping = {
-                                "moneda": "moneda", 
-                                "costo_unitario": "costo_unitario", 
-                                "PAX": "cantidad_pax", 
-                                "TC": "tipo_cambio",
-                                "terminado": "terminado",
-                                "Hora": "hora_servicio",
-                                "Guía": "nombre_guia",
-                                "Observacion": "observacion",
-                                "F. Confirmación": "fecha_confirmacion",
-                                "F. Contratación": "fecha_contratacion",
-                                "contratado": "contratado",
-                                "Resp. Contrato": "responsable_contratacion",
-                                "metodo_pago": "metodo_pago",
-                                "observaciones_pago": "observaciones_pago",
-                                "observaciones_contables": "observaciones_contables"
-                            }
-                            # Para nuevas filas solo se insertan columnas válidas en venta_servicio_proveedor.
-                            insert_mapping = {k: v for k, v in mapping.items() if k not in ("metodo_pago", "observaciones_pago", "observaciones_contables")}
-                            for row_idx, changes in cambios_pendientes.items():
-                                reg_id = df_edit.iloc[row_idx]['id']
-                                # Renombrar campos internos a nombres de DB y convertir fechas a string
-                                db_changes = {}
-                                for k, v in changes.items():
-                                    if k in mapping:
-                                        val = v
-                                        if hasattr(v, 'isoformat'): # Para objetos date de Streamlit
-                                            val = v.isoformat()
-                                        db_changes[mapping[k]] = val
-                                
-                                # --- LÓGICA DE VÍNCULO (Linkage) ---
-                                # 1. Confirmación (terminado <-> fecha_confirmacion)
-                                if 'terminado' in changes:
-                                    if changes['terminado'] is True:
-                                        # Si se marca como OK y no hay fecha (ni en cambios ni en DF), poner hoy
-                                        if not (changes.get('F. Confirmación') or df_edit.iloc[row_idx].get('F. Confirmación')):
-                                            db_changes['fecha_confirmacion'] = date.today().isoformat()
-                                    else:
-                                        # Si se desmarca, limpiar fecha
-                                        db_changes['fecha_confirmacion'] = None
-                                
-                                if 'F. Confirmación' in changes:
-                                    if changes['F. Confirmación']:
-                                        # Si se pone una fecha, marcar como OK
-                                        db_changes['terminado'] = True
-                                    else:
-                                        # Si se limpia la fecha, desmarcar OK
-                                        db_changes['terminado'] = False
-
-                                # 2. Contratación (contratado <-> fecha_contratacion)
-                                if 'contratado' in changes:
-                                    if changes['contratado'] is True:
-                                        # Si se marca como contratado y no hay fecha, poner hoy
-                                        if not (changes.get('F. Contratación') or df_edit.iloc[row_idx].get('F. Contratación')):
-                                            db_changes['fecha_contratacion'] = date.today().isoformat()
-                                    else:
-                                        # Si se desmarca, limpiar fecha
-                                        db_changes['fecha_contratacion'] = None
-                                
-                                if 'F. Contratación' in changes:
-                                    if changes['F. Contratación']:
-                                        # Si se pone una fecha, marcar como contratado
-                                        db_changes['contratado'] = True
-                                    else:
-                                        # Si se limpia la fecha, desmarcar contratado
-                                        db_changes['contratado'] = False
-                                
-                                # Lógica especial para Proveedor (Búsqueda por nombre)
-                                if "Proveedor" in changes:
-                                    nom_prov = changes["Proveedor"]
-                                    if nom_prov in mapa_proveedores_id:
-                                        db_changes['id_proveedor'] = mapa_proveedores_id[nom_prov]
-                                    else:
-                                        # Buscar ID del proveedor por nombre comercial
-                                        res_p = controller.client.table('proveedor').select('id_proveedor').ilike('nombre_comercial', f"%{nom_prov}%").limit(1).execute()
-                                        if res_p.data:
-                                            db_changes['id_proveedor'] = res_p.data[0]['id_proveedor']
-                                        else:
-                                            errores.append(f"⚠️ No se encontró el proveedor '{nom_prov}'. Se guardarán los demás cambios.")
-                                
-                                # La lógica de vinculación anterior ya cubre los casos de automatización
-                                 
-                                if db_changes:
-                                    exito, msg = controller.actualizar_campos_liquidacion(reg_id, db_changes)
-                                    if exito: exitos += 1
-                                    else: errores.append(f"Error en fila {row_idx+1}: {msg}")
-                            # --- PROCESAR FILAS AÑADIDAS (NUEVOS SERVICIOS) ---
-                            exitos_nuevos = 0
-                            for new_row in agregados_pendientes:
-                                db_insert = {"id_venta": id_actual}
-                                pago_fields = {}
-                                
-                                # Calcular N_linea (Día)
-                                n_lin = new_row.get("Dia")
-                                if not n_lin:
-                                    n_lin = df_edit['Dia'].max() + 1 if not df_edit.empty else 1
-                                db_insert["n_linea"] = int(n_lin)
-                                
-                                # Aplicar mapeo solo a las columnas que pertenecen a venta_servicio_proveedor
-                                for k, v in new_row.items():
-                                    if k in insert_mapping:
-                                        val = v
-                                        if hasattr(v, 'isoformat'): val = v.isoformat()
-                                        db_insert[insert_mapping[k]] = val
-                                    elif k == "metodo_pago" and v:
-                                        pago_fields["metodo_pago"] = v
-                                    elif k == "observaciones_pago":
-                                        pago_fields["observaciones"] = v or ""
-                                    elif k == "observaciones_contables":
-                                        pago_fields["observaciones_contables"] = v or ""
-                                        
-                                # Proveedor
-                                if "Proveedor" in new_row and new_row["Proveedor"]:
-                                    nom_prov = new_row["Proveedor"]
-                                    if nom_prov in mapa_proveedores_id:
-                                        db_insert['id_proveedor'] = mapa_proveedores_id[nom_prov]
-                                    else:
-                                        res_p = controller.client.table('proveedor').select('id_proveedor').ilike('nombre_comercial', f"%{nom_prov}%").limit(1).execute()
-                                        if res_p.data:
-                                            db_insert['id_proveedor'] = res_p.data[0]['id_proveedor']
-                                        else:
-                                            errores.append(f"⚠️ Proveedor '{nom_prov}' no encontrado para nueva fila. Se creará sin proveedor asignado.")
-                                
-                                # Validaciones de BD
-                                if 'costo_unitario' not in db_insert or db_insert['costo_unitario'] is None:
-                                    db_insert['costo_unitario'] = 0.0
-                                
-                                try:
-                                    # Asegurar que el día (n_linea) existe en el itinerario (venta_tour) para la Foreign Key
-                                    try:
-                                        res_vt = controller.client.table('venta_tour').select('n_linea').eq('id_venta', id_actual).eq('n_linea', db_insert["n_linea"]).execute()
-                                        if not res_vt.data:
-                                            # Insertar fila de anclaje para este día
-                                            controller.client.table('venta_tour').insert({
-                                                'id_venta': id_actual,
-                                                'n_linea': db_insert["n_linea"],
-                                                'fecha_servicio': date.today().isoformat(),
-                                                'observacion': 'Fila autogenerada para vinculación de costos adicionales'
-                                            }).execute()
-                                    except Exception as e_vt:
-                                        pass
-                                        
-                                    controller.client.table('venta_servicio_proveedor').insert(db_insert).execute()
-                                    if pago_fields:
-                                        monto_total = float(db_insert.get('costo_unitario', 0) or 0) * float(db_insert.get('cantidad_pax', 1) or 1)
-                                        pago_insert = {
-                                            "id_venta": id_actual,
-                                            "n_linea": db_insert["n_linea"],
-                                            "id_proveedor": db_insert.get('id_proveedor'),
-                                            "monto_pagado": monto_total if monto_total > 0 else 0.0,
-                                            "moneda": db_insert.get('moneda', 'USD') or 'USD',
-                                            "monto_en_moneda_costo": monto_total if monto_total > 0 else 0.0,
-                                            "fecha_pago": date.today().isoformat(),
-                                            "metodo_pago": pago_fields.get('metodo_pago', 'TRANSFERENCIA'),
-                                            "observaciones": pago_fields.get('observaciones', ''),
-                                            "observaciones_contables": pago_fields.get('observaciones_contables', '')
-                                        }
-                                        controller.client.table('pago_operativo').insert(pago_insert).execute()
-                                    exitos_nuevos += 1
-                                except Exception as e:
-                                    errores.append(f"Error al añadir fila (Día {n_lin}): {str(e)}")
-                            # --- PROCESAR FILAS ELIMINADAS ---
-                            exitos_borrados = 0
-                            for row_idx in borrados_pendientes:
-                                reg_id = df_edit.iloc[row_idx]['id']
-                                try:
-                                    controller.client.table('venta_servicio_proveedor').delete().eq('id', reg_id).execute()
-                                    exitos_borrados += 1
-                                except Exception as e:
-                                    errores.append(f"Error al eliminar fila {row_idx+1}: {str(e)}")
+                        exitos = 0
+                        errores = []
+                        # Renombrar campos internos a nombres de DB
+                        mapping = {
+                            "moneda": "moneda", 
+                            "costo_unitario": "costo_unitario", 
+                            "PAX": "cantidad_pax", 
+                            "TC": "tipo_cambio",
+                            "terminado": "terminado",
+                            "Hora": "hora_servicio",
+                            "Guía": "nombre_guia",
+                            "Observacion": "observacion",
+                            "F. Confirmación": "fecha_confirmacion",
+                            "F. Contratación": "fecha_contratacion",
+                            "contratado": "contratado",
+                            "Resp. Contrato": "responsable_contratacion",
+                            "metodo_pago": "metodo_pago",
+                            "observaciones_pago": "observaciones_pago",
+                            "observaciones_contables": "observaciones_contables"
+                        }
+                        # Para nuevas filas solo se insertan columnas válidas en venta_servicio_proveedor.
+                        insert_mapping = {k: v for k, v in mapping.items() if k not in ("metodo_pago", "observaciones_pago", "observaciones_contables")}
+                        for row_idx, changes in cambios_pendientes.items():
+                            reg_id = df_edit.iloc[row_idx]['id']
+                            # Renombrar campos internos a nombres de DB y convertir fechas a string
+                            db_changes = {}
+                            for k, v in changes.items():
+                                if k in mapping:
+                                    val = v
+                                    if hasattr(v, 'isoformat'): # Para objetos date de Streamlit
+                                        val = v.isoformat()
+                                    db_changes[mapping[k]] = val
                             
-                            if exitos > 0 or exitos_nuevos > 0 or exitos_borrados > 0:
-                                st.success(f"✅ Se actualizaron {exitos}, se añadieron {exitos_nuevos} y se eliminaron {exitos_borrados} servicios.")
-                                # Limpiar el editor forzando un reset
-                                st.rerun()
-                            if errores:
-                                for e in errores: st.error(e)
+                            # --- LÓGICA DE VÍNCULO (Linkage) ---
+                            # 1. Confirmación (terminado <-> fecha_confirmacion)
+                            if 'terminado' in changes:
+                                if changes['terminado'] is True:
+                                    # Si se marca como OK y no hay fecha (ni en cambios ni en DF), poner hoy
+                                    if not (changes.get('F. Confirmación') or df_edit.iloc[row_idx].get('F. Confirmación')):
+                                        db_changes['fecha_confirmacion'] = date.today().isoformat()
+                                else:
+                                    # Si se desmarca, limpiar fecha
+                                    db_changes['fecha_confirmacion'] = None
+                            
+                            if 'F. Confirmación' in changes:
+                                if changes['F. Confirmación']:
+                                    # Si se pone una fecha, marcar como OK
+                                    db_changes['terminado'] = True
+                                else:
+                                    # Si se limpia la fecha, desmarcar OK
+                                    db_changes['terminado'] = False
+
+                            # 2. Contratación (contratado <-> fecha_contratacion)
+                            if 'contratado' in changes:
+                                if changes['contratado'] is True:
+                                    # Si se marca como contratado y no hay fecha, poner hoy
+                                    if not (changes.get('F. Contratación') or df_edit.iloc[row_idx].get('F. Contratación')):
+                                        db_changes['fecha_contratacion'] = date.today().isoformat()
+                                else:
+                                    # Si se desmarca, limpiar fecha
+                                    db_changes['fecha_contratacion'] = None
+                            
+                            if 'F. Contratación' in changes:
+                                if changes['F. Contratación']:
+                                    # Si se pone una fecha, marcar como contratado
+                                    db_changes['contratado'] = True
+                                else:
+                                    # Si se limpia la fecha, desmarcar contratado
+                                    db_changes['contratado'] = False
+                            
+                            # Lógica especial para Proveedor (Búsqueda por nombre)
+                            if "Proveedor" in changes:
+                                nom_prov = changes["Proveedor"]
+                                if nom_prov in mapa_proveedores_id:
+                                    db_changes['id_proveedor'] = mapa_proveedores_id[nom_prov]
+                                else:
+                                    # Buscar ID del proveedor por nombre comercial
+                                    res_p = controller.client.table('proveedor').select('id_proveedor').ilike('nombre_comercial', f"%{nom_prov}%").limit(1).execute()
+                                    if res_p.data:
+                                        db_changes['id_proveedor'] = res_p.data[0]['id_proveedor']
+                                    else:
+                                        errores.append(f"⚠️ No se encontró el proveedor '{nom_prov}'. Se guardarán los demás cambios.")
+                            
+                            # La lógica de vinculación anterior ya cubre los casos de automatización
+                             
+                            if db_changes:
+                                exito, msg = controller.actualizar_campos_liquidacion(reg_id, db_changes)
+                                if exito: exitos += 1
+                                else: errores.append(f"Error en fila {row_idx+1}: {msg}")
+                        # --- PROCESAR FILAS AÑADIDAS (NUEVOS SERVICIOS) ---
+                        exitos_nuevos = 0
+                        for new_row in agregados_pendientes:
+                            db_insert = {"id_venta": id_actual}
+                            pago_fields = {}
+                            
+                            # Calcular N_linea (Día)
+                            n_lin = new_row.get("Dia")
+                            if not n_lin:
+                                n_lin = df_edit['Dia'].max() + 1 if not df_edit.empty else 1
+                            db_insert["n_linea"] = int(n_lin)
+                            
+                            # Aplicar mapeo solo a las columnas que pertenecen a venta_servicio_proveedor
+                            for k, v in new_row.items():
+                                if k in insert_mapping:
+                                    val = v
+                                    if hasattr(v, 'isoformat'): val = v.isoformat()
+                                    db_insert[insert_mapping[k]] = val
+                                elif k == "metodo_pago" and v:
+                                    pago_fields["metodo_pago"] = v
+                                elif k == "observaciones_pago":
+                                    pago_fields["observaciones"] = v or ""
+                                elif k == "observaciones_contables":
+                                    pago_fields["observaciones_contables"] = v or ""
+                                    
+                            # Proveedor
+                            if "Proveedor" in new_row and new_row["Proveedor"]:
+                                nom_prov = new_row["Proveedor"]
+                                if nom_prov in mapa_proveedores_id:
+                                    db_insert['id_proveedor'] = mapa_proveedores_id[nom_prov]
+                                else:
+                                    res_p = controller.client.table('proveedor').select('id_proveedor').ilike('nombre_comercial', f"%{nom_prov}%").limit(1).execute()
+                                    if res_p.data:
+                                        db_insert['id_proveedor'] = res_p.data[0]['id_proveedor']
+                                    else:
+                                        errores.append(f"⚠️ Proveedor '{nom_prov}' no encontrado para nueva fila. Se creará sin proveedor asignado.")
+                            
+                            # Validaciones de BD
+                            if 'costo_unitario' not in db_insert or db_insert['costo_unitario'] is None:
+                                db_insert['costo_unitario'] = 0.0
+                            
+                            try:
+                                # Asegurar que el día (n_linea) existe en el itinerario (venta_tour) para la Foreign Key
+                                try:
+                                    res_vt = controller.client.table('venta_tour').select('n_linea').eq('id_venta', id_actual).eq('n_linea', db_insert["n_linea"]).execute()
+                                    if not res_vt.data:
+                                        # Insertar fila de anclaje para este día
+                                        controller.client.table('venta_tour').insert({
+                                            'id_venta': id_actual,
+                                            'n_linea': db_insert["n_linea"],
+                                            'fecha_servicio': date.today().isoformat(),
+                                            'observacion': 'Fila autogenerada para vinculación de costos adicionales'
+                                        }).execute()
+                                except Exception as e_vt:
+                                    pass
+                                    
+                                controller.client.table('venta_servicio_proveedor').insert(db_insert).execute()
+                                if pago_fields:
+                                    monto_total = float(db_insert.get('costo_unitario', 0) or 0) * float(db_insert.get('cantidad_pax', 1) or 1)
+                                    pago_insert = {
+                                        "id_venta": id_actual,
+                                        "n_linea": db_insert["n_linea"],
+                                        "id_proveedor": db_insert.get('id_proveedor'),
+                                        "monto_pagado": monto_total if monto_total > 0 else 0.0,
+                                        "moneda": db_insert.get('moneda', 'USD') or 'USD',
+                                        "monto_en_moneda_costo": monto_total if monto_total > 0 else 0.0,
+                                        "fecha_pago": date.today().isoformat(),
+                                        "metodo_pago": pago_fields.get('metodo_pago', 'TRANSFERENCIA'),
+                                        "observaciones": pago_fields.get('observaciones', ''),
+                                        "observaciones_contables": pago_fields.get('observaciones_contables', '')
+                                    }
+                                    controller.client.table('pago_operativo').insert(pago_insert).execute()
+                                exitos_nuevos += 1
+                            except Exception as e:
+                                errores.append(f"Error al añadir fila (Día {n_lin}): {str(e)}")
+                        # --- PROCESAR FILAS ELIMINADAS ---
+                        exitos_borrados = 0
+                        for row_idx in borrados_pendientes:
+                            reg_id = df_edit.iloc[row_idx]['id']
+                            try:
+                                controller.client.table('venta_servicio_proveedor').delete().eq('id', reg_id).execute()
+                                exitos_borrados += 1
+                            except Exception as e:
+                                errores.append(f"Error al eliminar fila {row_idx+1}: {str(e)}")
+                        
+                        if exitos > 0 or exitos_nuevos > 0 or exitos_borrados > 0:
+                            st.success(f"✅ Se actualizaron {exitos}, se añadieron {exitos_nuevos} y se eliminaron {exitos_borrados} servicios.")
+                            # Limpiar el editor forzando un reset
+                            st.rerun()
+                        if errores:
+                            for e in errores: st.error(e)
                     confirm_reset = st.checkbox("Confirmar borrado de todos los costos (Liquidación)", key="reset_end_confirm")
                     if st.button("🗑️ Resetear Liquidación", type="primary", disabled=not confirm_reset, use_container_width=True):
                         exito_r, msg_r = controller.borrar_endoses_venta(id_actual)
