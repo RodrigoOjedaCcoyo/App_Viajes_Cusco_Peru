@@ -303,7 +303,11 @@ class GerenciaController:
         """Procesa itinerarios digitales vinculados a leads para obtener métricas de Marketing."""
         import json
         try:
-            # Traemos los itinerarios con información de su lead
+            # 1. Total Leads en el sistema
+            res_leads = self.client.table('lead').select('id_lead', count='exact').limit(1).execute()
+            total_leads = res_leads.count if res_leads.count is not None else 0
+            
+            # 2. Traemos los itinerarios con información de su lead
             res = self.client.table('itinerario_digital').select('id_lead, fecha_generacion, datos_render, lead(red_social)').execute()
             data = res.data or []
             
@@ -338,14 +342,19 @@ class GerenciaController:
                 if not paquete:
                     paquete = render.get('titulo') or render.get('paquete_nombre') or 'Personalizado'
                 
+                # 4. Fechas (Asegurar que sea ISO)
+                fecha_gen = d.get('fecha_generacion')
+                if fecha_gen:
+                    fecha_gen = fecha_gen[:10] # Quedarnos solo con YYYY-MM-DD
+                
                 resultados_paquetes.append({
                     'Paquete': str(paquete),
                     'Origen_Nacionalidad': str(origen_nacionalidad),
                     'Precio_Total_USD': float(precio),
-                    'Fecha_Cotizacion': d.get('fecha_generacion')
+                    'Fecha_Cotizacion': fecha_gen
                 })
                 
-                # 4. Tours individuales detallados
+                # 5. Tours individuales detallados
                 itinerario_lista = render.get('itinerario') or render.get('days') or render.get('itinerario_detalles') or []
                 if isinstance(itinerario_lista, list):
                     for dia in itinerario_lista:
@@ -354,7 +363,7 @@ class GerenciaController:
                             if titulo_tour:
                                 resultados_tours.append({'Tour': str(titulo_tour).upper().strip()})
                 
-            return pd.DataFrame(resultados_paquetes), pd.DataFrame(resultados_tours)
+            return total_leads, pd.DataFrame(resultados_paquetes), pd.DataFrame(resultados_tours)
         except Exception as e:
             print(f"Error Marketing Dashboard Data: {e}")
-            return pd.DataFrame(), pd.DataFrame()
+            return 0, pd.DataFrame(), pd.DataFrame()

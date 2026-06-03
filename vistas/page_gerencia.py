@@ -555,21 +555,55 @@ def panel_marketing(supabase_client):
     controller = GerenciaController(supabase_client)
     
     with st.spinner("Analizando datos de itinerarios de leads..."):
-        df_paquetes, df_tours = controller.get_marketing_dashboard_data()
+        total_leads, df_paquetes, df_tours = controller.get_marketing_dashboard_data()
         
     if df_paquetes.empty:
         st.info("No hay suficientes datos de itinerarios enviados a leads para generar el análisis.")
         return
         
     # --- KPIs RÁPIDOS ---
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Total Cotizaciones", len(df_paquetes), help="Número de itinerarios creados")
-    m2.metric("Intención de Venta (USD)", f"${df_paquetes['Precio_Total_USD'].sum():,.0f}", help="Suma del precio de todas las cotizaciones")
-    m3.metric("Ticket Promedio (USD)", f"${df_paquetes['Precio_Total_USD'].mean():,.0f}", help="Precio promedio por cotización")
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Total Leads Históricos", total_leads, help="Cantidad total de Leads registrados en el sistema.")
+    m2.metric("Total Cotizaciones Emitidas", len(df_paquetes), help="Número total de itinerarios PDF creados/enviados.")
+    m3.metric("Intención de Venta (USD)", f"${df_paquetes['Precio_Total_USD'].sum():,.0f}", help="Suma de los precios de todas las cotizaciones enviadas (El dinero total que se persigue vender).")
+    m4.metric("Ticket Promedio (USD)", f"${df_paquetes['Precio_Total_USD'].mean():,.0f}", help="El precio promedio por cada cotización enviada (Intención de venta dividida por el total de cotizaciones).")
     
     st.markdown("---")
     
-    # --- GRÁFICOS ---
+    # --- GRÁFICOS DE TENDENCIA (LÍNEAS) ---
+    st.markdown("##### 📈 Tendencia de Cotizaciones en el Tiempo")
+    if 'Fecha_Cotizacion' in df_paquetes.columns and not df_paquetes['Fecha_Cotizacion'].isnull().all():
+        df_paquetes['Fecha_Cotizacion'] = pd.to_datetime(df_paquetes['Fecha_Cotizacion'], errors='coerce')
+        # Agrupar por mes-año
+        df_tendencia = df_paquetes.dropna(subset=['Fecha_Cotizacion']).copy()
+        df_tendencia['Mes'] = df_tendencia['Fecha_Cotizacion'].dt.to_period('M').astype(str)
+        
+        # Calcular intención de venta y conteo de cotizaciones por mes
+        df_agrupado = df_tendencia.groupby('Mes').agg(
+            Intencion_Venta_USD=('Precio_Total_USD', 'sum'),
+            Cantidad_Cotizaciones=('Paquete', 'count')
+        ).reset_index()
+        
+        t1, t2 = st.columns(2)
+        with t1:
+            fig_tend_venta = px.line(df_agrupado, x='Mes', y='Intencion_Venta_USD', markers=True, 
+                                    title='Intención de Venta Acumulada por Mes (USD)',
+                                    color_discrete_sequence=['#FF7043'])
+            fig_tend_venta.update_layout(height=300, margin=dict(l=0, r=0, t=40, b=0))
+            st.plotly_chart(fig_tend_venta, use_container_width=True)
+            
+        with t2:
+            fig_tend_cant = px.line(df_agrupado, x='Mes', y='Cantidad_Cotizaciones', markers=True,
+                                    title='Volumen de Cotizaciones Enviadas por Mes',
+                                    color_discrete_sequence=['#42A5F5'])
+            fig_tend_cant.update_layout(height=300, margin=dict(l=0, r=0, t=40, b=0))
+            st.plotly_chart(fig_tend_cant, use_container_width=True)
+    else:
+        st.info("No hay suficientes fechas válidas para trazar la línea de tendencia.")
+        
+    st.markdown("---")
+    
+    # --- GRÁFICOS SECUNDARIOS ---
     g1, g2 = st.columns(2)
     
     with g1:
