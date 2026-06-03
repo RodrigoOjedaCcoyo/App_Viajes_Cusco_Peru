@@ -1051,6 +1051,20 @@ class OperacionesController:
             if 'observaciones_contables' in campos: campos_pago['observaciones_contables'] = campos.pop('observaciones_contables')
             if 'observaciones_pago' in campos: campos_pago['observaciones'] = campos.pop('observaciones_pago')
 
+            # Obtener info actual del servicio
+            res_serv = self.client.table('venta_servicio_proveedor').select('id_venta, n_linea, id_proveedor, costo_unitario, cantidad_pax, moneda').eq('id', id_registro).single().execute()
+            s = res_serv.data if res_serv else None
+
+            # Validar antes de hacer updates si se va a intentar crear un pago con monto 0
+            if campos_pago and s:
+                nuevo_cu = float(campos.get('costo_unitario', s.get('costo_unitario') or 0))
+                nuevo_pax = float(campos.get('cantidad_pax', s.get('cantidad_pax') or 1))
+                monto_total = nuevo_cu * nuevo_pax
+                
+                res_p = self.client.table('pago_operativo').select('id_pago_op').eq('id_venta', s['id_venta']).eq('n_linea', s['n_linea']).eq('id_proveedor', s['id_proveedor']).order('created_at', desc=True).execute()
+                if not res_p.data and monto_total <= 0:
+                    return False, "Para asignar método de pago o enviar observaciones de pago, el costo debe ser mayor a 0."
+
             # 2. Actualizar venta_servicio_proveedor (Costo, Pax, Moneda, Terminados)
             if campos:
                 res = self.client.table('venta_servicio_proveedor').update(campos).eq('id', id_registro).execute()
@@ -1065,42 +1079,32 @@ class OperacionesController:
                             .eq('id_venta', d['id_venta']).eq('n_linea', d['n_linea']).execute()
             
             # 3. Actualizar o crear registro en pago_operativo si hay cambios en pago
-            if campos_pago:
-                # Obtener info del servicio para saber a qué n_linea e id_proveedor pertenece
-                res_serv = self.client.table('venta_servicio_proveedor').select('id_venta, n_linea, id_proveedor, costo_unitario, cantidad_pax, moneda').eq('id', id_registro).single().execute()
-                if res_serv.data:
-                    s = res_serv.data
-                    # Buscar si ya existe un pago para este servicio (por n_linea Y proveedor)
-                    res_p = (
-                        self.client.table('pago_operativo')
-                        .select('id_pago_op')
-                        .eq('id_venta', s['id_venta'])
-                        .eq('n_linea', s['n_linea'])
-                        .eq('id_proveedor', s['id_proveedor'])
-                        .order('created_at', desc=True)  # El más reciente primero
-                        .execute()
-                    )
+            if campos_pago and s:
+                res_p = self.client.table('pago_operativo').select('id_pago_op').eq('id_venta', s['id_venta']).eq('n_linea', s['n_linea']).eq('id_proveedor', s['id_proveedor']).order('created_at', desc=True).execute()
+                
+                if res_p.data:
+                    # Actualizar el más reciente (solo el primero de la lista)
+                    id_pago = res_p.data[0]['id_pago_op']
+                    self.client.table('pago_operativo').update(campos_pago).eq('id_pago_op', id_pago).execute()
+                else:
+                    # Ya validamos arriba que el monto_total es > 0
+                    nuevo_cu = float(campos.get('costo_unitario', s.get('costo_unitario') or 0))
+                    nuevo_pax = float(campos.get('cantidad_pax', s.get('cantidad_pax') or 1))
+                    monto_total = nuevo_cu * nuevo_pax
                     
-                    if res_p.data:
-                        # Actualizar el más reciente (solo el primero de la lista)
-                        id_pago = res_p.data[0]['id_pago_op']
-                        self.client.table('pago_operativo').update(campos_pago).eq('id_pago_op', id_pago).execute()
-                    else:
-                        # Crear nuevo registro de pago (monto por defecto = costo total)
-                        monto_total = float(s['costo_unitario'] or 0) * float(s['cantidad_pax'] or 1)
-                        nuevo_pago = {
-                            "id_venta": s['id_venta'],
-                            "n_linea": s['n_linea'],
-                            "id_proveedor": s['id_proveedor'],
-                            "monto_pagado": monto_total,
-                            "moneda": s['moneda'] or 'USD',
-                            "monto_en_moneda_costo": monto_total,
-                            "fecha_pago": date.today().isoformat(),
-                            "metodo_pago": campos_pago.get('metodo_pago', 'TRANSFERENCIA'),
-                            "observaciones": campos_pago.get('observaciones', ''),
-                            "observaciones_contables": campos_pago.get('observaciones_contables', '')
-                        }
-                        self.client.table('pago_operativo').insert(nuevo_pago).execute()
+                    nuevo_pago = {
+                        "id_venta": s['id_venta'],
+                        "n_linea": s['n_linea'],
+                        "id_proveedor": s['id_proveedor'],
+                        "monto_pagado": monto_total,
+                        "moneda": s['moneda'] or 'USD',
+                        "monto_en_moneda_costo": monto_total,
+                        "fecha_pago": date.today().isoformat(),
+                        "metodo_pago": campos_pago.get('metodo_pago', 'TRANSFERENCIA'),
+                        "observaciones": campos_pago.get('observaciones', ''),
+                        "observaciones_contables": campos_pago.get('observaciones_contables', '')
+                    }
+                    self.client.table('pago_operativo').insert(nuevo_pago).execute()
                         
             return True, "Cambios guardados."
         except Exception as e:
