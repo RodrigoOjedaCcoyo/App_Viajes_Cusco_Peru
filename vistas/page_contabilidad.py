@@ -590,7 +590,9 @@ def estructurador_liquidacion_pro(controller):
                 guardar_btn = st.button("💾 Guardar Cambios en Liquidación", type="primary", use_container_width=True, key=f"btn_guardar_cont_{v_act['id_venta']}")
 
                 if guardar_btn:
-                    cambios = st.session_state.get(editor_key, {}).get("edited_rows", {})
+                    editor_state = st.session_state.get(editor_key, {})
+                    cambios = editor_state.get("edited_rows", {})
+                    st.info(f"🔍 DEBUG: editor_key=`{editor_key}` | en session_state={editor_key in st.session_state} | cambios detectados={cambios}")
                     if cambios:
                         try:
                             exitos = 0
