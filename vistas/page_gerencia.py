@@ -549,7 +549,7 @@ def panel_revision_gerencia(supabase_client):
 def panel_marketing(supabase_client):
     """Panel específico para Gerencia de Marketing."""
     st.subheader("🎯 Panel de Gerencia de Marketing", divider='orange')
-    st.caption("Análisis de intención de compra basado en cotizaciones de Leads.")
+    st.caption("Análisis de intención de compra basado en cotizaciones enviadas a Leads (1 itinerario por lead, el más reciente).")
     
     import importlib
     import controllers.gerencia_controller as gc_mod
@@ -559,54 +559,79 @@ def panel_marketing(supabase_client):
     
     with st.spinner("Analizando datos de itinerarios de leads..."):
         resultado = controller.get_marketing_dashboard_data()
-        if isinstance(resultado, tuple) and len(resultado) == 3:
-            total_leads, df_paquetes, df_tours = resultado
+        # Manejar las distintas versiones del retorno
+        if isinstance(resultado, tuple):
+            if len(resultado) == 4:
+                total_leads, total_itinerarios, df_paquetes, df_tours = resultado
+            elif len(resultado) == 3:
+                total_leads, df_paquetes, df_tours = resultado
+                total_itinerarios = len(df_paquetes)
+            else:
+                total_leads, total_itinerarios = 0, 0
+                df_paquetes, df_tours = resultado
         else:
-            # Compatibilidad con versión anterior (2 valores)
-            total_leads = 0
-            df_paquetes, df_tours = resultado
+            total_leads, total_itinerarios = 0, 0
+            df_paquetes = resultado
+            df_tours = pd.DataFrame()
         
     if df_paquetes.empty:
         st.info("No hay suficientes datos de itinerarios enviados a leads para generar el análisis.")
         return
+    
+    # --- DIAGNÓSTICO ---
+    with st.expander("🔍 Diagnóstico de Datos", expanded=False):
+        st.write(f"- **Leads totales en el sistema:** {total_leads}")
+        st.write(f"- **Itinerarios totales en la DB:** {total_itinerarios}")
+        st.write(f"- **Itinerarios únicos (1 por lead):** {len(df_paquetes)}")
+        st.write(f"- **Tours individuales extraídos:** {len(df_tours)}")
         
     # --- KPIs RÁPIDOS ---
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Total Leads Históricos", total_leads, help="Cantidad total de Leads registrados en el sistema.")
-    m2.metric("Total Cotizaciones Emitidas", len(df_paquetes), help="Número total de itinerarios PDF creados/enviados.")
-    m3.metric("Intención de Venta (USD)", f"${df_paquetes['Precio_Total_USD'].sum():,.0f}", help="Suma de los precios de todas las cotizaciones enviadas (El dinero total que se persigue vender).")
-    m4.metric("Ticket Promedio (USD)", f"${df_paquetes['Precio_Total_USD'].mean():,.0f}", help="El precio promedio por cada cotización enviada (Intención de venta dividida por el total de cotizaciones).")
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("📋 Total Leads", f"{total_leads:,}", help="Cantidad total de Leads registrados en el sistema.")
+    k2.metric("📨 Leads Cotizados", f"{len(df_paquetes):,}", help="Leads que recibieron al menos 1 itinerario (solo se cuenta el último).")
+    k3.metric("💰 Intención de Venta", f"${df_paquetes['Precio_Total_USD'].sum():,.0f}", help="Suma total de precios de las cotizaciones enviadas.")
+    k4.metric("🎫 Ticket Promedio", f"${df_paquetes['Precio_Total_USD'].mean():,.0f}", help="Precio promedio por cotización = Intención de Venta ÷ Leads Cotizados.")
     
     st.markdown("---")
     
     # --- GRÁFICOS DE TENDENCIA (LÍNEAS) ---
     st.markdown("##### 📈 Tendencia de Cotizaciones en el Tiempo")
     if 'Fecha_Cotizacion' in df_paquetes.columns and not df_paquetes['Fecha_Cotizacion'].isnull().all():
-        df_paquetes['Fecha_Cotizacion'] = pd.to_datetime(df_paquetes['Fecha_Cotizacion'], errors='coerce')
-        # Agrupar por mes-año
-        df_tendencia = df_paquetes.dropna(subset=['Fecha_Cotizacion']).copy()
+        df_temp = df_paquetes.copy()
+        df_temp['Fecha_Cotizacion'] = pd.to_datetime(df_temp['Fecha_Cotizacion'], errors='coerce')
+        df_tendencia = df_temp.dropna(subset=['Fecha_Cotizacion']).copy()
         df_tendencia['Mes'] = df_tendencia['Fecha_Cotizacion'].dt.to_period('M').astype(str)
         
-        # Calcular intención de venta y conteo de cotizaciones por mes
         df_agrupado = df_tendencia.groupby('Mes').agg(
             Intencion_Venta_USD=('Precio_Total_USD', 'sum'),
-            Cantidad_Cotizaciones=('Paquete', 'count')
+            Cantidad_Cotizaciones=('Paquete', 'count'),
+            Ticket_Promedio=('Precio_Total_USD', 'mean')
         ).reset_index()
         
         t1, t2 = st.columns(2)
         with t1:
             fig_tend_venta = px.line(df_agrupado, x='Mes', y='Intencion_Venta_USD', markers=True, 
-                                    title='Intención de Venta Acumulada por Mes (USD)',
+                                    title='Intención de Venta por Mes (USD)',
                                     color_discrete_sequence=['#FF7043'])
-            fig_tend_venta.update_layout(height=300, margin=dict(l=0, r=0, t=40, b=0))
+            fig_tend_venta.update_layout(height=320, margin=dict(l=10, r=10, t=40, b=10), 
+                                         yaxis_title='USD', xaxis_title='')
             st.plotly_chart(fig_tend_venta, use_container_width=True)
             
         with t2:
             fig_tend_cant = px.line(df_agrupado, x='Mes', y='Cantidad_Cotizaciones', markers=True,
-                                    title='Volumen de Cotizaciones Enviadas por Mes',
+                                    title='Cantidad de Cotizaciones por Mes',
                                     color_discrete_sequence=['#42A5F5'])
-            fig_tend_cant.update_layout(height=300, margin=dict(l=0, r=0, t=40, b=0))
+            fig_tend_cant.update_layout(height=320, margin=dict(l=10, r=10, t=40, b=10),
+                                        yaxis_title='Cotizaciones', xaxis_title='')
             st.plotly_chart(fig_tend_cant, use_container_width=True)
+        
+        # Línea de Ticket Promedio
+        fig_ticket = px.area(df_agrupado, x='Mes', y='Ticket_Promedio', markers=True,
+                             title='Evolución del Ticket Promedio por Mes (USD)',
+                             color_discrete_sequence=['#AB47BC'])
+        fig_ticket.update_layout(height=280, margin=dict(l=10, r=10, t=40, b=10),
+                                  yaxis_title='USD', xaxis_title='')
+        st.plotly_chart(fig_ticket, use_container_width=True)
     else:
         st.info("No hay suficientes fechas válidas para trazar la línea de tendencia.")
         
@@ -616,36 +641,52 @@ def panel_marketing(supabase_client):
     g1, g2 = st.columns(2)
     
     with g1:
-        st.markdown("##### Origen del Pasajero (Nacionalidad)")
+        st.markdown("##### 🌍 Origen del Pasajero (Nacionalidad)")
         df_origen = df_paquetes.groupby('Origen_Nacionalidad').size().reset_index(name='Cantidad')
-        fig_origen = px.pie(df_origen, names='Origen_Nacionalidad', values='Cantidad', hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+        fig_origen = px.pie(df_origen, names='Origen_Nacionalidad', values='Cantidad', hole=0.4, 
+                            color_discrete_sequence=px.colors.qualitative.Pastel)
         fig_origen.update_layout(height=350, margin=dict(l=0, r=0, t=30, b=0))
         st.plotly_chart(fig_origen, use_container_width=True)
         
     with g2:
-        st.markdown("##### Distribución de Precios Cotizados (USD)")
-        fig_precios = px.histogram(df_paquetes, x="Precio_Total_USD", nbins=15, color_discrete_sequence=['#43A047'])
-        fig_precios.update_layout(height=350, margin=dict(l=0, r=0, t=30, b=0), yaxis_title="Cantidad de Cotizaciones", xaxis_title="Precio Total (USD)")
+        st.markdown("##### 💵 Distribución de Precios Cotizados (USD)")
+        fig_precios = px.histogram(df_paquetes, x="Precio_Total_USD", nbins=15, 
+                                   color_discrete_sequence=['#43A047'])
+        fig_precios.update_layout(height=350, margin=dict(l=0, r=0, t=30, b=0), 
+                                   yaxis_title="Cantidad", xaxis_title="Precio Total (USD)")
         st.plotly_chart(fig_precios, use_container_width=True)
         
     st.markdown("---")
     
-    st.markdown("##### Top 15 Tours Individuales Más Cotizados")
+    # --- TOP TOURS ---
+    st.markdown("##### 🏆 Top 15 Tours Individuales Más Cotizados")
     if not df_tours.empty:
-        # Filtrar tours nulos o vacíos
         df_tours_validos = df_tours[df_tours['Tour'].notna() & (df_tours['Tour'] != '')]
         df_t_count = df_tours_validos.groupby('Tour').size().reset_index(name='Cantidad').sort_values('Cantidad', ascending=False).head(15)
         
-        fig_tours = px.bar(df_t_count, y='Tour', x='Cantidad', orientation='h', color_discrete_sequence=['#FFCA28'])
+        fig_tours = px.bar(df_t_count, y='Tour', x='Cantidad', orientation='h', 
+                           color='Cantidad', color_continuous_scale='YlOrRd')
         fig_tours.update_yaxes(autorange="reversed", title='')
-        fig_tours.update_layout(height=450, margin=dict(l=0, r=0, t=30, b=0))
+        fig_tours.update_layout(height=450, margin=dict(l=0, r=0, t=30, b=0), coloraxis_showscale=False)
         st.plotly_chart(fig_tours, use_container_width=True)
     else:
         st.info("No hay información de tours detallados disponibles en los itinerarios.")
         
-    # --- TABLA DE DATOS ---
-    st.markdown("#### 📋 Base de Datos de Paquetes Cotizados")
-    st.dataframe(df_paquetes, use_container_width=True, hide_index=True)
+    st.markdown("---")
+    
+    # --- TABLA DE DATOS DETALLADA ---
+    st.markdown("#### 📋 Detalle de Cotizaciones (1 por Lead)")
+    st.dataframe(df_paquetes, use_container_width=True, hide_index=True, 
+                 column_config={
+                     "Pasajero": st.column_config.TextColumn("👤 Pasajero", width="medium"),
+                     "Vendedor": st.column_config.TextColumn("🧑‍💼 Vendedor", width="small"),
+                     "Paquete": st.column_config.TextColumn("📦 Paquete", width="medium"),
+                     "Duración": st.column_config.TextColumn("📅 Duración", width="small"),
+                     "Fechas_Viaje": st.column_config.TextColumn("✈️ Fechas Viaje", width="medium"),
+                     "Origen_Nacionalidad": st.column_config.TextColumn("🌍 Origen", width="small"),
+                     "Precio_Total_USD": st.column_config.NumberColumn("💰 Precio USD", format="$%,.0f"),
+                     "Fecha_Cotizacion": st.column_config.TextColumn("📆 Fecha Cot.", width="small"),
+                 })
 
 
 def mostrar_pagina(funcionalidad_seleccionada, rol_actual, user_id, supabase_client):

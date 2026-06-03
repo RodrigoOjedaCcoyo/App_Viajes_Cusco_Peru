@@ -310,6 +310,7 @@ class GerenciaController:
             # 2. Traemos los itinerarios con información de su lead, ordenados por fecha desc
             res = self.client.table('itinerario_digital').select('id_lead, fecha_generacion, datos_render, lead(red_social)').order('fecha_generacion', desc=True).execute()
             data = res.data or []
+            total_itinerarios = len(data)
             
             # 3. Quedarnos solo con el ÚLTIMO itinerario por lead
             leads_vistos = set()
@@ -320,7 +321,7 @@ class GerenciaController:
                     leads_vistos.add(id_lead)
                     data_unica.append(d)
                 elif not id_lead:
-                    data_unica.append(d)  # Si no tiene lead, lo incluimos igual
+                    data_unica.append(d)
             
             resultados_paquetes = []
             resultados_tours = []
@@ -353,19 +354,29 @@ class GerenciaController:
                 if not paquete:
                     paquete = render.get('titulo') or render.get('paquete_nombre') or 'Personalizado'
                 
-                # 4. Fechas (Asegurar que sea ISO)
+                # 4. Pasajero y Vendedor
+                pasajero = render.get('pasajero') or 'SIN NOMBRE'
+                vendedor = render.get('vendedor') or 'SIN ASIGNAR'
+                duracion = render.get('duracion') or '-'
+                fechas_viaje = render.get('fechas') or '-'
+                
+                # 5. Fechas (Asegurar que sea ISO)
                 fecha_gen = d.get('fecha_generacion')
                 if fecha_gen:
-                    fecha_gen = fecha_gen[:10] # Quedarnos solo con YYYY-MM-DD
+                    fecha_gen = fecha_gen[:10]
                 
                 resultados_paquetes.append({
+                    'Pasajero': str(pasajero).upper(),
+                    'Vendedor': str(vendedor).title(),
                     'Paquete': str(paquete),
-                    'Origen_Nacionalidad': str(origen_nacionalidad),
+                    'Duración': str(duracion),
+                    'Fechas_Viaje': str(fechas_viaje),
+                    'Origen_Nacionalidad': str(origen_nacionalidad).title(),
                     'Precio_Total_USD': float(precio),
                     'Fecha_Cotizacion': fecha_gen
                 })
                 
-                # 5. Tours individuales detallados
+                # 6. Tours individuales detallados
                 itinerario_lista = render.get('itinerario') or render.get('days') or render.get('itinerario_detalles') or []
                 if isinstance(itinerario_lista, list):
                     for dia in itinerario_lista:
@@ -374,7 +385,7 @@ class GerenciaController:
                             if titulo_tour:
                                 resultados_tours.append({'Tour': str(titulo_tour).upper().strip()})
                 
-            return total_leads, pd.DataFrame(resultados_paquetes), pd.DataFrame(resultados_tours)
+            return total_leads, total_itinerarios, pd.DataFrame(resultados_paquetes), pd.DataFrame(resultados_tours)
         except Exception as e:
             print(f"Error Marketing Dashboard Data: {e}")
-            return 0, pd.DataFrame(), pd.DataFrame()
+            return 0, 0, pd.DataFrame(), pd.DataFrame()
