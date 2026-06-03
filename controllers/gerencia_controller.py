@@ -307,12 +307,10 @@ class GerenciaController:
             res = self.client.table('itinerario_digital').select('id_lead, fecha_generacion, datos_render, lead(red_social)').execute()
             data = res.data or []
             
-            resultados = []
+            resultados_paquetes = []
+            resultados_tours = []
+            
             for d in data:
-                lead_info = d.get('lead') or {}
-                origen = lead_info.get('red_social') or 'DESCONOCIDO'
-                fecha_gen = d.get('fecha_generacion')
-                
                 raw_render = d.get('datos_render')
                 if isinstance(raw_render, str):
                     try:
@@ -330,64 +328,33 @@ class GerenciaController:
                     tot = render['totales_por_moneda']
                     precio = float(tot.get('USD', 0) or tot.get('PEN', 0) / 3.8)
                 
-                # 2. Pasajeros
-                ci = render.get('control_interno') or {}
-                num_pax = int(ci.get('total_pasajeros') or render.get('num_pasajeros') or render.get('pax') or render.get('adultos') or 1)
+                # 2. Origen (Nacionalidad: Extranjero, Nacional, Mixto)
+                origen_nacionalidad = render.get('origen') or 'NO ESPECIFICADO'
                 
-                desglose = ci.get('desglose_pasajeros') or {}
-                adultos = 0
-                ninos = 0
-                for region, stats in desglose.items():
-                    if isinstance(stats, dict):
-                        adultos += stats.get('adultos', 0)
-                        ninos += stats.get('niños', 0)
-                if adultos == 0 and ninos == 0:
-                    adultos = int(render.get('adultos') or num_pax)
-                    ninos = int(render.get('ninos') or 0)
-                    
-                tipo_pax = "Familia" if ninos > 0 else ("Pareja" if num_pax == 2 else ("Solo" if num_pax == 1 else "Grupo"))
-                
-                # 3. Fechas y Días
-                itinerario_lista = render.get('itinerario') or render.get('days') or render.get('itinerario_detalles') or []
-                fecha_viaje = render.get('fechas') or render.get('fecha_viaje') or render.get('fecha_inicio')
-                if not fecha_viaje and isinstance(itinerario_lista, list) and len(itinerario_lista) > 0:
-                    fecha_viaje = itinerario_lista[0].get('fecha')
-                if not fecha_viaje:
-                    fecha_viaje = 'SIN FECHA'
-                    
-                duracion_str = render.get('duracion') or ''
-                if duracion_str and 'D' in duracion_str.upper():
-                    # Extraer el primer número de "5D / 4N"
-                    nums = [int(s) for s in duracion_str.replace('/',' ').split() if s.isdigit()]
-                    dias = nums[0] if nums else 1
-                else:
-                    dias = int(render.get('duracion_dias') or len(itinerario_lista) or 1)
-                
-                # 4. Tour / Categoría
+                # 3. Paquete Cotizado
                 t1 = render.get('title_1') or ''
                 t2 = render.get('title_2') or ''
-                tour = f"{t1} {t2}".strip()
-                if not tour:
-                    tour = render.get('titulo') or render.get('paquete_nombre') or 'Personalizado'
-                    
-                # 5. Origen (Prioridad a fuente interna del JSON si existe, sino al Lead)
-                fuente_json = render.get('fuente') or render.get('origen')
-                origen = fuente_json if fuente_json else origen
+                paquete = f"{t1} {t2}".strip()
+                if not paquete:
+                    paquete = render.get('titulo') or render.get('paquete_nombre') or 'Personalizado'
                 
-                resultados.append({
-                    'Origen': str(origen),
-                    'Fecha_Cotizacion': fecha_gen,
-                    'Fecha_Viaje': str(fecha_viaje),
-                    'Precio_USD': float(precio),
-                    'Pax': int(num_pax),
-                    'Adultos': int(adultos),
-                    'Ninos': int(ninos),
-                    'Tipo_Pax': str(tipo_pax),
-                    'Dias': int(dias),
-                    'Tour': str(tour)
+                resultados_paquetes.append({
+                    'Paquete': str(paquete),
+                    'Origen_Nacionalidad': str(origen_nacionalidad),
+                    'Precio_Total_USD': float(precio),
+                    'Fecha_Cotizacion': d.get('fecha_generacion')
                 })
                 
-            return pd.DataFrame(resultados)
+                # 4. Tours individuales detallados
+                itinerario_lista = render.get('itinerario') or render.get('days') or render.get('itinerario_detalles') or []
+                if isinstance(itinerario_lista, list):
+                    for dia in itinerario_lista:
+                        if isinstance(dia, dict):
+                            titulo_tour = dia.get('titulo')
+                            if titulo_tour:
+                                resultados_tours.append({'Tour': str(titulo_tour).upper().strip()})
+                
+            return pd.DataFrame(resultados_paquetes), pd.DataFrame(resultados_tours)
         except Exception as e:
             print(f"Error Marketing Dashboard Data: {e}")
-            return pd.DataFrame()
+            return pd.DataFrame(), pd.DataFrame()
