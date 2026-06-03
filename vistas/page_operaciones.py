@@ -1673,6 +1673,10 @@ def dashboard_simulador_costos(controller):
                 form_key = f"form_liq_master_{id_actual}"
                 editor_key = f"editor_liq_master_{id_actual}"
                 
+                estado_previo = {}
+                if editor_key in st.session_state:
+                    estado_previo = st.session_state[editor_key]
+                
                 with st.form(key=form_key):
                     edited_result = st.data_editor(
                         df_edit[cols_visible],
@@ -1708,11 +1712,10 @@ def dashboard_simulador_costos(controller):
                     guardar_btn = st.form_submit_button("💾 Guardar Cambios en Operativa", type="primary", use_container_width=True)
 
                 # 3. Procesar cambios mediante botón de confirmación
-                if guardar_btn and editor_key in st.session_state:
-                    state = st.session_state[editor_key]
-                    cambios_pendientes = state.get("edited_rows", {})
-                    agregados_pendientes = state.get("added_rows", [])
-                    borrados_pendientes = state.get("deleted_rows", [])
+                if guardar_btn:
+                    cambios_pendientes = estado_previo.get("edited_rows", {})
+                    agregados_pendientes = estado_previo.get("added_rows", [])
+                    borrados_pendientes = estado_previo.get("deleted_rows", [])
                     
                     if cambios_pendientes or agregados_pendientes or borrados_pendientes:
                         exitos = 0

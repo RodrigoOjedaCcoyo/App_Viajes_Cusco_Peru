@@ -559,6 +559,10 @@ def estructurador_liquidacion_pro(controller):
                 form_key = f"form_liq_cont_{v_act['id_venta']}"
                 editor_key = f"editor_liq_cont_{v_act['id_venta']}"
                 
+                estado_previo = {}
+                if editor_key in st.session_state:
+                    estado_previo = st.session_state[editor_key]
+                
                 with st.form(key=form_key):
                     edited_result = st.data_editor(
                         df_edit[cols_visible],
@@ -591,9 +595,8 @@ def estructurador_liquidacion_pro(controller):
                     )
                     guardar_btn = st.form_submit_button("💾 Guardar Cambios en Liquidación", type="primary", use_container_width=True)
 
-                if guardar_btn and editor_key in st.session_state:
-                    state = st.session_state[editor_key]
-                    cambios = state.get("edited_rows", {})
+                if guardar_btn:
+                    cambios = estado_previo.get("edited_rows", {})
                     if cambios:
                         try:
                             exitos = 0
