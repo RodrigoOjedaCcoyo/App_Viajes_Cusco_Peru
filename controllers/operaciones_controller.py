@@ -1066,7 +1066,9 @@ class OperacionesController:
                 
                 res_p = self.client.table('pago_operativo').select('id_pago_op').eq('id_venta', s['id_venta']).eq('n_linea', s['n_linea']).eq('id_proveedor', s['id_proveedor']).order('created_at', desc=True).execute()
                 if not res_p.data and monto_total <= 0:
-                    return False, "NO GUARDADO: No se puede registrar un 'Método de Pago' si el costo es 0. Por favor, asigne un costo primero, o devuelva el Método de Pago a '---'."
+                    # Se ignora en silencio para no bloquear la experiencia del usuario. 
+                    # El sistema limpiará la celda visualmente al recargar.
+                    campos_pago = {}
 
             # 2. Actualizar venta_servicio_proveedor (Costo, Pax, Moneda, Terminados)
             if campos:
