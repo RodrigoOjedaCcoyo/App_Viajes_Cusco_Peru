@@ -324,37 +324,67 @@ class GerenciaController:
                 else:
                     render = {}
                     
-                # Extraer datos de interés (si no hay, defaults)
-                precio = float(render.get('precio_total') or render.get('total') or 0)
+                # 1. Extraer Precio (priorizamos total_final_calculado)
+                precio = float(render.get('total_final_calculado') or render.get('precio_total') or render.get('total') or 0)
                 if not precio and render.get('totales_por_moneda'):
-                    # Intento alternativo de precio
                     tot = render['totales_por_moneda']
-                    precio = float(tot.get('USD', 0) or tot.get('PEN', 0) / 3.8) # Aproximación USD
+                    precio = float(tot.get('USD', 0) or tot.get('PEN', 0) / 3.8)
                 
-                # Pasajeros
-                num_pax = int(render.get('num_pasajeros') or render.get('pax') or render.get('adultos') or 1)
-                adultos = int(render.get('adultos') or num_pax)
-                ninos = int(render.get('ninos') or 0)
+                # 2. Pasajeros
+                ci = render.get('control_interno') or {}
+                num_pax = int(ci.get('total_pasajeros') or render.get('num_pasajeros') or render.get('pax') or render.get('adultos') or 1)
+                
+                desglose = ci.get('desglose_pasajeros') or {}
+                adultos = 0
+                ninos = 0
+                for region, stats in desglose.items():
+                    if isinstance(stats, dict):
+                        adultos += stats.get('adultos', 0)
+                        ninos += stats.get('niños', 0)
+                if adultos == 0 and ninos == 0:
+                    adultos = int(render.get('adultos') or num_pax)
+                    ninos = int(render.get('ninos') or 0)
+                    
                 tipo_pax = "Familia" if ninos > 0 else ("Pareja" if num_pax == 2 else ("Solo" if num_pax == 1 else "Grupo"))
                 
-                # Fechas y Días
-                fecha_viaje = render.get('fecha_viaje') or render.get('fecha_inicio') or render.get('fecha') or 'SIN FECHA'
-                dias = int(render.get('duracion_dias') or render.get('duracion') or render.get('days') or len(render.get('itinerario_detalles') or render.get('itinerario') or []) or 1)
+                # 3. Fechas y Días
+                itinerario_lista = render.get('itinerario') or render.get('days') or render.get('itinerario_detalles') or []
+                fecha_viaje = render.get('fechas') or render.get('fecha_viaje') or render.get('fecha_inicio')
+                if not fecha_viaje and isinstance(itinerario_lista, list) and len(itinerario_lista) > 0:
+                    fecha_viaje = itinerario_lista[0].get('fecha')
+                if not fecha_viaje:
+                    fecha_viaje = 'SIN FECHA'
+                    
+                duracion_str = render.get('duracion') or ''
+                if duracion_str and 'D' in duracion_str.upper():
+                    # Extraer el primer número de "5D / 4N"
+                    nums = [int(s) for s in duracion_str.replace('/',' ').split() if s.isdigit()]
+                    dias = nums[0] if nums else 1
+                else:
+                    dias = int(render.get('duracion_dias') or len(itinerario_lista) or 1)
                 
-                # Tour / Categoría
-                tour = render.get('titulo') or render.get('paquete_nombre') or 'Personalizado'
+                # 4. Tour / Categoría
+                t1 = render.get('title_1') or ''
+                t2 = render.get('title_2') or ''
+                tour = f"{t1} {t2}".strip()
+                if not tour:
+                    tour = render.get('titulo') or render.get('paquete_nombre') or 'Personalizado'
+                    
+                # 5. Origen (Prioridad a fuente interna del JSON si existe, sino al Lead)
+                fuente_json = render.get('fuente') or render.get('origen')
+                origen = fuente_json if fuente_json else origen
                 
                 resultados.append({
-                    'Origen': origen,
+                    'Origen': str(origen),
                     'Fecha_Cotizacion': fecha_gen,
-                    'Fecha_Viaje': fecha_viaje,
-                    'Precio_USD': precio,
-                    'Pax': num_pax,
-                    'Adultos': adultos,
-                    'Ninos': ninos,
-                    'Tipo_Pax': tipo_pax,
-                    'Dias': dias,
-                    'Tour': tour
+                    'Fecha_Viaje': str(fecha_viaje),
+                    'Precio_USD': float(precio),
+                    'Pax': int(num_pax),
+                    'Adultos': int(adultos),
+                    'Ninos': int(ninos),
+                    'Tipo_Pax': str(tipo_pax),
+                    'Dias': int(dias),
+                    'Tour': str(tour)
                 })
                 
             return pd.DataFrame(resultados)
