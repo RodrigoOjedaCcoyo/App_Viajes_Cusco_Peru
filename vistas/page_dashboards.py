@@ -551,8 +551,29 @@ def render_b2b_sales_table_visual(ventas_data, pagos_data):
     st.markdown("### 🤝 Registro Consolidado de Agencias (B2B)")
     st.caption("Visión global e histórica de todas las ventas B2B. Acceso restringido.")
 
-    # No pasamos anio_sel ni mes_sel, para mostrar TODAS.
-    data_rows = procesar_datos_tabla(ventas_data, pagos_data, anio_sel=None, mes_sel=None, filtro_tipo="B2B")
+    # Selectores de fecha con opción "Ver todos"
+    col_mes, col_anio, _ = st.columns([1, 1, 3])
+    
+    meses_opciones = {
+        0: "Ver todos", 1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
+        5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
+        9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
+    }
+    
+    with col_mes:
+        mes_sel_nombre = st.selectbox("Mes Reporte B2B", list(meses_opciones.values()), index=0, key="b2b_mes")
+        mes_sel = [k for k, v in meses_opciones.items() if v == mes_sel_nombre][0]
+    
+    with col_anio:
+        anio_actual = date.today().year
+        anios_opciones = ["Ver todos"] + list(range(anio_actual - 2, anio_actual + 3))
+        anio_sel = st.selectbox("Año Reporte B2B", anios_opciones, index=0, key="b2b_anio")
+
+    # Si se selecciona "Ver todos", pasamos None a la función
+    filtro_anio = None if anio_sel == "Ver todos" else int(anio_sel)
+    filtro_mes = None if mes_sel == 0 else int(mes_sel)
+
+    data_rows = procesar_datos_tabla(ventas_data, pagos_data, anio_sel=filtro_anio, mes_sel=filtro_mes, filtro_tipo="B2B")
 
     if data_rows:
         df = pd.DataFrame(data_rows)
