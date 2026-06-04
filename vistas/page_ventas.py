@@ -1136,6 +1136,15 @@ def seguimiento_ventas_vendedor():
         st.info("No hay ventas registradas en el sistema para gestionar.")
         return
         
+    # --- BUSCADOR ---
+    buscador_texto = st.text_input("🔍 Buscar pasajero por nombre o ID", placeholder="Ej: OPHELIE CHATRI o 115", key="buscador_mis_ventas")
+    if buscador_texto:
+        buscar_min = buscador_texto.strip().lower()
+        ventas = [v for v in ventas if buscar_min in str(v.get('nombre_cliente', '')).lower() or buscar_min in str(v.get('id_venta', ''))]
+        if not ventas:
+            st.warning("No se encontraron ventas que coincidan con la búsqueda.")
+            return
+
     for v in ventas:
         try:
             id_venta       = v.get('id_venta')
