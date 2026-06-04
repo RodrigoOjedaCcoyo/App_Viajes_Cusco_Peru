@@ -291,11 +291,34 @@ def render_contable_dashboard_visual(supabase_client):
         from streamlit_autorefresh import st_autorefresh
         st_autorefresh(interval=60 * 1000, key="fin_refresh_counter")
 
+    # Segmentadores
+    st.markdown("### 🔍 Filtros del Dashboard")
+    c_tipo, c_mon = st.columns(2)
+    with c_tipo:
+        filtro_tipo = st.selectbox("Tipo de Venta", ["Todos", "Directas (B2C)", "Agencias (B2B)"], key="fin_tipo_venta")
+    with c_mon:
+        filtro_moneda = st.selectbox("Moneda Original", ["Ambas", "Soles (PEN)", "Dólares (USD)"], key="fin_moneda_base")
+
     reporte_ctrl = ReporteController(supabase_client)
     from vistas.dashboard_analytics import render_financial_dashboard
     
     df_ventas, df_reqs = reporte_ctrl.get_data_for_dashboard()
-    render_financial_dashboard(df_ventas, df_reqs, supabase_client=supabase_client)
+    
+    # Aplicar filtros a df_ventas
+    if not df_ventas.empty:
+        # Filtro B2B/B2C
+        if filtro_tipo == "Directas (B2C)":
+            df_ventas = df_ventas[df_ventas['id_agencia_aliada'].isna() | (df_ventas['id_agencia_aliada'] == "")]
+        elif filtro_tipo == "Agencias (B2B)":
+            df_ventas = df_ventas[df_ventas['id_agencia_aliada'].notna() & (df_ventas['id_agencia_aliada'] != "")]
+            
+        # Filtro Moneda
+        if filtro_moneda == "Soles (PEN)":
+            df_ventas = df_ventas[df_ventas['moneda'] == 'PEN']
+        elif filtro_moneda == "Dólares (USD)":
+            df_ventas = df_ventas[df_ventas['moneda'] == 'USD']
+
+    render_financial_dashboard(df_ventas, df_reqs, supabase_client=supabase_client, filtro_moneda=filtro_moneda)
     
     st.divider()
     st.write("### 📋 Últimas Transacciones")

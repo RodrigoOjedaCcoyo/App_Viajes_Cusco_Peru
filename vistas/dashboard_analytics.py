@@ -171,7 +171,7 @@ def render_operations_dashboard(df_servicios):
         if not df_servicios.empty:
             st.write("Columnas disponibles:", df_servicios.columns.tolist())
 
-def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=None):
+def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=None, filtro_moneda="Ambas"):
     """Genera el Dashboard Financiero con gastos reales desde pago_operativo."""
     st.subheader("Resultados Financieros")
 
@@ -197,8 +197,13 @@ def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=Non
                 'monto_pagado, moneda, tasa_cambio'
             ).execute()
             for p in (res_op.data or []):
-                monto = float(p.get('monto_pagado') or 0)
                 moneda = str(p.get('moneda') or 'USD').strip().upper()
+                
+                # Filtrar gastos por moneda
+                if filtro_moneda == "Soles (PEN)" and moneda != 'PEN': continue
+                if filtro_moneda == "Dólares (USD)" and moneda != 'USD': continue
+
+                monto = float(p.get('monto_pagado') or 0)
                 tc = float(p.get('tasa_cambio') or 3.80)
                 if tc <= 0:
                     tc = 3.80
@@ -273,8 +278,13 @@ def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=Non
         try:
             res_op = supabase_client.table('pago_operativo').select('fecha_pago, monto_pagado, moneda, tasa_cambio').execute()
             for p in (res_op.data or []):
-                monto = float(p.get('monto_pagado') or 0)
                 moneda = str(p.get('moneda') or 'USD').strip().upper()
+                
+                # Filtrar gastos por moneda para la gráfica mensual
+                if filtro_moneda == "Soles (PEN)" and moneda != 'PEN': continue
+                if filtro_moneda == "Dólares (USD)" and moneda != 'USD': continue
+
+                monto = float(p.get('monto_pagado') or 0)
                 tc = float(p.get('tasa_cambio') or 3.80)
                 if tc <= 0: tc = 3.80
                 
