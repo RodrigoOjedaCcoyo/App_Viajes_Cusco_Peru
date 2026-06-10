@@ -221,15 +221,44 @@ def render_centro_alertas(controller):
                 st.code(alertas.get('trace', ''))
             return
             
-        # Pestañas para el semáforo
-        # Formatear etiquetas con conteo
+        # --- Cargar comunicados activos ---
+        comunicados_activos = []
+        rol_actual = str(st.session_state.get('rol_actual', 'VENTAS')).upper()
+        col_leido = f"leido_{rol_actual.lower()}"
+        
+        try:
+            from datetime import date as _date
+            hoy_iso = _date.today().isoformat()
+            res_com = controller.client.table('comunicado').select('*').eq('activo', True).order('fecha_creacion', desc=True).execute()
+            
+            for c in (res_com.data or []):
+                # Validar expiración
+                if c.get('fecha_expiracion') and c.get('fecha_expiracion') < hoy_iso:
+                    continue
+                
+                # Validar área de destino
+                dest = str(c.get('area_destino', 'TODOS')).upper()
+                if dest != 'TODOS' and dest != rol_actual:
+                    continue
+                
+                # Validar si ya fue leído por el área actual
+                if c.get(col_leido, False):
+                    continue
+                
+                comunicados_activos.append(c)
+        except Exception:
+            pass  # Silenciar si la tabla aún no está actualizada en Supabase
+
+        # Pestañas: Comunicados primero, luego operativas
+        hay_urgente = any(str(c.get('nivel', '')).upper() == 'URGENTE' for c in comunicados_activos)
+        t_com = f"📢 Comunicados ({len(comunicados_activos)})" + (" 🔴" if hay_urgente else "")
         t_mp = f"🏛️ MP Tickets ({len(alertas['machupicchu'])})"
         t_r = f"🔴 Crítico ({len(alertas['rojo'])})"
         t_sa = f"⚠️ Sin Asignar ({len(alertas['sin_asignar'])})"
         t_a = f"🟡 Atención ({len(alertas['amarillo'])})"
         t_v = f"🟢 Preventivo ({len(alertas['verde'])})"
         
-        tabs = st.tabs([t_mp, t_r, t_sa, t_a, t_v])
+        tabs = st.tabs([t_com, t_mp, t_r, t_sa, t_a, t_v])
         
         def mostrar_tabla_alertas(lista_alertas, empty_msg, show_proveedor=True):
             if not lista_alertas:
@@ -258,27 +287,117 @@ def render_centro_alertas(controller):
                 hide_index=True
             )
 
-        with tabs[0]: 
+        # ── PESTAÑA 0: COMUNICADOS ENTRE ÁREAS ──
+        with tabs[0]:
+            st.markdown("### 📢 Comunicados entre Áreas")
+            st.caption("Avisos y alertas enviadas entre las distintas áreas del equipo.")
+            
+            # Formulario de publicación para todas las áreas
+            with st.expander("➕ Publicar Nuevo Comunicado para otra Área"):
+                c_t, c_d = st.columns([2, 1])
+                titulo_nuevo = c_t.text_input("📝 Título del comunicado", placeholder="Ej: Faltan vouchers de pax X", key="alert_com_titulo")
+                
+                areas_map = {
+                    "Todos": "TODOS",
+                    "Ventas": "VENTAS",
+                    "Operaciones": "OPERACIONES",
+                    "Contabilidad": "CONTABILIDAD",
+                    "Gerencia": "GERENCIA"
+                }
+                dest_nombre = c_d.selectbox("🎯 Dirigido a (Área)", list(areas_map.keys()), key="alert_com_dest")
+                dest_code = areas_map[dest_nombre]
+                
+                c_n, c_u = st.columns([1, 1])
+                nivel_nuevo = c_n.selectbox("🔴 Prioridad / Urgencia", ["💡 INFO", "⚠️ AVISO", "🚨 URGENTE"], key="alert_com_nivel")
+                
+                con_expiracion = c_u.checkbox("Establecer fecha de expiración", key="alert_com_exp_check")
+                fecha_exp = None
+                if con_expiracion:
+                    from datetime import date as _date, timedelta
+                    fecha_exp = st.date_input("Expira el", value=_date.today() + timedelta(days=7), key="alert_com_fecha_exp")
+                
+                mensaje_nuevo = st.text_area("💬 Mensaje o Detalle", placeholder="Escribe aquí los detalles del aviso...", height=80, key="alert_com_mensaje")
+                
+                if st.button("🚀 Publicar Comunicado", type="primary", use_container_width=True, key="alert_btn_publish"):
+                    if not titulo_nuevo.strip() or not mensaje_nuevo.strip():
+                        st.warning("⚠️ El Título y el Mensaje son obligatorios.")
+                    else:
+                        nivel_code = nivel_nuevo.split(" ")[-1]
+                        payload = {
+                            'titulo': titulo_nuevo.strip(),
+                            'mensaje': mensaje_nuevo.strip(),
+                            'nivel': nivel_code,
+                            'autor_area': rol_actual,
+                            'area_destino': dest_code,
+                            'activo': True,
+                            'fecha_expiracion': fecha_exp.isoformat() if fecha_exp else None
+                        }
+                        try:
+                            controller.client.table('comunicado').insert(payload).execute()
+                            st.success("✅ Comunicado enviado exitosamente a la(s) área(s) destino.")
+                            st.rerun()
+                        except Exception as ex:
+                            st.error(f"Error al publicar comunicado: {ex}")
+            
+            st.markdown("---")
+            
+            if not comunicados_activos:
+                st.info("No hay comunicados pendientes para tu área en este momento.")
+            else:
+                _nivel_cfg = {
+                    'URGENTE': ('🚨', 'error'),
+                    'AVISO':   ('⚠️', 'warning'),
+                    'INFO':    ('💡', 'info'),
+                }
+                for c in comunicados_activos:
+                    nivel = str(c.get('nivel', 'INFO')).upper()
+                    emoji, fn_name = _nivel_cfg.get(nivel, ('📌', 'info'))
+                    fecha_raw = str(c.get('fecha_creacion', ''))[:10]
+                    autor_area = c.get('autor_area', 'GERENCIA')
+                    area_destino = c.get('area_destino', 'TODOS')
+                    
+                    with st.container(border=True):
+                        # Encabezado del nivel
+                        if fn_name == 'error':
+                            st.error(f"{emoji} **{c.get('titulo', 'Sin título')}** (URGENTE)")
+                        elif fn_name == 'warning':
+                            st.warning(f"{emoji} **{c.get('titulo', 'Sin título')}** (AVISO)")
+                        else:
+                            st.info(f"{emoji} **{c.get('titulo', 'Sin título')}**")
+                            
+                        st.write(c.get('mensaje', ''))
+                        st.caption(f"De: **{autor_area}** ➔ Para: **{area_destino}** &nbsp;|&nbsp; 📅 {fecha_raw}")
+                        
+                        # Botón para marcar Check
+                        if st.button("☑️ Confirmar recepción / Marcar check (Desaparece)", key=f"chk_read_{c['id']}", use_container_width=True):
+                            try:
+                                controller.client.table('comunicado').update({col_leido: True}).eq('id', c['id']).execute()
+                                st.success("¡Marcado como leído para tu área!")
+                                st.rerun()
+                            except Exception as ex:
+                                st.error(f"Error al marcar check: {ex}")
+
+        with tabs[1]:
             st.markdown("### 🏛️ Tickets Machu Picchu (MINISTERIO)")
             st.caption("Todos los ingresos pendientes asignados al proveedor del estado.")
             mostrar_tabla_alertas(alertas['machupicchu'], "No hay tickets de MP pendientes.")
             
-        with tabs[1]:
+        with tabs[2]:
             st.markdown("### 🔴 Alertas Críticas (0 a 2 días)")
             st.caption("Servicios inminentes que no han sido marcados como 'Terminado'.")
             mostrar_tabla_alertas(alertas['rojo'], "No hay alertas críticas pendientes.")
 
-        with tabs[2]:
+        with tabs[3]:
             st.markdown("### ⚠️ Servicios Sin Asignar (Riesgo Alto)")
             st.error("Estos servicios están en el itinerario pero NO tienen costos ni proveedores registrados. Las alertas de colores NO funcionarán para estos casos si no se completan.")
             mostrar_tabla_alertas(alertas['sin_asignar'], "Todos los servicios dentro de los próximos 10 días tienen asignaciones.")
             
-        with tabs[3]:
+        with tabs[4]:
             st.markdown("### 🟡 Alertas de Atención (3 a 5 días)")
             st.caption("Servicios próximos que requieren verificación operativa.")
             mostrar_tabla_alertas(alertas['amarillo'], "No hay alertas de atención pendientes.")
             
-        with tabs[4]:
+        with tabs[5]:
             st.markdown("### 🟢 Alertas Preventivas (6 a 10 días)")
             st.caption("Servicios programados para la próxima semana.")
             mostrar_tabla_alertas(alertas['verde'], "No hay alertas preventivas pendientes.")

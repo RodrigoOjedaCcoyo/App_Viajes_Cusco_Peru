@@ -1075,5 +1075,27 @@ BEGIN
   COMMENT ON TABLE meta_mensual IS 'Almacena las metas de ventas B2C congeladas por cada mes/año.';
 
   -- ==============================================================
+  -- SECCIÓN 7: TABLERO DE COMUNICADOS INTERNOS (ALERTAS ENTRE ÁREAS)
+  -- ==============================================================
+
+  CREATE TABLE comunicado (
+      id SERIAL PRIMARY KEY,
+      titulo TEXT NOT NULL,
+      mensaje TEXT NOT NULL,
+      nivel TEXT NOT NULL DEFAULT 'INFO',               -- 'URGENTE', 'AVISO', 'INFO'
+      autor_area TEXT NOT NULL,                         -- 'VENTAS', 'OPERACIONES', 'CONTABILIDAD', 'GERENCIA'
+      area_destino TEXT NOT NULL,                       -- 'VENTAS', 'OPERACIONES', 'CONTABILIDAD', 'GERENCIA', 'TODOS'
+      activo BOOLEAN DEFAULT TRUE,
+      leido_ventas BOOLEAN DEFAULT FALSE,
+      leido_operaciones BOOLEAN DEFAULT FALSE,
+      leido_contabilidad BOOLEAN DEFAULT FALSE,
+      leido_gerencia BOOLEAN DEFAULT FALSE,
+      fecha_creacion TIMESTAMPTZ DEFAULT NOW(),
+      fecha_expiracion DATE
+  );
+
+  CREATE INDEX idx_comunicado_activo_destino ON comunicado(activo, area_destino);
+
+  -- ==============================================================
   -- ✅ FIN DEL SCRIPT: INSTALACIÓN EXITOSA
   -- ==============================================================

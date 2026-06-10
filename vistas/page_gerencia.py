@@ -689,6 +689,99 @@ def panel_marketing(supabase_client):
                  })
 
 
+
+def panel_comunicados_gerencia(supabase_client):
+    """Panel de administración y auditoría de comunicados de todas las áreas."""
+    st.subheader("📢 Administración de Comunicados del Sistema", divider='blue')
+    st.caption("Como Gerente, puedes auditar, crear, archivar o reactivar cualquier comunicado de cualquier área.")
+
+    # ── FORMULARIO DE PUBLICACIÓN DESDE GERENCIA ──
+    with st.container(border=True):
+        st.markdown("#### ➕ Publicar Comunicado (Como Gerencia)")
+        c1, c2 = st.columns([2, 1])
+        titulo_nuevo = c1.text_input("📝 Título del comunicado", placeholder="Ej: Mantenimiento del sistema", key="com_titulo")
+        
+        areas_map = {
+            "Todos": "TODOS",
+            "Ventas": "VENTAS",
+            "Operaciones": "OPERACIONES",
+            "Contabilidad": "CONTABILIDAD",
+            "Gerencia": "GERENCIA"
+        }
+        dest_nombre = c2.selectbox("🎯 Dirigido a (Área)", list(areas_map.keys()), key="com_dest")
+        dest_code = areas_map[dest_nombre]
+        
+        c_n, c_u = st.columns([1, 1])
+        nivel_nuevo = c_n.selectbox("🔴 Nivel de Urgencia", ["💡 INFO", "⚠️ AVISO", "🚨 URGENTE"], key="com_nivel")
+        
+        con_expiracion = c_u.checkbox("Establecer fecha de expiración", key="com_exp_check")
+        fecha_exp = None
+        if con_expiracion:
+            from datetime import date as _date, timedelta
+            fecha_exp = st.date_input("Expira el", value=_date.today() + timedelta(days=7), key="com_fecha_exp")
+            
+        mensaje_nuevo = st.text_area("💬 Mensaje", placeholder="Escribe aquí el detalle...", height=100, key="com_mensaje")
+
+        if st.button("🚀 Publicar Comunicado", type="primary", use_container_width=True, key="btn_publicar_com"):
+            if not titulo_nuevo.strip() or not mensaje_nuevo.strip():
+                st.warning("⚠️ El Título y el Mensaje son obligatorios.")
+            else:
+                nivel_code = nivel_nuevo.split(" ")[-1]
+                payload = {
+                    'titulo': titulo_nuevo.strip(),
+                    'mensaje': mensaje_nuevo.strip(),
+                    'nivel': nivel_code,
+                    'autor_area': 'GERENCIA',
+                    'area_destino': dest_code,
+                    'activo': True,
+                    'fecha_expiracion': fecha_exp.isoformat() if fecha_exp else None
+                }
+                try:
+                    supabase_client.table('comunicado').insert(payload).execute()
+                    st.success("✅ Comunicado publicado exitosamente.")
+                    st.rerun()
+                except Exception as e_ins:
+                    st.error(f"❌ Error al publicar: {e_ins}")
+
+    st.divider()
+
+    # ── LISTA DE COMUNICADOS ACTIVOS ──
+    st.markdown("#### 📄 Historial de Comunicados de todas las áreas")
+    try:
+        res = supabase_client.table('comunicado').select('*').order('fecha_creacion', desc=True).execute()
+        comunicados = res.data or []
+    except Exception as e_sel:
+        st.error(f"No se pudo cargar la lista: {e_sel}")
+        comunicados = []
+
+    if not comunicados:
+        st.info("No hay comunicados publicados en el sistema.")
+    else:
+        _nivel_badge = {'URGENTE': '🚨 URGENTE', 'AVISO': '⚠️ AVISO', 'INFO': '💡 INFO'}
+        for c in comunicados:
+            estado_label = "✅ Activo" if c.get('activo') else "📂 Archivado"
+            nivel_label = _nivel_badge.get(str(c.get('nivel', 'INFO')).upper(), 'INFO')
+            with st.container(border=True):
+                col_info, col_btn = st.columns([4, 1])
+                with col_info:
+                    st.markdown(f"**{c.get('titulo')}** &nbsp; `{nivel_label}` &nbsp; `{estado_label}`")
+                    st.caption(c.get('mensaje', ''))
+                    fecha_raw = str(c.get('fecha_creacion', ''))[:10]
+                    exp_raw = c.get('fecha_expiracion') or 'Sin expiración'
+                    st.caption(f"De: **{c.get('autor_area')}** ➔ Para: **{c.get('area_destino')}** &nbsp;|&nbsp; 📅 Publicado: {fecha_raw} &nbsp;|&nbsp; ⏰ Expira: {exp_raw}")
+                with col_btn:
+                    if c.get('activo'):
+                        if st.button("📂 Archivar", key=f"arch_com_{c['id']}", use_container_width=True):
+                            supabase_client.table('comunicado').update({'activo': False}).eq('id', c['id']).execute()
+                            st.success("Comunicado archivado.")
+                            st.rerun()
+                    else:
+                        if st.button("♻️ Reactivar", key=f"react_com_{c['id']}", use_container_width=True):
+                            supabase_client.table('comunicado').update({'activo': True}).eq('id', c['id']).execute()
+                            st.success("Comunicado reactivado.")
+                            st.rerun()
+
+
 def mostrar_pagina(funcionalidad_seleccionada, rol_actual, user_id, supabase_client):
     controller = GerenciaController(supabase_client)
     
@@ -709,6 +802,8 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual, user_id, supabase_cli
         dashboard_ejecutivo(controller)
     elif "Marketing" in funcionalidad_seleccionada:
         panel_marketing(supabase_client)
+    elif funcionalidad_seleccionada in ["Comunicados", "Tablero de Comunicados"]:
+        panel_comunicados_gerencia(supabase_client)
     elif funcionalidad_seleccionada in ["Auditoría de Gestión", "Gestión de Registros", "Gestión Ejecutiva"]:
         auditoria_maestra(controller)
     elif funcionalidad_seleccionada in ["Control de Liquidaciones"]:
@@ -716,5 +811,5 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual, user_id, supabase_cli
     elif funcionalidad_seleccionada in ["Revisión de Pasajeros", "Panel de Revisión", "Revisión Operativa"]:
         panel_revision_gerencia(supabase_client)
     else:
-        st.info("Selecciona una opción del menú: `Dashboard Ejecutivo`, `Gerencia de Marketing`, `Auditoría de Gestión`, `Control de Liquidaciones` o `Revisión de Pasajeros`.")
+        st.info("Selecciona una opción del menú: `Dashboard Ejecutivo`, `Gerencia de Marketing`, `Auditoría de Gestión`, `Control de Liquidaciones`, `Comunicados` o `Revisión de Pasajeros`.")
 
