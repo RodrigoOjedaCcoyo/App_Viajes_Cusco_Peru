@@ -1194,6 +1194,15 @@ class OperacionesController:
                     if not vt:
                         continue
                         
+                    # Filtrar filas de costos adicionales
+                    tipo_serv = str(item.get('tipo_servicio', '')).upper()
+                    obs_tour = str(vt.get('observacion', '')).upper()
+                    if "FILA AUTOGENERADA" in tipo_serv or "FILA AUTOGENERADA" in obs_tour or "COSTOS ADICIONALES" in tipo_serv or "COSTOS ADICIONALES" in obs_tour:
+                        continue
+                    # Filtrar días libres de las alertas operativas activas
+                    if any(term in obs_tour for term in ["DIA LIBRE", "DÍA LIBRE", "LIBRE", "FIN DE SERVICIOS", "FIN DE SERVICIO"]):
+                        continue
+                        
                     prov_nom = (item.get('proveedor') or {}).get('nombre_comercial', 'Sin Proveedor')
                     fecha_str = vt.get('fecha_servicio')
                     if not fecha_str: continue
@@ -1236,6 +1245,11 @@ class OperacionesController:
                         fecha_str2 = vt.get('fecha_servicio')
                         if not fecha_str2: continue
                         
+                        # Si es un día libre o fin de servicios, omitir (no requiere proveedor)
+                        obs = (vt.get('observacion') or "").upper()
+                        if any(term in obs for term in ["DIA LIBRE", "DÍA LIBRE", "LIBRE", "FIN DE SERVICIOS", "FIN DE SERVICIO"]):
+                            continue
+                        
                         try:
                             f_serv = pd.to_datetime(fecha_str2).date()
                         except:
@@ -1245,7 +1259,6 @@ class OperacionesController:
                         
                         if 0 <= diff <= 10:
                             # AGREGAR A MACHU PICCHU SI ES TICKET Y NO TIENE DATA
-                            obs = (vt.get('observacion') or "").upper()
                             if "MACHU" in obs or "MAPI" in obs or "TICKET" in obs:
                                 alertas["machupicchu"].append({
                                     "id": None,

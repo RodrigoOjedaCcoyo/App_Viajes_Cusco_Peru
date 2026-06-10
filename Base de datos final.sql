@@ -1096,6 +1096,18 @@ BEGIN
 
   CREATE INDEX idx_comunicado_activo_destino ON comunicado(activo, area_destino);
 
+  -- Deshabilitar RLS para permitir accesos desde la API anon/authenticated
+  ALTER TABLE comunicado DISABLE ROW LEVEL SECURITY;
+
+  -- Políticas de respaldo en caso de que RLS esté activado
+  DROP POLICY IF EXISTS "Permitir select público" ON comunicado;
+  DROP POLICY IF EXISTS "Permitir insert público" ON comunicado;
+  DROP POLICY IF EXISTS "Permitir update público" ON comunicado;
+
+  CREATE POLICY "Permitir select público" ON comunicado FOR SELECT USING (true);
+  CREATE POLICY "Permitir insert público" ON comunicado FOR INSERT WITH CHECK (true);
+  CREATE POLICY "Permitir update público" ON comunicado FOR UPDATE USING (true) WITH CHECK (true);
+
   -- ==============================================================
   -- ✅ FIN DEL SCRIPT: INSTALACIÓN EXITOSA
   -- ==============================================================
