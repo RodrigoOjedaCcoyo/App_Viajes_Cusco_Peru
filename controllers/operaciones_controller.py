@@ -1450,19 +1450,29 @@ class OperacionesController:
         n_cancel = len(seleccionados)
         factor = n_cancel / float(num_total_ref)
 
-        ingreso_total = float(res_base['ingreso_recaudado'] or 0)
-        costo_total = float(res_base['costo_incurrido_total'] or 0)
-        ingreso_prorr = ingreso_total * factor
-        costo_prorr = costo_total * factor
+        ingreso_total_soles = float(res_base['ingreso_recaudado'] or 0)
+        costo_total_soles = float(res_base['costo_incurrido_total'] or 0)
+        ingreso_prorr_soles = ingreso_total_soles * factor
+        costo_prorr_soles = costo_total_soles * factor
 
         precio_venta = float(venta.get('precio_total_cierre') or 0)
         tc_v = float(venta.get('tipo_cambio') or 3.80)
         moneda_v = venta.get('moneda') or 'USD'
         valor_pax_venta = precio_venta / num_total_ref
+        
+        # Convertir a la moneda original de la venta para que el UI muestre todo unificado
         if moneda_v == 'USD':
-            valor_pax_pen = valor_pax_venta * tc_v
+            ingreso_prorr = ingreso_prorr_soles / tc_v
+            costo_prorr = costo_prorr_soles / tc_v
+            ingreso_total = ingreso_total_soles / tc_v
+            costo_total = costo_total_soles / tc_v
+            valor_pax_ref = valor_pax_venta
         else:
-            valor_pax_pen = valor_pax_venta
+            ingreso_prorr = ingreso_prorr_soles
+            costo_prorr = costo_prorr_soles
+            ingreso_total = ingreso_total_soles
+            costo_total = costo_total_soles
+            valor_pax_ref = valor_pax_venta
 
         return {
             "venta": venta,
@@ -1473,11 +1483,13 @@ class OperacionesController:
             "n_total_ref": num_total_ref,
             "n_activos": len(activos),
             "factor": factor,
+            "moneda_venta": moneda_v,
+            "tc_venta": tc_v,
             "ingreso_total_venta": ingreso_total,
             "costo_total_venta": costo_total,
             "ingreso_prorrateado": ingreso_prorr,
             "costo_prorrateado": costo_prorr,
-            "valor_referencia_pax_pen": valor_pax_pen * n_cancel,
+            "valor_referencia_pax_pen": valor_pax_ref * n_cancel,
             "pagos": res_base['pagos'],
             "servicios": res_base['servicios'],
         }, None
@@ -1489,7 +1501,7 @@ class OperacionesController:
         monto_reembolsado: float = 0.0,
         metodo_reembolso: str = 'TRANSFERENCIA',
         observaciones: str = None,
-        penalidad_total_soles: float = 0.0,
+        penalidad_total: float = 0.0,
         ajustar_cantidad_itinerario: bool = True,
     ):
         """
@@ -1505,6 +1517,9 @@ class OperacionesController:
             n_cancel = resumen['n_cancelar']
             ids_set = [int(p['id_pasajero']) for p in resumen['pasajeros_seleccionados']]
             nombres = ", ".join([p.get('nombre_completo', 'Pax') for p in resumen['pasajeros_seleccionados']])
+            moneda_v = resumen.get('moneda_venta', 'USD')
+            tc_v = resumen.get('tc_venta', 3.80)
+            sym = "$" if moneda_v == "USD" else "S/."
 
             for pid in ids_set:
                 try:
@@ -1542,15 +1557,15 @@ class OperacionesController:
             if monto_reembolsado > 0:
                 obs_pago = (
                     f"CANCELACIÓN PARCIAL ({n_cancel} pax): {nombres}\n"
-                    f"Penalidades retenidas (S/.): {penalidad_total_soles:,.2f}\n"
+                    f"Penalidades retenidas ({sym}): {penalidad_total:,.2f}\n"
                     f"{observaciones or ''}"
                 )
                 self.client.table('pago').insert({
                     "id_venta": id_venta,
                     "fecha_pago": datetime.now().date().isoformat(),
                     "monto_pagado": monto_reembolsado,
-                    "moneda": "PEN",
-                    "tasa_cambio": 1.0,
+                    "moneda": moneda_v,
+                    "tasa_cambio": tc_v if moneda_v == "USD" else 1.0,
                     "monto_moneda_venta": monto_reembolsado,
                     "metodo_pago": metodo_reembolso,
                     "tipo_pago": "REEMBOLSO",

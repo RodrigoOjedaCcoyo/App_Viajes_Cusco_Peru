@@ -2444,8 +2444,11 @@ def render_modulo_cancelacion_parcial(controller, id_venta):
     if session_key not in st.session_state:
         st.session_state[session_key] = []
 
-    st.markdown("#### 💰 Costos y penalidades (porción de los pax seleccionados)")
-    st.caption(f"Costo operativo prorrateado: S/. {res_p['costo_prorrateado']:,.2f}")
+    moneda_v = res_p.get('moneda_venta', 'USD')
+    sym = "$" if moneda_v == "USD" else "S/."
+
+    st.markdown(f"#### 💰 Costos y penalidades en la moneda de pago ({moneda_v})")
+    st.caption(f"Costo operativo prorrateado: {sym} {res_p['costo_prorrateado']:,.2f}")
 
     col_p1, col_p2, col_p3, col_p4 = st.columns([2, 1, 1, 1])
     with col_p1:
@@ -2453,19 +2456,23 @@ def render_modulo_cancelacion_parcial(controller, id_venta):
     with col_p2:
         monto_pen = st.number_input("Monto", min_value=0.0, value=0.0, step=0.01, key=f"monto_pen_p_{id_venta}")
     with col_p3:
-        moneda_pen = st.selectbox("Moneda", ["USD", "PEN"], index=0, key=f"mon_pen_p_{id_venta}")
+        moneda_pen = st.selectbox("Moneda", ["USD", "PEN"], index=0 if moneda_v=="USD" else 1, key=f"mon_pen_p_{id_venta}")
     with col_p4:
-        tc_pen = st.number_input("TC", min_value=1.0, value=float(venta.get('tipo_cambio') or 3.8), step=0.01, key=f"tc_pen_p_{id_venta}")
+        tc_pen = st.number_input("TC", min_value=1.0, value=float(res_p.get('tc_venta') or 3.8), step=0.01, key=f"tc_pen_p_{id_venta}")
 
     if st.button("➕ Añadir penalidad", key=f"btn_add_pen_p_{id_venta}"):
-        total_s = (monto_pen * tc_pen) if moneda_pen == "USD" else monto_pen
+        if moneda_v == 'USD':
+            total_mv = monto_pen if moneda_pen == "USD" else (monto_pen / tc_pen)
+        else:
+            total_mv = (monto_pen * tc_pen) if moneda_pen == "USD" else monto_pen
+            
         st.session_state[session_key].append({
-            "descripcion": desc_pen, "monto": monto_pen, "moneda": moneda_pen, "tc": tc_pen, "total_soles": total_s
+            "descripcion": desc_pen, "monto": monto_pen, "moneda": moneda_pen, "tc": tc_pen, "total_moneda_venta": total_mv
         })
         st.rerun()
 
     for pen in st.session_state[session_key]:
-        st.write(f"• {pen['descripcion']}: S/. {pen['total_soles']:,.2f}")
+        st.write(f"• {pen['descripcion']}: {sym} {pen['total_moneda_venta']:,.2f}")
 
     gateway_fee_pct = st.number_input(
         "Comisión pasarela (%) sobre ingreso prorrateado",
@@ -2474,21 +2481,21 @@ def render_modulo_cancelacion_parcial(controller, id_venta):
     )
     ingreso_prorr = float(res_p['ingreso_prorrateado'])
     costo_prorr = float(res_p['costo_prorrateado'])
-    pen_prov = sum(p['total_soles'] for p in st.session_state[session_key])
+    pen_prov = sum(p['total_moneda_venta'] for p in st.session_state[session_key])
     pen_pasarela = ingreso_prorr * (gateway_fee_pct / 100.0)
     penalidades = pen_prov + pen_pasarela
     costo_total_parcial = costo_prorr + penalidades
     reembolso_sugerido = ingreso_prorr - costo_total_parcial
 
-    st.markdown("#### 🏦 Matriz financiera (parcial)")
+    st.markdown(f"#### 🏦 Matriz financiera (parcial en {moneda_v})")
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Ingreso prorrateado", f"S/. {ingreso_prorr:,.2f}")
-    m2.metric("Costos + penalidades", f"S/. {costo_total_parcial:,.2f}")
+    m1.metric("Ingreso prorrateado", f"{sym} {ingreso_prorr:,.2f}")
+    m2.metric("Costos + penalidades", f"{sym} {costo_total_parcial:,.2f}")
     if reembolso_sugerido >= 0:
-        m3.metric("Reembolso sugerido", f"S/. {reembolso_sugerido:,.2f}")
+        m3.metric("Reembolso sugerido", f"{sym} {reembolso_sugerido:,.2f}")
     else:
-        m3.metric("Penalidad adicional", f"S/. {abs(reembolso_sugerido):,.2f}", help="Los costos superan lo prorrateado recaudado.")
-    m4.metric("Valor ref. venta (pax)", f"S/. {res_p['valor_referencia_pax_pen']:,.2f}")
+        m3.metric("Penalidad adicional", f"{sym} {abs(reembolso_sugerido):,.2f}", help="Los costos superan lo prorrateado recaudado.")
+    m4.metric("Valor ref. venta (pax)", f"{sym} {res_p['valor_referencia_pax_pen']:,.2f}")
 
     st.markdown("##### Pasajeros que se cancelan")
     for p in res_p['pasajeros_seleccionados']:
@@ -2497,7 +2504,7 @@ def render_modulo_cancelacion_parcial(controller, id_venta):
     st.divider()
     st.markdown("#### 🔒 Confirmar cancelación parcial")
     monto_reemb = st.number_input(
-        "Monto real a reembolsar (S/.)",
+        f"Monto real a reembolsar ({sym})",
         min_value=0.0,
         value=max(0.0, float(reembolso_sugerido)),
         step=1.0,
@@ -2532,10 +2539,10 @@ def render_modulo_cancelacion_parcial(controller, id_venta):
             f"{obs}\n\n--- CANCELACIÓN PARCIAL ---\n"
             f"Pax: {', '.join([p.get('nombre_completo','') for p in res_p['pasajeros_seleccionados']])}\n"
             f"Prorrateo: {res_p['n_cancelar']}/{res_p['n_total_ref']}\n"
-            f"Ingreso prorr.: S/. {ingreso_prorr:,.2f}\n"
-            f"Costo prorr.: S/. {costo_prorr:,.2f}\n"
-            f"Penalidades: S/. {penalidades:,.2f}\n"
-            f"Reembolso: S/. {monto_reemb:,.2f}"
+            f"Ingreso prorr. ({sym}): {ingreso_prorr:,.2f}\n"
+            f"Costo prorr. ({sym}): {costo_prorr:,.2f}\n"
+            f"Penalidades ({sym}): {penalidades:,.2f}\n"
+            f"Reembolso ({sym}): {monto_reemb:,.2f}"
         )
         with st.spinner("Registrando baja parcial..."):
             ok, msg = controller.ejecutar_cancelacion_parcial(
@@ -2544,7 +2551,7 @@ def render_modulo_cancelacion_parcial(controller, id_venta):
                 monto_reembolsado=monto_reemb,
                 metodo_reembolso=metodo,
                 observaciones=desglose,
-                penalidad_total_soles=penalidades,
+                penalidad_total=penalidades,
                 ajustar_cantidad_itinerario=ajustar_pax,
             )
         if ok:
