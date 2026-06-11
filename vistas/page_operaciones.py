@@ -2445,7 +2445,14 @@ def render_modulo_cancelacion_parcial(controller, id_venta):
         st.session_state[session_key] = []
 
     moneda_v = res_p.get('moneda_venta', 'USD')
-    sym = "$" if moneda_v == "USD" else "S/."
+    if moneda_v == "USD":
+        sym = "$"
+    elif moneda_v == "PEN":
+        sym = "S/."
+    elif moneda_v == "EUR":
+        sym = "€"
+    else:
+        sym = moneda_v
 
     st.markdown(f"#### 💰 Costos y penalidades en la moneda de pago ({moneda_v})")
     st.caption(f"Costo operativo prorrateado: {sym} {res_p['costo_prorrateado']:,.2f}")
