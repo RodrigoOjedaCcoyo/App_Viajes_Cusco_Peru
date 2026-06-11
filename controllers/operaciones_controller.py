@@ -323,6 +323,10 @@ class OperacionesController:
                 
                 nombre_tour = s.get('observacion') or tours_map.get(s['id_tour']) or v.get('tour_nombre') or "Tour Desconocido"
                 
+                # Filtrar filas técnicas de costos adicionales para que no ensucien la vista
+                if "FILA AUTOGENERADA" in str(nombre_tour).upper() or "COSTOS ADICIONALES" in str(nombre_tour).upper():
+                    continue
+                
                 key_g = f"{s['id_venta']}-{s['n_linea']}"
                 nombre_guia = guias_map.get(key_g, "Por Asignar")
                 nombre_endoso = proveedor_endoso_map.get(key_g, "---")
@@ -402,6 +406,11 @@ class OperacionesController:
                     id_cliente = v.get('id_cliente')
                     nombre_cliente = clientes_map.get(id_cliente, "Desconocido")
                     nombre_tour = s.get('observacion') or v.get('tour_nombre') or "Tour Desconocido"
+                    
+                    # Filtrar filas técnicas de costos adicionales para que no ensucien la vista diaria
+                    if "FILA AUTOGENERADA" in str(nombre_tour).upper() or "COSTOS ADICIONALES" in str(nombre_tour).upper():
+                        continue
+                        
                     es_endoso = s.get('es_endoso', False)
                     tipo_venta = '🏢 B2B' if v.get('id_agencia_aliada') else '👤 B2C'
 
