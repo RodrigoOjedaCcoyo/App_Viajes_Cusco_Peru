@@ -2259,25 +2259,14 @@ def dashboard_simulador_costos(controller):
                 
                 # --- NUEVO: Penalidad por Pasarela de Pago / Comisión de Tarjeta ---
                 st.markdown("##### 💳 Penalidad por Pasarela de Pago (Comisión de Tarjeta / Banco)")
-                col_gate1, col_gate2 = st.columns([2, 1])
-                with col_gate1:
-                    gateway_fee_pct = st.number_input(
-                        "Porcentaje de Comisión Pasarela (%)", 
-                        min_value=0.0, 
-                        max_value=20.0, 
-                        value=5.0, 
-                        step=0.1, 
-                        help="Porcentaje de comisión cobrado por pasarelas (Visa, Niubiz, Culqi, etc.) sobre los adelantos recaudados.",
-                        key=f"gate_pct_{id_actual}"
-                    )
-                with col_gate2:
-                    monto_comision_pasarela = (ingreso_recaudado * (gateway_fee_pct / 100.0))
-                    st.text_input(
-                        "Monto de Comisión Calculado (S/.)", 
-                        value=f"S/. {monto_comision_pasarela:,.2f}", 
-                        disabled=True,
-                        key=f"gate_val_disp_{id_actual}"
-                    )
+                monto_comision_pasarela = st.number_input(
+                    "Comisión Pasarela (S/.)", 
+                    min_value=0.0, 
+                    value=float(ingreso_recaudado * 0.05), 
+                    step=0.01, 
+                    help="Monto de comisión cobrado por pasarelas (Visa, Niubiz, Culqi, etc.) sobre los adelantos recaudados. Sugerido: 5% del recaudado.",
+                    key=f"gate_val_{id_actual}"
+                )
 
                 # Calcular Costo Total Final (Inicial + Penalidades de Proveedores + Penalidad de Pasarela)
                 costo_penalidades_prov = sum(p['total_soles'] for p in st.session_state[session_key])
@@ -2345,7 +2334,7 @@ def dashboard_simulador_costos(controller):
                             f"--- DESGLOSE CONTABLE DE CANCELACIÓN ---\n"
                             f"• Total Recaudado (Adelantos): S/. {ingreso_recaudado:,.2f}\n"
                             f"• Costo Incurrido en Servicios: S/. {costo_incurrido_inicial:,.2f}\n"
-                            f"• Penalidad Pasarela ({gateway_fee_pct}%): S/. {monto_comision_pasarela:,.2f}\n"
+                            f"• Penalidad Pasarela: S/. {monto_comision_pasarela:,.2f}\n"
                             f"• Penalidades de Proveedores: S/. {costo_penalidades_prov:,.2f}\n"
                             f"• Total Retenido (Penalidades): S/. {costo_penalidades:,.2f}\n"
                             f"• Monto Real Reembolsado: S/. {monto_a_reembolsar:,.2f}"
@@ -2544,22 +2533,15 @@ def render_modulo_cancelacion_parcial(controller, id_venta):
 
     # Comisión pasarela
     st.markdown("##### 💳 Penalidad por Pasarela de Pago (Comisión de Tarjeta / Banco)")
-    col_gate1, col_gate2 = st.columns([2, 1])
-    with col_gate1:
-        gateway_fee_pct = st.number_input(
-            "Porcentaje de Comisión Pasarela (%)",
-            min_value=0.0, max_value=20.0, value=5.0, step=0.1,
-            key=f"gate_pct_p_{id_venta}",
-        )
-    with col_gate2:
-        ingreso_prorr = float(res_p['ingreso_prorrateado'])
-        monto_comision_pasarela = ingreso_prorr * (gateway_fee_pct / 100.0)
-        st.text_input(
-            f"Monto de Comisión Calculado ({moneda_v})",
-            value=f"{sym} {monto_comision_pasarela:,.2f}",
-            disabled=True,
-            key=f"gate_val_disp_p_{id_venta}"
-        )
+    ingreso_prorr = float(res_p['ingreso_prorrateado'])
+    monto_comision_pasarela = st.number_input(
+        f"Comisión Pasarela ({moneda_v})",
+        min_value=0.0,
+        value=float(ingreso_prorr * 0.05),
+        step=0.01,
+        help="Monto de comisión cobrado por pasarelas (Visa, Niubiz, Culqi, etc.) sobre los adelantos recaudados. Sugerido: 5% del recaudado.",
+        key=f"gate_val_p_{id_venta}"
+    )
 
     costo_prorr = float(res_p['costo_prorrateado'])
     pen_prov = sum(p['total_moneda_venta'] for p in st.session_state[session_key])
@@ -2664,7 +2646,7 @@ def render_modulo_cancelacion_parcial(controller, id_venta):
             f"• Prorrateo aplicado: {res_p['n_cancelar']}/{res_p['n_total_ref']} ({factor_pct:.1f}%)\n"
             f"• Adelanto Recaudado Prorrateado: {sym} {ingreso_prorr:,.2f}\n"
             f"• Costo Incurrido Prorrateado: {sym} {costo_prorr:,.2f}\n"
-            f"• Penalidad Pasarela ({gateway_fee_pct}%): {sym} {monto_comision_pasarela:,.2f}\n"
+            f"• Penalidad Pasarela: {sym} {monto_comision_pasarela:,.2f}\n"
             f"• Penalidades de Proveedores: {sym} {pen_prov:,.2f}\n"
             f"• Total Retenido (Penalidades): {sym} {penalidades:,.2f}\n"
             f"• Monto Real Reembolsado: {sym} {monto_reemb:,.2f}"
