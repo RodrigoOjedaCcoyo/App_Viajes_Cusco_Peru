@@ -2429,16 +2429,19 @@ def render_modulo_cancelacion_parcial(controller, id_venta):
         return
 
     venta = res_p['venta']
-    st.markdown("#### 📋 Resumen del grupo")
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Pax a cancelar", res_p['n_cancelar'])
-    c2.metric("Pax que continúan", len(res_p['pasajeros_activos_restantes']))
-    c3.metric("Referencia venta (total pax)", res_p['n_total_ref'])
-
-    st.markdown(
-        f"**Prorrateo aplicado:** {res_p['n_cancelar']} / {res_p['n_total_ref']} "
-        f"= **{res_p['factor']*100:.1f}%** del ingreso y costos de la venta."
-    )
+    st.markdown("#### 👤 Información General (Baja de Pasajeros)")
+    c1, c2 = st.columns(2)
+    with c1:
+        st.write(f"**ID Venta:** {venta.get('id_venta')}")
+        st.write(f"**Cliente Principal:** {venta.get('cliente', {}).get('nombre') or 'No Registrado'}")
+        cliente_info = venta.get('cliente') or {}
+        lead_info = cliente_info.get('lead') or {}
+        celular = lead_info.get('numero_celular') or cliente_info.get('telefono') or 'No Registrado'
+        st.write(f"**Teléfono:** {celular}")
+    with c2:
+        st.write(f"**Pasajeros a Cancelar:** {res_p['n_cancelar']} PAX")
+        st.write(f"**Pasajeros que Continúan:** {len(res_p['pasajeros_activos_restantes'])} PAX")
+        st.write(f"**Prorrateo Aplicado:** {res_p['n_cancelar']} / {res_p['n_total_ref']} = **{res_p['factor']*100:.1f}%**")
 
     session_key = f"penalidades_parcial_{id_venta}"
     if session_key not in st.session_state:
@@ -2454,12 +2457,59 @@ def render_modulo_cancelacion_parcial(controller, id_venta):
     else:
         sym = moneda_v
 
-    st.markdown(f"#### 💰 Costos y penalidades en la moneda de pago ({moneda_v})")
-    st.caption(f"Costo operativo prorrateado: {sym} {res_p['costo_prorrateado']:,.2f}")
+    factor = res_p['factor']
+    factor_pct = factor * 100.0
 
+    st.markdown(f"#### 💰 Detalle de Liquidación y Costos (Prorrateado al {factor_pct:.1f}%)")
+    
+    # Crear DataFrame con los servicios prorrateados
+    servs_data = []
+    for s in res_p.get('servicios', []):
+        c_unit = float(s.get('costo_unitario') or 0.0)
+        pax = float(s.get('cantidad_pax') or 1.0)
+        tc = float(s.get('tc') or 3.80)
+        moneda_s = s.get('moneda') or 'USD'
+        total_soles = s.get('total_soles') or 0.0
+        
+        # Costo prorrateado en la moneda de la venta
+        if moneda_v == 'USD':
+            costo_prorrateado_mv = (total_soles * factor) / res_p.get('tc_venta', 3.80)
+        else:
+            costo_prorrateado_mv = total_soles * factor
+
+        servs_data.append({
+            "Día": s['dia'],
+            "Proveedor Real": s['proveedor'],
+            "Tipo de Servicio": s['tipo_servicio'],
+            "Costo Unitario": f"{moneda_s} {c_unit:,.2f}",
+            "Pax Original": pax,
+            "Total Soles Original": f"S/. {total_soles:,.2f}",
+            f"Prorrateado ({moneda_v})": f"{sym} {costo_prorrateado_mv:,.2f}"
+        })
+
+    # Agregar penalidades interactivas
+    for pen in st.session_state[session_key]:
+        servs_data.append({
+            "Día": "---",
+            "Proveedor Real": "⚠️ PENALIDAD PROVEEDOR",
+            "Tipo de Servicio": pen['descripcion'],
+            "Costo Unitario": f"{pen['moneda']} {pen['monto']:,.2f}",
+            "Pax Original": 1,
+            "Total Soles Original": "---",
+            f"Prorrateado ({moneda_v})": f"{sym} {pen['total_moneda_venta']:,.2f}"
+        })
+
+    if servs_data:
+        df_servs = pd.DataFrame(servs_data)
+        st.dataframe(df_servs, use_container_width=True, hide_index=True)
+    else:
+        st.info("No hay servicios registrados en la liquidación para calcular costos.")
+
+    # Formulario para agregar Penalidad
+    st.markdown("##### ➕ Agregar Penalidad por Devolución (Proveedores)")
     col_p1, col_p2, col_p3, col_p4 = st.columns([2, 1, 1, 1])
     with col_p1:
-        desc_pen = st.text_input("Descripción penalidad", value="PENALIDAD CANCELACIÓN PARCIAL", key=f"desc_pen_p_{id_venta}")
+        desc_pen = st.text_input("Descripción de la Penalidad", value="PENALIDAD POR DEVOLUCION", key=f"desc_pen_p_{id_venta}")
     with col_p2:
         monto_pen = st.number_input("Monto", min_value=0.0, value=0.0, step=0.01, key=f"monto_pen_p_{id_venta}")
     with col_p3:
@@ -2467,62 +2517,122 @@ def render_modulo_cancelacion_parcial(controller, id_venta):
     with col_p4:
         tc_pen = st.number_input("TC", min_value=1.0, value=float(res_p.get('tc_venta') or 3.8), step=0.01, key=f"tc_pen_p_{id_venta}")
 
-    if st.button("➕ Añadir penalidad", key=f"btn_add_pen_p_{id_venta}"):
-        if moneda_v == 'USD':
-            total_mv = monto_pen if moneda_pen == "USD" else (monto_pen / tc_pen)
-        else:
-            total_mv = (monto_pen * tc_pen) if moneda_pen == "USD" else monto_pen
-            
-        st.session_state[session_key].append({
-            "descripcion": desc_pen, "monto": monto_pen, "moneda": moneda_pen, "tc": tc_pen, "total_moneda_venta": total_mv
-        })
-        st.rerun()
+    c_pbtn1, c_pbtn2 = st.columns([3, 1])
+    with c_pbtn1:
+        if st.button("➕ Añadir Penalidad a Costos", use_container_width=True, key=f"btn_add_pen_p_{id_venta}"):
+            if moneda_v == 'USD':
+                total_mv = monto_pen if moneda_pen == "USD" else (monto_pen / tc_pen)
+            else:
+                total_mv = (monto_pen * tc_pen) if moneda_pen == "USD" else monto_pen
+                
+            st.session_state[session_key].append({
+                "descripcion": desc_pen, "monto": monto_pen, "moneda": moneda_pen, "tc": tc_pen, "total_moneda_venta": total_mv
+            })
+            st.toast("Penalidad agregada con éxito")
+            st.rerun()
+    with c_pbtn2:
+        if st.session_state[session_key]:
+            if st.button("🧹 Limpiar", use_container_width=True, key=f"btn_clear_pen_p_{id_venta}"):
+                st.session_state[session_key] = []
+                st.toast("Penalidades limpiadas")
+                st.rerun()
 
-    for pen in st.session_state[session_key]:
-        st.write(f"• {pen['descripcion']}: {sym} {pen['total_moneda_venta']:,.2f}")
+    # Comisión pasarela
+    st.markdown("##### 💳 Penalidad por Pasarela de Pago (Comisión de Tarjeta / Banco)")
+    col_gate1, col_gate2 = st.columns([2, 1])
+    with col_gate1:
+        gateway_fee_pct = st.number_input(
+            "Porcentaje de Comisión Pasarela (%)",
+            min_value=0.0, max_value=20.0, value=5.0, step=0.1,
+            key=f"gate_pct_p_{id_venta}",
+        )
+    with col_gate2:
+        ingreso_prorr = float(res_p['ingreso_prorrateado'])
+        monto_comision_pasarela = ingreso_prorr * (gateway_fee_pct / 100.0)
+        st.text_input(
+            f"Monto de Comisión Calculado ({moneda_v})",
+            value=f"{sym} {monto_comision_pasarela:,.2f}",
+            disabled=True,
+            key=f"gate_val_disp_p_{id_venta}"
+        )
 
-    gateway_fee_pct = st.number_input(
-        "Comisión pasarela (%) sobre ingreso prorrateado",
-        min_value=0.0, max_value=20.0, value=5.0, step=0.1,
-        key=f"gate_pct_p_{id_venta}",
-    )
-    ingreso_prorr = float(res_p['ingreso_prorrateado'])
     costo_prorr = float(res_p['costo_prorrateado'])
     pen_prov = sum(p['total_moneda_venta'] for p in st.session_state[session_key])
-    pen_pasarela = ingreso_prorr * (gateway_fee_pct / 100.0)
-    penalidades = pen_prov + pen_pasarela
+    penalidades = pen_prov + monto_comision_pasarela
     costo_total_parcial = costo_prorr + penalidades
     reembolso_sugerido = ingreso_prorr - costo_total_parcial
 
-    st.markdown(f"#### 🏦 Matriz financiera (parcial en {moneda_v})")
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Ingreso prorrateado", f"{sym} {ingreso_prorr:,.2f}")
-    m2.metric("Costos + penalidades", f"{sym} {costo_total_parcial:,.2f}")
-    if reembolso_sugerido >= 0:
-        m3.metric("Reembolso sugerido", f"{sym} {reembolso_sugerido:,.2f}")
+    # Resumen Financiero
+    st.markdown(f"#### 🏦 Resumen Financiero de Cancelación Parcial (en {moneda_v})")
+    col_res1, col_res2, col_res3 = st.columns(3)
+    with col_res1:
+        st.metric("Adelanto Recaudado Prorrateado", f"{sym} {ingreso_prorr:,.2f}")
+    with col_res2:
+        st.metric("Costo Incurrido Prorrateado", f"{sym} {costo_total_parcial:,.2f}", delta=f"+{sym} {penalidades:,.2f}" if penalidades > 0 else None, delta_color="inverse")
+    with col_res3:
+        if reembolso_sugerido >= 0:
+            st.metric("Reembolso Sugerido", f"{sym} {reembolso_sugerido:,.2f}", help="Monto sugerido a devolver para quedar en equilibrio para estos pasajeros.")
+        else:
+            st.metric("Riesgo de Pérdida Neta (Parcial)", f"{sym} {abs(reembolso_sugerido):,.2f}", delta=f"-{sym} {abs(reembolso_sugerido):,.2f}", delta_color="inverse", help="Alerta: Los costos prorrateados superan los adelantos.")
+
+    # Historial de Pagos Recibidos
+    st.markdown(f"##### Historial de Pagos Recibidos (Prorrateado al {factor_pct:.1f}%)")
+    pagos_data = []
+    for p in res_p.get('pagos', []):
+        monto_orig = p['monto']
+        monto_soles = p['monto_soles']
+        
+        if moneda_v == 'USD':
+            monto_mv = monto_soles / res_p.get('tc_venta', 3.80)
+        else:
+            monto_mv = monto_soles
+            
+        monto_prorr_mv = monto_mv * factor
+        
+        pagos_data.append({
+            "ID": p['id_pago'],
+            "Fecha": p['fecha_pago'],
+            "Tipo": p['tipo_pago'],
+            "Monto Original": f"{p['moneda']} {monto_orig:,.2f}",
+            "TC Pago": p['tc'],
+            f"Prorrateado ({moneda_v})": f"{sym} {monto_prorr_mv:,.2f}"
+        })
+
+    if pagos_data:
+        st.dataframe(pd.DataFrame(pagos_data), use_container_width=True, hide_index=True)
     else:
-        m3.metric("Penalidad adicional", f"{sym} {abs(reembolso_sugerido):,.2f}", help="Los costos superan lo prorrateado recaudado.")
-    m4.metric("Valor ref. venta (pax)", f"{sym} {res_p['valor_referencia_pax_pen']:,.2f}")
+        st.warning("No hay pagos registrados para este viaje.")
 
     st.markdown("##### Pasajeros que se cancelan")
     for p in res_p['pasajeros_seleccionados']:
         st.write(f"• {p.get('nombre_completo', '---')}")
 
     st.divider()
-    st.markdown("#### 🔒 Confirmar cancelación parcial")
-    monto_reemb = st.number_input(
-        f"Monto real a reembolsar ({sym})",
-        min_value=0.0,
-        value=max(0.0, float(reembolso_sugerido)),
-        step=1.0,
-        key=f"refund_parcial_{id_venta}",
+    st.markdown("#### 🔒 Formulario de Confirmación y Devolución Parcial")
+    
+    c_form1, c_form2 = st.columns(2)
+    with c_form1:
+        monto_reemb = st.number_input(
+            f"Monto Real a Reembolsar al Cliente ({sym})",
+            min_value=0.0,
+            value=max(0.0, float(reembolso_sugerido)),
+            step=1.0,
+            key=f"refund_parcial_{id_venta}",
+        )
+    with c_form2:
+        metodo = st.selectbox(
+            "Método de Reembolso",
+            ["TRANSFERENCIA", "EFECTIVO", "YAPE", "PLIN", "INTERBANK", "VISA", "OTRO"],
+            key=f"method_parcial_{id_venta}",
+        )
+
+    obs = st.text_area(
+        "Observaciones de la Cancelación Parcial (Motivos y Acuerdos)", 
+        value="Pasajero cancela por motivos de salud / fuerza mayor.",
+        placeholder="Escribe aquí los detalles del acuerdo...",
+        key=f"obs_parcial_{id_venta}"
     )
-    metodo = st.selectbox(
-        "Método de reembolso",
-        ["TRANSFERENCIA", "EFECTIVO", "YAPE", "PLIN", "INTERBANK", "OTRO"],
-        key=f"method_parcial_{id_venta}",
-    )
-    obs = st.text_area("Motivo / acuerdo", key=f"obs_parcial_{id_venta}")
+    
     ajustar_pax = st.checkbox(
         "Reducir cantidad en calendario operativo (venta_tour)",
         value=True,
@@ -2530,26 +2640,29 @@ def render_modulo_cancelacion_parcial(controller, id_venta):
         key=f"adj_vt_p_{id_venta}",
     )
     st.warning(
-        "Solo se marcarán como cancelados los pasajeros elegidos. "
-        "El resto del grupo sigue en operaciones. Ejecuta la migración SQL si es la primera vez."
+        "⚠️ **ATENCIÓN:** Esta acción marcará como CANCELADO únicamente a los pasajeros seleccionados. "
+        "El resto del grupo sigue activo. Se registrará la salida del egreso contable en la moneda de la venta."
     )
-    confirm = st.checkbox("Confirmo la cancelación parcial y el monto de reembolso.", key=f"confirm_parcial_{id_venta}")
+    confirm = st.checkbox("Entiendo la acción y confirmo que los datos financieros cuadran perfectamente.", key=f"confirm_parcial_{id_venta}")
 
     if st.button(
-        "🟠 Procesar cancelación parcial",
+        "🟠 Procesar Cancelación Parcial de Reserva",
         type="primary",
         disabled=not confirm,
         use_container_width=True,
         key=f"btn_parcial_{id_venta}",
     ):
         desglose = (
-            f"{obs}\n\n--- CANCELACIÓN PARCIAL ---\n"
-            f"Pax: {', '.join([p.get('nombre_completo','') for p in res_p['pasajeros_seleccionados']])}\n"
-            f"Prorrateo: {res_p['n_cancelar']}/{res_p['n_total_ref']}\n"
-            f"Ingreso prorr. ({sym}): {ingreso_prorr:,.2f}\n"
-            f"Costo prorr. ({sym}): {costo_prorr:,.2f}\n"
-            f"Penalidades ({sym}): {penalidades:,.2f}\n"
-            f"Reembolso ({sym}): {monto_reemb:,.2f}"
+            f"{obs}\n\n"
+            f"--- DESGLOSE CONTABLE DE CANCELACIÓN PARCIAL ---\n"
+            f"• Pasajeros de baja: {', '.join([p.get('nombre_completo','') for p in res_p['pasajeros_seleccionados']])}\n"
+            f"• Prorrateo aplicado: {res_p['n_cancelar']}/{res_p['n_total_ref']} ({factor_pct:.1f}%)\n"
+            f"• Adelanto Recaudado Prorrateado: {sym} {ingreso_prorr:,.2f}\n"
+            f"• Costo Incurrido Prorrateado: {sym} {costo_prorr:,.2f}\n"
+            f"• Penalidad Pasarela ({gateway_fee_pct}%): {sym} {monto_comision_pasarela:,.2f}\n"
+            f"• Penalidades de Proveedores: {sym} {pen_prov:,.2f}\n"
+            f"• Total Retenido (Penalidades): {sym} {penalidades:,.2f}\n"
+            f"• Monto Real Reembolsado: {sym} {monto_reemb:,.2f}"
         )
         with st.spinner("Registrando baja parcial..."):
             ok, msg = controller.ejecutar_cancelacion_parcial(
@@ -2563,7 +2676,7 @@ def render_modulo_cancelacion_parcial(controller, id_venta):
             )
         if ok:
             st.session_state[session_key] = []
-            st.success(msg)
+            st.success("✅ " + msg)
             st.rerun()
         else:
             st.error(msg)
