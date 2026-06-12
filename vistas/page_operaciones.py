@@ -2472,10 +2472,15 @@ def render_modulo_cancelacion_parcial(controller, id_venta):
         total_soles = s.get('total_soles') or 0.0
         
         # Costo prorrateado en la moneda de la venta
-        if moneda_v == 'USD':
-            costo_prorrateado_mv = (total_soles * factor) / res_p.get('tc_venta', 3.80)
+        moneda_s_up = moneda_s.upper()
+        if moneda_s_up == moneda_v:
+            costo_prorrateado_mv = (c_unit * pax) * factor
+        elif moneda_s_up == 'USD' and moneda_v == 'PEN':
+            costo_prorrateado_mv = (c_unit * pax * tc) * factor
+        elif moneda_s_up == 'PEN' and moneda_v == 'USD':
+            costo_prorrateado_mv = ((c_unit * pax) / tc) * factor if tc > 0 else ((c_unit * pax) / 3.80) * factor
         else:
-            costo_prorrateado_mv = total_soles * factor
+            costo_prorrateado_mv = (total_soles * factor) / res_p.get('tc_venta', 3.80) if moneda_v == 'USD' else (total_soles * factor)
 
         servs_data.append({
             "Día": s['dia'],

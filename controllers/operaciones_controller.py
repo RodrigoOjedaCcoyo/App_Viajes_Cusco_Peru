@@ -1468,22 +1468,40 @@ class OperacionesController:
 
         precio_venta = float(venta.get('precio_total_cierre') or 0)
         tc_v = float(venta.get('tipo_cambio') or 3.80)
-        moneda_v = venta.get('moneda') or 'USD'
+        moneda_v = (venta.get('moneda') or 'USD').upper()
         valor_pax_venta = precio_venta / num_total_ref
         
-        # Convertir a la moneda original de la venta para que el UI muestre todo unificado
-        if moneda_v == 'USD':
-            ingreso_prorr = ingreso_prorr_mv
-            costo_prorr = costo_prorr_soles / tc_v
-            ingreso_total = ingreso_total_mv
-            costo_total = costo_total_soles / tc_v
-            valor_pax_ref = valor_pax_venta
-        else:
-            ingreso_prorr = ingreso_prorr_mv
-            costo_prorr = costo_prorr_soles
-            ingreso_total = ingreso_total_mv
-            costo_total = costo_total_soles
-            valor_pax_ref = valor_pax_venta
+        # Calcular el costo directamente en la moneda de la venta para cada servicio para evitar errores de tipo de cambio
+        costo_total_mv = 0.0
+        for s in res_base.get('servicios', []):
+            c_unit = float(s.get('costo_unitario') or 0.0)
+            pax = float(s.get('cantidad_pax') or 1.0)
+            tc_s = float(s.get('tc') or 3.80)
+            if tc_s <= 0:
+                tc_s = 3.80
+            moneda_s = (s.get('moneda') or 'USD').upper()
+            
+            total_s = c_unit * pax
+            
+            if moneda_s == moneda_v:
+                costo_mv = total_s
+            elif moneda_s == 'USD' and moneda_v == 'PEN':
+                costo_mv = total_s * tc_s
+            elif moneda_s == 'PEN' and moneda_v == 'USD':
+                costo_mv = total_s / tc_s
+            else:
+                total_soles = s.get('total_soles') or 0.0
+                costo_mv = total_soles / tc_v if moneda_v == 'USD' else total_soles
+                
+            costo_total_mv += costo_mv
+
+        costo_prorr_mv = costo_total_mv * factor
+
+        ingreso_prorr = ingreso_prorr_mv
+        costo_prorr = costo_prorr_mv
+        ingreso_total = ingreso_total_mv
+        costo_total = costo_total_mv
+        valor_pax_ref = valor_pax_venta
 
         return {
             "venta": venta,
