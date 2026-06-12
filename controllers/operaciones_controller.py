@@ -1347,6 +1347,7 @@ class OperacionesController:
             
             # Calcular ingreso recaudado (reembolsos restan)
             ingreso_recaudado = 0.0
+            ingreso_recaudado_moneda_venta = 0.0
             pagos_detalle = []
             for p in pagos:
                 monto = float(p.get('monto_pagado') or 0.0)
@@ -1354,17 +1355,21 @@ class OperacionesController:
                 moneda = p.get('moneda') or 'USD'
                 tipo = p.get('tipo_pago') or 'ADELANTO'
                 
+                # Monto en la moneda de la venta
+                monto_mv = float(p.get('monto_moneda_venta') or monto)
+                
                 # Convertir a soles
-                monto_soles = float(p.get('monto_moneda_venta') or monto)
                 if moneda == 'USD':
                     monto_soles = monto * tc
-                elif moneda == 'PEN':
+                else:
                     monto_soles = monto
                 
                 if tipo == 'REEMBOLSO':
                     ingreso_recaudado -= monto_soles
+                    ingreso_recaudado_moneda_venta -= monto_mv
                 else:
                     ingreso_recaudado += monto_soles
+                    ingreso_recaudado_moneda_venta += monto_mv
                 
                 pagos_detalle.append({
                     "id_pago": p['id_pago'],
@@ -1408,6 +1413,7 @@ class OperacionesController:
                 "pasajeros": pasajeros,
                 "pagos": pagos_detalle,
                 "ingreso_recaudado": ingreso_recaudado,
+                "ingreso_recaudado_moneda_venta": ingreso_recaudado_moneda_venta,
                 "servicios": servicios_detalle,
                 "costo_incurrido_total": costo_incurrido_total
             }, None
@@ -1451,8 +1457,13 @@ class OperacionesController:
         factor = n_cancel / float(num_total_ref)
 
         ingreso_total_soles = float(res_base['ingreso_recaudado'] or 0)
+        ingreso_total_mv = float(res_base.get('ingreso_recaudado_moneda_venta', 0))
         costo_total_soles = float(res_base['costo_incurrido_total'] or 0)
+        
+        factor = n_cancel / float(num_total_ref)
+
         ingreso_prorr_soles = ingreso_total_soles * factor
+        ingreso_prorr_mv = ingreso_total_mv * factor
         costo_prorr_soles = costo_total_soles * factor
 
         precio_venta = float(venta.get('precio_total_cierre') or 0)
@@ -1462,15 +1473,15 @@ class OperacionesController:
         
         # Convertir a la moneda original de la venta para que el UI muestre todo unificado
         if moneda_v == 'USD':
-            ingreso_prorr = ingreso_prorr_soles / tc_v
+            ingreso_prorr = ingreso_prorr_mv
             costo_prorr = costo_prorr_soles / tc_v
-            ingreso_total = ingreso_total_soles / tc_v
+            ingreso_total = ingreso_total_mv
             costo_total = costo_total_soles / tc_v
             valor_pax_ref = valor_pax_venta
         else:
-            ingreso_prorr = ingreso_prorr_soles
+            ingreso_prorr = ingreso_prorr_mv
             costo_prorr = costo_prorr_soles
-            ingreso_total = ingreso_total_soles
+            ingreso_total = ingreso_total_mv
             costo_total = costo_total_soles
             valor_pax_ref = valor_pax_venta
 
