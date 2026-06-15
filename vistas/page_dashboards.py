@@ -384,10 +384,10 @@ def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual=
         
     # --- OPTIMIZACIÓN: Cargar datos una sola vez para evitar errores de conexión (ConnectionTerminated) ---
     try:
-        # Incluir agencia_aliada(nombre) para que el reporte B2B muestre el nombre real de la agencia
+        # Incluir agencia_aliada(nombre) y vendedor(nombre)
         res_ventas = (
             supabase_client.table('venta')
-            .select('*, cliente(*), pasajero(nacionalidad, es_principal), agencia_aliada(nombre)')
+            .select('*, cliente(*), pasajero(nacionalidad, es_principal), agencia_aliada(nombre), vendedor(nombre)')
             .order('fecha_venta', desc=True)
             .execute()
         )
@@ -406,7 +406,7 @@ def mostrar_pagina(funcionalidad_seleccionada: str, supabase_client, rol_actual=
     if any(p in funcionalidad_seleccionada for p in permitidos_b2b):
         render_b2b_sales_table_visual(ventas_data, pagos_data)
 
-def procesar_datos_tabla(ventas_data, pagos_data, anio_sel=None, mes_sel=None, filtro_tipo=None):
+def procesar_datos_tabla(ventas_data, pagos_data, anio_sel=None, mes_sel=None, filtro_tipo=None, fecha_inicio=None, fecha_fin=None, filtro_vendedor=None):
     """Función unificada para formatear las ventas en el DataFrame de los reportes."""
     pagos_por_venta = {}
     for p in pagos_data:
@@ -428,13 +428,32 @@ def procesar_datos_tabla(ventas_data, pagos_data, anio_sel=None, mes_sel=None, f
         f_venta_str = v.get('fecha_venta')
         if not f_venta_str: continue
         
+        try:
+            f_obj = datetime.strptime(f_venta_str.split('T')[0], '%Y-%m-%d').date()
+        except:
+            continue
+            
         if anio_sel and mes_sel:
-            try:
-                f_obj = datetime.strptime(f_venta_str.split('T')[0], '%Y-%m-%d').date()
-                if f_obj.year != anio_sel or f_obj.month != mes_sel:
-                    continue
-            except:
+            if f_obj.year != anio_sel or f_obj.month != mes_sel:
                 continue
+                
+        if fecha_inicio and fecha_fin:
+            if not (fecha_inicio <= f_obj <= fecha_fin):
+                continue
+                
+        # Extraer Vendedor
+        vendedor_obj = v.get('vendedor') or {}
+        if isinstance(vendedor_obj, list):
+            vendedor_obj = vendedor_obj[0] if vendedor_obj else {}
+        nombre_vendedor = str(vendedor_obj.get('nombre') or 'Desconocido').upper()
+        
+        if filtro_vendedor:
+            if filtro_vendedor == "Corporativo":
+                if "MARIA" not in nombre_vendedor:
+                    continue
+            elif filtro_vendedor == "B2C":
+                if "MARIA" in nombre_vendedor:
+                    continue
             
         cliente_info = v.get('cliente') or {}
         nombre_pax = v.get('nombre_cliente') or cliente_info.get('nombre', 'Desconocido')
@@ -492,6 +511,7 @@ def procesar_datos_tabla(ventas_data, pagos_data, anio_sel=None, mes_sel=None, f
             "FECHA": f_venta_str,
             "PAX": pax,
             "NACIONALIDAD": nacionalidad,
+            "VENDEDOR": nombre_vendedor,
             "TOUR": v.get('fecha_inicio', ''),
             "TOTAL S/": round(monto_total_pen, 2),
             "TOTAL $": round(monto_total_usd, 2),
@@ -510,24 +530,25 @@ def render_master_sales_table_visual(ventas_data, pagos_data):
     st.markdown("### 📊 Reporte Maestro de Ventas (Directas - B2C)")
     st.caption("Visión detallada de las ventas directas del mes. Disponible para todas las áreas.")
     
-    col_mes, col_anio, _ = st.columns([1, 1, 3])
+    col_fecha, col_seg, _ = st.columns([2, 1, 3])
     
-    meses_opciones = {
-        1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
-        5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
-        9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
-    }
-    
-    with col_mes:
-        mes_sel_nombre = st.selectbox("Mes Reporte", list(meses_opciones.values()), index=date.today().month - 1, key="master_mes_b2c")
-        mes_sel = [k for k, v in meses_opciones.items() if v == mes_sel_nombre][0]
-    
-    with col_anio:
-        anio_actual = date.today().year
-        anios_opciones = list(range(anio_actual - 2, anio_actual + 3))
-        anio_sel = st.selectbox("Año Reporte", anios_opciones, index=anios_opciones.index(anio_actual), key="master_anio_b2c")
+    with col_fecha:
+        hoy = date.today()
+        # Por defecto, desde inicio de mes hasta hoy
+        inicio_mes = date(hoy.year, hoy.month, 1)
+        fechas = st.date_input("Rango de Fechas", [inicio_mes, hoy], key="master_fechas_b2c")
+        
+    with col_seg:
+        segmento_sel = st.selectbox("Segmento", ["Todos", "B2C", "Corporativo"], index=0, key="master_seg_b2c")
+        
+    f_ini = f_fin = None
+    if isinstance(fechas, tuple) or isinstance(fechas, list):
+        if len(fechas) == 2:
+            f_ini, f_fin = fechas
+        elif len(fechas) == 1:
+            f_ini = f_fin = fechas[0]
 
-    data_rows = procesar_datos_tabla(ventas_data, pagos_data, anio_sel=anio_sel, mes_sel=mes_sel, filtro_tipo="B2C")
+    data_rows = procesar_datos_tabla(ventas_data, pagos_data, fecha_inicio=f_ini, fecha_fin=f_fin, filtro_tipo="B2C", filtro_vendedor=segmento_sel)
 
     if data_rows:
         df = pd.DataFrame(data_rows)
@@ -537,6 +558,7 @@ def render_master_sales_table_visual(ventas_data, pagos_data):
             "FECHA": "TOTALES",
             "PAX": "",
             "NACIONALIDAD": "",
+            "VENDEDOR": "",
             "TOUR": "",
             "TOTAL S/": df["TOTAL S/"].sum(),
             "TOTAL $": df["TOTAL $"].sum(),
@@ -571,29 +593,22 @@ def render_b2b_sales_table_visual(ventas_data, pagos_data):
     st.markdown("### 🤝 Registro Consolidado de Agencias (B2B)")
     st.caption("Visión global e histórica de todas las ventas B2B. Acceso restringido.")
 
-    # Selectores de fecha con opción "Ver todos"
-    col_mes, col_anio, _ = st.columns([1, 1, 3])
+    col_fecha, _ = st.columns([2, 4])
     
-    meses_opciones = {
-        0: "Ver todos", 1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
-        5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
-        9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
-    }
-    
-    with col_mes:
-        mes_sel_nombre = st.selectbox("Mes Reporte B2B", list(meses_opciones.values()), index=0, key="b2b_mes")
-        mes_sel = [k for k, v in meses_opciones.items() if v == mes_sel_nombre][0]
-    
-    with col_anio:
-        anio_actual = date.today().year
-        anios_opciones = ["Ver todos"] + list(range(anio_actual - 2, anio_actual + 3))
-        anio_sel = st.selectbox("Año Reporte B2B", anios_opciones, index=0, key="b2b_anio")
+    with col_fecha:
+        hoy = date.today()
+        # Por defecto sin filtro o todo el mes
+        inicio_mes = date(hoy.year, hoy.month, 1)
+        fechas = st.date_input("Rango de Fechas", [inicio_mes, hoy], key="b2b_fechas")
+        
+    f_ini = f_fin = None
+    if isinstance(fechas, tuple) or isinstance(fechas, list):
+        if len(fechas) == 2:
+            f_ini, f_fin = fechas
+        elif len(fechas) == 1:
+            f_ini = f_fin = fechas[0]
 
-    # Si se selecciona "Ver todos", pasamos None a la función
-    filtro_anio = None if anio_sel == "Ver todos" else int(anio_sel)
-    filtro_mes = None if mes_sel == 0 else int(mes_sel)
-
-    data_rows = procesar_datos_tabla(ventas_data, pagos_data, anio_sel=filtro_anio, mes_sel=filtro_mes, filtro_tipo="B2B")
+    data_rows = procesar_datos_tabla(ventas_data, pagos_data, fecha_inicio=f_ini, fecha_fin=f_fin, filtro_tipo="B2B")
 
     if data_rows:
         df = pd.DataFrame(data_rows)
@@ -603,6 +618,7 @@ def render_b2b_sales_table_visual(ventas_data, pagos_data):
             "FECHA": "TOTALES",
             "PAX": "",
             "NACIONALIDAD": "",
+            "VENDEDOR": "",
             "TOUR": "",
             "TOTAL S/": df["TOTAL S/"].sum(),
             "TOTAL $": df["TOTAL $"].sum(),
