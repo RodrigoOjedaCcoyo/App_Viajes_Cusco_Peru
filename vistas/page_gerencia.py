@@ -606,10 +606,10 @@ def panel_marketing(supabase_client):
         
     # --- KPIs RÁPIDOS ---
     k1, k2, k3, k4 = st.columns(4)
-    k1.metric("📋 Total Leads", f"{total_leads:,}", help="Cantidad total de Leads registrados en el sistema.")
-    k2.metric("📨 Leads Cotizados", f"{len(df_paquetes):,}", help="Leads que recibieron al menos 1 itinerario (solo se cuenta el último).")
-    k3.metric("💰 Intención de Venta", f"${df_paquetes['Precio_Total_USD'].sum():,.0f}", help="Suma total de precios de las cotizaciones enviadas.")
-    k4.metric("🎫 Ticket Promedio", f"${df_paquetes['Precio_Total_USD'].mean():,.0f}", help="Precio promedio por cotización = Intención de Venta ÷ Leads Cotizados.")
+    k1.metric("📨 Leads Cotizados", f"{len(df_paquetes):,}", help="Leads que recibieron al menos 1 itinerario en este periodo/segmento (solo se cuenta el último).")
+    k2.metric("💰 Intención de Venta", f"${df_paquetes['Precio_Total_USD'].sum():,.0f}", help="Suma total de precios de las cotizaciones enviadas en este filtro.")
+    k3.metric("🎫 Ticket Promedio", f"${df_paquetes['Precio_Total_USD'].mean():,.0f}", help="Precio promedio por cotización = Intención de Venta ÷ Leads Cotizados.")
+    k4.metric("🗺️ Tours Incluidos", f"{len(df_tours):,}", help="Cantidad total de tours individuales incluidos en estas cotizaciones.")
     
     st.markdown("---")
     
