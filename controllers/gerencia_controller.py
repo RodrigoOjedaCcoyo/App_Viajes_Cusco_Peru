@@ -299,9 +299,10 @@ class GerenciaController:
             print(f"Error Detalle Ventas Limpio: {e}")
             return pd.DataFrame()
 
-    def get_marketing_dashboard_data(self):
+    def get_marketing_dashboard_data(self, fecha_inicio=None, fecha_fin=None, segmento=None):
         """Procesa itinerarios digitales vinculados a leads para obtener métricas de Marketing."""
         import json
+        from datetime import datetime
         try:
             # 1. Total Leads en el sistema
             res_leads = self.client.table('lead').select('id_lead', count='exact').limit(1).execute()
@@ -338,6 +339,29 @@ class GerenciaController:
                 else:
                     render = {}
                     
+                # Filtro de Segmento (Vendedor)
+                vendedor = render.get('vendedor') or 'SIN ASIGNAR'
+                if segmento:
+                    es_maria = "MARIA" in str(vendedor).upper()
+                    if segmento == "Corporativo" and not es_maria:
+                        continue
+                    if segmento == "B2C" and es_maria:
+                        continue
+                        
+                # Filtro de Fechas
+                fecha_gen = d.get('fecha_generacion')
+                if fecha_gen:
+                    fecha_gen = fecha_gen[:10]
+                    if fecha_inicio and fecha_fin:
+                        try:
+                            f_obj = datetime.strptime(fecha_gen, '%Y-%m-%d').date()
+                            if not (fecha_inicio <= f_obj <= fecha_fin):
+                                continue
+                        except:
+                            continue
+                elif fecha_inicio and fecha_fin:
+                    continue # No date, skip if filter applied
+                    
                 # 1. Extraer Precio (priorizamos total_final_calculado)
                 precio = float(render.get('total_final_calculado') or render.get('precio_total') or render.get('total') or 0)
                 if not precio and render.get('totales_por_moneda'):
@@ -356,14 +380,8 @@ class GerenciaController:
                 
                 # 4. Pasajero y Vendedor
                 pasajero = render.get('pasajero') or 'SIN NOMBRE'
-                vendedor = render.get('vendedor') or 'SIN ASIGNAR'
                 duracion = render.get('duracion') or '-'
                 fechas_viaje = render.get('fechas') or '-'
-                
-                # 5. Fechas (Asegurar que sea ISO)
-                fecha_gen = d.get('fecha_generacion')
-                if fecha_gen:
-                    fecha_gen = fecha_gen[:10]
                 
                 resultados_paquetes.append({
                     'Pasajero': str(pasajero).upper(),

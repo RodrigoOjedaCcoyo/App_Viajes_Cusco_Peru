@@ -548,6 +548,7 @@ def panel_revision_gerencia(supabase_client):
 
 def panel_marketing(supabase_client):
     """Panel específico para Gerencia de Marketing."""
+    from datetime import date
     st.subheader("🎯 Panel de Gerencia de Marketing", divider='orange')
     st.caption("Análisis de intención de compra basado en cotizaciones enviadas a Leads (1 itinerario por lead, el más reciente).")
     
@@ -557,8 +558,26 @@ def panel_marketing(supabase_client):
     from controllers.gerencia_controller import GerenciaController
     controller = GerenciaController(supabase_client)
     
+    # --- FILTROS ---
+    c1, c2, _ = st.columns([2, 1, 3])
+    with c1:
+        hoy = date.today()
+        # Por defecto desde hace un año hasta hoy, o todo
+        fechas = st.date_input("Filtrar por Rango de Fechas (Generación)", [], key="mkt_fechas")
+    with c2:
+        segmento = st.selectbox("Segmento", ["Todos", "B2C", "Corporativo"], key="mkt_seg")
+        
+    f_ini = f_fin = None
+    if isinstance(fechas, tuple) or isinstance(fechas, list):
+        if len(fechas) == 2:
+            f_ini, f_fin = fechas
+        elif len(fechas) == 1:
+            f_ini = f_fin = fechas[0]
+            
+    seg_val = None if segmento == "Todos" else segmento
+    
     with st.spinner("Analizando datos de itinerarios de leads..."):
-        resultado = controller.get_marketing_dashboard_data()
+        resultado = controller.get_marketing_dashboard_data(fecha_inicio=f_ini, fecha_fin=f_fin, segmento=seg_val)
         # Manejar las distintas versiones del retorno
         if isinstance(resultado, tuple):
             if len(resultado) == 4:
@@ -575,14 +594,14 @@ def panel_marketing(supabase_client):
             df_tours = pd.DataFrame()
         
     if df_paquetes.empty:
-        st.info("No hay suficientes datos de itinerarios enviados a leads para generar el análisis.")
+        st.info("No hay suficientes datos de itinerarios para este filtro.")
         return
     
     # --- DIAGNÓSTICO ---
     with st.expander("🔍 Diagnóstico de Datos", expanded=False):
         st.write(f"- **Leads totales en el sistema:** {total_leads}")
         st.write(f"- **Itinerarios totales en la DB:** {total_itinerarios}")
-        st.write(f"- **Itinerarios únicos (1 por lead):** {len(df_paquetes)}")
+        st.write(f"- **Itinerarios filtrados (1 por lead):** {len(df_paquetes)}")
         st.write(f"- **Tours individuales extraídos:** {len(df_tours)}")
         
     # --- KPIs RÁPIDOS ---
