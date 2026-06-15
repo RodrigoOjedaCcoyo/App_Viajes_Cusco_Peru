@@ -531,9 +531,29 @@ def render_master_sales_table_visual(ventas_data, pagos_data):
 
     if data_rows:
         df = pd.DataFrame(data_rows)
+        
+        # Calcular fila de totales
+        totales = {
+            "FECHA": "TOTALES",
+            "PAX": "",
+            "NACIONALIDAD": "",
+            "TOUR": "",
+            "TOTAL S/": df["TOTAL S/"].sum(),
+            "TOTAL $": df["TOTAL $"].sum(),
+            "PAGADO S/": df["PAGADO S/"].sum(),
+            "PAGADO $": df["PAGADO $"].sum(),
+            "SALDO S/": df["SALDO S/"].sum(),
+            "SALDO $": df["SALDO $"].sum(),
+            "ESTADO": "",
+            "TIPO": ""
+        }
+        df = pd.concat([df, pd.DataFrame([totales])], ignore_index=True)
+        
         def highlight_cancelled(row):
             if row['ESTADO'] == 'CANCELADO':
                 return ['background-color: #FEE2E2; color: #991B1B'] * len(row)
+            if row['FECHA'] == 'TOTALES':
+                return ['background-color: #1E293B; font-weight: bold'] * len(row)
             return [''] * len(row)
         
         styled_df = df.style.apply(highlight_cancelled, axis=1).format({
@@ -577,9 +597,33 @@ def render_b2b_sales_table_visual(ventas_data, pagos_data):
 
     if data_rows:
         df = pd.DataFrame(data_rows)
+        
+        # Calcular fila de totales
+        totales = {
+            "FECHA": "TOTALES",
+            "PAX": "",
+            "NACIONALIDAD": "",
+            "TOUR": "",
+            "TOTAL S/": df["TOTAL S/"].sum(),
+            "TOTAL $": df["TOTAL $"].sum(),
+            "PAGADO S/": df["PAGADO S/"].sum(),
+            "PAGADO $": df["PAGADO $"].sum(),
+            "SALDO S/": df["SALDO S/"].sum(),
+            "SALDO $": df["SALDO $"].sum(),
+            "ESTADO": "",
+            "TIPO": ""
+        }
+        # Eliminar TIPO si no está en las columnas (para prevenir errores)
+        if "TIPO" not in df.columns:
+            del totales["TIPO"]
+            
+        df = pd.concat([df, pd.DataFrame([totales])], ignore_index=True)
+        
         def highlight_cancelled(row):
             if row['ESTADO'] == 'CANCELADO':
                 return ['background-color: #FEE2E2; color: #991B1B'] * len(row)
+            if row['FECHA'] == 'TOTALES':
+                return ['background-color: #1E293B; font-weight: bold'] * len(row)
             return [''] * len(row)
         
         styled_df = df.style.apply(highlight_cancelled, axis=1).format({
