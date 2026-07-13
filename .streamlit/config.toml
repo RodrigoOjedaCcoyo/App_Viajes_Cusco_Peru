@@ -1,6 +1,6 @@
 # .streamlit/config.toml
 
-[general]
+[client]
 # Esto oculta la navegación automática de páginas.
 # Solo se verá el menú que usted programa en main.py.
-pages = false
+showSidebarNavigation = false

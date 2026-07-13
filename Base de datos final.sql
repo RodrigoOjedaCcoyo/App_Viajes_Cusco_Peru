@@ -270,8 +270,15 @@
       es_principal BOOLEAN DEFAULT FALSE,
       -- Nuevos campos logísticos (Ficha de Control)
       acomodacion VARCHAR(50),
+      -- Campos de Cancelación Parcial
+      estado_pasajero VARCHAR(20) DEFAULT 'ACTIVO' CHECK (estado_pasajero IN ('ACTIVO', 'CANCELADO')),
+      fecha_cancelacion TIMESTAMP WITH TIME ZONE,
+      monto_reembolso_pax DECIMAL(10,2),
+      observaciones_cancelacion TEXT,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
   );
+
+  COMMENT ON COLUMN pasajero.estado_pasajero IS 'ACTIVO = sigue en el viaje; CANCELADO = baja parcial del grupo';
 
   CREATE TABLE proveedor (
       id_proveedor SERIAL PRIMARY KEY,
