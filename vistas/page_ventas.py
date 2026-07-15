@@ -711,6 +711,7 @@ def registro_ventas_directa():
             elif monto_total <= 0:
                 st.error("❌ El Monto Total debe ser mayor a 0.")
             else:
+                exito = False
                 # --- SEGURO DE DOBLE ENVÍO ---
                 # Evitamos que Streamlit ejecute esto dos veces por el rerun automático
                 lock_key = f"last_sale_{nombre}_{tel}_{monto_total}"
