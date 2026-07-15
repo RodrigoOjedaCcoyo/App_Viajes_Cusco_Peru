@@ -202,7 +202,7 @@ def render_sales_dashboard_visual(supabase_client):
             h6.markdown("**🗑️**")
             st.divider()
 
-            for idx, row in df_all.head(15).iterrows():
+            for idx, row in df_all.iterrows():
                 c1, c2, c3, c4, c5, c6 = st.columns([1.2, 1.2, 2.5, 3.0, 1.0, 0.5])
                 
                 f_v = row['fecha_venta'].strftime('%Y-%m-%d') if hasattr(row['fecha_venta'], 'strftime') else str(row['fecha_venta'])
@@ -238,9 +238,6 @@ def render_sales_dashboard_visual(supabase_client):
                         st.session_state[f"confirm_del_{row['id_venta']}"] = False
                         st.rerun()
                 st.divider()
-
-            if len(all_ventas) > 15:
-                st.info("💡 Se muestran las 15 ventas más recientes. Para ver el historial completo, use el módulo de Reportes.")
 
 def render_ops_dashboard_visual(supabase_client):
     """Vista visual para Operaciones con Tablero Diario."""
