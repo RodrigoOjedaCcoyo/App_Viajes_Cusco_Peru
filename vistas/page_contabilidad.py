@@ -731,10 +731,11 @@ def dashboard_cuentas_por_cobrar_unified(supabase_client):
         sel_v = st.selectbox("Seleccione Venta:", [f"{v['ID Venta']} | {v['Cliente']} (Saldo: {v['Saldo']:.2f})" for v in lista_detalle if v['Saldo'] > 0.1])
         if sel_v:
             id_v = int(sel_v.split(" | ")[0])
-            c1, c2, c3 = st.columns(3)
-            monto_p = c1.number_input("Monto:", min_value=1.0)
-            moneda_p = c2.selectbox("Moneda:", ["USD", "PEN", "EUR"])
-            fecha_p = c3.date_input("Fecha:", date.today(), key="fecha_abono_cliente_manual")
+            c1, c2, c3, c4 = st.columns(4)
+            tipo_mov = c1.selectbox("Movimiento:", ["Abono (Ingreso)", "Devolución (Egreso)"])
+            monto_p = c2.number_input("Monto:", min_value=1.0)
+            moneda_p = c3.selectbox("Moneda:", ["USD", "PEN", "EUR"])
+            fecha_p = c4.date_input("Fecha:", date.today(), key="fecha_abono_cliente_manual")
             col_p1, col_p2, col_p3 = st.columns(3)
             tipo_comp = col_p1.selectbox("Tipo Documento:", ["RECIBO", "BOLETA", "FACTURA", "RECIBO SIMPLE"], key="tipo_comp_manual")
             metodo_p = col_p2.selectbox("Método de Pago:", ["TRANSFERENCIA", "YAPE", "PLIN", "EFECTIVO", "OTRO"], key="metodo_pago_manual")
@@ -742,15 +743,17 @@ def dashboard_cuentas_por_cobrar_unified(supabase_client):
             
             obs_cont = st.text_input("Observaciones Contables:", key="obs_cont_manual")
             
-            if st.button("🚀 Registrar Pago", type="primary", use_container_width=True):
+            if st.button("🚀 Registrar Movimiento", type="primary", use_container_width=True):
+                monto_final = monto_p if tipo_mov == "Abono (Ingreso)" else -abs(monto_p)
+                t_pago = "ADELANTO" if tipo_mov == "Abono (Ingreso)" else "REEMBOLSO"
                 exito, msg = vc.registrar_pago(
                     id_venta=id_v, 
-                    monto_pagado=monto_p, 
+                    monto_pagado=monto_final, 
                     moneda_pago=moneda_p, 
                     tasa_cambio=3.7, 
                     fecha_pago=fecha_p.isoformat(), 
                     metodo=metodo_p, 
-                    tipo_pago="ADELANTO", 
+                    tipo_pago=t_pago, 
                     comprobante=tipo_comp,
                     observaciones_contables=obs_cont,
                     comprobante_url=voucher_url

@@ -477,8 +477,8 @@ def procesar_datos_tabla(ventas_data, pagos_data, anio_sel=None, mes_sel=None, f
             monto_total_pen = monto_orig
             monto_total_usd = monto_orig / tc if tc > 0 else 0.0
 
+        # Se remueve el filtro de REEMBOLSO para que las devoluciones resten del total
         lista_pagos = pagos_por_venta.get(v.get('id_venta'), [])
-        lista_pagos = [p for p in lista_pagos if p.get('tipo_pago') != 'REEMBOLSO']
         
         total_pagado_pen, total_pagado_usd = 0.0, 0.0
         for p in lista_pagos:
