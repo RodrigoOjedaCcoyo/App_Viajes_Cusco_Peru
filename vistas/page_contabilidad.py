@@ -728,7 +728,7 @@ def dashboard_cuentas_por_cobrar_unified(supabase_client):
 
     st.divider()
     with st.expander("➕ Registrar Nuevo Abono / Pago Manual", expanded=False):
-        sel_v = st.selectbox("Seleccione Venta:", [f"{v['ID Venta']} | {v['Cliente']} (Saldo: {v['Saldo']:.2f})" for v in lista_detalle if v['Saldo'] > 0.1])
+        sel_v = st.selectbox("Seleccione Venta:", [f"{v['ID Venta']} | {v['Cliente']} (Saldo: {v['Saldo']:.2f})" for v in lista_detalle])
         if sel_v:
             id_v = int(sel_v.split(" | ")[0])
             c1, c2, c3, c4 = st.columns(4)
