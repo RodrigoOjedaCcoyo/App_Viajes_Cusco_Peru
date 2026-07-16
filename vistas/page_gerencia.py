@@ -734,14 +734,8 @@ def panel_desempeno_operaciones(supabase_client):
 
     seg_val = None if segmento == "Todos" else segmento
 
-    # Periodo inmediatamente anterior, de igual longitud, para el comparativo
-    dias_periodo = (f_fin - f_ini).days + 1
-    f_fin_prev = f_ini - timedelta(days=1)
-    f_ini_prev = f_fin_prev - timedelta(days=dias_periodo - 1)
-
     with st.spinner("Calculando desempeño operativo..."):
         df_actual = op_ctrl.get_servicios_desempeno(f_ini, f_fin, segmento=seg_val)
-        df_previo = op_ctrl.get_servicios_desempeno(f_ini_prev, f_fin_prev, segmento=seg_val)
         df_top_prov = op_ctrl.get_top_proveedores_periodo(f_ini, f_fin, segmento=seg_val)
 
     if df_actual.empty:
@@ -766,43 +760,7 @@ def panel_desempeno_operaciones(supabase_client):
     st.markdown("---")
 
     # ─────────────────────────────────────────────────────────────────
-    # 2. COMPARATIVO VS. PERIODO ANTERIOR
-    # ─────────────────────────────────────────────────────────────────
-    st.markdown(
-        f"#### 📊 Comparativo vs. Periodo Anterior "
-        f"({f_ini_prev.strftime('%d/%m/%Y')} — {f_fin_prev.strftime('%d/%m/%Y')})"
-    )
-    servicios_prev = len(df_previo)
-    pax_prev = int(df_previo['pax'].sum()) if not df_previo.empty else 0
-    costo_prev = float(df_previo['costo_usd'].sum()) if not df_previo.empty else 0.0
-
-    df_comp = pd.DataFrame([
-        {'Periodo': 'Anterior', 'Servicios': servicios_prev, 'Pax': pax_prev, 'Costo (USD)': costo_prev},
-        {'Periodo': 'Actual', 'Servicios': servicios_totales, 'Pax': pax_atendidos, 'Costo (USD)': costo_total},
-    ])
-
-    cc1, cc2 = st.columns(2)
-    with cc1:
-        fig_comp_serv = px.bar(
-            df_comp, x='Periodo', y=['Servicios', 'Pax'], barmode='group',
-            title='Servicios y Pax: Actual vs. Anterior',
-            color_discrete_sequence=['#42A5F5', '#66BB6A'], text_auto=True
-        )
-        fig_comp_serv.update_layout(height=320, margin=dict(l=0, r=0, t=40, b=0), legend_title='')
-        st.plotly_chart(fig_comp_serv, use_container_width=True)
-    with cc2:
-        fig_comp_costo = px.bar(
-            df_comp, x='Periodo', y='Costo (USD)', color='Periodo',
-            title='Costo Operativo: Actual vs. Anterior',
-            color_discrete_sequence=['#B0BEC5', '#EF5350'], text_auto='.2s'
-        )
-        fig_comp_costo.update_layout(height=320, margin=dict(l=0, r=0, t=40, b=0), showlegend=False)
-        st.plotly_chart(fig_comp_costo, use_container_width=True)
-
-    st.markdown("---")
-
-    # ─────────────────────────────────────────────────────────────────
-    # 3. CARGA OPERATIVA DIARIA (B2B vs B2C)
+    # 2. CARGA OPERATIVA DIARIA (B2B vs B2C)
     # ─────────────────────────────────────────────────────────────────
     st.markdown("#### 📅 Carga Operativa Diaria")
     df_carga = df_actual.copy()
@@ -820,7 +778,7 @@ def panel_desempeno_operaciones(supabase_client):
     st.markdown("---")
 
     # ─────────────────────────────────────────────────────────────────
-    # 4. ESTADO DE CUMPLIMIENTO Y MIX B2B/B2C
+    # 3. ESTADO DE CUMPLIMIENTO Y MIX B2B/B2C
     # ─────────────────────────────────────────────────────────────────
     e1, e2 = st.columns(2)
     with e1:
@@ -847,7 +805,7 @@ def panel_desempeno_operaciones(supabase_client):
     st.markdown("---")
 
     # ─────────────────────────────────────────────────────────────────
-    # 5. TOP PROVEEDORES DEL PERIODO
+    # 4. TOP PROVEEDORES DEL PERIODO
     # ─────────────────────────────────────────────────────────────────
     st.markdown("#### 🏆 Top Proveedores del Periodo")
     if df_top_prov.empty:
