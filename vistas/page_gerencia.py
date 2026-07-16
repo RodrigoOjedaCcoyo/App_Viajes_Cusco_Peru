@@ -54,46 +54,29 @@ def _cargar_demografia_clientes(supabase_client, fecha_inicio=None, fecha_fin=No
 
 def _cargar_top_clientes(supabase_client, fecha_inicio=None, fecha_fin=None, top_n=15):
     """
-    Obtiene los clientes principales por número de ventas y monto total
-    uniendo las tablas `cliente` y `venta`.
+    Obtiene los pasajeros marcados como es_principal=True.
+    Mismo esquema de demografía (genero, nacionalidad, edad) pero
+    solo el pasajero principal de cada venta (quien compró el viaje).
     """
     try:
-        res_v = (
-            supabase_client.table("venta")
-            .select("id_cliente, precio_total_cierre, moneda, tipo_cambio, fecha_venta")
+        res = (
+            supabase_client.table("pasajero")
+            .select("genero, nacionalidad, edad, created_at, nombre_completo")
+            .eq("es_principal", True)
             .execute()
         )
-        df_v = pd.DataFrame(res_v.data or [])
-        if df_v.empty:
-            return pd.DataFrame()
-
+        df = pd.DataFrame(res.data or [])
+        if df.empty:
+            return df
         if fecha_inicio and fecha_fin:
-            df_v['fecha_venta'] = pd.to_datetime(df_v['fecha_venta']).dt.date
-            df_v = df_v[(df_v['fecha_venta'] >= fecha_inicio) & (df_v['fecha_venta'] <= fecha_fin)]
-
-        # Normalizar a soles
-        df_v['precio_total_cierre'] = pd.to_numeric(df_v['precio_total_cierre'], errors='coerce').fillna(0)
-        df_v['tipo_cambio'] = pd.to_numeric(df_v['tipo_cambio'], errors='coerce').fillna(3.80)
-        df_v['monto_pen'] = df_v.apply(
-            lambda r: r['precio_total_cierre'] * r['tipo_cambio'] if r['moneda'] == 'USD' else r['precio_total_cierre'],
-            axis=1
-        )
-
-        # Agrupar por cliente
-        resumen = df_v.groupby('id_cliente').agg(
-            Compras=('id_cliente', 'count'),
-            Total_PEN=('monto_pen', 'sum')
-        ).reset_index()
-
-        # Traer nombres de clientes
-        res_c = supabase_client.table('cliente').select('id_cliente, nombre').execute()
-        mapa_c = {c['id_cliente']: c['nombre'] for c in (res_c.data or [])}
-        resumen['Cliente'] = resumen['id_cliente'].map(lambda x: mapa_c.get(x, f'Cliente #{x}'))
-        resumen = resumen.sort_values('Total_PEN', ascending=False).head(top_n)
-        resumen = resumen.rename(columns={'Total_PEN': 'Monto Total (S/)', 'Compras': 'N° Compras'})
-        return resumen[['Cliente', 'N° Compras', 'Monto Total (S/)']]
+            df['created_at'] = pd.to_datetime(df['created_at']).dt.date
+            df = df[(df['created_at'] >= fecha_inicio) & (df['created_at'] <= fecha_fin)]
+        df["genero_norm"] = df["genero"].apply(_normalizar_genero) if "genero" in df.columns else "SIN DATO"
+        df["pais_norm"]   = df["nacionalidad"].apply(_normalizar_pais) if "nacionalidad" in df.columns else "SIN DATO"
+        df["edad_num"]    = pd.to_numeric(df["edad"], errors="coerce") if "edad" in df.columns else pd.NA
+        return df
     except Exception as e:
-        print(f"Error cargando top clientes: {e}")
+        print(f"Error cargando clientes principales: {e}")
         return pd.DataFrame()
 
 def dashboard_ejecutivo(controller):
@@ -278,54 +261,62 @@ def auditoria_maestra(controller):
                 fig_e.update_xaxes(title="Edad")
                 st.plotly_chart(fig_e, use_container_width=True)
 
-    st.markdown("---")
-
     # ─────────────────────────────────────────────────────────────────────────
-    # 1B. CLIENTES PRINCIPALES (por ventas)
+    # 1B. CLIENTES PRINCIPALES (pasajero es_principal=True)
     # ─────────────────────────────────────────────────────────────────────────
-    st.markdown("#### 🏆 Clientes Principales (Top 15 por Monto)")
+    n_principales = len(df_top_clientes) if df_top_clientes is not None and not df_top_clientes.empty else 0
+    st.markdown(f"#### 🏆 Demografía de Clientes Principales ({n_principales} registros — `es_principal = true`)")
     if df_top_clientes is None or df_top_clientes.empty:
-        st.info("Sin datos de clientes en el rango seleccionado.")
+        st.info("Sin datos de clientes principales en el rango seleccionado.")
     else:
-        tc1, tc2 = st.columns([3, 2])
-        with tc1:
-            # Barras horizontales: top clientes por monto
-            df_tc = df_top_clientes.sort_values("Monto Total (S/)", ascending=True)
-            fig_tc = px.bar(
-                df_tc,
-                x="Monto Total (S/)",
-                y="Cliente",
-                orientation="h",
-                text=df_tc["Monto Total (S/)"].apply(lambda v: f"S/ {v:,.0f}"),
-                color="Monto Total (S/)",
+        cp1, cp2, cp3 = st.columns(3)
+
+        # A) Género
+        with cp1:
+            st.markdown("##### Género")
+            df_cg = df_top_clientes.groupby("genero_norm").size().reset_index(name="Cantidad")
+            fig_cg = px.pie(
+                df_cg, names="genero_norm", values="Cantidad", hole=0.4,
+                color_discrete_sequence=px.colors.qualitative.Pastel,
+            )
+            fig_cg.update_layout(height=320, margin=dict(l=0, r=0, t=30, b=0), showlegend=True)
+            st.plotly_chart(fig_cg, use_container_width=True)
+
+        # B) Nacionalidad (top 10)
+        with cp2:
+            st.markdown("##### Nacionalidad / País (Top 10)")
+            df_cp = (
+                df_top_clientes.groupby("pais_norm")
+                .size()
+                .reset_index(name="Cantidad")
+                .sort_values("Cantidad", ascending=False)
+                .head(10)
+            )
+            fig_cp = px.bar(
+                df_cp, x="pais_norm", y="Cantidad", text="Cantidad",
+                color="Cantidad",
                 color_continuous_scale="Teal",
             )
-            fig_tc.update_layout(
-                height=max(300, len(df_tc) * 30),
-                margin=dict(l=0, r=0, t=10, b=0),
-                coloraxis_showscale=False,
-            )
-            fig_tc.update_yaxes(title=None)
-            st.plotly_chart(fig_tc, use_container_width=True)
-        with tc2:
-            # Barras por número de compras
-            df_tc2 = df_top_clientes.sort_values("N° Compras", ascending=True)
-            fig_tc2 = px.bar(
-                df_tc2,
-                x="N° Compras",
-                y="Cliente",
-                orientation="h",
-                text="N° Compras",
-                color="N° Compras",
-                color_continuous_scale="Oranges",
-            )
-            fig_tc2.update_layout(
-                height=max(300, len(df_tc2) * 30),
-                margin=dict(l=0, r=0, t=10, b=0),
-                coloraxis_showscale=False,
-            )
-            fig_tc2.update_yaxes(title=None)
-            st.plotly_chart(fig_tc2, use_container_width=True)
+            fig_cp.update_layout(height=320, margin=dict(l=0, r=0, t=30, b=0), coloraxis_showscale=False)
+            fig_cp.update_xaxes(title=None)
+            st.plotly_chart(fig_cp, use_container_width=True)
+
+        # C) Edades (histograma)
+        with cp3:
+            st.markdown("##### Edades (Histograma)")
+            df_ce = df_top_clientes.dropna(subset=["edad_num"]).copy()
+            df_ce = df_ce[(df_ce["edad_num"] >= 0) & (df_ce["edad_num"] <= 120)]
+            if df_ce.empty:
+                st.info("Sin edades registradas.")
+            else:
+                fig_ce = px.histogram(
+                    df_ce, x="edad_num", nbins=12,
+                    color_discrete_sequence=["#FF7043"],
+                )
+                fig_ce.update_layout(height=320, margin=dict(l=0, r=0, t=30, b=0))
+                fig_ce.update_xaxes(title="Edad")
+                st.plotly_chart(fig_ce, use_container_width=True)
+
 
     st.markdown("---")
 
