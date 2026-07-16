@@ -26,7 +26,7 @@ def _normalizar_pais(val):
         return "SIN DATO"
     return s.title()
 
-def _cargar_demografia_clientes(supabase_client):
+def _cargar_demografia_clientes(supabase_client, fecha_inicio=None, fecha_fin=None):
     """
     Usa tabla `pasajero` como fuente única para:
     - Género (`genero`)
@@ -36,12 +36,15 @@ def _cargar_demografia_clientes(supabase_client):
     try:
         res = (
             supabase_client.table("pasajero")
-            .select("genero, nacionalidad, edad")
+            .select("genero, nacionalidad, edad, created_at")
             .execute()
         )
         df = pd.DataFrame(res.data or [])
         if df.empty:
             return df
+        if fecha_inicio and fecha_fin:
+            df['created_at'] = pd.to_datetime(df['created_at']).dt.date
+            df = df[(df['created_at'] >= fecha_inicio) & (df['created_at'] <= fecha_fin)]
         if "genero" in df.columns:
             df["genero_norm"] = df["genero"].apply(_normalizar_genero)
         else:
@@ -145,14 +148,20 @@ def auditoria_maestra(controller):
     """Vista de auditoría visual avanzada y control de integridad."""
     st.subheader("🕵️ Centro de Control de Auditoría", divider='orange')
     
+    col_d1, col_d2 = st.columns(2)
+    with col_d1:
+        f_inicio = st.date_input("Fecha Inicio", date.today().replace(day=1), key="auditoria_finicio")
+    with col_d2:
+        f_fin = st.date_input("Fecha Fin", date.today(), key="auditoria_ffin")
+    
     with st.spinner("Generando análisis de integridad..."):
-        df_v_canal = controller.get_ventas_por_canal()
-        df_v_estado = controller.get_ventas_por_estado()
-        df_ventas_limpio = controller.get_detalle_ventas_limpio()
-        df_desempeno = controller.get_desempeno_vendedores()
-        df_leads_origen = controller.get_distribucion_origen_leads()
+        df_v_canal = controller.get_ventas_por_canal(fecha_inicio=f_inicio, fecha_fin=f_fin)
+        df_v_estado = controller.get_ventas_por_estado(fecha_inicio=f_inicio, fecha_fin=f_fin)
+        df_ventas_limpio = controller.get_detalle_ventas_limpio(fecha_inicio=f_inicio, fecha_fin=f_fin)
+        df_desempeno = controller.get_desempeno_vendedores(fecha_inicio=f_inicio, fecha_fin=f_fin)
+        df_leads_origen = controller.get_distribucion_origen_leads(fecha_inicio=f_inicio, fecha_fin=f_fin)
         # NUEVO: Demografía (Género / País / Edades)
-        df_demo = _cargar_demografia_clientes(controller.client)
+        df_demo = _cargar_demografia_clientes(controller.client, fecha_inicio=f_inicio, fecha_fin=f_fin)
 
     # --- 0. DEMOGRAFÍA DE CLIENTES (NUEVO) ---
     st.markdown("#### 🧑‍🤝‍🧑 Demografía de Clientes (Pasajeros)")

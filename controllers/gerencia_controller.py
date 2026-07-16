@@ -203,12 +203,15 @@ class GerenciaController:
             print(f"Error Desempeño Vendedores: {e}")
             return pd.DataFrame()
 
-    def get_distribucion_origen_leads(self):
+    def get_distribucion_origen_leads(self, fecha_inicio=None, fecha_fin=None):
         """Obtiene la cantidad de leads por origen (MMM)."""
         try:
-            res = self.client.table('lead').select('red_social').execute()
+            res = self.client.table('lead').select('red_social, fecha_registro').execute()
             df = pd.DataFrame(res.data or [])
             if df.empty: return pd.DataFrame()
+            if fecha_inicio and fecha_fin:
+                df['fecha_registro'] = pd.to_datetime(df['fecha_registro']).dt.date
+                df = df[(df['fecha_registro'] >= fecha_inicio) & (df['fecha_registro'] <= fecha_fin)]
             
             resumen = df.groupby('red_social').size().reset_index()
             resumen.columns = ['Origen', 'Cantidad']
@@ -216,12 +219,15 @@ class GerenciaController:
         except Exception as e:
             print(f"Error Distribución Lead Origen: {e}")
             return pd.DataFrame()
-    def get_ventas_por_canal(self, moneda_destino: str = 'PEN'):
+    def get_ventas_por_canal(self, moneda_destino: str = 'PEN', fecha_inicio=None, fecha_fin=None):
         """Obtiene el monto total de ventas por cada canal, excluyendo B2B del canal DIRECTO, normalizado a la moneda de destino ('PEN' o 'USD')."""
         try:
-            res = self.client.table('venta').select('canal_venta, precio_total_cierre, id_agencia_aliada, moneda, tipo_cambio').execute()
+            res = self.client.table('venta').select('canal_venta, precio_total_cierre, id_agencia_aliada, moneda, tipo_cambio, fecha_venta').execute()
             df = pd.DataFrame(res.data or [])
             if df.empty: return pd.DataFrame()
+            if fecha_inicio and fecha_fin:
+                df['fecha_venta'] = pd.to_datetime(df['fecha_venta']).dt.date
+                df = df[(df['fecha_venta'] >= fecha_inicio) & (df['fecha_venta'] <= fecha_fin)]
 
             df['precio_total_cierre'] = pd.to_numeric(df['precio_total_cierre'], errors='coerce').fillna(0)
             df['tipo_cambio'] = pd.to_numeric(df['tipo_cambio'], errors='coerce').fillna(3.80)
@@ -252,12 +258,15 @@ class GerenciaController:
             print(f"Error Ventas por Canal: {e}")
             return pd.DataFrame()
 
-    def get_ventas_por_estado(self):
+    def get_ventas_por_estado(self, fecha_inicio=None, fecha_fin=None):
         """Obtiene la distribución de ventas por estado actual."""
         try:
-            res = self.client.table('venta').select('estado_venta').execute()
+            res = self.client.table('venta').select('estado_venta, fecha_venta').execute()
             df = pd.DataFrame(res.data or [])
             if df.empty: return pd.DataFrame()
+            if fecha_inicio and fecha_fin:
+                df['fecha_venta'] = pd.to_datetime(df['fecha_venta']).dt.date
+                df = df[(df['fecha_venta'] >= fecha_inicio) & (df['fecha_venta'] <= fecha_fin)]
             
             resumen = df.groupby('estado_venta').size().reset_index()
             resumen.columns = ['Estado', 'Cantidad']
@@ -266,13 +275,16 @@ class GerenciaController:
             print(f"Error Ventas por Estado: {e}")
             return pd.DataFrame()
 
-    def get_detalle_ventas_limpio(self):
+    def get_detalle_ventas_limpio(self, fecha_inicio=None, fecha_fin=None):
         """Retorna el DataFrame de ventas con nombres de clientes y vendedores para la tabla."""
         try:
             # 1. Ventas
             res_v = self.client.table('venta').select('*').execute()
             df_v = pd.DataFrame(res_v.data or [])
             if df_v.empty: return df_v
+            if fecha_inicio and fecha_fin:
+                df_v['fecha_venta'] = pd.to_datetime(df_v['fecha_venta']).dt.date
+                df_v = df_v[(df_v['fecha_venta'] >= fecha_inicio) & (df_v['fecha_venta'] <= fecha_fin)]
 
             # 2. Clientes
             res_c = self.client.table('cliente').select('id_cliente, nombre').execute()
