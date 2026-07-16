@@ -166,7 +166,7 @@ class GerenciaController:
             print(f"Error Gerencia Mensual: {e}")
             return pd.DataFrame()
 
-    def get_desempeno_vendedores(self, fecha_inicio=None, fecha_fin=None):
+    def get_desempeno_vendedores(self, fecha_inicio=None, fecha_fin=None, segmento=None):
         """Calcula Leads vs Ventas por cada vendedor."""
         try:
             # 1. Obtener Leads con vendedor
@@ -177,11 +177,16 @@ class GerenciaController:
                 df_leads = df_leads[(df_leads['fecha_registro'] >= fecha_inicio) & (df_leads['fecha_registro'] <= fecha_fin)]
             
             # 2. Obtener Ventas con vendedor
-            res_ventas = self.client.table('venta').select('id_vendedor, fecha_venta').execute()
+            res_ventas = self.client.table('venta').select('id_vendedor, fecha_venta, id_agencia_aliada').execute()
             df_ventas = pd.DataFrame(res_ventas.data or [])
-            if not df_ventas.empty and fecha_inicio and fecha_fin:
-                df_ventas['fecha_venta'] = pd.to_datetime(df_ventas['fecha_venta']).dt.date
-                df_ventas = df_ventas[(df_ventas['fecha_venta'] >= fecha_inicio) & (df_ventas['fecha_venta'] <= fecha_fin)]
+            if not df_ventas.empty:
+                if fecha_inicio and fecha_fin:
+                    df_ventas['fecha_venta'] = pd.to_datetime(df_ventas['fecha_venta']).dt.date
+                    df_ventas = df_ventas[(df_ventas['fecha_venta'] >= fecha_inicio) & (df_ventas['fecha_venta'] <= fecha_fin)]
+                if segmento == 'B2C':
+                    df_ventas = df_ventas[df_ventas['id_agencia_aliada'].isna()]
+                elif segmento == 'Corporativo':
+                    df_ventas = df_ventas[df_ventas['id_agencia_aliada'].notna()]
             
             # 3. Mapeo de Nombres de Vendedores
             res_vend = self.client.table('vendedor').select('id_vendedor, nombre').execute()
@@ -225,7 +230,7 @@ class GerenciaController:
         except Exception as e:
             print(f"Error Distribución Lead Origen: {e}")
             return pd.DataFrame()
-    def get_ventas_por_canal(self, moneda_destino: str = 'PEN', fecha_inicio=None, fecha_fin=None):
+    def get_ventas_por_canal(self, moneda_destino: str = 'PEN', fecha_inicio=None, fecha_fin=None, segmento=None):
         """Obtiene el monto total de ventas por cada canal, excluyendo B2B del canal DIRECTO, normalizado a la moneda de destino ('PEN' o 'USD')."""
         try:
             res = self.client.table('venta').select('canal_venta, precio_total_cierre, id_agencia_aliada, moneda, tipo_cambio, fecha_venta').execute()
@@ -234,6 +239,10 @@ class GerenciaController:
             if fecha_inicio and fecha_fin:
                 df['fecha_venta'] = pd.to_datetime(df['fecha_venta']).dt.date
                 df = df[(df['fecha_venta'] >= fecha_inicio) & (df['fecha_venta'] <= fecha_fin)]
+            if segmento == 'B2C':
+                df = df[df['id_agencia_aliada'].isna()]
+            elif segmento == 'Corporativo':
+                df = df[df['id_agencia_aliada'].notna()]
 
             df['precio_total_cierre'] = pd.to_numeric(df['precio_total_cierre'], errors='coerce').fillna(0)
             df['tipo_cambio'] = pd.to_numeric(df['tipo_cambio'], errors='coerce').fillna(3.80)
@@ -264,15 +273,19 @@ class GerenciaController:
             print(f"Error Ventas por Canal: {e}")
             return pd.DataFrame()
 
-    def get_ventas_por_estado(self, fecha_inicio=None, fecha_fin=None):
+    def get_ventas_por_estado(self, fecha_inicio=None, fecha_fin=None, segmento=None):
         """Obtiene la distribución de ventas por estado actual."""
         try:
-            res = self.client.table('venta').select('estado_venta, fecha_venta').execute()
+            res = self.client.table('venta').select('estado_venta, fecha_venta, id_agencia_aliada').execute()
             df = pd.DataFrame(res.data or [])
             if df.empty: return pd.DataFrame()
             if fecha_inicio and fecha_fin:
                 df['fecha_venta'] = pd.to_datetime(df['fecha_venta']).dt.date
                 df = df[(df['fecha_venta'] >= fecha_inicio) & (df['fecha_venta'] <= fecha_fin)]
+            if segmento == 'B2C':
+                df = df[df['id_agencia_aliada'].isna()]
+            elif segmento == 'Corporativo':
+                df = df[df['id_agencia_aliada'].notna()]
             
             resumen = df.groupby('estado_venta').size().reset_index()
             resumen.columns = ['Estado', 'Cantidad']
@@ -281,7 +294,7 @@ class GerenciaController:
             print(f"Error Ventas por Estado: {e}")
             return pd.DataFrame()
 
-    def get_detalle_ventas_limpio(self, fecha_inicio=None, fecha_fin=None):
+    def get_detalle_ventas_limpio(self, fecha_inicio=None, fecha_fin=None, segmento=None):
         """Retorna el DataFrame de ventas con nombres de clientes y vendedores para la tabla."""
         try:
             # 1. Ventas
@@ -291,6 +304,10 @@ class GerenciaController:
             if fecha_inicio and fecha_fin:
                 df_v['fecha_venta'] = pd.to_datetime(df_v['fecha_venta']).dt.date
                 df_v = df_v[(df_v['fecha_venta'] >= fecha_inicio) & (df_v['fecha_venta'] <= fecha_fin)]
+            if segmento == 'B2C':
+                df_v = df_v[df_v['id_agencia_aliada'].isna()]
+            elif segmento == 'Corporativo':
+                df_v = df_v[df_v['id_agencia_aliada'].notna()]
 
             # 2. Clientes
             res_c = self.client.table('cliente').select('id_cliente, nombre').execute()

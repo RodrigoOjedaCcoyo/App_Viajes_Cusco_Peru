@@ -148,17 +148,21 @@ def auditoria_maestra(controller):
     """Vista de auditoría visual avanzada y control de integridad."""
     st.subheader("🕵️ Centro de Control de Auditoría", divider='orange')
     
-    col_d1, col_d2 = st.columns(2)
+    col_d1, col_d2, col_d3 = st.columns(3)
     with col_d1:
         f_inicio = st.date_input("Fecha Inicio", date.today().replace(day=1), key="auditoria_finicio")
     with col_d2:
         f_fin = st.date_input("Fecha Fin", date.today(), key="auditoria_ffin")
+    with col_d3:
+        segmento = st.selectbox("Segmento", ["Todos", "B2C", "Corporativo"], key="auditoria_seg")
+        
+    seg_val = None if segmento == "Todos" else segmento
     
     with st.spinner("Generando análisis de integridad..."):
-        df_v_canal = controller.get_ventas_por_canal(fecha_inicio=f_inicio, fecha_fin=f_fin)
-        df_v_estado = controller.get_ventas_por_estado(fecha_inicio=f_inicio, fecha_fin=f_fin)
-        df_ventas_limpio = controller.get_detalle_ventas_limpio(fecha_inicio=f_inicio, fecha_fin=f_fin)
-        df_desempeno = controller.get_desempeno_vendedores(fecha_inicio=f_inicio, fecha_fin=f_fin)
+        df_v_canal = controller.get_ventas_por_canal(fecha_inicio=f_inicio, fecha_fin=f_fin, segmento=seg_val)
+        df_v_estado = controller.get_ventas_por_estado(fecha_inicio=f_inicio, fecha_fin=f_fin, segmento=seg_val)
+        df_ventas_limpio = controller.get_detalle_ventas_limpio(fecha_inicio=f_inicio, fecha_fin=f_fin, segmento=seg_val)
+        df_desempeno = controller.get_desempeno_vendedores(fecha_inicio=f_inicio, fecha_fin=f_fin, segmento=seg_val)
         df_leads_origen = controller.get_distribucion_origen_leads(fecha_inicio=f_inicio, fecha_fin=f_fin)
         # NUEVO: Demografía (Género / País / Edades)
         df_demo = _cargar_demografia_clientes(controller.client, fecha_inicio=f_inicio, fecha_fin=f_fin)
