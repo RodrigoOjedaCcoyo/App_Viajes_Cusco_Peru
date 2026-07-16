@@ -275,8 +275,9 @@ class ExcelController:
             utilidad = round(ingreso_real - reembolsos - costo_total_liq, 2)
             rentabilidad_str = "N/A"
         else:
-            utilidad = round(monto_venta - costo_total_liq, 2)
-            rentabilidad_str = f"{(utilidad / monto_venta * 100):.2f}%" if monto_venta > 0 else "0%"
+            utilidad = round((monto_venta - reembolsos) - costo_total_liq, 2)
+            ingreso_efectivo = monto_venta - reembolsos
+            rentabilidad_str = f"{(utilidad / ingreso_efectivo * 100):.2f}%" if ingreso_efectivo > 0 else "0%"
 
         # --- SECCIÓN 1: PANEL DE CONTROL FINANCIERO ---
         ws.merge_cells('A1:H1')
