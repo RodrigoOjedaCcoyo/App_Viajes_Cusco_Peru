@@ -1818,3 +1818,171 @@ class OperacionesController:
         except Exception as e:
             print(f"Error get_top_proveedores_periodo: {e}")
             return pd.DataFrame()
+
+    def get_costos_por_tipo_servicio_periodo(self, fecha_inicio: date, fecha_fin: date, segmento: str = None) -> pd.DataFrame:
+        """Costo operativo (USD) y cantidad de servicios agrupados por tipo_servicio (GUIA, ENDOSE, etc.) en el periodo."""
+        try:
+            res_vt = (
+                self.client.table('venta_tour')
+                .select('id_venta, n_linea, fecha_servicio, observacion')
+                .gte('fecha_servicio', fecha_inicio.isoformat())
+                .lte('fecha_servicio', fecha_fin.isoformat())
+                .execute()
+            )
+            servicios = res_vt.data or []
+            if not servicios:
+                return pd.DataFrame()
+
+            claves_validas = set()
+            ids_ventas = set()
+            for s in servicios:
+                obs = str(s.get('observacion') or '').upper()
+                if "FILA AUTOGENERADA" in obs or "COSTOS ADICIONALES" in obs:
+                    continue
+                claves_validas.add((s['id_venta'], s['n_linea']))
+                ids_ventas.add(s['id_venta'])
+
+            if not claves_validas:
+                return pd.DataFrame()
+
+            ventas_map = {}
+            if segmento:
+                res_v = (
+                    self.client.table('venta')
+                    .select('id_venta, id_agencia_aliada')
+                    .in_('id_venta', list(ids_ventas))
+                    .execute()
+                )
+                ventas_map = {v['id_venta']: v for v in (res_v.data or [])}
+
+            res_vsp = (
+                self.client.table('venta_servicio_proveedor')
+                .select('id_venta, n_linea, tipo_servicio, costo_unitario, cantidad_pax, moneda, tipo_cambio')
+                .in_('id_venta', list(ids_ventas))
+                .execute()
+            )
+
+            acumulado = {}
+            for d in (res_vsp.data or []):
+                key = (d['id_venta'], d['n_linea'])
+                if key not in claves_validas:
+                    continue
+                if segmento:
+                    v = ventas_map.get(d['id_venta'], {})
+                    tipo = 'B2B' if v.get('id_agencia_aliada') else 'B2C'
+                    if tipo != segmento:
+                        continue
+
+                tipo_serv = str(d.get('tipo_servicio') or 'OTRO').strip().upper() or 'OTRO'
+
+                cu = float(d.get('costo_unitario') or 0)
+                pax_d = float(d.get('cantidad_pax') or 1)
+                moneda_d = d.get('moneda') or 'USD'
+                tc_d = float(d.get('tipo_cambio') or 3.80) or 3.80
+                monto = cu * pax_d
+                costo_usd = (monto / tc_d) if moneda_d == 'PEN' else monto
+
+                if tipo_serv not in acumulado:
+                    acumulado[tipo_serv] = {'Tipo de Servicio': tipo_serv, 'Servicios': 0, 'Costo_USD': 0.0}
+                acumulado[tipo_serv]['Servicios'] += 1
+                acumulado[tipo_serv]['Costo_USD'] += costo_usd
+
+            if not acumulado:
+                return pd.DataFrame()
+
+            df = pd.DataFrame(list(acumulado.values()))
+            return df.sort_values('Costo_USD', ascending=False)
+        except Exception as e:
+            print(f"Error get_costos_por_tipo_servicio_periodo: {e}")
+            return pd.DataFrame()
+
+    def get_nacionalidades_periodo(self, ids_venta: list) -> pd.DataFrame:
+        """Distribución de pasajeros por nacionalidad para el conjunto de ventas dado."""
+        if not ids_venta:
+            return pd.DataFrame()
+        try:
+            res = self.client.table('pasajero').select('nacionalidad').in_('id_venta', ids_venta).execute()
+            df = pd.DataFrame(res.data or [])
+            if df.empty:
+                return df
+
+            df['nacionalidad'] = (
+                df['nacionalidad'].fillna('SIN DATO').astype(str).str.strip().str.upper().replace('', 'SIN DATO')
+            )
+            resumen = df.groupby('nacionalidad').size().reset_index(name='Cantidad')
+            return resumen.sort_values('Cantidad', ascending=False)
+        except Exception as e:
+            print(f"Error get_nacionalidades_periodo: {e}")
+            return pd.DataFrame()
+
+    def get_lead_time_confirmacion_periodo(self, fecha_inicio: date, fecha_fin: date, segmento: str = None) -> pd.DataFrame:
+        """Días de anticipación entre la fecha de confirmación de un servicio y su fecha de ejecución."""
+        try:
+            res_vt = (
+                self.client.table('venta_tour')
+                .select('id_venta, n_linea, fecha_servicio, observacion')
+                .gte('fecha_servicio', fecha_inicio.isoformat())
+                .lte('fecha_servicio', fecha_fin.isoformat())
+                .execute()
+            )
+            servicios = res_vt.data or []
+            if not servicios:
+                return pd.DataFrame()
+
+            fecha_map = {}
+            claves_validas = set()
+            ids_ventas = set()
+            for s in servicios:
+                obs = str(s.get('observacion') or '').upper()
+                if "FILA AUTOGENERADA" in obs or "COSTOS ADICIONALES" in obs:
+                    continue
+                key = (s['id_venta'], s['n_linea'])
+                claves_validas.add(key)
+                ids_ventas.add(s['id_venta'])
+                fecha_map[key] = s['fecha_servicio']
+
+            if not claves_validas:
+                return pd.DataFrame()
+
+            ventas_map = {}
+            if segmento:
+                res_v = (
+                    self.client.table('venta')
+                    .select('id_venta, id_agencia_aliada')
+                    .in_('id_venta', list(ids_ventas))
+                    .execute()
+                )
+                ventas_map = {v['id_venta']: v for v in (res_v.data or [])}
+
+            res_vsp = (
+                self.client.table('venta_servicio_proveedor')
+                .select('id_venta, n_linea, fecha_confirmacion')
+                .in_('id_venta', list(ids_ventas))
+                .execute()
+            )
+
+            filas = []
+            for d in (res_vsp.data or []):
+                key = (d['id_venta'], d['n_linea'])
+                if key not in claves_validas:
+                    continue
+                if segmento:
+                    v = ventas_map.get(d['id_venta'], {})
+                    tipo = 'B2B' if v.get('id_agencia_aliada') else 'B2C'
+                    if tipo != segmento:
+                        continue
+
+                f_conf = d.get('fecha_confirmacion')
+                if not f_conf:
+                    continue
+                try:
+                    f_serv = pd.to_datetime(fecha_map[key]).date()
+                    f_c = pd.to_datetime(f_conf).date()
+                    filas.append({'dias_anticipacion': (f_serv - f_c).days})
+                except Exception:
+                    continue
+
+            return pd.DataFrame(filas)
+        except Exception as e:
+            print(f"Error get_lead_time_confirmacion_periodo: {e}")
+            return pd.DataFrame()

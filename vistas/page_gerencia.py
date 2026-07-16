@@ -737,10 +737,16 @@ def panel_desempeno_operaciones(supabase_client):
     with st.spinner("Calculando desempeño operativo..."):
         df_actual = op_ctrl.get_servicios_desempeno(f_ini, f_fin, segmento=seg_val)
         df_top_prov = op_ctrl.get_top_proveedores_periodo(f_ini, f_fin, segmento=seg_val)
+        df_costo_tipo = op_ctrl.get_costos_por_tipo_servicio_periodo(f_ini, f_fin, segmento=seg_val)
+        df_lead_time = op_ctrl.get_lead_time_confirmacion_periodo(f_ini, f_fin, segmento=seg_val)
 
     if df_actual.empty:
         st.info("No hay servicios operativos registrados para el rango y segmento seleccionados.")
         return
+
+    ids_venta_periodo = df_actual['id_venta'].unique().tolist()
+    with st.spinner("Cargando demografía de pasajeros..."):
+        df_nacionalidades = op_ctrl.get_nacionalidades_periodo(ids_venta_periodo)
 
     # ─────────────────────────────────────────────────────────────────
     # 1. KPIs DEL PERIODO
@@ -833,6 +839,66 @@ def panel_desempeno_operaciones(supabase_client):
             fig_p_costo.update_layout(height=380, margin=dict(l=0, r=0, t=40, b=0), coloraxis_showscale=False)
             fig_p_costo.update_yaxes(title=None)
             st.plotly_chart(fig_p_costo, use_container_width=True)
+
+    st.markdown("---")
+
+    # ─────────────────────────────────────────────────────────────────
+    # 5. COSTO OPERATIVO POR TIPO DE SERVICIO
+    # ─────────────────────────────────────────────────────────────────
+    st.markdown("#### 🧾 Costo Operativo por Tipo de Servicio")
+    if df_costo_tipo.empty:
+        st.info("No hay costos operativos registrados en el rango seleccionado.")
+    else:
+        fig_costo_tipo = px.bar(
+            df_costo_tipo, x='Tipo de Servicio', y='Costo_USD',
+            text=df_costo_tipo['Costo_USD'].apply(lambda v: f"${v:,.0f}"),
+            color='Costo_USD', color_continuous_scale='Tealgrn',
+        )
+        fig_costo_tipo.update_layout(
+            height=350, margin=dict(l=0, r=0, t=20, b=0),
+            coloraxis_showscale=False, yaxis_title='Costo (USD)'
+        )
+        st.plotly_chart(fig_costo_tipo, use_container_width=True)
+
+    st.markdown("---")
+
+    # ─────────────────────────────────────────────────────────────────
+    # 6. NACIONALIDAD DE PASAJEROS ATENDIDOS
+    # ─────────────────────────────────────────────────────────────────
+    st.markdown("#### 🌍 Nacionalidad de Pasajeros Atendidos")
+    if df_nacionalidades.empty:
+        st.info("No hay pasajeros registrados para las ventas del periodo seleccionado.")
+    else:
+        df_nac_top = df_nacionalidades.head(10)
+        fig_nac = px.bar(
+            df_nac_top, x='nacionalidad', y='Cantidad', text='Cantidad',
+            color='Cantidad', color_continuous_scale='Blues',
+        )
+        fig_nac.update_layout(
+            height=350, margin=dict(l=0, r=0, t=20, b=0),
+            coloraxis_showscale=False, xaxis_title=None
+        )
+        st.plotly_chart(fig_nac, use_container_width=True)
+
+    st.markdown("---")
+
+    # ─────────────────────────────────────────────────────────────────
+    # 7. ANTICIPACIÓN DE CONFIRMACIÓN DE SERVICIOS
+    # ─────────────────────────────────────────────────────────────────
+    st.markdown("#### ⏱️ Anticipación de Confirmación de Servicios")
+    st.caption("Días entre la fecha en que se confirmó cada servicio y la fecha en que se ejecutó. Valores bajos indican contrataciones de última hora.")
+    if df_lead_time.empty:
+        st.info("No hay servicios con fecha de confirmación registrada en el rango seleccionado.")
+    else:
+        fig_lead = px.histogram(
+            df_lead_time, x='dias_anticipacion', nbins=15,
+            color_discrete_sequence=['#AB47BC'],
+        )
+        fig_lead.update_layout(
+            height=320, margin=dict(l=0, r=0, t=20, b=0),
+            xaxis_title='Días de anticipación', yaxis_title='Cantidad de servicios'
+        )
+        st.plotly_chart(fig_lead, use_container_width=True)
 
 
 def panel_marketing(supabase_client):
