@@ -2,6 +2,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 from controllers.gerencia_controller import GerenciaController
 from controllers.operaciones_controller import OperacionesController
 from controllers.venta_controller import VentaController
@@ -26,23 +27,53 @@ def _normalizar_pais(val):
         return "SIN DATO"
     return s.title()
 
-def _cargar_demografia_clientes(supabase_client, fecha_inicio=None, fecha_fin=None):
+def _filas_pasajero_por_fecha_venta(res_data, fecha_inicio=None, fecha_fin=None, segmento=None):
     """
-    Usa tabla `pasajero` para demografía:
-    - Género, Nacionalidad, Edad
+    Toma filas de `pasajero` con `venta(fecha_venta, id_agencia_aliada)` embebido y las
+    filtra por la FECHA DE VENTA (no por created_at) y por segmento (B2C/Corporativo),
+    para ser consistente con el resto de métricas del panel (que usan fecha_venta).
+    """
+    filas = []
+    for p in (res_data or []):
+        v = p.get('venta') or {}
+        if isinstance(v, list):
+            v = v[0] if v else {}
+        f_venta = v.get('fecha_venta')
+        if not f_venta:
+            continue
+        try:
+            f_obj = pd.to_datetime(f_venta).date()
+        except Exception:
+            continue
+        if fecha_inicio and fecha_fin and not (fecha_inicio <= f_obj <= fecha_fin):
+            continue
+
+        tipo = 'Corporativo' if v.get('id_agencia_aliada') else 'B2C'
+        if segmento and tipo != segmento:
+            continue
+
+        fila = dict(p)
+        fila.pop('venta', None)
+        fila['fecha_venta'] = f_obj
+        filas.append(fila)
+    return filas
+
+
+def _cargar_demografia_clientes(supabase_client, fecha_inicio=None, fecha_fin=None, segmento=None):
+    """
+    Usa tabla `pasajero` para demografía (Género, Nacionalidad, Edad), filtrando por la
+    fecha de la venta asociada (venta.fecha_venta) y por segmento B2C/Corporativo.
     """
     try:
         res = (
             supabase_client.table("pasajero")
-            .select("genero, nacionalidad, edad, created_at")
+            .select("genero, nacionalidad, edad, venta(fecha_venta, id_agencia_aliada)")
             .execute()
         )
-        df = pd.DataFrame(res.data or [])
+        filas = _filas_pasajero_por_fecha_venta(res.data, fecha_inicio, fecha_fin, segmento)
+        df = pd.DataFrame(filas)
         if df.empty:
             return df
-        if fecha_inicio and fecha_fin:
-            df['created_at'] = pd.to_datetime(df['created_at']).dt.date
-            df = df[(df['created_at'] >= fecha_inicio) & (df['created_at'] <= fecha_fin)]
         df["genero_norm"] = df["genero"].apply(_normalizar_genero) if "genero" in df.columns else "SIN DATO"
         df["pais_norm"]   = df["nacionalidad"].apply(_normalizar_pais) if "nacionalidad" in df.columns else "SIN DATO"
         df["edad_num"]    = pd.to_numeric(df["edad"], errors="coerce") if "edad" in df.columns else pd.NA
@@ -52,25 +83,22 @@ def _cargar_demografia_clientes(supabase_client, fecha_inicio=None, fecha_fin=No
         return pd.DataFrame()
 
 
-def _cargar_top_clientes(supabase_client, fecha_inicio=None, fecha_fin=None, top_n=15):
+def _cargar_top_clientes(supabase_client, fecha_inicio=None, fecha_fin=None, segmento=None, top_n=15):
     """
-    Obtiene los pasajeros marcados como es_principal=True.
-    Mismo esquema de demografía (genero, nacionalidad, edad) pero
-    solo el pasajero principal de cada venta (quien compró el viaje).
+    Obtiene los pasajeros marcados como es_principal=True (quien compró el viaje),
+    filtrando por la fecha de la venta asociada y por segmento, igual que `_cargar_demografia_clientes`.
     """
     try:
         res = (
             supabase_client.table("pasajero")
-            .select("genero, nacionalidad, edad, created_at, nombre_completo")
+            .select("genero, nacionalidad, edad, nombre_completo, venta(fecha_venta, id_agencia_aliada)")
             .eq("es_principal", True)
             .execute()
         )
-        df = pd.DataFrame(res.data or [])
+        filas = _filas_pasajero_por_fecha_venta(res.data, fecha_inicio, fecha_fin, segmento)
+        df = pd.DataFrame(filas)
         if df.empty:
             return df
-        if fecha_inicio and fecha_fin:
-            df['created_at'] = pd.to_datetime(df['created_at']).dt.date
-            df = df[(df['created_at'] >= fecha_inicio) & (df['created_at'] <= fecha_fin)]
         df["genero_norm"] = df["genero"].apply(_normalizar_genero) if "genero" in df.columns else "SIN DATO"
         df["pais_norm"]   = df["nacionalidad"].apply(_normalizar_pais) if "nacionalidad" in df.columns else "SIN DATO"
         df["edad_num"]    = pd.to_numeric(df["edad"], errors="coerce") if "edad" in df.columns else pd.NA
@@ -182,9 +210,9 @@ def auditoria_maestra(controller):
         df_desempeno   = controller.get_desempeno_vendedores(fecha_inicio=f_inicio, fecha_fin=f_fin, segmento=seg_val)
         df_leads_origen = controller.get_distribucion_origen_leads(fecha_inicio=f_inicio, fecha_fin=f_fin)
         # Demografía de PASAJEROS
-        df_demo        = _cargar_demografia_clientes(controller.client, fecha_inicio=f_inicio, fecha_fin=f_fin)
+        df_demo        = _cargar_demografia_clientes(controller.client, fecha_inicio=f_inicio, fecha_fin=f_fin, segmento=seg_val)
         # TOP CLIENTES (por ventas realizadas)
-        df_top_clientes = _cargar_top_clientes(controller.client, fecha_inicio=f_inicio, fecha_fin=f_fin)
+        df_top_clientes = _cargar_top_clientes(controller.client, fecha_inicio=f_inicio, fecha_fin=f_fin, segmento=seg_val)
 
     # ─────────────────────────────────────────────────────────────────────────
     # 0. KPIs RÁPIDOS
@@ -901,6 +929,214 @@ def panel_desempeno_operaciones(supabase_client):
         st.plotly_chart(fig_lead, use_container_width=True)
 
 
+def panel_desempeno_contabilidad(supabase_client):
+    """Panel exclusivo de Gerencia: desempeño financiero/contable, con selector de fechas, B2B/B2C y moneda."""
+    st.subheader("🏦 Desempeño de Contabilidad", divider='green')
+    st.caption("Vista de Gerencia sobre el desempeño financiero: ingresos cobrados, gastos operativos y cuentas por cobrar.")
+
+    controller = GerenciaController(supabase_client)
+
+    # --- FILTROS: Rango de fechas (por defecto, mes anterior completo), Segmento B2B/B2C y Moneda ---
+    hoy = date.today()
+    primer_dia_mes_actual = hoy.replace(day=1)
+    ultimo_dia_mes_anterior = primer_dia_mes_actual - timedelta(days=1)
+    primer_dia_mes_anterior = ultimo_dia_mes_anterior.replace(day=1)
+
+    c1, c2, c3 = st.columns([2, 1, 1])
+    with c1:
+        fechas = st.date_input(
+            "Rango de Fechas (Fecha de Pago)",
+            [primer_dia_mes_anterior, ultimo_dia_mes_anterior],
+            key="ger_cont_fechas"
+        )
+    with c2:
+        segmento = st.selectbox("Segmento", ["Todos", "B2B", "B2C"], key="ger_cont_segmento")
+    with c3:
+        moneda_sel = st.selectbox("Moneda", ["PEN (Soles S/)", "USD (Dólares $)"], key="ger_cont_moneda")
+
+    moneda_dest = 'PEN' if "PEN" in moneda_sel else 'USD'
+    symbol = 'S/' if moneda_dest == 'PEN' else '$'
+
+    f_ini = f_fin = None
+    if isinstance(fechas, (tuple, list)):
+        if len(fechas) == 2:
+            f_ini, f_fin = fechas
+        elif len(fechas) == 1:
+            f_ini = f_fin = fechas[0]
+
+    if not f_ini or not f_fin:
+        st.info("Selecciona un rango de fechas válido para continuar.")
+        return
+
+    seg_val = None if segmento == "Todos" else segmento
+
+    with st.spinner("Calculando desempeño contable..."):
+        df_ingresos = controller.get_ingresos_detalle_periodo(f_ini, f_fin, segmento=seg_val, moneda_destino=moneda_dest)
+        df_gastos = controller.get_gastos_detalle_periodo(f_ini, f_fin, segmento=seg_val, moneda_destino=moneda_dest)
+        df_cxc = controller.get_cuentas_por_cobrar_periodo(f_ini, f_fin, segmento=seg_val, moneda_destino=moneda_dest)
+        df_top_prov_gasto = controller.get_top_proveedores_gasto_periodo(f_ini, f_fin, segmento=seg_val, moneda_destino=moneda_dest)
+
+    if df_ingresos.empty and df_gastos.empty:
+        st.info("No hay movimientos de ingresos ni gastos registrados para el rango y segmento seleccionados.")
+        return
+
+    # ─────────────────────────────────────────────────────────────────
+    # 1. KPIs DEL PERIODO
+    # ─────────────────────────────────────────────────────────────────
+    ingresos_total = float(df_ingresos['monto'].sum()) if not df_ingresos.empty else 0.0
+    gastos_total = float(df_gastos['monto'].sum()) if not df_gastos.empty else 0.0
+    utilidad = ingresos_total - gastos_total
+    margen = (utilidad / ingresos_total * 100) if ingresos_total > 0 else 0.0
+    cuentas_cobrar_total = float(df_cxc['Saldo Pendiente'].sum()) if not df_cxc.empty else 0.0
+
+    k1, k2, k3, k4, k5 = st.columns(5)
+    k1.metric("💰 Ingresos Cobrados", f"{symbol} {ingresos_total:,.0f}")
+    k2.metric("💸 Gastos Operativos", f"{symbol} {gastos_total:,.0f}")
+    k3.metric("📈 Utilidad", f"{symbol} {utilidad:,.0f}", delta=f"{margen:.1f}% margen")
+    k4.metric("📋 Cuentas por Cobrar", f"{symbol} {cuentas_cobrar_total:,.0f}")
+    k5.metric("🧾 Transacciones", f"{len(df_ingresos) + len(df_gastos):,}")
+
+    st.markdown("---")
+
+    # ─────────────────────────────────────────────────────────────────
+    # 2. FLUJO DIARIO: INGRESOS VS. GASTOS
+    # ─────────────────────────────────────────────────────────────────
+    st.markdown("#### 📅 Flujo Diario: Ingresos vs. Gastos")
+    df_ing_dia = (
+        df_ingresos.groupby('fecha')['monto'].sum().reset_index().rename(columns={'monto': 'Ingresos'})
+        if not df_ingresos.empty else pd.DataFrame(columns=['fecha', 'Ingresos'])
+    )
+    df_gas_dia = (
+        df_gastos.groupby('fecha')['monto'].sum().reset_index().rename(columns={'monto': 'Gastos'})
+        if not df_gastos.empty else pd.DataFrame(columns=['fecha', 'Gastos'])
+    )
+    df_flujo = pd.merge(df_ing_dia, df_gas_dia, on='fecha', how='outer').fillna(0).sort_values('fecha')
+    if not df_flujo.empty:
+        df_flujo['fecha'] = pd.to_datetime(df_flujo['fecha'])
+        fig_flujo = px.line(
+            df_flujo, x='fecha', y=['Ingresos', 'Gastos'], markers=True,
+            color_discrete_sequence=['#42A5F5', '#EF5350'],
+            labels={'value': f'Monto ({moneda_dest})', 'fecha': 'Fecha', 'variable': 'Tipo'}
+        )
+        fig_flujo.update_layout(height=350, margin=dict(l=0, r=0, t=20, b=0), legend_title='', hovermode='x unified')
+        st.plotly_chart(fig_flujo, use_container_width=True)
+    else:
+        st.info("Sin movimientos diarios para graficar.")
+
+    st.markdown("---")
+
+    # ─────────────────────────────────────────────────────────────────
+    # 3. CASCADA DE RENTABILIDAD DEL PERIODO
+    # ─────────────────────────────────────────────────────────────────
+    st.markdown("#### 🌊 Cascada de Rentabilidad del Periodo")
+    fig_wf = go.Figure(go.Waterfall(
+        orientation='v',
+        measure=['relative', 'relative', 'total'],
+        x=['Ingresos', 'Gastos', 'Utilidad'],
+        text=[f"{symbol}{ingresos_total:,.0f}", f"-{symbol}{gastos_total:,.0f}", f"{symbol}{utilidad:,.0f}"],
+        y=[ingresos_total, -gastos_total, utilidad],
+        connector={'line': {'color': 'rgb(120,120,120)'}},
+        decreasing={'marker': {'color': '#EF5350'}},
+        increasing={'marker': {'color': '#66BB6A'}},
+        totals={'marker': {'color': '#42A5F5'}}
+    ))
+    fig_wf.update_layout(height=380, margin=dict(l=0, r=0, t=20, b=0), showlegend=False)
+    st.plotly_chart(fig_wf, use_container_width=True)
+
+    st.markdown("---")
+
+    # ─────────────────────────────────────────────────────────────────
+    # 4. MÉTODOS DE PAGO (INGRESOS Y GASTOS)
+    # ─────────────────────────────────────────────────────────────────
+    m1, m2 = st.columns(2)
+    with m1:
+        st.markdown("#### 💳 Ingresos por Método de Pago")
+        if df_ingresos.empty:
+            st.info("Sin ingresos registrados.")
+        else:
+            df_met_ing = df_ingresos.groupby('metodo_pago')['monto'].sum().reset_index().rename(
+                columns={'metodo_pago': 'Método', 'monto': 'Monto'}
+            )
+            fig_met_ing = px.pie(
+                df_met_ing, names='Método', values='Monto', hole=0.5,
+                color_discrete_sequence=px.colors.qualitative.Safe
+            )
+            fig_met_ing.update_layout(height=320, margin=dict(l=0, r=0, t=20, b=0))
+            st.plotly_chart(fig_met_ing, use_container_width=True)
+
+    with m2:
+        st.markdown("#### 💳 Gastos por Método de Pago")
+        if df_gastos.empty:
+            st.info("Sin gastos registrados.")
+        else:
+            df_met_gas = df_gastos.groupby('metodo_pago')['monto'].sum().reset_index().rename(
+                columns={'metodo_pago': 'Método', 'monto': 'Monto'}
+            )
+            fig_met_gas = px.pie(
+                df_met_gas, names='Método', values='Monto', hole=0.5,
+                color_discrete_sequence=px.colors.qualitative.Pastel
+            )
+            fig_met_gas.update_layout(height=320, margin=dict(l=0, r=0, t=20, b=0))
+            st.plotly_chart(fig_met_gas, use_container_width=True)
+
+    st.markdown("---")
+
+    # ─────────────────────────────────────────────────────────────────
+    # 5. MIX DE INGRESOS B2B / B2C
+    # ─────────────────────────────────────────────────────────────────
+    st.markdown("#### 🏢 Mix de Ingresos B2B / B2C")
+    if df_ingresos.empty:
+        st.info("Sin ingresos registrados.")
+    else:
+        df_mix = df_ingresos.groupby('tipo_venta')['monto'].sum().reset_index().rename(
+            columns={'tipo_venta': 'Tipo', 'monto': 'Monto'}
+        )
+        fig_mix = px.pie(
+            df_mix, names='Tipo', values='Monto', hole=0.5,
+            color='Tipo', color_discrete_map={'B2B': '#7E57C2', 'B2C': '#26A69A'}
+        )
+        fig_mix.update_layout(height=320, margin=dict(l=0, r=0, t=20, b=0))
+        st.plotly_chart(fig_mix, use_container_width=True)
+
+    st.markdown("---")
+
+    # ─────────────────────────────────────────────────────────────────
+    # 6. TOP PROVEEDORES POR GASTO PAGADO
+    # ─────────────────────────────────────────────────────────────────
+    st.markdown("#### 🏆 Top Proveedores por Gasto Pagado")
+    if df_top_prov_gasto.empty:
+        st.info("No hay pagos a proveedores en el rango seleccionado.")
+    else:
+        df_p = df_top_prov_gasto.sort_values('Monto', ascending=True)
+        fig_p = px.bar(
+            df_p, x='Monto', y='Proveedor', orientation='h',
+            text=df_p['Monto'].apply(lambda v: f"{symbol}{v:,.0f}"),
+            color='Monto', color_continuous_scale='Oranges'
+        )
+        fig_p.update_layout(height=380, margin=dict(l=0, r=0, t=20, b=0), coloraxis_showscale=False)
+        fig_p.update_yaxes(title=None)
+        st.plotly_chart(fig_p, use_container_width=True)
+
+    st.markdown("---")
+
+    # ─────────────────────────────────────────────────────────────────
+    # 7. TOP CLIENTES CON SALDO PENDIENTE (CUENTAS POR COBRAR)
+    # ─────────────────────────────────────────────────────────────────
+    st.markdown("#### 📋 Top Clientes con Saldo Pendiente (Cuentas por Cobrar)")
+    if df_cxc.empty:
+        st.success("✅ No hay saldos pendientes en el rango seleccionado.")
+    else:
+        df_c = df_cxc.sort_values('Saldo Pendiente', ascending=True)
+        fig_c = px.bar(
+            df_c, x='Saldo Pendiente', y='Cliente', orientation='h',
+            text=df_c['Saldo Pendiente'].apply(lambda v: f"{symbol}{v:,.0f}"),
+            color='Saldo Pendiente', color_continuous_scale='Reds'
+        )
+        fig_c.update_layout(height=380, margin=dict(l=0, r=0, t=20, b=0), coloraxis_showscale=False)
+        fig_c.update_yaxes(title=None)
+        st.plotly_chart(fig_c, use_container_width=True)
+
+
 def panel_marketing(supabase_client):
     """Panel específico para Gerencia de Marketing."""
     from datetime import date
@@ -1186,6 +1422,8 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual, user_id, supabase_cli
         panel_revision_gerencia(supabase_client)
     elif funcionalidad_seleccionada in ["Desempeño de Operaciones", "Desempeño Operativo"]:
         panel_desempeno_operaciones(supabase_client)
+    elif funcionalidad_seleccionada in ["Desempeño de Contabilidad", "Desempeño Contable"]:
+        panel_desempeno_contabilidad(supabase_client)
     else:
-        st.info("Selecciona una opción del menú: `Dashboard Ejecutivo`, `Gerencia de Marketing`, `Auditoría de Gestión`, `Desempeño de Operaciones`, `Control de Liquidaciones`, `Comunicados` o `Revisión de Pasajeros`.")
+        st.info("Selecciona una opción del menú: `Dashboard Ejecutivo`, `Gerencia de Marketing`, `Auditoría de Gestión`, `Desempeño de Operaciones`, `Desempeño de Contabilidad`, `Control de Liquidaciones`, `Comunicados` o `Revisión de Pasajeros`.")
 

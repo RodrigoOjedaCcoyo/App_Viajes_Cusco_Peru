@@ -45,6 +45,7 @@ MODULOS_VISIBLES = {
         ("Gerencia de Marketing", "page_gerencia"),
         ("Auditoría de Gestión", "page_gerencia"),
         ("Desempeño de Operaciones", "page_gerencia"),
+        ("Desempeño de Contabilidad", "page_gerencia"),
         ("Control de Liquidaciones", "page_gerencia"),
         ("Revisión de Pasajeros", "page_gerencia")
     ]

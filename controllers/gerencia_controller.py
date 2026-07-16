@@ -334,6 +334,169 @@ class GerenciaController:
             print(f"Error Detalle Ventas Limpio: {e}")
             return pd.DataFrame()
 
+    # ------------------------------------------------------------------
+    # DESEMPEÑO DE CONTABILIDAD (Panel de Gerencia > Desempeño de Contabilidad)
+    # ------------------------------------------------------------------
+
+    def _normalizar_moneda(self, monto: float, moneda_orig: str, tc: float, moneda_destino: str) -> float:
+        """Convierte un monto a la moneda de destino ('PEN' o 'USD') usando la tasa de cambio dada."""
+        moneda_orig = (moneda_orig or 'USD').strip().upper()
+        tc = float(tc or 3.80)
+        if tc <= 0:
+            tc = 3.80
+        if moneda_destino == 'PEN':
+            return monto * tc if moneda_orig == 'USD' else monto
+        return monto / tc if moneda_orig == 'PEN' else monto
+
+    def get_ingresos_detalle_periodo(self, fecha_inicio, fecha_fin, segmento=None, moneda_destino='PEN') -> pd.DataFrame:
+        """Pagos de clientes (ingresos cobrados) en el rango de fecha_pago, normalizados a la moneda de destino."""
+        try:
+            res = (
+                self.client.table('pago')
+                .select('fecha_pago, monto_pagado, moneda, tasa_cambio, tipo_pago, metodo_pago, id_venta, venta(id_agencia_aliada)')
+                .gte('fecha_pago', fecha_inicio.isoformat())
+                .lte('fecha_pago', fecha_fin.isoformat())
+                .execute()
+            )
+            filas = []
+            for p in (res.data or []):
+                v = p.get('venta') or {}
+                if isinstance(v, list):
+                    v = v[0] if v else {}
+                tipo = 'B2B' if v.get('id_agencia_aliada') else 'B2C'
+                if segmento and tipo != segmento:
+                    continue
+
+                monto_dest = self._normalizar_moneda(
+                    float(p.get('monto_pagado') or 0), p.get('moneda'), p.get('tasa_cambio'), moneda_destino
+                )
+                if p.get('tipo_pago') == 'REEMBOLSO':
+                    monto_dest = -monto_dest
+
+                filas.append({
+                    'fecha': p.get('fecha_pago'),
+                    'monto': monto_dest,
+                    'metodo_pago': p.get('metodo_pago') or 'OTRO',
+                    'tipo_venta': tipo,
+                })
+            return pd.DataFrame(filas)
+        except Exception as e:
+            print(f"Error get_ingresos_detalle_periodo: {e}")
+            return pd.DataFrame()
+
+    def get_gastos_detalle_periodo(self, fecha_inicio, fecha_fin, segmento=None, moneda_destino='PEN') -> pd.DataFrame:
+        """Pagos a proveedores (gastos operativos) en el rango de fecha_pago, normalizados a la moneda de destino."""
+        try:
+            res = (
+                self.client.table('pago_operativo')
+                .select('fecha_pago, monto_pagado, moneda, tasa_cambio, metodo_pago, id_venta, proveedor(nombre_comercial), venta(id_agencia_aliada)')
+                .gte('fecha_pago', fecha_inicio.isoformat())
+                .lte('fecha_pago', fecha_fin.isoformat())
+                .execute()
+            )
+            filas = []
+            for g in (res.data or []):
+                v = g.get('venta') or {}
+                if isinstance(v, list):
+                    v = v[0] if v else {}
+                tipo = 'B2B' if v.get('id_agencia_aliada') else 'B2C'
+                if segmento and tipo != segmento:
+                    continue
+
+                monto_dest = self._normalizar_moneda(
+                    float(g.get('monto_pagado') or 0), g.get('moneda'), g.get('tasa_cambio'), moneda_destino
+                )
+                prov = g.get('proveedor') or {}
+                if isinstance(prov, list):
+                    prov = prov[0] if prov else {}
+
+                filas.append({
+                    'fecha': g.get('fecha_pago'),
+                    'monto': monto_dest,
+                    'metodo_pago': g.get('metodo_pago') or 'OTRO',
+                    'proveedor': prov.get('nombre_comercial') or 'Sin Proveedor',
+                })
+            return pd.DataFrame(filas)
+        except Exception as e:
+            print(f"Error get_gastos_detalle_periodo: {e}")
+            return pd.DataFrame()
+
+    def get_cuentas_por_cobrar_periodo(self, fecha_inicio, fecha_fin, segmento=None, moneda_destino='PEN', top_n=10) -> pd.DataFrame:
+        """Clientes con saldo pendiente, para ventas cerradas dentro del rango de fecha_venta."""
+        try:
+            res_v = (
+                self.client.table('venta')
+                .select('id_venta, precio_total_cierre, moneda, tipo_cambio, id_agencia_aliada, cancelada, cliente(nombre)')
+                .gte('fecha_venta', fecha_inicio.isoformat())
+                .lte('fecha_venta', fecha_fin.isoformat())
+                .execute()
+            )
+
+            ventas = []
+            ids_venta = []
+            for v in (res_v.data or []):
+                if v.get('cancelada'):
+                    continue
+                tipo = 'B2B' if v.get('id_agencia_aliada') else 'B2C'
+                if segmento and tipo != segmento:
+                    continue
+                ventas.append(v)
+                ids_venta.append(v['id_venta'])
+
+            if not ids_venta:
+                return pd.DataFrame()
+
+            res_p = (
+                self.client.table('pago')
+                .select('id_venta, monto_pagado, moneda, tasa_cambio, tipo_pago')
+                .in_('id_venta', ids_venta)
+                .execute()
+            )
+            pagos_por_venta = {}
+            for p in (res_p.data or []):
+                monto_dest = self._normalizar_moneda(
+                    float(p.get('monto_pagado') or 0), p.get('moneda'), p.get('tasa_cambio'), moneda_destino
+                )
+                if p.get('tipo_pago') == 'REEMBOLSO':
+                    monto_dest = -monto_dest
+                id_v = p['id_venta']
+                pagos_por_venta[id_v] = pagos_por_venta.get(id_v, 0.0) + monto_dest
+
+            filas = []
+            for v in ventas:
+                total_dest = self._normalizar_moneda(
+                    float(v.get('precio_total_cierre') or 0), v.get('moneda'), v.get('tipo_cambio'), moneda_destino
+                )
+                saldo = total_dest - pagos_por_venta.get(v['id_venta'], 0.0)
+                if saldo <= 0.5:
+                    continue
+
+                cli = v.get('cliente') or {}
+                if isinstance(cli, list):
+                    cli = cli[0] if cli else {}
+                filas.append({'Cliente': cli.get('nombre') or 'Desconocido', 'Saldo Pendiente': round(saldo, 2)})
+
+            if not filas:
+                return pd.DataFrame()
+
+            df = pd.DataFrame(filas).groupby('Cliente', as_index=False)['Saldo Pendiente'].sum()
+            return df.sort_values('Saldo Pendiente', ascending=False).head(top_n)
+        except Exception as e:
+            print(f"Error get_cuentas_por_cobrar_periodo: {e}")
+            return pd.DataFrame()
+
+    def get_top_proveedores_gasto_periodo(self, fecha_inicio, fecha_fin, segmento=None, moneda_destino='PEN', top_n=10) -> pd.DataFrame:
+        """Top proveedores por monto realmente pagado (pago_operativo) en el rango de fecha_pago."""
+        df = self.get_gastos_detalle_periodo(fecha_inicio, fecha_fin, segmento=segmento, moneda_destino=moneda_destino)
+        if df.empty:
+            return df
+        resumen = (
+            df.groupby('proveedor', as_index=False)['monto']
+            .sum()
+            .rename(columns={'proveedor': 'Proveedor', 'monto': 'Monto'})
+        )
+        return resumen.sort_values('Monto', ascending=False).head(top_n)
+
     def get_marketing_dashboard_data(self, fecha_inicio=None, fecha_fin=None, segmento=None):
         """Procesa itinerarios digitales vinculados a leads para obtener métricas de Marketing."""
         import json
