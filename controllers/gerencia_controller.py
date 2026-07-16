@@ -166,16 +166,22 @@ class GerenciaController:
             print(f"Error Gerencia Mensual: {e}")
             return pd.DataFrame()
 
-    def get_desempeno_vendedores(self):
+    def get_desempeno_vendedores(self, fecha_inicio=None, fecha_fin=None):
         """Calcula Leads vs Ventas por cada vendedor."""
         try:
             # 1. Obtener Leads con vendedor
-            res_leads = self.client.table('lead').select('id_vendedor').execute()
+            res_leads = self.client.table('lead').select('id_vendedor, fecha_registro').execute()
             df_leads = pd.DataFrame(res_leads.data or [])
+            if not df_leads.empty and fecha_inicio and fecha_fin:
+                df_leads['fecha_registro'] = pd.to_datetime(df_leads['fecha_registro']).dt.date
+                df_leads = df_leads[(df_leads['fecha_registro'] >= fecha_inicio) & (df_leads['fecha_registro'] <= fecha_fin)]
             
             # 2. Obtener Ventas con vendedor
-            res_ventas = self.client.table('venta').select('id_vendedor').execute()
+            res_ventas = self.client.table('venta').select('id_vendedor, fecha_venta').execute()
             df_ventas = pd.DataFrame(res_ventas.data or [])
+            if not df_ventas.empty and fecha_inicio and fecha_fin:
+                df_ventas['fecha_venta'] = pd.to_datetime(df_ventas['fecha_venta']).dt.date
+                df_ventas = df_ventas[(df_ventas['fecha_venta'] >= fecha_inicio) & (df_ventas['fecha_venta'] <= fecha_fin)]
             
             # 3. Mapeo de Nombres de Vendedores
             res_vend = self.client.table('vendedor').select('id_vendedor, nombre').execute()
