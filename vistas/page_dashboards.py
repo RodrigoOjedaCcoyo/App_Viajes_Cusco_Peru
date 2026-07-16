@@ -484,6 +484,8 @@ def procesar_datos_tabla(ventas_data, pagos_data, anio_sel=None, mes_sel=None, f
         for p in lista_pagos:
             p_moneda = p.get('moneda', moneda_venta)
             p_monto = float(p.get('monto_pagado') or 0.0)
+            if p.get('tipo_pago') == 'REEMBOLSO':
+                p_monto = -p_monto
             if p_moneda == 'USD':
                 total_pagado_usd += p_monto
                 total_pagado_pen += p_monto * tc

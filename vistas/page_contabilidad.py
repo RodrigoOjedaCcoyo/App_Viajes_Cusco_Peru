@@ -705,9 +705,13 @@ def dashboard_cuentas_por_cobrar_unified(supabase_client):
         return
 
     ids_v = [v['id_venta'] for v in ventas]
-    pagos = supabase_client.table('pago').select('id_venta, monto_moneda_venta').in_('id_venta', ids_v).execute().data
+    pagos = supabase_client.table('pago').select('id_venta, monto_moneda_venta, tipo_pago').in_('id_venta', ids_v).execute().data
     mapa_p = {}
-    for p in pagos: mapa_p[p['id_venta']] = mapa_p.get(p['id_venta'], 0) + (p['monto_moneda_venta'] or 0)
+    for p in pagos:
+        m_val = p['monto_moneda_venta'] or 0
+        if p.get('tipo_pago') == 'REEMBOLSO':
+            m_val = -m_val
+        mapa_p[p['id_venta']] = mapa_p.get(p['id_venta'], 0) + m_val
 
     lista_detalle = []
     for v in ventas:
@@ -744,7 +748,7 @@ def dashboard_cuentas_por_cobrar_unified(supabase_client):
             obs_cont = st.text_input("Observaciones Contables:", key="obs_cont_manual")
             
             if st.button("🚀 Registrar Movimiento", type="primary", use_container_width=True):
-                monto_final = monto_p if tipo_mov == "Abono (Ingreso)" else -abs(monto_p)
+                monto_final = monto_p # El CHECK constraint exige positivo
                 t_pago = "ADELANTO" if tipo_mov == "Abono (Ingreso)" else "REEMBOLSO"
                 exito, msg = vc.registrar_pago(
                     id_venta=id_v, 
