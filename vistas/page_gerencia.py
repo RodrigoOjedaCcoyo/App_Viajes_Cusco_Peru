@@ -28,38 +28,42 @@ def _normalizar_pais(val):
 
 def _cargar_demografia_clientes(supabase_client, fecha_inicio=None, fecha_fin=None):
     """
-    Usa tabla `pasajero` como fuente única para:
-    - Género (`genero`)
-    - País/Nacionalidad (`nacionalidad`)
-    - Edad (`edad`)
+    Usa tabla `cliente` como fuente de datos demográficos:
+    - tipo_cliente (B2C / B2B)
+    - pais_origen del lead asociado
     """
     try:
+        # JOIN cliente -> lead para obtener pais_origen
         res = (
-            supabase_client.table("pasajero")
-            .select("genero, nacionalidad, edad, created_at")
+            supabase_client.table("cliente")
+            .select("id_cliente, nombre, tipo_cliente, fecha_registro, lead(pais_origen, red_social)")
             .execute()
         )
-        df = pd.DataFrame(res.data or [])
+        rows = res.data or []
+        records = []
+        for r in rows:
+            lead_data = r.get('lead') or {}
+            if isinstance(lead_data, list):
+                lead_data = lead_data[0] if lead_data else {}
+            records.append({
+                'id_cliente': r.get('id_cliente'),
+                'nombre': r.get('nombre', ''),
+                'tipo_cliente': r.get('tipo_cliente', 'B2C'),
+                'fecha_registro': r.get('fecha_registro'),
+                'pais_origen': lead_data.get('pais_origen', 'SIN DATO'),
+                'red_social': lead_data.get('red_social', 'SIN DATO'),
+            })
+        df = pd.DataFrame(records)
         if df.empty:
             return df
         if fecha_inicio and fecha_fin:
-            df['created_at'] = pd.to_datetime(df['created_at']).dt.date
-            df = df[(df['created_at'] >= fecha_inicio) & (df['created_at'] <= fecha_fin)]
-        if "genero" in df.columns:
-            df["genero_norm"] = df["genero"].apply(_normalizar_genero)
-        else:
-            df["genero_norm"] = "SIN DATO"
-        if "nacionalidad" in df.columns:
-            df["pais_norm"] = df["nacionalidad"].apply(_normalizar_pais)
-        else:
-            df["pais_norm"] = "SIN DATO"
-        if "edad" in df.columns:
-            df["edad_num"] = pd.to_numeric(df["edad"], errors="coerce")
-        else:
-            df["edad_num"] = pd.NA
+            df['fecha_registro'] = pd.to_datetime(df['fecha_registro']).dt.date
+            df = df[(df['fecha_registro'] >= fecha_inicio) & (df['fecha_registro'] <= fecha_fin)]
+        df['pais_norm'] = df['pais_origen'].apply(_normalizar_pais)
+        df['tipo_norm'] = df['tipo_cliente'].apply(lambda x: str(x or 'B2C').upper())
         return df
     except Exception as e:
-        print(f"Error cargando demografía (pasajero): {e}")
+        print(f"Error cargando demografía (cliente): {e}")
         return pd.DataFrame()
 
 def dashboard_ejecutivo(controller):
@@ -167,68 +171,11 @@ def auditoria_maestra(controller):
         # NUEVO: Demografía (Género / País / Edades)
         df_demo = _cargar_demografia_clientes(controller.client, fecha_inicio=f_inicio, fecha_fin=f_fin)
 
-    # --- 0. DEMOGRAFÍA DE CLIENTES (NUEVO) ---
-    st.markdown("#### 🧑‍🤝‍🧑 Demografía de Clientes (Pasajeros)")
-    d1, d2, d3 = st.columns(3)
-    if df_demo is None or df_demo.empty:
-        st.info("Sin datos de pasajeros para graficar demografía.")
-    else:
-        # A) Diagrama circular de género
-        with d1:
-            st.markdown("##### Género")
-            df_g = df_demo.groupby("genero_norm").size().reset_index(name="Cantidad")
-            fig_g = px.pie(
-                df_g,
-                names="genero_norm",
-                values="Cantidad",
-                hole=0.4,
-                color_discrete_sequence=px.colors.qualitative.Safe,
-            )
-            fig_g.update_layout(height=320, margin=dict(l=0, r=0, t=30, b=0), showlegend=False)
-            st.plotly_chart(fig_g, use_container_width=True)
-
-        # B) Barras de países (top 10)
-        with d2:
-            st.markdown("##### País / Nacionalidad (Top 10)")
-            df_p = (
-                df_demo.groupby("pais_norm")
-                .size()
-                .reset_index(name="Cantidad")
-                .sort_values("Cantidad", ascending=False)
-                .head(10)
-            )
-            fig_p = px.bar(
-                df_p,
-                x="pais_norm",
-                y="Cantidad",
-                text="Cantidad",
-                color_discrete_sequence=["#8E24AA"],
-            )
-            fig_p.update_layout(height=320, margin=dict(l=0, r=0, t=30, b=0))
-            fig_p.update_xaxes(title=None)
-            st.plotly_chart(fig_p, use_container_width=True)
-
-        # C) Histograma de edades
-        with d3:
-            st.markdown("##### Edades (Histograma)")
-            df_e = df_demo.dropna(subset=["edad_num"]).copy()
-            # Filtrado defensivo para edades absurdas
-            df_e = df_e[(df_e["edad_num"] >= 0) & (df_e["edad_num"] <= 120)]
-            if df_e.empty:
-                st.info("Sin edades registradas.")
-            else:
-                fig_e = px.histogram(
-                    df_e,
-                    x="edad_num",
-                    nbins=12,
-                    color_discrete_sequence=["#1E88E5"],
-                )
-                fig_e.update_layout(height=320, margin=dict(l=0, r=0, t=30, b=0))
-                fig_e.update_xaxes(title="Edad")
-                st.plotly_chart(fig_e, use_container_width=True)
-
-    # --- 1. RESUMEN EJECUTIVO DE AUDITORÍA (Métricas Rápidas) ---
-    m1, m2, m3 = st.columns(3)
+    # ─────────────────────────────────────────────────────────────────────────
+    # 0. KPIs RÁPIDOS
+    # ─────────────────────────────────────────────────────────────────────────
+    total_clientes = len(df_demo) if df_demo is not None and not df_demo.empty else 0
+    m1, m2, m3, m4 = st.columns(4)
     with m1:
         top_canal = df_v_canal.iloc[0]['Canal'] if not df_v_canal.empty else "N/A"
         st.metric("Canal Líder", top_canal)
@@ -237,32 +184,159 @@ def auditoria_maestra(controller):
         st.metric("Ticket Promedio", f"S/ {float(monto_avg or 0):,.2f}")
     with m3:
         pax_total = controller.get_pax_totales()
-        st.metric("Operación Actual", f"{pax_total} PAX")
+        st.metric("PAX en Operación", f"{pax_total}")
+    with m4:
+        st.metric("Total Clientes Registrados", f"{total_clientes}")
 
     st.markdown("---")
 
-    # --- 2. GRÁFICAS ANALÍTICAS ---
+    # ─────────────────────────────────────────────────────────────────────────
+    # 1. DEMOGRAFÍA DE CLIENTES (tabla `cliente`)
+    # ─────────────────────────────────────────────────────────────────────────
+    st.markdown("#### 🧑‍🤝‍🧑 Demografía de Clientes")
+    if df_demo is None or df_demo.empty:
+        st.info("Sin datos de clientes para graficar demografía en el rango seleccionado.")
+    else:
+        da1, da2, da3 = st.columns(3)
+
+        # A) Pie B2C vs B2B
+        with da1:
+            st.markdown("##### Tipo de Cliente (B2C / B2B)")
+            df_tipo = df_demo.groupby("tipo_norm").size().reset_index(name="Cantidad")
+            fig_tipo = px.pie(
+                df_tipo, names="tipo_norm", values="Cantidad", hole=0.45,
+                color_discrete_sequence=["#4CAF50", "#FF9800"],
+            )
+            fig_tipo.update_layout(height=320, margin=dict(l=0, r=0, t=30, b=0))
+            st.plotly_chart(fig_tipo, use_container_width=True)
+
+        # B) Barras de país de origen (top 10)
+        with da2:
+            st.markdown("##### País de Origen (Top 10)")
+            df_p = (
+                df_demo.groupby("pais_norm")
+                .size()
+                .reset_index(name="Cantidad")
+                .sort_values("Cantidad", ascending=False)
+                .head(10)
+            )
+            fig_p = px.bar(
+                df_p, x="pais_norm", y="Cantidad", text="Cantidad",
+                color="Cantidad",
+                color_continuous_scale="Purples",
+            )
+            fig_p.update_layout(height=320, margin=dict(l=0, r=0, t=30, b=0), coloraxis_showscale=False)
+            fig_p.update_xaxes(title=None)
+            st.plotly_chart(fig_p, use_container_width=True)
+
+        # C) Canal de captación (red_social)
+        with da3:
+            st.markdown("##### Canal de Captación")
+            df_rs = df_demo.groupby("red_social").size().reset_index(name="Cantidad")
+            df_rs = df_rs.sort_values("Cantidad", ascending=True)
+            fig_rs = px.bar(
+                df_rs, x="Cantidad", y="red_social", orientation="h",
+                text="Cantidad",
+                color_discrete_sequence=["#1E88E5"],
+            )
+            fig_rs.update_layout(height=320, margin=dict(l=0, r=0, t=30, b=0))
+            fig_rs.update_yaxes(title=None)
+            st.plotly_chart(fig_rs, use_container_width=True)
+
+    st.markdown("---")
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # 2. DESEMPEÑO DE VENDEDORES
+    # ─────────────────────────────────────────────────────────────────────────
+    st.markdown("#### 👨‍💼 Desempeño de Vendedores")
+    if df_desempeno is None or df_desempeno.empty:
+        st.info("Sin datos de vendedores para el rango seleccionado.")
+    else:
+        vv1, vv2 = st.columns(2)
+        with vv1:
+            st.markdown("##### Ventas Cerradas por Vendedor")
+            df_v_ord = df_desempeno.sort_values("Ventas", ascending=True)
+            fig_v_vend = px.bar(
+                df_v_ord, x="Ventas", y="Vendedor", orientation="h",
+                text="Ventas",
+                color="Ventas",
+                color_continuous_scale="Greens",
+            )
+            fig_v_vend.update_layout(height=350, margin=dict(l=0, r=0, t=10, b=0), coloraxis_showscale=False)
+            fig_v_vend.update_yaxes(title=None)
+            st.plotly_chart(fig_v_vend, use_container_width=True)
+
+        with vv2:
+            st.markdown("##### Leads Asignados vs Ventas Cerradas")
+            df_comp = df_desempeno.melt(id_vars="Vendedor", value_vars=["Leads", "Ventas"],
+                                        var_name="Tipo", value_name="Cantidad")
+            fig_comp = px.bar(
+                df_comp, x="Vendedor", y="Cantidad", color="Tipo",
+                barmode="group",
+                color_discrete_sequence=["#42A5F5", "#66BB6A"],
+                text="Cantidad",
+            )
+            fig_comp.update_layout(height=350, margin=dict(l=0, r=0, t=10, b=0), legend_title="")
+            st.plotly_chart(fig_comp, use_container_width=True)
+
+        # Tasa de conversión por vendedor
+        st.markdown("##### Tasa de Conversión (Leads → Ventas) por Vendedor")
+        df_conv = df_desempeno.copy()
+        df_conv["Conversión %"] = df_conv.apply(
+            lambda r: round(r["Ventas"] / r["Leads"] * 100, 1) if r["Leads"] > 0 else 0, axis=1
+        )
+        df_conv = df_conv.sort_values("Conversión %", ascending=False)
+        fig_conv = px.bar(
+            df_conv, x="Vendedor", y="Conversión %",
+            text=df_conv["Conversión %"].apply(lambda v: f"{v}%"),
+            color="Conversión %",
+            color_continuous_scale="RdYlGn",
+        )
+        fig_conv.update_layout(height=300, margin=dict(l=0, r=0, t=10, b=0), coloraxis_showscale=False)
+        st.plotly_chart(fig_conv, use_container_width=True)
+
+    st.markdown("---")
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # 3. DISTRIBUCIÓN POR CANAL Y ESTADO
+    # ─────────────────────────────────────────────────────────────────────────
+    st.markdown("#### 📊 Análisis de Ventas")
     g1, g2 = st.columns(2)
-    
     with g1:
         st.markdown("##### Distribución Económica por Canal")
         if not df_v_canal.empty:
-            fig_canal = px.bar(df_v_canal, x='Canal', y='Monto', color='Canal', 
-                             color_discrete_sequence=px.colors.qualitative.Pastel)
-            fig_canal.update_layout(showlegend=False, height=300, margin=dict(l=0,r=0,t=0,b=0))
+            fig_canal = px.bar(df_v_canal, x='Canal', y='Monto', color='Canal',
+                               color_discrete_sequence=px.colors.qualitative.Pastel,
+                               text_auto=True)
+            fig_canal.update_layout(showlegend=False, height=300, margin=dict(l=0, r=0, t=0, b=0))
             st.plotly_chart(fig_canal, use_container_width=True)
-            
+        else:
+            st.info("Sin datos de canales.")
+
     with g2:
         st.markdown("##### Volumen de Ventas por Estado")
         if not df_v_estado.empty:
             fig_est = px.pie(df_v_estado, values='Cantidad', names='Estado', hole=0.5,
-                           color_discrete_sequence=px.colors.sequential.RdBu)
-            fig_est.update_layout(height=300, margin=dict(l=0,r=0,t=0,b=0))
+                             color_discrete_sequence=px.colors.sequential.RdBu)
+            fig_est.update_layout(height=300, margin=dict(l=0, r=0, t=0, b=0))
             st.plotly_chart(fig_est, use_container_width=True)
+        else:
+            st.info("Sin datos de estados.")
+
+    # Leads por canal social
+    if not df_leads_origen.empty:
+        st.markdown("##### Leads por Canal Social")
+        fig_leads = px.bar(df_leads_origen, x='Origen', y='Cantidad',
+                           color='Cantidad', color_continuous_scale='Blues',
+                           text='Cantidad')
+        fig_leads.update_layout(height=280, margin=dict(l=0, r=0, t=0, b=0), coloraxis_showscale=False)
+        st.plotly_chart(fig_leads, use_container_width=True)
 
     st.markdown("---")
 
-    # --- 3. TABLA DE AUDITORÍA ESTILIZADA (El "Libro Diario") ---
+    # ─────────────────────────────────────────────────────────────────────────
+    # 4. REGISTRO MAESTRO DE VENTAS
+    # ─────────────────────────────────────────────────────────────────────────
     st.markdown("#### 📖 Registro Maestro de Ventas (Auditoría)")
     if not df_ventas_limpio.empty:
         st.dataframe(
@@ -280,16 +354,6 @@ def auditoria_maestra(controller):
         )
     else:
         st.info("No hay ventas para auditar.")
-
-    # --- 4. FUNNEL Y DESEMPEÑO (Se mantiene en expanders para no saturar) ---
-    with st.expander("📊 Ver Análisis de Prospección (Leads & Funnel)"):
-        c1, c2 = st.columns(2)
-        with c1:
-            if not df_desempeno.empty:
-                st.plotly_chart(px.bar(df_desempeno, x='Vendedor', y='Ventas', title="Cierre por Vendedor"), use_container_width=True)
-        with c2:
-            if not df_leads_origen.empty:
-                st.plotly_chart(px.bar(df_leads_origen, x='Origen', y='Cantidad', title="Leads por Origen (Canal Social)"), use_container_width=True)
 
 def render_control_financiero_liquidaciones(supabase_client):
     """Interfaz para que Gerencia complete costos y monedas de las liquidaciones."""
