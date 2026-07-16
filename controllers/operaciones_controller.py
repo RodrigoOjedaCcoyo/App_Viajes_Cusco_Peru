@@ -1654,3 +1654,167 @@ class OperacionesController:
             return True, "Cancelación procesada correctamente en operaciones y contabilidad."
         except Exception as e:
             return False, f"Error al ejecutar cancelación de reserva: {e}"
+
+    # ------------------------------------------------------------------
+    # DESEMPEÑO OPERATIVO (Panel de Gerencia > Desempeño de Operaciones)
+    # ------------------------------------------------------------------
+
+    def get_servicios_desempeno(self, fecha_inicio: date, fecha_fin: date, segmento: str = None) -> pd.DataFrame:
+        """
+        DataFrame a nivel de servicio (venta_tour) para el rango de fechas dado,
+        con tipo de venta (B2B/B2C), estado de cumplimiento y costo operativo (USD).
+        segmento: None (todos) | 'B2B' | 'B2C'
+        """
+        try:
+            res_vt = (
+                self.client.table('venta_tour')
+                .select('id_venta, n_linea, fecha_servicio, cantidad, observacion')
+                .gte('fecha_servicio', fecha_inicio.isoformat())
+                .lte('fecha_servicio', fecha_fin.isoformat())
+                .execute()
+            )
+            servicios = res_vt.data or []
+            if not servicios:
+                return pd.DataFrame()
+
+            ids_ventas = list(set(s['id_venta'] for s in servicios))
+            res_v = (
+                self.client.table('venta')
+                .select('id_venta, id_agencia_aliada, cancelada')
+                .in_('id_venta', ids_ventas)
+                .execute()
+            )
+            ventas_map = {v['id_venta']: v for v in (res_v.data or [])}
+
+            res_vsp = (
+                self.client.table('venta_servicio_proveedor')
+                .select('id_venta, n_linea, terminado, costo_unitario, cantidad_pax, moneda, tipo_cambio')
+                .in_('id_venta', ids_ventas)
+                .execute()
+            )
+            vsp_por_linea = {}
+            for s in (res_vsp.data or []):
+                key = (s['id_venta'], s['n_linea'])
+                vsp_por_linea.setdefault(key, []).append(s)
+
+            filas = []
+            for s in servicios:
+                obs = str(s.get('observacion') or '').upper()
+                if "FILA AUTOGENERADA" in obs or "COSTOS ADICIONALES" in obs:
+                    continue
+
+                v = ventas_map.get(s['id_venta'], {})
+                tipo = 'B2B' if v.get('id_agencia_aliada') else 'B2C'
+                if segmento and tipo != segmento:
+                    continue
+
+                detalles = vsp_por_linea.get((s['id_venta'], s['n_linea']), [])
+                costo_usd = 0.0
+                for d in detalles:
+                    cu = float(d.get('costo_unitario') or 0)
+                    pax_d = float(d.get('cantidad_pax') or 1)
+                    moneda_d = d.get('moneda') or 'USD'
+                    tc_d = float(d.get('tipo_cambio') or 3.80) or 3.80
+                    monto = cu * pax_d
+                    costo_usd += (monto / tc_d) if moneda_d == 'PEN' else monto
+
+                if v.get('cancelada'):
+                    estado = 'CANCELADO'
+                elif detalles and all(d.get('terminado') for d in detalles):
+                    estado = 'TERMINADO'
+                else:
+                    estado = 'PENDIENTE'
+
+                filas.append({
+                    'id_venta': s['id_venta'],
+                    'n_linea': s['n_linea'],
+                    'fecha_servicio': s['fecha_servicio'],
+                    'pax': s.get('cantidad') or 1,
+                    'tipo_venta': tipo,
+                    'estado': estado,
+                    'costo_usd': costo_usd,
+                })
+            return pd.DataFrame(filas)
+        except Exception as e:
+            print(f"Error get_servicios_desempeno: {e}")
+            return pd.DataFrame()
+
+    def get_top_proveedores_periodo(self, fecha_inicio: date, fecha_fin: date, segmento: str = None, top_n: int = 10) -> pd.DataFrame:
+        """Ranking de proveedores por cantidad de servicios y costo operativo (USD) en el periodo."""
+        try:
+            res_vt = (
+                self.client.table('venta_tour')
+                .select('id_venta, n_linea, fecha_servicio, observacion')
+                .gte('fecha_servicio', fecha_inicio.isoformat())
+                .lte('fecha_servicio', fecha_fin.isoformat())
+                .execute()
+            )
+            servicios = res_vt.data or []
+            if not servicios:
+                return pd.DataFrame()
+
+            claves_validas = set()
+            ids_ventas = set()
+            for s in servicios:
+                obs = str(s.get('observacion') or '').upper()
+                if "FILA AUTOGENERADA" in obs or "COSTOS ADICIONALES" in obs:
+                    continue
+                claves_validas.add((s['id_venta'], s['n_linea']))
+                ids_ventas.add(s['id_venta'])
+
+            if not claves_validas:
+                return pd.DataFrame()
+
+            ventas_map = {}
+            if segmento:
+                res_v = (
+                    self.client.table('venta')
+                    .select('id_venta, id_agencia_aliada')
+                    .in_('id_venta', list(ids_ventas))
+                    .execute()
+                )
+                ventas_map = {v['id_venta']: v for v in (res_v.data or [])}
+
+            res_vsp = (
+                self.client.table('venta_servicio_proveedor')
+                .select('id_venta, n_linea, costo_unitario, cantidad_pax, moneda, tipo_cambio, proveedor(nombre_comercial)')
+                .in_('id_venta', list(ids_ventas))
+                .execute()
+            )
+
+            acumulado = {}
+            for d in (res_vsp.data or []):
+                key = (d['id_venta'], d['n_linea'])
+                if key not in claves_validas:
+                    continue
+                if segmento:
+                    v = ventas_map.get(d['id_venta'], {})
+                    tipo = 'B2B' if v.get('id_agencia_aliada') else 'B2C'
+                    if tipo != segmento:
+                        continue
+
+                prov = d.get('proveedor') or {}
+                if isinstance(prov, list):
+                    prov = prov[0] if prov else {}
+                nombre_prov = prov.get('nombre_comercial') or 'Sin Proveedor'
+
+                cu = float(d.get('costo_unitario') or 0)
+                pax_d = float(d.get('cantidad_pax') or 1)
+                moneda_d = d.get('moneda') or 'USD'
+                tc_d = float(d.get('tipo_cambio') or 3.80) or 3.80
+                monto = cu * pax_d
+                costo_usd = (monto / tc_d) if moneda_d == 'PEN' else monto
+
+                if nombre_prov not in acumulado:
+                    acumulado[nombre_prov] = {'Proveedor': nombre_prov, 'Servicios': 0, 'Costo_USD': 0.0}
+                acumulado[nombre_prov]['Servicios'] += 1
+                acumulado[nombre_prov]['Costo_USD'] += costo_usd
+
+            if not acumulado:
+                return pd.DataFrame()
+
+            df = pd.DataFrame(list(acumulado.values()))
+            return df.sort_values('Servicios', ascending=False).head(top_n)
+        except Exception as e:
+            print(f"Error get_top_proveedores_periodo: {e}")
+            return pd.DataFrame()

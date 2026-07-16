@@ -5,7 +5,7 @@ import plotly.express as px
 from controllers.gerencia_controller import GerenciaController
 from controllers.operaciones_controller import OperacionesController
 from controllers.venta_controller import VentaController
-from datetime import date
+from datetime import date, timedelta
 
 def _normalizar_genero(val):
     s = str(val or "").strip().upper()
@@ -698,6 +698,185 @@ def panel_revision_gerencia(supabase_client):
     col3.metric("⏳ Pendientes de Revisión", total - aprobados)
 
 
+def panel_desempeno_operaciones(supabase_client):
+    """Panel exclusivo de Gerencia: desempeño operativo del área de Operaciones, con selector de fechas y B2B/B2C."""
+    st.subheader("⚙️ Desempeño de Operaciones", divider='violet')
+    st.caption("Vista de Gerencia sobre el desempeño del área de Operaciones (servicios ejecutados, cumplimiento y proveedores).")
+
+    op_ctrl = OperacionesController(supabase_client)
+
+    # --- FILTROS: Rango de fechas (por defecto, mes anterior completo) y Segmento B2B/B2C ---
+    hoy = date.today()
+    primer_dia_mes_actual = hoy.replace(day=1)
+    ultimo_dia_mes_anterior = primer_dia_mes_actual - timedelta(days=1)
+    primer_dia_mes_anterior = ultimo_dia_mes_anterior.replace(day=1)
+
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        fechas = st.date_input(
+            "Rango de Fechas (Fecha de Servicio)",
+            [primer_dia_mes_anterior, ultimo_dia_mes_anterior],
+            key="ger_ops_fechas"
+        )
+    with c2:
+        segmento = st.selectbox("Segmento", ["Todos", "B2B", "B2C"], key="ger_ops_segmento")
+
+    f_ini = f_fin = None
+    if isinstance(fechas, (tuple, list)):
+        if len(fechas) == 2:
+            f_ini, f_fin = fechas
+        elif len(fechas) == 1:
+            f_ini = f_fin = fechas[0]
+
+    if not f_ini or not f_fin:
+        st.info("Selecciona un rango de fechas válido para continuar.")
+        return
+
+    seg_val = None if segmento == "Todos" else segmento
+
+    # Periodo inmediatamente anterior, de igual longitud, para el comparativo
+    dias_periodo = (f_fin - f_ini).days + 1
+    f_fin_prev = f_ini - timedelta(days=1)
+    f_ini_prev = f_fin_prev - timedelta(days=dias_periodo - 1)
+
+    with st.spinner("Calculando desempeño operativo..."):
+        df_actual = op_ctrl.get_servicios_desempeno(f_ini, f_fin, segmento=seg_val)
+        df_previo = op_ctrl.get_servicios_desempeno(f_ini_prev, f_fin_prev, segmento=seg_val)
+        df_top_prov = op_ctrl.get_top_proveedores_periodo(f_ini, f_fin, segmento=seg_val)
+
+    if df_actual.empty:
+        st.info("No hay servicios operativos registrados para el rango y segmento seleccionados.")
+        return
+
+    # ─────────────────────────────────────────────────────────────────
+    # 1. KPIs DEL PERIODO
+    # ─────────────────────────────────────────────────────────────────
+    servicios_totales = len(df_actual)
+    pax_atendidos = int(df_actual['pax'].sum())
+    terminados = int((df_actual['estado'] == 'TERMINADO').sum())
+    pct_cumplidos = (terminados / servicios_totales * 100) if servicios_totales else 0
+    costo_total = float(df_actual['costo_usd'].sum())
+
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("🛎️ Servicios Ejecutados", f"{servicios_totales:,}")
+    k2.metric("🧑‍🤝‍🧑 Pax Atendidos", f"{pax_atendidos:,}")
+    k3.metric("✅ % Cumplidos a Tiempo", f"{pct_cumplidos:.1f}%")
+    k4.metric("💵 Costo Operativo (USD)", f"${costo_total:,.0f}")
+
+    st.markdown("---")
+
+    # ─────────────────────────────────────────────────────────────────
+    # 2. COMPARATIVO VS. PERIODO ANTERIOR
+    # ─────────────────────────────────────────────────────────────────
+    st.markdown(
+        f"#### 📊 Comparativo vs. Periodo Anterior "
+        f"({f_ini_prev.strftime('%d/%m/%Y')} — {f_fin_prev.strftime('%d/%m/%Y')})"
+    )
+    servicios_prev = len(df_previo)
+    pax_prev = int(df_previo['pax'].sum()) if not df_previo.empty else 0
+    costo_prev = float(df_previo['costo_usd'].sum()) if not df_previo.empty else 0.0
+
+    df_comp = pd.DataFrame([
+        {'Periodo': 'Anterior', 'Servicios': servicios_prev, 'Pax': pax_prev, 'Costo (USD)': costo_prev},
+        {'Periodo': 'Actual', 'Servicios': servicios_totales, 'Pax': pax_atendidos, 'Costo (USD)': costo_total},
+    ])
+
+    cc1, cc2 = st.columns(2)
+    with cc1:
+        fig_comp_serv = px.bar(
+            df_comp, x='Periodo', y=['Servicios', 'Pax'], barmode='group',
+            title='Servicios y Pax: Actual vs. Anterior',
+            color_discrete_sequence=['#42A5F5', '#66BB6A'], text_auto=True
+        )
+        fig_comp_serv.update_layout(height=320, margin=dict(l=0, r=0, t=40, b=0), legend_title='')
+        st.plotly_chart(fig_comp_serv, use_container_width=True)
+    with cc2:
+        fig_comp_costo = px.bar(
+            df_comp, x='Periodo', y='Costo (USD)', color='Periodo',
+            title='Costo Operativo: Actual vs. Anterior',
+            color_discrete_sequence=['#B0BEC5', '#EF5350'], text_auto='.2s'
+        )
+        fig_comp_costo.update_layout(height=320, margin=dict(l=0, r=0, t=40, b=0), showlegend=False)
+        st.plotly_chart(fig_comp_costo, use_container_width=True)
+
+    st.markdown("---")
+
+    # ─────────────────────────────────────────────────────────────────
+    # 3. CARGA OPERATIVA DIARIA (B2B vs B2C)
+    # ─────────────────────────────────────────────────────────────────
+    st.markdown("#### 📅 Carga Operativa Diaria")
+    df_carga = df_actual.copy()
+    df_carga['fecha_servicio'] = pd.to_datetime(df_carga['fecha_servicio']).dt.date
+    df_carga_agg = df_carga.groupby(['fecha_servicio', 'tipo_venta']).size().reset_index(name='Servicios')
+    fig_carga = px.bar(
+        df_carga_agg, x='fecha_servicio', y='Servicios', color='tipo_venta',
+        barmode='stack',
+        color_discrete_map={'B2B': '#7E57C2', 'B2C': '#26A69A'},
+        labels={'fecha_servicio': 'Fecha', 'tipo_venta': 'Tipo'}
+    )
+    fig_carga.update_layout(height=350, margin=dict(l=0, r=0, t=20, b=0), legend_title='')
+    st.plotly_chart(fig_carga, use_container_width=True)
+
+    st.markdown("---")
+
+    # ─────────────────────────────────────────────────────────────────
+    # 4. ESTADO DE CUMPLIMIENTO Y MIX B2B/B2C
+    # ─────────────────────────────────────────────────────────────────
+    e1, e2 = st.columns(2)
+    with e1:
+        st.markdown("#### 🚦 Estado de Cumplimiento")
+        df_estado = df_actual.groupby('estado').size().reset_index(name='Cantidad')
+        colores_estado = {'TERMINADO': '#66BB6A', 'PENDIENTE': '#FFA726', 'CANCELADO': '#EF5350'}
+        fig_estado = px.pie(
+            df_estado, names='estado', values='Cantidad', hole=0.5,
+            color='estado', color_discrete_map=colores_estado
+        )
+        fig_estado.update_layout(height=320, margin=dict(l=0, r=0, t=20, b=0))
+        st.plotly_chart(fig_estado, use_container_width=True)
+
+    with e2:
+        st.markdown("#### 🏢 Mix B2B / B2C")
+        df_mix = df_actual.groupby('tipo_venta').size().reset_index(name='Cantidad')
+        fig_mix = px.pie(
+            df_mix, names='tipo_venta', values='Cantidad', hole=0.5,
+            color='tipo_venta', color_discrete_map={'B2B': '#7E57C2', 'B2C': '#26A69A'}
+        )
+        fig_mix.update_layout(height=320, margin=dict(l=0, r=0, t=20, b=0))
+        st.plotly_chart(fig_mix, use_container_width=True)
+
+    st.markdown("---")
+
+    # ─────────────────────────────────────────────────────────────────
+    # 5. TOP PROVEEDORES DEL PERIODO
+    # ─────────────────────────────────────────────────────────────────
+    st.markdown("#### 🏆 Top Proveedores del Periodo")
+    if df_top_prov.empty:
+        st.info("No hay proveedores asignados en el rango seleccionado.")
+    else:
+        p1, p2 = st.columns(2)
+        with p1:
+            df_p_serv = df_top_prov.sort_values('Servicios', ascending=True)
+            fig_p_serv = px.bar(
+                df_p_serv, x='Servicios', y='Proveedor', orientation='h',
+                text='Servicios', color='Servicios', color_continuous_scale='Purples',
+                title='Por Cantidad de Servicios'
+            )
+            fig_p_serv.update_layout(height=380, margin=dict(l=0, r=0, t=40, b=0), coloraxis_showscale=False)
+            fig_p_serv.update_yaxes(title=None)
+            st.plotly_chart(fig_p_serv, use_container_width=True)
+        with p2:
+            df_p_costo = df_top_prov.sort_values('Costo_USD', ascending=True)
+            fig_p_costo = px.bar(
+                df_p_costo, x='Costo_USD', y='Proveedor', orientation='h',
+                text=df_p_costo['Costo_USD'].apply(lambda v: f"${v:,.0f}"),
+                color='Costo_USD', color_continuous_scale='Oranges',
+                title='Por Costo Operativo (USD)'
+            )
+            fig_p_costo.update_layout(height=380, margin=dict(l=0, r=0, t=40, b=0), coloraxis_showscale=False)
+            fig_p_costo.update_yaxes(title=None)
+            st.plotly_chart(fig_p_costo, use_container_width=True)
+
+
 def panel_marketing(supabase_client):
     """Panel específico para Gerencia de Marketing."""
     from datetime import date
@@ -981,6 +1160,8 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual, user_id, supabase_cli
         render_control_financiero_liquidaciones(supabase_client)
     elif funcionalidad_seleccionada in ["Revisión de Pasajeros", "Panel de Revisión", "Revisión Operativa"]:
         panel_revision_gerencia(supabase_client)
+    elif funcionalidad_seleccionada in ["Desempeño de Operaciones", "Desempeño Operativo"]:
+        panel_desempeno_operaciones(supabase_client)
     else:
-        st.info("Selecciona una opción del menú: `Dashboard Ejecutivo`, `Gerencia de Marketing`, `Auditoría de Gestión`, `Control de Liquidaciones`, `Comunicados` o `Revisión de Pasajeros`.")
+        st.info("Selecciona una opción del menú: `Dashboard Ejecutivo`, `Gerencia de Marketing`, `Auditoría de Gestión`, `Desempeño de Operaciones`, `Control de Liquidaciones`, `Comunicados` o `Revisión de Pasajeros`.")
 
