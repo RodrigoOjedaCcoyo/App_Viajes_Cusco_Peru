@@ -77,12 +77,13 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, su
     st.markdown("---")
     
     if funcionalidad_seleccionada in ["Gestión de Registros", "Finanzas y Caja"]:
-        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
             "📈 Reporte Maestro",
             "📊 Estructurador Financiero", 
             "💰 Cuentas por Cobrar",
             "🚐 Pagos Operativos (Proveedores)",
-            "📅 Calendario Operativo"
+            "📅 Calendario Operativo",
+            "🎫 Impresión de Vouchers"
         ])
         
         with tab1:
@@ -102,6 +103,10 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, su
             from vistas.page_operaciones import dashboard_tablero_diario
             ctrl_ops = OperacionesController(supabase_client)
             dashboard_tablero_diario(ctrl_ops)
+
+        with tab6:
+            from vistas.componentes_voucher import render_panel_voucher
+            render_panel_voucher(supabase_client, key_prefix="acc_vch")
     else:
         st.info("Utilice el Dashboard Contable para ver reportes.")
 

@@ -1416,6 +1416,12 @@ def dashboard_simulador_costos(controller):
                     except Exception as e:
                         st.error(f"Error al guardar logística: {e}")
 
+        # --- NUEVO: IMPRIMIR VOUCHER DE RESERVA ---
+        st.markdown("### 🎫 Documento de Viaje")
+        with st.expander("🎫 Generar / Imprimir Voucher de Reserva", expanded=False):
+            from vistas.componentes_voucher import render_panel_voucher
+            render_panel_voucher(controller.client, id_venta_default=id_venta_act, key_prefix="ops_vch")
+
         # Botón Maestro Operativo (Independiente del Itinerario Digital)
         # Se pone fuera del bloque anterior para que funcione aunque no haya Itinerario JSON
         st.markdown("---")
