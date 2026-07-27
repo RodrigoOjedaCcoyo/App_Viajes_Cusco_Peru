@@ -46,7 +46,7 @@ def render_panel_voucher(supabase_client, id_venta_default=None, key_prefix="vch
 
     # 2. Cargar datos detallados de la venta activa
     try:
-        res_v = supabase_client.table('venta').select('*, cliente(nombre, lead(numero_celular, correo, pais_origen))').eq('id_venta', id_venta_act).single().execute()
+        res_v = supabase_client.table('venta').select('*, cliente(nombre, lead(numero_celular, pais_origen))').eq('id_venta', id_venta_act).single().execute()
         if not res_v.data:
             st.error("No se pudo encontrar la información de la venta especificada.")
             return
