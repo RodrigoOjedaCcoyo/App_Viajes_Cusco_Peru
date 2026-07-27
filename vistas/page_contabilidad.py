@@ -77,13 +77,14 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, su
     st.markdown("---")
     
     if funcionalidad_seleccionada in ["Gestión de Registros", "Finanzas y Caja"]:
-        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+        tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
             "📈 Reporte Maestro",
             "📊 Estructurador Financiero", 
             "💰 Cuentas por Cobrar",
             "🚐 Pagos Operativos (Proveedores)",
             "📅 Calendario Operativo",
-            "🎫 Impresión de Vouchers"
+            "🎫 Impresión de Vouchers",
+            "📊 Flujo de Caja (Caja Diaria)"
         ])
         
         with tab1:
@@ -107,6 +108,9 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, su
         with tab6:
             from vistas.componentes_voucher import render_panel_voucher
             render_panel_voucher(supabase_client, key_prefix="acc_vch")
+
+        with tab7:
+            render_caja_diaria(supabase_client)
     else:
         st.info("Utilice el Dashboard Contable para ver reportes.")
 
@@ -918,3 +922,163 @@ def render_reporte_maestro_cobranzas(supabase_client):
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True
         )
+
+def render_caja_diaria(supabase_client):
+    import datetime
+    import pandas as pd
+    import streamlit as st
+    import io
+
+    st.subheader("📊 Flujo de Caja (Caja Diaria)", divider="blue")
+
+    # 1. Filtros
+    col_f1, col_f2, col_f3 = st.columns(3)
+    hoy = datetime.date.today()
+    primer_dia_mes = hoy.replace(day=1)
+    
+    fecha_ini = col_f1.date_input("Fecha Inicio", value=primer_dia_mes, key="cd_fecha_ini")
+    fecha_fin = col_f2.date_input("Fecha Fin", value=hoy, key="cd_fecha_fin")
+    filtro_moneda = col_f3.selectbox("Filtrar por Moneda", ["TODAS", "USD", "PEN"], key="cd_filtro_moneda")
+
+    # 2. Cargar Datos
+    movimientos = []
+    try:
+        # Cargar Egresos (pago_operativo)
+        res_po = supabase_client.table('pago_operativo')\
+            .select('fecha_pago, monto_pagado, moneda, metodo_pago, observaciones, observaciones_contables, proveedor(nombre_comercial), venta(cliente(nombre))')\
+            .gte('fecha_pago', fecha_ini.isoformat())\
+            .lte('fecha_pago', fecha_fin.isoformat())\
+            .execute()
+        
+        egresos_raw = res_po.data or []
+        for p in egresos_raw:
+            prov = p.get('proveedor')
+            prov_name = prov.get('nombre_comercial', '---') if isinstance(prov, dict) else '---'
+            
+            v_info = p.get('venta') or {}
+            cli_info = v_info.get('cliente') or {} if isinstance(v_info, dict) else {}
+            cli_name = cli_info.get('nombre', '---') if isinstance(cli_info, dict) else '---'
+            
+            mon = p.get('moneda', 'USD')
+            if filtro_moneda != "TODAS" and mon != filtro_moneda:
+                continue
+                
+            monto = float(p.get('monto_pagado') or 0)
+            
+            movimientos.append({
+                "FECHA": p.get('fecha_pago'),
+                "TIPO": "SALIDA (Gasto)",
+                "PROVEEDOR": prov_name,
+                "PASAJERO": cli_name,
+                "MONEDA": mon,
+                "MONTO": -monto,  # Negativo para salidas
+                "METODO DE PAGO": p.get('metodo_pago', '---'),
+                "OBSERVACIONES DE PAGO": p.get('observaciones') or '---',
+                "OBSERVACIONES CONTABLES": p.get('observaciones_contables') or '---'
+            })
+
+        # Cargar Ingresos (pago)
+        res_p = supabase_client.table('pago')\
+            .select('fecha_pago, monto_pagado, moneda, metodo_pago, tipo_pago, tipo_comprobante, venta(cliente(nombre))')\
+            .gte('fecha_pago', fecha_ini.isoformat())\
+            .lte('fecha_pago', fecha_fin.isoformat())\
+            .execute()
+            
+        ingresos_raw = res_p.data or []
+        for p in ingresos_raw:
+            v_info = p.get('venta') or {}
+            cli_info = v_info.get('cliente') or {} if isinstance(v_info, dict) else {}
+            cli_name = cli_info.get('nombre', '---') if isinstance(cli_info, dict) else '---'
+            
+            mon = p.get('moneda', 'USD')
+            if filtro_moneda != "TODAS" and mon != filtro_moneda:
+                continue
+                
+            monto = float(p.get('monto_pagado') or 0)
+            
+            obs_pago = f"{p.get('tipo_pago','') or ''} - {p.get('tipo_comprobante','') or ''}".strip(" -") or '---'
+            
+            movimientos.append({
+                "FECHA": p.get('fecha_pago'),
+                "TIPO": "ENTRADA (Cobro)",
+                "PROVEEDOR": "INGRESO CLIENTE",
+                "PASAJERO": cli_name,
+                "MONEDA": mon,
+                "MONTO": monto,  # Positivo para ingresos
+                "METODO DE PAGO": p.get('metodo_pago', '---'),
+                "OBSERVACIONES DE PAGO": obs_pago,
+                "OBSERVACIONES CONTABLES": "Cobro de Venta"
+            })
+            
+    except Exception as e:
+        st.error(f"Error al cargar movimientos de caja: {e}")
+        return
+
+    # 3. Mostrar Métricas
+    if movimientos:
+        df = pd.DataFrame(movimientos)
+        df = df.sort_values(by="FECHA", ascending=False)
+        
+        # Calcular balances
+        ingresos_usd = df[(df['TIPO'] == 'ENTRADA (Cobro)') & (df['MONEDA'] == 'USD')]['MONTO'].sum()
+        egresos_usd = df[(df['TIPO'] == 'SALIDA (Gasto)') & (df['MONEDA'] == 'USD')]['MONTO'].sum()
+        balance_usd = ingresos_usd + egresos_usd
+        
+        ingresos_pen = df[(df['TIPO'] == 'ENTRADA (Cobro)') & (df['MONEDA'] == 'PEN')]['MONTO'].sum()
+        egresos_pen = df[(df['TIPO'] == 'SALIDA (Gasto)') & (df['MONEDA'] == 'PEN')]['MONTO'].sum()
+        balance_pen = ingresos_pen + egresos_pen
+        
+        st.markdown("#### 📈 Balance Consolidado del Periodo")
+        col_m1, col_m2 = st.columns(2)
+        with col_m1:
+            with st.container(border=True):
+                st.write("**💵 Flujo en Dólares (USD)**")
+                c_in, c_out, c_bal = st.columns(3)
+                c_in.metric("Total Ingresos", f"$ {ingresos_usd:,.2f}")
+                c_out.metric("Total Egresos", f"$ {abs(egresos_usd):,.2f}")
+                c_bal.metric("Balance Neto", f"$ {balance_usd:,.2f}", delta=f"$ {balance_usd:,.2f}")
+        with col_m2:
+            with st.container(border=True):
+                st.write("**🪙 Flujo en Soles (PEN)**")
+                c_in, c_out, c_bal = st.columns(3)
+                c_in.metric("Total Ingresos", f"S/ {ingresos_pen:,.2f}")
+                c_out.metric("Total Egresos", f"S/ {abs(egresos_pen):,.2f}")
+                c_bal.metric("Balance Neto", f"S/ {balance_pen:,.2f}", delta=f"S/ {balance_pen:,.2f}")
+
+        st.markdown("#### 📋 Detalle de Movimientos Diarios")
+        
+        # Formatear la columna de monto para legibilidad
+        df_display = df.copy()
+        
+        st.dataframe(
+            df_display,
+            column_config={
+                "FECHA": "📅 Fecha",
+                "TIPO": st.column_config.TextColumn("Tipo", width="medium"),
+                "PROVEEDOR": "🏢 Proveedor / Concepto",
+                "PASAJERO": "👤 Pasajero / Cliente",
+                "MONEDA": "💱 Moneda",
+                "MONTO": st.column_config.NumberColumn("Monto", format="%.2f"),
+                "METODO DE PAGO": "💳 Método",
+                "OBSERVACIONES DE PAGO": "💬 Detalle de Pago",
+                "OBSERVACIONES CONTABLES": "🧾 Notas Contables"
+            },
+            use_container_width=True,
+            hide_index=True
+        )
+        
+        # Exportar a Excel
+        output_xlsx = io.BytesIO()
+        with pd.ExcelWriter(output_xlsx, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Caja Diaria')
+            
+        st.download_button(
+            label="📥 Exportar Caja Diaria a Excel (XLSX)",
+            data=output_xlsx.getvalue(),
+            file_name=f"caja_diaria_{fecha_ini}_a_{fecha_fin}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            key="btn_dl_caja_diaria"
+        )
+    else:
+        st.info("No se registraron movimientos en el rango de fechas seleccionado.")
