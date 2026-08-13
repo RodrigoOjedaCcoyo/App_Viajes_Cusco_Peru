@@ -12,6 +12,34 @@ class VentaController:
         self.client = supabase_client
         self.model = VentaModel(supabase_client)
 
+    def _notificar_venta_con_adjuntos(self, venta_data: dict, adjuntos: Optional[dict],
+                                       fecha_inicio, nombre_cliente: str, cantidad_pax: int):
+        """
+        Si hay adjuntos, los sube a la carpeta de Drive del cliente (según la fecha de
+        viaje) y envía el correo de notificación con el link a la carpeta en vez de los
+        archivos. Si la subida a Drive falla, hace fallback y adjunta los archivos
+        directo al correo, igual que antes.
+        """
+        from utils.email_helper import enviar_notificacion_venta_async
+
+        drive_links, carpeta_link = None, None
+        if adjuntos:
+            try:
+                from utils.drive_helper import subir_comprobantes_venta
+                drive_links, carpeta_link = subir_comprobantes_venta(
+                    fecha_viaje=fecha_inicio,
+                    nombre_cliente=nombre_cliente,
+                    num_pasajeros=cantidad_pax,
+                    archivos=adjuntos
+                )
+            except Exception as e:
+                print(f"Error subiendo comprobantes a Drive: {e}")
+
+        if carpeta_link:
+            enviar_notificacion_venta_async(venta_data, adjuntos=None, drive_links=drive_links, carpeta_link=carpeta_link)
+        else:
+            enviar_notificacion_venta_async(venta_data, adjuntos=adjuntos)
+
     def registrar_venta_directa(self, 
                                 nombre_cliente: str,
                                 telefono: str, 
@@ -96,12 +124,11 @@ class VentaController:
         try:
             nuevo_id = self.model.create_venta(venta_data)
             if nuevo_id:
-                # 5. Enviar Notificación por Correo (Async)
+                # 5. Enviar Notificación por Correo (Async) — los adjuntos van a Drive primero
                 if enviar_correo:
-                    from utils.email_helper import enviar_notificacion_venta_async
                     # Incluimos el ID generado en la data para el correo
                     venta_data['id_venta'] = nuevo_id
-                    enviar_notificacion_venta_async(venta_data, adjuntos)
+                    self._notificar_venta_con_adjuntos(venta_data, adjuntos, fecha_inicio, nombre_cliente, cantidad_pax)
 
                 return True, f"Venta registrada. ID: {nuevo_id}. Saldo pendiente: {moneda} {float(saldo or 0):.2f}", nuevo_id
             else:
@@ -173,14 +200,16 @@ class VentaController:
             res_id = self.model.create_venta(venta_data)
             
             if res_id:
-                # 2. Enviar Notificación por Correo (B2B)
+                # 2. Enviar Notificación por Correo (B2B) — los adjuntos van a Drive primero
                 if enviar_correo:
                     try:
-                        from utils.email_helper import enviar_notificacion_venta_async
                         venta_data['id_venta'] = res_id
                         # Ajustar moneda por defecto si no viene
                         venta_data['moneda'] = venta_data.get('moneda', 'PEN')
-                        enviar_notificacion_venta_async(venta_data, adjuntos)
+                        self._notificar_venta_con_adjuntos(
+                            venta_data, adjuntos,
+                            fecha_inicio or date.today(), nombre_cliente, cantidad_pax
+                        )
                     except Exception as e_mail:
                         print(f"Error enviando correo B2B: {e_mail}")
 

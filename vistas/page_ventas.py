@@ -1259,35 +1259,40 @@ def seguimiento_ventas_vendedor():
                             st.warning("Selecciona al menos un archivo antes de enviar.")
                         else:
                             adjuntos_dict = {f.name: f.read() for f in archivos_extra}
+                            nombres = ", ".join(adjuntos_dict.keys())
 
-                            # Construir datos de la notificación
-                            venta_info = {
-                                'nombre_cliente':   nombre_cliente,
-                                'tour':             tour_nombre or "---",
-                                'vendedor':         st.session_state.get('user_id', 'Sistema'),
-                                'cantidad':         v.get('cantidad', 1),
-                                'fecha_inicio':     fecha_inicio,
-                                'fecha_fin':        v.get('fecha_fin', '---'),
-                                'moneda':           v.get('moneda', 'USD'),
-                                'monto_total':      float(v.get('precio_total_cierre') or 0),
-                                'monto_depositado': 0,
-                                'saldo':            0,
-                                'metodo_pago':      '---',
-                                'comentarios':      nota_extra or f"Documentos adicionales para la venta ID {id_venta}.",
-                                # Sobreescribir asunto (se usa en el subject)
-                                '_asunto_override': asunto_extra
-                            }
+                            with st.spinner("Subiendo archivos a Drive y notificando..."):
+                                drive_links, carpeta_link = None, None
+                                try:
+                                    from utils.drive_helper import subir_comprobantes_venta
+                                    drive_links, carpeta_link = subir_comprobantes_venta(
+                                        fecha_viaje=fecha_inicio,
+                                        nombre_cliente=nombre_cliente,
+                                        num_pasajeros=v.get('cantidad', 1),
+                                        archivos=adjuntos_dict
+                                    )
+                                except Exception as e_drive:
+                                    st.warning(f"⚠️ No se pudo subir a Drive, se enviará por correo como respaldo: {e_drive}")
 
-                            with st.spinner("Enviando correo con adjuntos..."):
                                 try:
                                     from utils.email_helper import enviar_adjuntos_adicionales
-                                    enviar_adjuntos_adicionales(
-                                        asunto=asunto_extra,
-                                        nota=nota_extra or f"Documentos adicionales para la venta #{id_venta} — {nombre_cliente}.",
-                                        adjuntos=adjuntos_dict
-                                    )
-                                    nombres = ", ".join(adjuntos_dict.keys())
-                                    st.success(f"✅ Correo enviado con {len(adjuntos_dict)} archivo(s): {nombres}")
+                                    nota_final = nota_extra or f"Documentos adicionales para la venta #{id_venta} — {nombre_cliente}."
+                                    if carpeta_link:
+                                        enviar_adjuntos_adicionales(
+                                            asunto=asunto_extra,
+                                            nota=nota_final,
+                                            adjuntos=None,
+                                            drive_links=drive_links,
+                                            carpeta_link=carpeta_link
+                                        )
+                                        st.success(f"✅ {len(adjuntos_dict)} archivo(s) subidos a Drive y notificación enviada: {nombres}")
+                                    else:
+                                        enviar_adjuntos_adicionales(
+                                            asunto=asunto_extra,
+                                            nota=nota_final,
+                                            adjuntos=adjuntos_dict
+                                        )
+                                        st.success(f"✅ Correo enviado con {len(adjuntos_dict)} archivo(s) (respaldo): {nombres}")
                                 except Exception as e_mail:
                                     st.error(f"❌ Error al enviar: {e_mail}")
 

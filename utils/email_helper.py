@@ -7,14 +7,43 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from datetime import datetime
 
-def enviar_notificacion_venta_async(venta_data, adjuntos=None):
+def _bloque_html_drive(carpeta_link, drive_links=None):
+    """Genera el bloque HTML con el link a la carpeta de Drive (y a cada archivo si se conocen)."""
+    if not carpeta_link:
+        return ""
+
+    lista_archivos_html = ""
+    if drive_links:
+        items = "".join(
+            f'<li><a href="{d["link"]}" target="_blank">{d["nombre"]}</a></li>'
+            for d in drive_links if d.get("link")
+        )
+        if items:
+            lista_archivos_html = f'<ul style="margin:8px 0 0 0;">{items}</ul>'
+
+    return f"""
+    <div style="margin-top: 15px; padding: 15px; background-color: #e3f2fd; border-radius: 5px;">
+        <p style="margin: 0;"><strong>📁 Comprobantes / Adjuntos:</strong>
+            <a href="{carpeta_link}" target="_blank">Ver carpeta en Google Drive</a>
+        </p>
+        {lista_archivos_html}
+    </div>
+    """
+
+def enviar_notificacion_venta_async(venta_data, adjuntos=None, drive_links=None, carpeta_link=None):
     """
     Inicia un hilo para enviar el correo en segundo plano sin bloquear la UI.
+    Si se pasa `carpeta_link` (los archivos ya se subieron a Drive), el correo
+    manda el link en vez de adjuntar los archivos. `adjuntos` solo se usa como
+    respaldo cuando la subida a Drive falló.
     """
-    thread = threading.Thread(target=_enviar_correo_worker, args=(venta_data, adjuntos))
+    thread = threading.Thread(
+        target=_enviar_correo_worker,
+        args=(venta_data, adjuntos, drive_links, carpeta_link)
+    )
     thread.start()
 
-def _enviar_correo_worker(venta_data, adjuntos=None):
+def _enviar_correo_worker(venta_data, adjuntos=None, drive_links=None, carpeta_link=None):
     """
     Lógica interna de envío de correo (corre en segundo plano).
     """
@@ -92,7 +121,7 @@ def _enviar_correo_worker(venta_data, adjuntos=None):
                     <p style="margin: 0;"><strong>Método Pago:</strong> {venta_data.get('metodo_pago')}</p>
                     <p style="margin: 0;"><strong>Comentarios:</strong> {venta_data.get('comentarios') or 'Sin comentarios'}</p>
                 </div>
-                
+                {_bloque_html_drive(carpeta_link, drive_links)}
                 <p style="font-size: 12px; color: #777; text-align: center; margin-top: 20px;">
                     Este es un mensaje automático generado por el Sistema Viajes Cusco.
                 </p>
@@ -102,8 +131,10 @@ def _enviar_correo_worker(venta_data, adjuntos=None):
         """
         msg.attach(MIMEText(html, 'html'))
 
-        # 4. Adjuntar Documentos/Imágenes si existen
-        if adjuntos:
+        # 4. Adjuntos: si ya se subieron a Drive, NO se adjuntan los archivos al correo
+        # (evita correos pesados que llegan incompletos). Solo se adjunta como respaldo
+        # si la subida a Drive falló (carpeta_link es None) y sí llegaron bytes.
+        if not carpeta_link and adjuntos:
             for nombre_archivo, contenido in adjuntos.items():
                 part = MIMEApplication(contenido, Name=nombre_archivo)
                 part['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
@@ -128,22 +159,23 @@ def _enviar_correo_worker(venta_data, adjuntos=None):
         print(f"❌ Error al enviar correo de notificación: {str(e)}")
 
 
-def enviar_adjuntos_adicionales(asunto: str, nota: str, adjuntos: dict):
+def enviar_adjuntos_adicionales(asunto: str, nota: str, adjuntos: dict = None, drive_links=None, carpeta_link=None):
     """
-    Envía un correo con asunto y nota personalizados más los archivos adjuntos indicados.
-    Pensado para reenviar documentos que faltaron al registrar una venta.
-    adjuntos: dict {nombre_archivo: bytes}
+    Envía un correo con asunto y nota personalizados. Si se pasa `carpeta_link`
+    (los archivos ya se subieron a Drive), el correo manda el link en vez de
+    adjuntar los archivos. `adjuntos` solo se usa como respaldo si la subida a
+    Drive falló. adjuntos: dict {nombre_archivo: bytes}
     """
     import threading
     thread = threading.Thread(
         target=_worker_adjuntos_adicionales,
-        args=(asunto, nota, adjuntos),
+        args=(asunto, nota, adjuntos, drive_links, carpeta_link),
         daemon=True
     )
     thread.start()
 
 
-def _worker_adjuntos_adicionales(asunto: str, nota: str, adjuntos: dict):
+def _worker_adjuntos_adicionales(asunto: str, nota: str, adjuntos: dict = None, drive_links=None, carpeta_link=None):
     try:
         if "smtp" not in st.secrets:
             print("Error: No se encontró la configuración [smtp] en st.secrets")
@@ -172,6 +204,7 @@ def _worker_adjuntos_adicionales(asunto: str, nota: str, adjuntos: dict):
                 </h2>
                 <hr>
                 <p style="font-size: 15px; white-space: pre-line;">{nota}</p>
+                {_bloque_html_drive(carpeta_link, drive_links)}
                 <p style="font-size: 12px; color: #777; text-align: center; margin-top: 20px;">
                     Este mensaje fue enviado desde el Sistema Viajes Cusco Perú.
                 </p>
@@ -181,11 +214,12 @@ def _worker_adjuntos_adicionales(asunto: str, nota: str, adjuntos: dict):
         """
         msg.attach(MIMEText(html, 'html'))
 
-        # Adjuntar archivos
-        for nombre_archivo, contenido in adjuntos.items():
-            part = MIMEApplication(contenido, Name=nombre_archivo)
-            part['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
-            msg.attach(part)
+        # Adjuntar archivos solo como respaldo (si no se pudo subir a Drive)
+        if not carpeta_link and adjuntos:
+            for nombre_archivo, contenido in adjuntos.items():
+                part = MIMEApplication(contenido, Name=nombre_archivo)
+                part['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
+                msg.attach(part)
 
         # Envío
         if port == 465:
@@ -198,7 +232,8 @@ def _worker_adjuntos_adicionales(asunto: str, nota: str, adjuntos: dict):
                 server.login(user, password)
                 server.sendmail(user, destinatarios, msg.as_string())
 
-        print(f"✅ Adjuntos adicionales enviados a {destinatarios} ({len(adjuntos)} archivos)")
+        n_archivos = len(adjuntos) if adjuntos else len(drive_links or [])
+        print(f"✅ Adjuntos adicionales enviados a {destinatarios} ({n_archivos} archivos, drive={'si' if carpeta_link else 'no'})")
 
     except Exception as e:
         print(f"❌ Error enviando adjuntos adicionales: {str(e)}")

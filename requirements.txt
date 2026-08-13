@@ -39,5 +39,9 @@ requests==2.32.5
 httpx==0.28.1
 pydantic==2.12.5
 
+# --- Google Drive (subida de comprobantes) ---
+google-api-python-client==2.149.0
+google-auth==2.35.0
+
 # --- Utilidades ---
 python-dotenv==1.2.1
