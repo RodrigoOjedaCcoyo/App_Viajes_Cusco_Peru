@@ -1274,6 +1274,14 @@ def seguimiento_ventas_vendedor():
                                 except Exception as e_drive:
                                     st.warning(f"⚠️ No se pudo subir a Drive, se enviará por correo como respaldo: {e_drive}")
 
+                                if carpeta_link:
+                                    try:
+                                        venta_controller.client.table('venta').update(
+                                            {'drive_url': carpeta_link}
+                                        ).eq('id_venta', id_venta).execute()
+                                    except Exception as e_db:
+                                        print(f"Error guardando drive_url en la venta {id_venta}: {e_db}")
+
                                 try:
                                     from utils.email_helper import enviar_adjuntos_adicionales
                                     nota_final = nota_extra or f"Documentos adicionales para la venta #{id_venta} — {nombre_cliente}."
@@ -1286,6 +1294,7 @@ def seguimiento_ventas_vendedor():
                                             carpeta_link=carpeta_link
                                         )
                                         st.success(f"✅ {len(adjuntos_dict)} archivo(s) subidos a Drive y notificación enviada: {nombres}")
+                                        st.link_button("📂 Ver Carpeta en Google Drive", carpeta_link, use_container_width=True)
                                     else:
                                         enviar_adjuntos_adicionales(
                                             asunto=asunto_extra,

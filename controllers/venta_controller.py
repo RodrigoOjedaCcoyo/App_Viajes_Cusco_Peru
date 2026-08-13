@@ -35,6 +35,15 @@ class VentaController:
             except Exception as e:
                 print(f"Error subiendo comprobantes a Drive: {e}")
 
+            # Guardar el link en la venta (columna 'drive_url', la misma que usa
+            # Operaciones en "Expediente Digital") para saber dónde quedaron los archivos.
+            if carpeta_link and venta_data.get('id_venta'):
+                try:
+                    self.client.table('venta').update({'drive_url': carpeta_link}) \
+                        .eq('id_venta', venta_data['id_venta']).execute()
+                except Exception as e:
+                    print(f"Error guardando drive_url en la venta: {e}")
+
         if carpeta_link:
             enviar_notificacion_venta_async(venta_data, adjuntos=None, drive_links=drive_links, carpeta_link=carpeta_link)
         else:
