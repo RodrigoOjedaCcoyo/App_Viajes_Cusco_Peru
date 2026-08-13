@@ -16,7 +16,7 @@ class CotizacionController:
         de ese tipo de servicio en su tarifario, junto con esas tarifas.
         """
         try:
-            res = self.client.table('proveedor').select('id_proveedor, nombre_comercial, tarifario').eq('activo', True).execute()
+            res = self.client.table('proveedor').select('id_proveedor, nombre_comercial, tarifario, tours_opera').eq('activo', True).execute()
             resultado = []
             for p in (res.data or []):
                 tarifario = p.get('tarifario') or []
@@ -25,7 +25,8 @@ class CotizacionController:
                     resultado.append({
                         'id_proveedor': p['id_proveedor'],
                         'nombre_comercial': p['nombre_comercial'],
-                        'tarifas': items_tipo
+                        'tarifas': items_tipo,
+                        'tours_opera': p.get('tours_opera') or []
                     })
             return resultado
         except Exception as e:
