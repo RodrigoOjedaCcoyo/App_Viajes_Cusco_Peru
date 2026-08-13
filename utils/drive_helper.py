@@ -119,3 +119,26 @@ def subir_comprobantes_venta(fecha_viaje, nombre_cliente: str, num_pasajeros: in
     except Exception as e:
         print(f"❌ Error subiendo comprobantes a Google Drive: {e}")
         return None, None
+
+
+def eliminar_carpeta(carpeta_id_o_url: str) -> bool:
+    """
+    Mueve a la papelera de Drive la carpeta de comprobantes de una venta (dado su ID
+    o su URL completa de carpeta). Se usa cuando se elimina una venta del sistema.
+    Es papelera (recuperable), no borrado permanente, por si fue un error.
+    """
+    if not carpeta_id_o_url:
+        return False
+    try:
+        folder_id = str(carpeta_id_o_url).strip()
+        if "/folders/" in folder_id:
+            folder_id = folder_id.split("/folders/")[-1].split("?")[0].split("/")[0]
+        if not folder_id:
+            return False
+
+        service = _get_drive_service()
+        service.files().update(fileId=folder_id, body={'trashed': True}).execute()
+        return True
+    except Exception as e:
+        print(f"❌ Error moviendo a la papelera la carpeta de Drive: {e}")
+        return False

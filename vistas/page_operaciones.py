@@ -1044,40 +1044,46 @@ def registro_ventas_proveedores(supabase_client):
             elif monto_total <= 0:
                 st.error("❌ El monto total debe ser mayor a 0.")
             else:
-                id_age = mapa_ag.get(prov_final)
-                exito, msg = venta_controller.registrar_venta_proveedor(
-                    nombre_proveedor=prov_final,
-                    nombre_cliente=pax_name,
-                    telefono=tel_pax,
-                    vendedor=vendedor_log,
-                    tour=tour_name,
-                    monto_total=monto_total,
-                    monto_depositado=monto_pagado,
-                    id_agencia_aliada=id_age,
-                    fecha_inicio=fecha_inicio_sel,
-                    fecha_fin=fecha_fin_sel,
-                    cantidad_pax=int(cantidad_pax),
-                    id_itinerario_digital=id_itinerario_dig,
-                    id_lead=None,
-                    tipo_comprobante=tipo_comp,
-                    tipo_cambio=tipo_cambio,
-                    items_ingreso=items_ingreso if items_ingreso else None,
-                    metodo_pago=metodo_pago,
-                    vuelo_internacional=vuelo_int,
-                    correo=correo_cli,
-                    contacto_emergencia_nombre=cont_nom,
-                    contacto_emergencia_tel=cont_tel,
-                    comentarios=comentarios_op,
-                    enviar_correo=enviar_notif_b2b,
-                    adjuntos={f.name: f.getvalue() for f in archivos_adjuntos_b2b} if archivos_adjuntos_b2b else None,
-                    fecha_venta=fecha_venta_sel.isoformat()
-                )
-                
-                if exito:
-                    st.success(f"🚀 {msg}")
-                    st.balloons()
+                # --- SEGURO DE DOBLE ENVÍO (evita registrar/notificar dos veces si Streamlit re-ejecuta el submit) ---
+                lock_key = f"last_sale_b2b_{prov_final}_{pax_name}_{tel_pax}_{monto_total}"
+                if st.session_state.get('last_processed_sale_b2b') == lock_key:
+                    st.warning("⚠️ Esta venta ya ha sido procesada.")
                 else:
-                    st.error(msg)
+                    st.session_state['last_processed_sale_b2b'] = lock_key
+                    id_age = mapa_ag.get(prov_final)
+                    exito, msg = venta_controller.registrar_venta_proveedor(
+                        nombre_proveedor=prov_final,
+                        nombre_cliente=pax_name,
+                        telefono=tel_pax,
+                        vendedor=vendedor_log,
+                        tour=tour_name,
+                        monto_total=monto_total,
+                        monto_depositado=monto_pagado,
+                        id_agencia_aliada=id_age,
+                        fecha_inicio=fecha_inicio_sel,
+                        fecha_fin=fecha_fin_sel,
+                        cantidad_pax=int(cantidad_pax),
+                        id_itinerario_digital=id_itinerario_dig,
+                        id_lead=None,
+                        tipo_comprobante=tipo_comp,
+                        tipo_cambio=tipo_cambio,
+                        items_ingreso=items_ingreso if items_ingreso else None,
+                        metodo_pago=metodo_pago,
+                        vuelo_internacional=vuelo_int,
+                        correo=correo_cli,
+                        contacto_emergencia_nombre=cont_nom,
+                        contacto_emergencia_tel=cont_tel,
+                        comentarios=comentarios_op,
+                        enviar_correo=enviar_notif_b2b,
+                        adjuntos={f.name: f.getvalue() for f in archivos_adjuntos_b2b} if archivos_adjuntos_b2b else None,
+                        fecha_venta=fecha_venta_sel.isoformat()
+                    )
+
+                    if exito:
+                        st.success(f"🚀 {msg}")
+                        st.balloons()
+                    else:
+                        st.error(msg)
 
 def reporte_operativo(controller):
     """Vista global de operaciones (Dashboard + Detalle)."""
@@ -2711,7 +2717,8 @@ def render_directorio_proveedores(supabase_client):
                 "nombre_comercial": "", "ruc": "", "email": "", "persona_contacto": "",
                 "contacto_telefono": "", "pais": "Perú", "url_drive": "",
                 "servicios_ofrecidos": ["GUIADO"], "cuentas_bancarias": [],
-                "puntos_operacion": [], "detalles_categoria": {}, "activo": True
+                "puntos_operacion": [], "detalles_categoria": {}, "activo": True,
+                "tarifario": [], "tours_opera": []
             }
             st.rerun()
     else:
@@ -2721,9 +2728,9 @@ def render_directorio_proveedores(supabase_client):
             # Cargar todo el objeto a memoria (Draft)
             st.session_state.prov_draft = p_data.copy()
             # Asegurar que los JSON no sean None
-            for key in ['cuentas_bancarias', 'puntos_operacion']:
+            for key in ['cuentas_bancarias', 'puntos_operacion', 'tarifario', 'tours_opera']:
                 if not st.session_state.prov_draft.get(key): st.session_state.prov_draft[key] = []
-            if not st.session_state.prov_draft.get('detalles_categoria'): 
+            if not st.session_state.prov_draft.get('detalles_categoria'):
                 st.session_state.prov_draft['detalles_categoria'] = {}
             st.rerun()
 
@@ -2733,7 +2740,8 @@ def render_directorio_proveedores(supabase_client):
             "nombre_comercial": "", "ruc": "", "email": "", "persona_contacto": "",
             "contacto_telefono": "", "pais": "Perú", "url_drive": "",
             "servicios_ofrecidos": ["GUIADO"], "cuentas_bancarias": [],
-            "puntos_operacion": [], "detalles_categoria": {}, "activo": True
+            "puntos_operacion": [], "detalles_categoria": {}, "activo": True,
+            "tarifario": [], "tours_opera": []
         }
 
     draft = st.session_state.prov_draft
@@ -2796,6 +2804,127 @@ def render_directorio_proveedores(supabase_client):
                         draft['puntos_operacion'].pop(z_idx)
                         st.rerun()
 
+    # --- BLOQUE C.1: TARIFARIO DE SERVICIOS (DINÁMICO POR TIPO) ---
+    TARIFARIO_LABELS = {
+        "TRANSPORTE": "Transporte", "GUIA": "Guiado", "TICKETS": "Tickets",
+        "ALIMENTACION": "Alimentación", "ALOJAMIENTO": "Alojamiento", "ENDOSE": "Endoses"
+    }
+    UNIDADES_COBRO = ["Por Pax", "Por Grupo", "Por Día", "Por Noche", "Por Trayecto"]
+
+    with st.expander(f"💵 Tarifario de Servicios ({len(draft['tarifario'])} items)", expanded=False):
+        st.caption("Precios de referencia de este proveedor por servicio. Sirven de base para futuras cotizaciones.")
+
+        if draft['tarifario']:
+            for t_idx, item in enumerate(draft['tarifario']):
+                with st.container(border=True):
+                    c_t1, c_t2, c_t3 = st.columns([1.5, 3, 0.5])
+                    tipo_label = TARIFARIO_LABELS.get(item.get('tipo_servicio'), item.get('tipo_servicio'))
+                    c_t1.markdown(f"**{tipo_label}**")
+                    c_t2.markdown(item.get('nombre', ''))
+                    if c_t3.button("❌", key=f"del_tarif_{t_idx}"):
+                        draft['tarifario'].pop(t_idx)
+                        st.rerun()
+
+                    moneda_it = item.get('moneda', 'USD')
+                    if item.get('tipo_servicio') == 'TICKETS':
+                        st.caption(
+                            f"Nacional: {moneda_it} {item.get('precio_nacional', 0):,.2f} | "
+                            f"Extranjero: {moneda_it} {item.get('precio_extranjero', 0):,.2f} — {item.get('unidad', '')}"
+                        )
+                    else:
+                        st.caption(f"{moneda_it} {item.get('precio', 0):,.2f} — {item.get('unidad', '')}")
+                    if item.get('notas'):
+                        st.caption(f"📝 {item['notas']}")
+        else:
+            st.info("Sin tarifas registradas todavía.")
+
+        st.markdown("---")
+        st.markdown("**➕ Agregar nueva tarifa**")
+
+        tipo_sel = st.selectbox(
+            "Tipo de Servicio", list(TARIFARIO_LABELS.keys()),
+            format_func=lambda k: TARIFARIO_LABELS[k], key="new_tarif_tipo"
+        )
+        nombre_tarif = st.text_input("Nombre / Descripción", placeholder="Ej: City Tour Cusco Full Day", key="new_tarif_nombre")
+
+        cf1, cf2 = st.columns(2)
+        moneda_tarif = cf1.selectbox("Moneda", ["USD", "PEN", "EUR"], key="new_tarif_moneda")
+        unidad_tarif = cf2.selectbox("Unidad de cobro", UNIDADES_COBRO, key="new_tarif_unidad")
+
+        extra = {}
+        precio_tarif = None
+        if tipo_sel == "TRANSPORTE":
+            ct1, ct2, ct3 = st.columns(3)
+            extra['capacidad_pax'] = ct1.number_input("Capacidad (máx. pax)", min_value=1, value=4, key="new_tarif_cap")
+            extra['tipo_unidad'] = ct2.selectbox("Tipo de unidad", ["Van", "Bus", "Auto", "Otro"], key="new_tarif_unidad_veh")
+            extra['incluye_chofer'] = ct3.toggle("¿Incluye chofer?", value=True, key="new_tarif_chofer")
+            precio_tarif = st.number_input("Precio", min_value=0.0, step=1.0, key="new_tarif_precio")
+        elif tipo_sel == "GUIA":
+            cg1, cg2, cg3 = st.columns(3)
+            extra['idiomas'] = cg1.text_input("Idioma(s)", placeholder="Español, Inglés", key="new_tarif_idiomas")
+            extra['especialidad'] = cg2.text_input("Especialidad", placeholder="Trekking, City Tour...", key="new_tarif_especialidad")
+            extra['max_pax'] = cg3.number_input("Máx. pax por guía", min_value=1, value=15, key="new_tarif_maxpax")
+            precio_tarif = st.number_input("Precio", min_value=0.0, step=1.0, key="new_tarif_precio")
+        elif tipo_sel == "TICKETS":
+            cti1, cti2 = st.columns(2)
+            extra['precio_nacional'] = cti1.number_input("Precio Nacional", min_value=0.0, step=1.0, key="new_tarif_p_nac")
+            extra['precio_extranjero'] = cti2.number_input("Precio Extranjero", min_value=0.0, step=1.0, key="new_tarif_p_ext")
+        elif tipo_sel == "ALIMENTACION":
+            ca1, ca2 = st.columns(2)
+            extra['tipo_comida'] = ca1.selectbox("Tipo", ["Almuerzo", "Cena", "Buffet", "Box Lunch"], key="new_tarif_tipocomida")
+            extra['dieta_especial'] = ca2.toggle("¿Cubre dietas especiales?", value=False, key="new_tarif_dieta")
+            precio_tarif = st.number_input("Precio", min_value=0.0, step=1.0, key="new_tarif_precio")
+        elif tipo_sel == "ALOJAMIENTO":
+            cal1, cal2, cal3 = st.columns(3)
+            extra['tipo_habitacion'] = cal1.selectbox("Tipo de habitación", ["Simple", "Doble", "Triple", "Matrimonial"], key="new_tarif_habitacion")
+            extra['categoria'] = cal2.selectbox("Categoría", ["1*", "2*", "3*", "4*", "5*", "Boutique", "Hostal"], key="new_tarif_categoria")
+            extra['temporada'] = cal3.selectbox("Temporada", ["Alta", "Baja", "Todo el año"], key="new_tarif_temporada")
+            precio_tarif = st.number_input("Precio", min_value=0.0, step=1.0, key="new_tarif_precio")
+        else:  # ENDOSE
+            extra['incluye'] = st.text_area("¿Qué incluye?", placeholder="Ej: Tren + bus + entrada + guía + almuerzo", key="new_tarif_incluye")
+            extra['agencia_proveedora'] = st.text_input("Agencia que lo provee (si es distinta)", key="new_tarif_agencia_prov")
+            precio_tarif = st.number_input("Precio", min_value=0.0, step=1.0, key="new_tarif_precio")
+
+        notas_tarif = st.text_input("Notas (opcional)", key="new_tarif_notas")
+
+        if st.button("➕ Agregar al Tarifario", use_container_width=True, key="btn_add_tarifa"):
+            if not nombre_tarif:
+                st.warning("Ponle un nombre/descripción a la tarifa antes de agregarla.")
+            else:
+                nuevo_item = {
+                    "tipo_servicio": tipo_sel,
+                    "nombre": nombre_tarif.strip(),
+                    "moneda": moneda_tarif,
+                    "unidad": unidad_tarif,
+                    "notas": notas_tarif.strip() if notas_tarif else "",
+                    **extra
+                }
+                if precio_tarif is not None:
+                    nuevo_item["precio"] = precio_tarif
+                draft['tarifario'].append(nuevo_item)
+                st.rerun()
+
+    # --- BLOQUE C.2: TOURS QUE OPERA ---
+    with st.expander(f"🗺️ Tours que Opera ({len(draft['tours_opera'])} tours)", expanded=False):
+        st.caption("Marca qué tours de tu catálogo puede operar este proveedor (para filtrar más adelante en cotizaciones).")
+        try:
+            res_tours = supabase_client.table('tour').select('id_tour, nombre').order('nombre').execute()
+            tours_disponibles = res_tours.data or []
+        except Exception as e:
+            tours_disponibles = []
+            st.warning(f"No se pudo cargar el catálogo de tours: {e}")
+
+        tours_map = {t['nombre']: t['id_tour'] for t in tours_disponibles}
+        nombres_actuales = [nombre for nombre, tid in tours_map.items() if tid in (draft.get('tours_opera') or [])]
+
+        seleccion_tours = st.multiselect(
+            "Tours que puede operar:",
+            options=list(tours_map.keys()),
+            default=nombres_actuales,
+            key="tours_opera_multiselect"
+        )
+        draft['tours_opera'] = [tours_map[n] for n in seleccion_tours]
+
     # --- BLOQUE D: CAMPOS INTELIGENTES POR CATEGORÍA ---
     # Detectar categoría principal para mostrar campos específicos
     servs = draft.get('servicios_ofrecidos', [])
@@ -2843,7 +2972,7 @@ def render_directorio_proveedores(supabase_client):
                     draft['activo'], draft['ruc'], draft['email'],
                     draft['persona_contacto'], draft['url_drive'],
                     draft['cuentas_bancarias'], draft['puntos_operacion'],
-                    draft['detalles_categoria']
+                    draft['detalles_categoria'], draft['tarifario'], draft['tours_opera']
                 )
             else:
                 # MODO REGISTRO
@@ -2852,7 +2981,8 @@ def render_directorio_proveedores(supabase_client):
                     draft['contacto_telefono'], draft.get('pais', 'Perú'),
                     draft['ruc'], draft['email'], draft['persona_contacto'],
                     draft['url_drive'], draft['cuentas_bancarias'],
-                    draft['puntos_operacion'], draft['detalles_categoria']
+                    draft['puntos_operacion'], draft['detalles_categoria'],
+                    draft['tarifario'], draft['tours_opera']
                 )
             
             if exito:

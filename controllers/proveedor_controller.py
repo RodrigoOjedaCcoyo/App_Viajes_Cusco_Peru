@@ -12,16 +12,17 @@ class ProveedorController:
         """Obtiene la lista de proveedores."""
         return self.model.obtener_todos()
 
-    def registrar_proveedor(self, nombre: str, servicios: List[str], contacto: str, pais: str = "Perú", 
-                            ruc: str = None, email: str = None, persona_contacto: str = None, 
+    def registrar_proveedor(self, nombre: str, servicios: List[str], contacto: str, pais: str = "Perú",
+                            ruc: str = None, email: str = None, persona_contacto: str = None,
                             url_drive: str = None, cuentas_bancarias: List[Dict] = None,
-                            puntos_operacion: List[str] = None, detalles_categoria: Dict = None) -> Tuple[bool, str]:
+                            puntos_operacion: List[str] = None, detalles_categoria: Dict = None,
+                            tarifario: List[Dict] = None, tours_opera: List[int] = None) -> Tuple[bool, str]:
         """
         Registra un nuevo proveedor con soporte para campos extendidos y JSONB.
         """
         if not nombre:
             return False, "El nombre comercial es obligatorio."
-        
+
         data = {
             "nombre_comercial": nombre.strip(),
             "servicios_ofrecidos": servicios,
@@ -34,6 +35,8 @@ class ProveedorController:
             "cuentas_bancarias": cuentas_bancarias if cuentas_bancarias is not None else [],
             "puntos_operacion": puntos_operacion if puntos_operacion is not None else [],
             "detalles_categoria": detalles_categoria if detalles_categoria is not None else {},
+            "tarifario": tarifario if tarifario is not None else [],
+            "tours_opera": tours_opera if tours_opera is not None else [],
             "activo": True
         }
         
@@ -47,15 +50,16 @@ class ProveedorController:
             return False, f"Error al registrar: {str(e)}"
 
     def actualizar_proveedor(self, id_proveedor: int, nombre: str, servicios: List[str], contacto: str, pais: str, activo: bool,
-                             ruc: str = None, email: str = None, persona_contacto: str = None, 
+                             ruc: str = None, email: str = None, persona_contacto: str = None,
                              url_drive: str = None, cuentas_bancarias: List[Dict] = None,
-                             puntos_operacion: List[str] = None, detalles_categoria: Dict = None) -> Tuple[bool, str]:
+                             puntos_operacion: List[str] = None, detalles_categoria: Dict = None,
+                             tarifario: List[Dict] = None, tours_opera: List[int] = None) -> Tuple[bool, str]:
         """
         Actualiza los datos de un proveedor existente, incluyendo campos dinámicos JSON.
         """
         if not id_proveedor:
             return False, "ID de proveedor no proporcionado."
-        
+
         data = {
             "nombre_comercial": nombre.strip(),
             "servicios_ofrecidos": servicios,
@@ -68,6 +72,8 @@ class ProveedorController:
             "cuentas_bancarias": cuentas_bancarias if cuentas_bancarias is not None else [],
             "puntos_operacion": puntos_operacion if puntos_operacion is not None else [],
             "detalles_categoria": detalles_categoria if detalles_categoria is not None else {},
+            "tarifario": tarifario if tarifario is not None else [],
+            "tours_opera": tours_opera if tours_opera is not None else [],
             "activo": activo
         }
 

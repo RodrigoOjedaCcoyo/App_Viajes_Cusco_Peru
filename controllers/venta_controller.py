@@ -4,6 +4,7 @@ from models.venta_model import VentaModel
 from supabase import Client
 from datetime import date
 from typing import Optional, Any
+import threading
 import pandas as pd
 
 class VentaController:
@@ -15,10 +16,23 @@ class VentaController:
     def _notificar_venta_con_adjuntos(self, venta_data: dict, adjuntos: Optional[dict],
                                        fecha_inicio, nombre_cliente: str, cantidad_pax: int):
         """
-        Si hay adjuntos, los sube a la carpeta de Drive del cliente (según la fecha de
-        viaje) y envía el correo de notificación con el link a la carpeta en vez de los
-        archivos. Si la subida a Drive falla, hace fallback y adjunta los archivos
-        directo al correo, igual que antes.
+        Lanza en segundo plano la subida a Drive (si hay adjuntos) y el envío del correo,
+        para no dejar el formulario esperando mientras se suben los archivos.
+        """
+        thread = threading.Thread(
+            target=self._procesar_adjuntos_y_notificar,
+            args=(venta_data, adjuntos, fecha_inicio, nombre_cliente, cantidad_pax),
+            daemon=True
+        )
+        thread.start()
+
+    def _procesar_adjuntos_y_notificar(self, venta_data: dict, adjuntos: Optional[dict],
+                                        fecha_inicio, nombre_cliente: str, cantidad_pax: int):
+        """
+        Corre en el hilo de segundo plano: si hay adjuntos, los sube a la carpeta de
+        Drive del cliente (según la fecha de viaje) y envía el correo de notificación
+        con el link a la carpeta en vez de los archivos. Si la subida a Drive falla,
+        hace fallback y adjunta los archivos directo al correo, igual que antes.
         """
         from utils.email_helper import enviar_notificacion_venta_async
 
@@ -331,7 +345,7 @@ class VentaController:
         try:
             # PASO 1: Leer datos de la venta
             res_v = self.client.table('venta').select(
-                'id_itinerario_digital, id_cliente, precio_total_cierre, num_pasajeros, fecha_inicio, tour_nombre'
+                'id_itinerario_digital, id_cliente, precio_total_cierre, num_pasajeros, fecha_inicio, tour_nombre, moneda'
             ).eq('id_venta', id_venta).single().execute()
 
             venta = res_v.data
@@ -414,8 +428,30 @@ class VentaController:
             except Exception:
                 f_inicio = date_type.today()
 
-            num_pax     = int(venta.get('num_pasajeros') or 1)
-            monto_total = float(venta.get('precio_total_cierre') or 0)
+            num_pax        = int(venta.get('num_pasajeros') or 1)
+            monto_anterior = float(venta.get('precio_total_cierre') or 0)
+            moneda_venta   = str(venta.get('moneda') or 'USD').upper()
+
+            # Recalcular el precio total según la ÚLTIMA versión del itinerario:
+            # si se agregaron/quitaron días u otros cambios de precio, el total del
+            # paquete cambia y la venta debe reflejarlo (antes se quedaba con el
+            # monto viejo aunque el itinerario ya no fuera el mismo).
+            precio_nuevo = None
+            totales_por_moneda = render.get('totales_por_moneda') or {}
+            if totales_por_moneda.get(moneda_venta):
+                try:
+                    precio_nuevo = float(totales_por_moneda[moneda_venta])
+                except Exception:
+                    precio_nuevo = None
+            if precio_nuevo is None:
+                val = render.get('total_final_calculado') or render.get('precio_total') or render.get('total')
+                if val:
+                    try:
+                        precio_nuevo = float(val)
+                    except Exception:
+                        precio_nuevo = None
+
+            monto_total = precio_nuevo if (precio_nuevo and precio_nuevo > 0) else monto_anterior
             precio_dia  = round(monto_total / len(itin_detalles), 2) if itin_detalles else 0
 
             # PASO 5: Lineas existentes en venta_tour
@@ -471,7 +507,8 @@ class VentaController:
                 self.client.table('venta_tour').delete() \
                     .eq('id_venta', id_venta).in_('n_linea', list(lineas_a_borrar)).execute()
 
-            # PASO 8: Actualizar venta con el ID del itinerario usado y las fechas reales
+            # PASO 8: Actualizar venta con el ID del itinerario usado, las fechas reales
+            # y el precio recalculado (si el itinerario trae un total distinto al guardado)
             venta_update = {"id_itinerario_digital": id_itin_final}
             if fechas_servicio:
                 venta_update['fecha_inicio'] = min(fechas_servicio).isoformat()
@@ -480,12 +517,25 @@ class VentaController:
             if titulo_render:
                 venta_update['tour_nombre'] = titulo_render
 
+            precio_cambio = precio_nuevo and precio_nuevo > 0 and round(precio_nuevo, 2) != round(monto_anterior, 2)
+            if precio_cambio:
+                venta_update['precio_total_cierre'] = round(precio_nuevo, 2)
+
             self.client.table('venta').update(venta_update).eq('id_venta', id_venta).execute()
+
+            mensaje_precio = ""
+            if precio_cambio:
+                diferencia = precio_nuevo - monto_anterior
+                signo = "+" if diferencia > 0 else ""
+                mensaje_precio = (
+                    f" Precio del paquete actualizado por cambios en el itinerario: "
+                    f"{moneda_venta} {monto_anterior:,.2f} -> {precio_nuevo:,.2f} ({signo}{diferencia:,.2f})."
+                )
 
             return True, (
                 f"Sincronizacion exitosa. "
                 f"{len(itin_detalles)} dias actualizados en el calendario operativo. "
-                f"Itinerario: {fuente_itin}."
+                f"Itinerario: {fuente_itin}.{mensaje_precio}"
             )
 
         except Exception as e:
@@ -722,6 +772,16 @@ class VentaController:
     def eliminar_venta(self, id_venta: int) -> tuple[bool, str]:
         """Elimina una venta y sus registros asociados (dependiendo de FK cascades)."""
         try:
+            # 0. Mover a la papelera de Drive la carpeta de comprobantes, si existe
+            try:
+                res_v = self.client.table('venta').select('drive_url').eq('id_venta', id_venta).single().execute()
+                drive_url = (res_v.data or {}).get('drive_url')
+                if drive_url:
+                    from utils.drive_helper import eliminar_carpeta
+                    eliminar_carpeta(drive_url)
+            except Exception as e:
+                print(f"Aviso: no se pudo mover a la papelera la carpeta de Drive de la venta {id_venta}: {e}")
+
             # 1. Eliminar pagos asociados (por si no hay cascade en DB)
             self.client.table('pago').delete().eq('id_venta', id_venta).execute()
             # 2. Eliminar logística asociada

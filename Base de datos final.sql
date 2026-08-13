@@ -293,6 +293,8 @@
       cuentas_bancarias JSONB DEFAULT '[]', -- Lista de cuentas bancarias
       puntos_operacion JSONB DEFAULT '[]', -- Zonas donde opera
       detalles_categoria JSONB DEFAULT '{}', -- Datos específicos (estrellas hotel, idiomas guía, etc)
+      tarifario JSONB DEFAULT '[]', -- Lista de precios por servicio (tipo, nombre, precio, moneda, unidad, notas, etc.)
+      tours_opera INTEGER[] DEFAULT '{}', -- IDs de tour(id_tour) que este proveedor puede operar
       activo BOOLEAN DEFAULT TRUE,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

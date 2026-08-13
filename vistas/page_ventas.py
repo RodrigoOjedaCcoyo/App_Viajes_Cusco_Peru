@@ -712,6 +712,7 @@ def registro_ventas_directa():
                 st.error("❌ El Monto Total debe ser mayor a 0.")
             else:
                 exito = False
+                msg = None
                 # --- SEGURO DE DOBLE ENVÍO ---
                 # Evitamos que Streamlit ejecute esto dos veces por el rerun automático
                 lock_key = f"last_sale_{nombre}_{tel}_{monto_total}"
@@ -757,8 +758,9 @@ def registro_ventas_directa():
                             correo=correo_cli,
                             contacto_emergencia_nombre=cont_nom,
                             contacto_emergencia_tel=cont_tel,
-                            enviar_correo=enviar_notif,
-                            adjuntos={f.name: f.getvalue() for f in archivos_adjuntos} if archivos_adjuntos else None,
+                            # El correo se envía una sola vez, más abajo, junto con el voucher (evita duplicados)
+                            enviar_correo=False,
+                            adjuntos=None,
                             fecha_venta=fecha_venta_sel.isoformat()
                         )
                 
@@ -813,58 +815,43 @@ def registro_ventas_directa():
                             id_num = 1
                         num_v = f"{anio_2d:05d}-{mes_actual:02d}-{id_num:05d}"
 
+                        pdf_bytes = None
                         if pdf_bytes_io:
                             pdf_bytes = pdf_bytes_io.read()
                             st.session_state['voucher_pdf_bytes'] = pdf_bytes
                             st.session_state['voucher_pdf_nombre'] = f"VOUCHER DE RESERVA {num_v} {nombre.upper()}.pdf"
 
-                            # Si el correo está activo y NO es una vista previa, adjuntar el voucher
-                            if enviar_notif and not btn_preview:
-                                from utils.email_helper import enviar_notificacion_venta_async
-                                venta_notif = {
-                                    'nombre_cliente':  nombre,
-                                    'tour':            id_paquete,
-                                    'vendedor':        vendedor_actual,
-                                    'cantidad':        int(cantidad_pax),
-                                    'fecha_inicio':    fecha_inicio_sel.strftime('%d/%m/%Y'),
-                                    'fecha_fin':       fecha_fin_sel.strftime('%d/%m/%Y'),
-                                    'moneda':          moneda_sel,
-                                    'monto_total':     monto_total,
-                                    'monto_depositado': monto_pagado,
-                                    'saldo':           monto_total - monto_pagado,
-                                    'metodo_pago':     metodo_pago,
-                                    'comentarios':     comentarios_op,
-                                }
-                                adjuntos_final = {f.name: f.getvalue() for f in archivos_adjuntos} if archivos_adjuntos else {}
+                        # --- Envío ÚNICO de correo (con voucher si se generó), subiendo todo a Drive ---
+                        if enviar_notif and not btn_preview:
+                            venta_notif = {
+                                'id_venta':        id_venta_nuevo,
+                                'nombre_cliente':  nombre,
+                                'tour':            id_paquete,
+                                'vendedor':        vendedor_actual,
+                                'cantidad':        int(cantidad_pax),
+                                'fecha_inicio':    fecha_inicio_sel.strftime('%d/%m/%Y'),
+                                'fecha_fin':       fecha_fin_sel.strftime('%d/%m/%Y'),
+                                'moneda':          moneda_sel,
+                                'monto_total':     monto_total,
+                                'monto_depositado': monto_pagado,
+                                'saldo':           monto_total - monto_pagado,
+                                'metodo_pago':     metodo_pago,
+                                'comentarios':     comentarios_op,
+                            }
+                            adjuntos_final = {f.name: f.getvalue() for f in archivos_adjuntos} if archivos_adjuntos else {}
+                            if pdf_bytes:
                                 adjuntos_final[st.session_state['voucher_pdf_nombre']] = pdf_bytes
-                                enviar_notificacion_venta_async(venta_notif, adjuntos_final)
-                        else:
-                            # Si no se pudo generar PDF, igual enviar correo sin adjunto (si no es vista previa)
-                            if enviar_notif and not btn_preview:
-                                from utils.email_helper import enviar_notificacion_venta_async
-                                venta_notif = {
-                                    'nombre_cliente':  nombre,
-                                    'tour':            id_paquete,
-                                    'vendedor':        vendedor_actual,
-                                    'cantidad':        int(cantidad_pax),
-                                    'fecha_inicio':    fecha_inicio_sel.strftime('%d/%m/%Y'),
-                                    'fecha_fin':       fecha_fin_sel.strftime('%d/%m/%Y'),
-                                    'moneda':          moneda_sel,
-                                    'monto_total':     monto_total,
-                                    'monto_depositado': monto_pagado,
-                                    'saldo':           monto_total - monto_pagado,
-                                    'metodo_pago':     metodo_pago,
-                                    'comentarios':     comentarios_op,
-                                }
-                                adjuntos_final = {f.name: f.getvalue() for f in archivos_adjuntos} if archivos_adjuntos else None
-                                enviar_notificacion_venta_async(venta_notif, adjuntos_final)
+                            venta_controller._notificar_venta_con_adjuntos(
+                                venta_notif, adjuntos_final or None,
+                                fecha_inicio_sel, nombre, int(cantidad_pax)
+                            )
 
                     except Exception as e_pdf:
                         st.warning(f"⚠️ Venta registrada, pero hubo un problema generando el Voucher: {e_pdf}")
 
                     st.success(msg)
                     st.balloons()
-                else:
+                elif msg:
                     st.error(msg)
 
     # --- Boton de descarga del Voucher PDF (fuera del form, persiste en sesión) ---
