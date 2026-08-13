@@ -3118,6 +3118,13 @@ def render_cotizador_costos(supabase_client):
             "Ve al Directorio de Proveedores y agrega tarifas de este tipo primero."
         )
     else:
+        # Catálogo de tours para mostrar nombres (no solo IDs) en "Tours que Opera"
+        try:
+            res_tours_cat = supabase_client.table('tour').select('id_tour, nombre').execute()
+            tours_id_a_nombre = {t['id_tour']: t['nombre'] for t in (res_tours_cat.data or [])}
+        except Exception:
+            tours_id_a_nombre = {}
+
         opciones_prov = []
         mapa_opciones = {}
         for p in proveedores_match:
@@ -3126,7 +3133,21 @@ def render_cotizador_costos(supabase_client):
                     precio_txt = f"Nac: {tarifa.get('precio_nacional', 0):,.2f} / Ext: {tarifa.get('precio_extranjero', 0):,.2f}"
                 else:
                     precio_txt = f"{tarifa.get('precio', 0):,.2f}"
-                label = f"{p['nombre_comercial']} — {tarifa.get('nombre', '')} ({tarifa.get('moneda', 'USD')} {precio_txt}, {tarifa.get('unidad', '')})"
+
+                # Datos extra visibles de una vez en la etiqueta (capacidad / tipo de unidad)
+                extra_label = ""
+                if tarifa.get('tipo_servicio') == 'TRANSPORTE':
+                    partes = []
+                    if tarifa.get('tipo_unidad'):
+                        partes.append(tarifa['tipo_unidad'])
+                    if tarifa.get('capacidad_pax'):
+                        partes.append(f"cap. {tarifa['capacidad_pax']} pax")
+                    if partes:
+                        extra_label = f" [{' · '.join(partes)}]"
+                elif tarifa.get('tipo_servicio') == 'GUIA' and tarifa.get('max_pax'):
+                    extra_label = f" [máx. {tarifa['max_pax']} pax/guía]"
+
+                label = f"{p['nombre_comercial']} — {tarifa.get('nombre', '')}{extra_label} ({tarifa.get('moneda', 'USD')} {precio_txt}, {tarifa.get('unidad', '')})"
                 opciones_prov.append(label)
                 mapa_opciones[label] = {"proveedor": p, "tarifa": tarifa}
 
@@ -3134,6 +3155,30 @@ def render_cotizador_costos(supabase_client):
         elegido = mapa_opciones[seleccion_label]
         tarifa_elegida = elegido['tarifa']
         proveedor_elegido = elegido['proveedor']
+
+        # --- Tarjeta de detalle: capacidad/tipo + tours que opera este proveedor ---
+        with st.container(border=True):
+            det1, det2 = st.columns(2)
+            with det1:
+                st.markdown("**Detalle del servicio**")
+                if tarifa_elegida.get('tipo_servicio') == 'TRANSPORTE':
+                    st.caption(f"🚐 Tipo de unidad: {tarifa_elegida.get('tipo_unidad', '—')}")
+                    st.caption(f"👥 Capacidad: {tarifa_elegida.get('capacidad_pax', '—')} pax")
+                    st.caption(f"🧑‍✈️ Incluye chofer: {'Sí' if tarifa_elegida.get('incluye_chofer') else 'No'}")
+                elif tarifa_elegida.get('tipo_servicio') == 'GUIA':
+                    st.caption(f"🗣️ Idiomas: {tarifa_elegida.get('idiomas', '—')}")
+                    st.caption(f"🎯 Especialidad: {tarifa_elegida.get('especialidad', '—')}")
+                    st.caption(f"👥 Máx. pax por guía: {tarifa_elegida.get('max_pax', '—')}")
+                else:
+                    st.caption("Sin datos adicionales para este tipo de servicio.")
+            with det2:
+                st.markdown("**Tours que opera este proveedor**")
+                tours_ids = proveedor_elegido.get('tours_opera') or []
+                nombres_tours = [tours_id_a_nombre.get(tid, f"Tour #{tid}") for tid in tours_ids]
+                if nombres_tours:
+                    st.caption(", ".join(nombres_tours))
+                else:
+                    st.caption("Sin tours asignados todavía (cárgalos en el Directorio de Proveedores).")
 
         c1, c2 = st.columns(2)
         cantidad_pax = c1.number_input("Cantidad de Pax", min_value=1, value=1, key="cot_pax")
