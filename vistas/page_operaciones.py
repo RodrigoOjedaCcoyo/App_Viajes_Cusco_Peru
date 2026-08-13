@@ -2745,6 +2745,12 @@ def render_directorio_proveedores(supabase_client):
         }
 
     draft = st.session_state.prov_draft
+    # A prueba de sesiones viejas en memoria que no tenían estos campos todavía
+    draft.setdefault('tarifario', [])
+    draft.setdefault('tours_opera', [])
+    draft.setdefault('cuentas_bancarias', [])
+    draft.setdefault('puntos_operacion', [])
+    draft.setdefault('detalles_categoria', {})
 
     # ═══════════════════════════════════════════════════════════════
     # 3. FORMULARIO DINÁMICO
