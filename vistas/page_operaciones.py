@@ -1183,20 +1183,24 @@ def mostrar_pagina(nombre_modulo, rol_actual, user_id, supabase_client):
     st.markdown("---")
     
     if nombre_modulo in ["Gestión de Registros", "Logística y Proveedores", "Gestión de Operaciones"]:
-        tab1, tab2, tab3 = st.tabs([
+        tab1, tab2, tab3, tab4 = st.tabs([
             "📊 Estructurador de Gastos (Master Sheet)",
             "🤝 Ventas B2B (Entrada)",
-            "🏢 Directorio de Proveedores"
+            "🏢 Directorio de Proveedores",
+            "🧮 Cotizador de Costos"
         ])
-        
+
         with tab1:
             dashboard_simulador_costos(controller)
-            
+
         with tab2:
             registro_ventas_proveedores(supabase_client)
 
         with tab3:
             render_directorio_proveedores(supabase_client)
+
+        with tab4:
+            render_cotizador_costos(supabase_client)
 
     elif nombre_modulo == "Dashboard Diario":
         dashboard_tablero_diario(controller)
@@ -3075,3 +3079,160 @@ def render_directorio_proveedores(supabase_client):
                         st.rerun()
                     else:
                         st.error(msg)
+
+
+def render_cotizador_costos(supabase_client):
+    """Cotizador de Costos interno: arma un paquete eligiendo servicios y proveedores del Tarifario."""
+    from controllers.cotizacion_controller import CotizacionController
+    cot_ctrl = CotizacionController(supabase_client)
+
+    st.subheader("🧮 Cotizador de Costos (Uso Interno)", divider="violet")
+    st.caption(
+        "Arma una cotización de costos eligiendo servicios y proveedores de su Tarifario, "
+        "para decidir con quién conviene trabajar antes de cerrar una venta. Esta pantalla no la ve el cliente."
+    )
+
+    TARIFARIO_LABELS = {
+        "TRANSPORTE": "Transporte", "GUIA": "Guiado", "TICKETS": "Tickets",
+        "ALIMENTACION": "Alimentación", "ALOJAMIENTO": "Alojamiento", "ENDOSE": "Endoses"
+    }
+
+    if 'cotizacion_items' not in st.session_state:
+        st.session_state.cotizacion_items = []
+
+    # ═══════════════════════════════════════════════════════════════
+    # 1. AGREGAR SERVICIO A LA COTIZACIÓN
+    # ═══════════════════════════════════════════════════════════════
+    st.markdown("### ➕ Agregar Servicio")
+
+    tipo_sel = st.selectbox(
+        "Tipo de Servicio", list(TARIFARIO_LABELS.keys()),
+        format_func=lambda k: TARIFARIO_LABELS[k], key="cot_tipo_sel"
+    )
+
+    proveedores_match = cot_ctrl.obtener_proveedores_por_tipo_servicio(tipo_sel)
+
+    if not proveedores_match:
+        st.warning(
+            f"No hay proveedores con tarifas cargadas para '{TARIFARIO_LABELS[tipo_sel]}'. "
+            "Ve al Directorio de Proveedores y agrega tarifas de este tipo primero."
+        )
+    else:
+        opciones_prov = []
+        mapa_opciones = {}
+        for p in proveedores_match:
+            for tarifa in p['tarifas']:
+                if tarifa.get('tipo_servicio') == 'TICKETS':
+                    precio_txt = f"Nac: {tarifa.get('precio_nacional', 0):,.2f} / Ext: {tarifa.get('precio_extranjero', 0):,.2f}"
+                else:
+                    precio_txt = f"{tarifa.get('precio', 0):,.2f}"
+                label = f"{p['nombre_comercial']} — {tarifa.get('nombre', '')} ({tarifa.get('moneda', 'USD')} {precio_txt}, {tarifa.get('unidad', '')})"
+                opciones_prov.append(label)
+                mapa_opciones[label] = {"proveedor": p, "tarifa": tarifa}
+
+        seleccion_label = st.selectbox("Proveedor y Tarifa", opciones_prov, key="cot_prov_sel")
+        elegido = mapa_opciones[seleccion_label]
+        tarifa_elegida = elegido['tarifa']
+        proveedor_elegido = elegido['proveedor']
+
+        c1, c2 = st.columns(2)
+        cantidad_pax = c1.number_input("Cantidad de Pax", min_value=1, value=1, key="cot_pax")
+
+        if tarifa_elegida.get('tipo_servicio') == 'TICKETS':
+            tipo_pax = c2.selectbox("¿Nacional o Extranjero?", ["Extranjero", "Nacional"], key="cot_tipo_pax")
+            precio_unit = tarifa_elegida.get('precio_extranjero', 0) if tipo_pax == "Extranjero" else tarifa_elegida.get('precio_nacional', 0)
+        else:
+            precio_unit = tarifa_elegida.get('precio', 0)
+
+        unidad = tarifa_elegida.get('unidad', 'Por Pax')
+        subtotal = precio_unit * cantidad_pax if unidad == "Por Pax" else precio_unit
+
+        st.info(f"💰 Subtotal de esta línea: {tarifa_elegida.get('moneda', 'USD')} {subtotal:,.2f}")
+
+        if st.button("➕ Agregar a la Cotización", use_container_width=True, key="cot_add_btn"):
+            st.session_state.cotizacion_items.append({
+                "tipo_servicio": tipo_sel,
+                "proveedor": proveedor_elegido['nombre_comercial'],
+                "id_proveedor": proveedor_elegido['id_proveedor'],
+                "nombre_tarifa": tarifa_elegida.get('nombre', ''),
+                "cantidad_pax": cantidad_pax,
+                "precio_unitario": precio_unit,
+                "unidad": unidad,
+                "moneda": tarifa_elegida.get('moneda', 'USD'),
+                "subtotal": subtotal
+            })
+            st.rerun()
+
+    st.markdown("---")
+
+    # ═══════════════════════════════════════════════════════════════
+    # 2. SERVICIOS EN LA COTIZACIÓN ACTUAL
+    # ═══════════════════════════════════════════════════════════════
+    st.markdown("### 📋 Servicios en esta Cotización")
+
+    if not st.session_state.cotizacion_items:
+        st.info("Todavía no agregaste ningún servicio.")
+    else:
+        total_por_moneda = {}
+        for idx, item in enumerate(st.session_state.cotizacion_items):
+            with st.container(border=True):
+                ci1, ci2, ci3, ci4 = st.columns([1.5, 3, 1.5, 0.5])
+                ci1.markdown(f"**{TARIFARIO_LABELS.get(item['tipo_servicio'], item['tipo_servicio'])}**")
+                ci2.markdown(f"{item['proveedor']} — {item['nombre_tarifa']} ({item['cantidad_pax']} pax)")
+                ci3.markdown(f"**{item['moneda']} {item['subtotal']:,.2f}**")
+                if ci4.button("❌", key=f"del_cot_item_{idx}"):
+                    st.session_state.cotizacion_items.pop(idx)
+                    st.rerun()
+            total_por_moneda[item['moneda']] = total_por_moneda.get(item['moneda'], 0) + item['subtotal']
+
+        st.markdown("---")
+        cols_tot = st.columns(len(total_por_moneda))
+        for col, (moneda, total) in zip(cols_tot, total_por_moneda.items()):
+            col.metric(f"Total Estimado ({moneda})", f"{total:,.2f}")
+
+        st.markdown("### 💾 Guardar Cotización")
+        c_save1, c_save2 = st.columns([3, 1])
+        nombre_cot = c_save1.text_input("Nombre de la cotización", placeholder="Ej: Familia Pérez - 5 días", key="cot_nombre_guardar")
+        if c_save2.button("💾 Guardar", use_container_width=True, key="cot_btn_guardar"):
+            if not nombre_cot:
+                st.warning("Ponle un nombre a la cotización antes de guardarla.")
+            else:
+                moneda_principal = list(total_por_moneda.keys())[0] if total_por_moneda else "USD"
+                creado_por = st.session_state.get('user_email') or st.session_state.get('user_id') or 'Sistema'
+                exito, _id = cot_ctrl.guardar_cotizacion(
+                    nombre_cot, creado_por, st.session_state.cotizacion_items,
+                    moneda_principal, sum(total_por_moneda.values())
+                )
+                if exito:
+                    st.success(f"✅ Cotización '{nombre_cot}' guardada.")
+                    st.session_state.cotizacion_items = []
+                    st.rerun()
+                else:
+                    st.error("No se pudo guardar la cotización.")
+
+        if st.button("🧹 Vaciar Cotización Actual", key="cot_clear_btn"):
+            st.session_state.cotizacion_items = []
+            st.rerun()
+
+    st.markdown("---")
+
+    # ═══════════════════════════════════════════════════════════════
+    # 3. COTIZACIONES GUARDADAS
+    # ═══════════════════════════════════════════════════════════════
+    st.markdown("### 📂 Cotizaciones Guardadas")
+    cotizaciones = cot_ctrl.obtener_cotizaciones()
+    if not cotizaciones:
+        st.caption("Aún no hay cotizaciones guardadas.")
+    else:
+        for cot in cotizaciones:
+            fecha_txt = str(cot.get('created_at', ''))[:10]
+            with st.expander(f"{cot.get('nombre')} — {cot.get('moneda')} {cot.get('total_estimado', 0):,.2f} ({fecha_txt})"):
+                for it in (cot.get('items') or []):
+                    st.write(
+                        f"- {TARIFARIO_LABELS.get(it.get('tipo_servicio'), it.get('tipo_servicio'))}: "
+                        f"{it.get('proveedor')} — {it.get('nombre_tarifa')} ({it.get('cantidad_pax')} pax) "
+                        f"= {it.get('moneda')} {it.get('subtotal', 0):,.2f}"
+                    )
+                if st.button("🗑️ Eliminar Cotización", key=f"del_cot_{cot['id_cotizacion']}"):
+                    cot_ctrl.eliminar_cotizacion(cot['id_cotizacion'])
+                    st.rerun()
