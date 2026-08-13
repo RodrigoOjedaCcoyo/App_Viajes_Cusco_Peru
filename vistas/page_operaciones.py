@@ -2866,7 +2866,11 @@ def render_directorio_proveedores(supabase_client):
         if tipo_sel == "TRANSPORTE":
             ct1, ct2, ct3 = st.columns(3)
             extra['capacidad_pax'] = ct1.number_input("Capacidad (máx. pax)", min_value=1, value=4, key="new_tarif_cap")
-            extra['tipo_unidad'] = ct2.selectbox("Tipo de unidad", ["Van", "Bus", "Auto", "Otro"], key="new_tarif_unidad_veh")
+            extra['tipo_unidad'] = ct2.selectbox(
+                "Tipo de unidad",
+                ["Camioneta", "Staria", "SC", "SL", "Minibus", "Bus", "Otro"],
+                key="new_tarif_unidad_veh"
+            )
             extra['incluye_chofer'] = ct3.toggle("¿Incluye chofer?", value=True, key="new_tarif_chofer")
             precio_tarif = st.number_input("Precio", min_value=0.0, step=1.0, key="new_tarif_precio")
         elif tipo_sel == "GUIA":
