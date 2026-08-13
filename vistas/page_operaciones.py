@@ -3131,8 +3131,26 @@ def render_cotizador_costos(supabase_client):
 
         opciones_prov = []
         mapa_opciones = {}
+
+        # --- Filtro secundario: Tipo de Unidad (solo aplica a Transporte) ---
+        filtro_unidad = "Todos"
+        if tipo_sel == "TRANSPORTE":
+            tipos_unidad_disponibles = sorted(set(
+                t.get('tipo_unidad') for p in proveedores_match for t in p['tarifas']
+                if t.get('tipo_unidad')
+            ))
+            if tipos_unidad_disponibles:
+                filtro_unidad = st.selectbox(
+                    "🚐 Filtrar por Tipo de Unidad",
+                    ["Todos"] + tipos_unidad_disponibles,
+                    key="cot_filtro_unidad"
+                )
+
         for p in proveedores_match:
             for tarifa in p['tarifas']:
+                if tipo_sel == "TRANSPORTE" and filtro_unidad != "Todos" and tarifa.get('tipo_unidad') != filtro_unidad:
+                    continue
+
                 if tarifa.get('tipo_servicio') == 'TICKETS':
                     precio_txt = f"Nac: {tarifa.get('precio_nacional', 0):,.2f} / Ext: {tarifa.get('precio_extranjero', 0):,.2f}"
                 else:
@@ -3155,87 +3173,90 @@ def render_cotizador_costos(supabase_client):
                 opciones_prov.append(label)
                 mapa_opciones[label] = {"proveedor": p, "tarifa": tarifa}
 
-        seleccion_label = st.selectbox("Proveedor y Tarifa", opciones_prov, key="cot_prov_sel")
-        elegido = mapa_opciones[seleccion_label]
-        tarifa_elegida = elegido['tarifa']
-        proveedor_elegido = elegido['proveedor']
-
-        # --- Tarjeta de detalle: capacidad/tipo + tours que opera este proveedor ---
-        with st.container(border=True):
-            det1, det2 = st.columns(2)
-            with det1:
-                st.markdown("**Detalle del servicio**")
-                if tarifa_elegida.get('tipo_servicio') == 'TRANSPORTE':
-                    st.caption(f"🚐 Tipo de unidad: {tarifa_elegida.get('tipo_unidad', '—')}")
-                    st.caption(f"👥 Capacidad: {tarifa_elegida.get('capacidad_pax', '—')} pax")
-                    st.caption(f"🧑‍✈️ Incluye chofer: {'Sí' if tarifa_elegida.get('incluye_chofer') else 'No'}")
-                elif tarifa_elegida.get('tipo_servicio') == 'GUIA':
-                    st.caption(f"🗣️ Idiomas: {tarifa_elegida.get('idiomas', '—')}")
-                    st.caption(f"🎯 Especialidad: {tarifa_elegida.get('especialidad', '—')}")
-                    st.caption(f"👥 Máx. pax por guía: {tarifa_elegida.get('max_pax', '—')}")
-                else:
-                    st.caption("Sin datos adicionales para este tipo de servicio.")
-            with det2:
-                st.markdown("**Tours que opera este proveedor**")
-                tours_ids = proveedor_elegido.get('tours_opera') or []
-                nombres_tours = [tours_id_a_nombre.get(tid, f"Tour #{tid}") for tid in tours_ids]
-                if nombres_tours:
-                    st.caption(", ".join(nombres_tours))
-                else:
-                    st.caption("Sin tours asignados todavía (cárgalos en el Directorio de Proveedores).")
-
-        c1, c2 = st.columns(2)
-        cantidad_pax = c1.number_input("Cantidad de Pax", min_value=1, value=1, key="cot_pax")
-
-        if tarifa_elegida.get('tipo_servicio') == 'TICKETS':
-            tipo_pax = c2.selectbox("¿Nacional o Extranjero?", ["Extranjero", "Nacional"], key="cot_tipo_pax")
-            precio_unit = tarifa_elegida.get('precio_extranjero', 0) if tipo_pax == "Extranjero" else tarifa_elegida.get('precio_nacional', 0)
+        if not opciones_prov:
+            st.info(f"No hay proveedores de tipo '{filtro_unidad}' disponibles con este filtro. Prueba con otro tipo de unidad.")
         else:
-            precio_unit = tarifa_elegida.get('precio', 0)
+            seleccion_label = st.selectbox("Proveedor y Tarifa", opciones_prov, key="cot_prov_sel")
+            elegido = mapa_opciones[seleccion_label]
+            tarifa_elegida = elegido['tarifa']
+            proveedor_elegido = elegido['proveedor']
 
-        unidad = tarifa_elegida.get('unidad', 'Por Pax')
+            # --- Tarjeta de detalle: capacidad/tipo + tours que opera este proveedor ---
+            with st.container(border=True):
+                det1, det2 = st.columns(2)
+                with det1:
+                    st.markdown("**Detalle del servicio**")
+                    if tarifa_elegida.get('tipo_servicio') == 'TRANSPORTE':
+                        st.caption(f"🚐 Tipo de unidad: {tarifa_elegida.get('tipo_unidad', '—')}")
+                        st.caption(f"👥 Capacidad: {tarifa_elegida.get('capacidad_pax', '—')} pax")
+                        st.caption(f"🧑‍✈️ Incluye chofer: {'Sí' if tarifa_elegida.get('incluye_chofer') else 'No'}")
+                    elif tarifa_elegida.get('tipo_servicio') == 'GUIA':
+                        st.caption(f"🗣️ Idiomas: {tarifa_elegida.get('idiomas', '—')}")
+                        st.caption(f"🎯 Especialidad: {tarifa_elegida.get('especialidad', '—')}")
+                        st.caption(f"👥 Máx. pax por guía: {tarifa_elegida.get('max_pax', '—')}")
+                    else:
+                        st.caption("Sin datos adicionales para este tipo de servicio.")
+                with det2:
+                    st.markdown("**Tours que opera este proveedor**")
+                    tours_ids = proveedor_elegido.get('tours_opera') or []
+                    nombres_tours = [tours_id_a_nombre.get(tid, f"Tour #{tid}") for tid in tours_ids]
+                    if nombres_tours:
+                        st.caption(", ".join(nombres_tours))
+                    else:
+                        st.caption("Sin tours asignados todavía (cárgalos en el Directorio de Proveedores).")
 
-        # --- Cálculo de unidades necesarias según capacidad (Transporte y Guiado) ---
-        # Ej: una van de 4 asientos y 3 pax -> 1 unidad. La misma van con 6 pax -> 2 unidades.
-        capacidad_ref = None
-        etiqueta_capacidad = ""
-        if tipo_sel == "TRANSPORTE" and tarifa_elegida.get('capacidad_pax'):
-            capacidad_ref = int(tarifa_elegida.get('capacidad_pax') or 1)
-            etiqueta_capacidad = "vehículo(s)"
-        elif tipo_sel == "GUIA" and tarifa_elegida.get('max_pax'):
-            capacidad_ref = int(tarifa_elegida.get('max_pax') or 1)
-            etiqueta_capacidad = "guía(s)"
+            c1, c2 = st.columns(2)
+            cantidad_pax = c1.number_input("Cantidad de Pax", min_value=1, value=1, key="cot_pax")
 
-        if capacidad_ref:
-            unidades_necesarias = -(-cantidad_pax // capacidad_ref)  # división hacia arriba (ceil)
-            subtotal = precio_unit * unidades_necesarias
-            if unidades_necesarias > 1:
-                st.warning(
-                    f"⚠️ Esta opción tiene capacidad para {capacidad_ref} pax. "
-                    f"Para {cantidad_pax} pax se necesitan **{unidades_necesarias} {etiqueta_capacidad}** "
-                    f"({tarifa_elegida.get('moneda', 'USD')} {precio_unit:,.2f} c/u)."
-                )
-        else:
-            unidades_necesarias = 1
-            subtotal = precio_unit * cantidad_pax if unidad == "Por Pax" else precio_unit
+            if tarifa_elegida.get('tipo_servicio') == 'TICKETS':
+                tipo_pax = c2.selectbox("¿Nacional o Extranjero?", ["Extranjero", "Nacional"], key="cot_tipo_pax")
+                precio_unit = tarifa_elegida.get('precio_extranjero', 0) if tipo_pax == "Extranjero" else tarifa_elegida.get('precio_nacional', 0)
+            else:
+                precio_unit = tarifa_elegida.get('precio', 0)
 
-        st.info(f"💰 Subtotal de esta línea: {tarifa_elegida.get('moneda', 'USD')} {subtotal:,.2f}")
+            unidad = tarifa_elegida.get('unidad', 'Por Pax')
 
-        if st.button("➕ Agregar a la Cotización", use_container_width=True, key="cot_add_btn"):
-            st.session_state.cotizacion_items.append({
-                "tipo_servicio": tipo_sel,
-                "proveedor": proveedor_elegido['nombre_comercial'],
-                "id_proveedor": proveedor_elegido['id_proveedor'],
-                "nombre_tarifa": tarifa_elegida.get('nombre', ''),
-                "cantidad_pax": cantidad_pax,
-                "capacidad_por_unidad": capacidad_ref,
-                "unidades_necesarias": unidades_necesarias,
-                "precio_unitario": precio_unit,
-                "unidad": unidad,
-                "moneda": tarifa_elegida.get('moneda', 'USD'),
-                "subtotal": subtotal
-            })
-            st.rerun()
+            # --- Cálculo de unidades necesarias según capacidad (Transporte y Guiado) ---
+            # Ej: una van de 4 asientos y 3 pax -> 1 unidad. La misma van con 6 pax -> 2 unidades.
+            capacidad_ref = None
+            etiqueta_capacidad = ""
+            if tipo_sel == "TRANSPORTE" and tarifa_elegida.get('capacidad_pax'):
+                capacidad_ref = int(tarifa_elegida.get('capacidad_pax') or 1)
+                etiqueta_capacidad = "vehículo(s)"
+            elif tipo_sel == "GUIA" and tarifa_elegida.get('max_pax'):
+                capacidad_ref = int(tarifa_elegida.get('max_pax') or 1)
+                etiqueta_capacidad = "guía(s)"
+
+            if capacidad_ref:
+                unidades_necesarias = -(-cantidad_pax // capacidad_ref)  # división hacia arriba (ceil)
+                subtotal = precio_unit * unidades_necesarias
+                if unidades_necesarias > 1:
+                    st.warning(
+                        f"⚠️ Esta opción tiene capacidad para {capacidad_ref} pax. "
+                        f"Para {cantidad_pax} pax se necesitan **{unidades_necesarias} {etiqueta_capacidad}** "
+                        f"({tarifa_elegida.get('moneda', 'USD')} {precio_unit:,.2f} c/u)."
+                    )
+            else:
+                unidades_necesarias = 1
+                subtotal = precio_unit * cantidad_pax if unidad == "Por Pax" else precio_unit
+
+            st.info(f"💰 Subtotal de esta línea: {tarifa_elegida.get('moneda', 'USD')} {subtotal:,.2f}")
+
+            if st.button("➕ Agregar a la Cotización", use_container_width=True, key="cot_add_btn"):
+                st.session_state.cotizacion_items.append({
+                    "tipo_servicio": tipo_sel,
+                    "proveedor": proveedor_elegido['nombre_comercial'],
+                    "id_proveedor": proveedor_elegido['id_proveedor'],
+                    "nombre_tarifa": tarifa_elegida.get('nombre', ''),
+                    "cantidad_pax": cantidad_pax,
+                    "capacidad_por_unidad": capacidad_ref,
+                    "unidades_necesarias": unidades_necesarias,
+                    "precio_unitario": precio_unit,
+                    "unidad": unidad,
+                    "moneda": tarifa_elegida.get('moneda', 'USD'),
+                    "subtotal": subtotal
+                })
+                st.rerun()
 
     st.markdown("---")
 
