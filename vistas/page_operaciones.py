@@ -3145,7 +3145,30 @@ def render_cotizador_costos(supabase_client):
             precio_unit = tarifa_elegida.get('precio', 0)
 
         unidad = tarifa_elegida.get('unidad', 'Por Pax')
-        subtotal = precio_unit * cantidad_pax if unidad == "Por Pax" else precio_unit
+
+        # --- Cálculo de unidades necesarias según capacidad (Transporte y Guiado) ---
+        # Ej: una van de 4 asientos y 3 pax -> 1 unidad. La misma van con 6 pax -> 2 unidades.
+        capacidad_ref = None
+        etiqueta_capacidad = ""
+        if tipo_sel == "TRANSPORTE" and tarifa_elegida.get('capacidad_pax'):
+            capacidad_ref = int(tarifa_elegida.get('capacidad_pax') or 1)
+            etiqueta_capacidad = "vehículo(s)"
+        elif tipo_sel == "GUIA" and tarifa_elegida.get('max_pax'):
+            capacidad_ref = int(tarifa_elegida.get('max_pax') or 1)
+            etiqueta_capacidad = "guía(s)"
+
+        if capacidad_ref:
+            unidades_necesarias = -(-cantidad_pax // capacidad_ref)  # división hacia arriba (ceil)
+            subtotal = precio_unit * unidades_necesarias
+            if unidades_necesarias > 1:
+                st.warning(
+                    f"⚠️ Esta opción tiene capacidad para {capacidad_ref} pax. "
+                    f"Para {cantidad_pax} pax se necesitan **{unidades_necesarias} {etiqueta_capacidad}** "
+                    f"({tarifa_elegida.get('moneda', 'USD')} {precio_unit:,.2f} c/u)."
+                )
+        else:
+            unidades_necesarias = 1
+            subtotal = precio_unit * cantidad_pax if unidad == "Por Pax" else precio_unit
 
         st.info(f"💰 Subtotal de esta línea: {tarifa_elegida.get('moneda', 'USD')} {subtotal:,.2f}")
 
@@ -3156,6 +3179,8 @@ def render_cotizador_costos(supabase_client):
                 "id_proveedor": proveedor_elegido['id_proveedor'],
                 "nombre_tarifa": tarifa_elegida.get('nombre', ''),
                 "cantidad_pax": cantidad_pax,
+                "capacidad_por_unidad": capacidad_ref,
+                "unidades_necesarias": unidades_necesarias,
                 "precio_unitario": precio_unit,
                 "unidad": unidad,
                 "moneda": tarifa_elegida.get('moneda', 'USD'),
@@ -3178,7 +3203,10 @@ def render_cotizador_costos(supabase_client):
             with st.container(border=True):
                 ci1, ci2, ci3, ci4 = st.columns([1.5, 3, 1.5, 0.5])
                 ci1.markdown(f"**{TARIFARIO_LABELS.get(item['tipo_servicio'], item['tipo_servicio'])}**")
-                ci2.markdown(f"{item['proveedor']} — {item['nombre_tarifa']} ({item['cantidad_pax']} pax)")
+                detalle_unidades = ""
+                if item.get('unidades_necesarias', 1) > 1:
+                    detalle_unidades = f" · {item['unidades_necesarias']}x unidades (cap. {item.get('capacidad_por_unidad')} c/u)"
+                ci2.markdown(f"{item['proveedor']} — {item['nombre_tarifa']} ({item['cantidad_pax']} pax{detalle_unidades})")
                 ci3.markdown(f"**{item['moneda']} {item['subtotal']:,.2f}**")
                 if ci4.button("❌", key=f"del_cot_item_{idx}"):
                     st.session_state.cotizacion_items.pop(idx)
@@ -3228,9 +3256,12 @@ def render_cotizador_costos(supabase_client):
             fecha_txt = str(cot.get('created_at', ''))[:10]
             with st.expander(f"{cot.get('nombre')} — {cot.get('moneda')} {cot.get('total_estimado', 0):,.2f} ({fecha_txt})"):
                 for it in (cot.get('items') or []):
+                    detalle_unidades = ""
+                    if it.get('unidades_necesarias', 1) > 1:
+                        detalle_unidades = f" · {it['unidades_necesarias']}x unidades (cap. {it.get('capacidad_por_unidad')} c/u)"
                     st.write(
                         f"- {TARIFARIO_LABELS.get(it.get('tipo_servicio'), it.get('tipo_servicio'))}: "
-                        f"{it.get('proveedor')} — {it.get('nombre_tarifa')} ({it.get('cantidad_pax')} pax) "
+                        f"{it.get('proveedor')} — {it.get('nombre_tarifa')} ({it.get('cantidad_pax')} pax{detalle_unidades}) "
                         f"= {it.get('moneda')} {it.get('subtotal', 0):,.2f}"
                     )
                 if st.button("🗑️ Eliminar Cotización", key=f"del_cot_{cot['id_cotizacion']}"):
