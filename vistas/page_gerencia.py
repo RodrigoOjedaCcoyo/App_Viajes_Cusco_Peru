@@ -524,7 +524,7 @@ def render_control_financiero_liquidaciones(supabase_client):
                 
                 with c2:
                     if render_data:
-                        render_itinerary_simple_download(render_data)
+                        render_itinerary_simple_download(render_data, id_venta=id_venta, supabase_client=supabase_client)
                         # El PDF detallado (Cloud) suele guardarse dentro de datos_render o como metadato
                         url_cloud = render_data.get('url_pdf') or (it_dig.get('url_pdf') if isinstance(it_dig, dict) else None)
                         if url_cloud:

@@ -159,24 +159,49 @@ def render_operational_master_download(controller, id_venta, label="📊 Generar
         st.error(f"Error renderizando Hoja de Servicio: {e}")
 
 # Renderiza el Botón para el PDF del Itinerario Simple.
-def render_itinerary_simple_download(render):
+def render_itinerary_simple_download(render, id_venta=None, supabase_client=None):
     if not render:
         st.warning("No hay datos de itinerario para descargar.")
         return
 
     from controllers.pdf_controller import PDFController
     pdf_ctrl = PDFController()
-    
+
     from controllers.excel_controller import ExcelController
     xl_ctrl = ExcelController()
-    
+
     # Extraer parámetros de enriquecimiento si existen
     nombre_pax = render.get('nombre_pasajero')
     total_pax = render.get('num_pasajeros')
-    
+
     with st.container(border=True):
         st.markdown(f"#### 📄 Resumen de Viaje: {render.get('titulo', 'Sin Título')}")
         st.info("Este documento es una versión simplificada (Ink Saver) ideal para imprimir y para el personal operativo.")
+
+        # --- Precio de venta / Pagado / Saldo (solo si hay una venta real vinculada) ---
+        if id_venta and supabase_client:
+            try:
+                res_v = supabase_client.table('venta').select('precio_total_cierre, moneda').eq('id_venta', id_venta).single().execute()
+                v_data = res_v.data or {}
+                precio_venta = float(v_data.get('precio_total_cierre') or 0)
+                moneda_venta = v_data.get('moneda') or 'USD'
+
+                res_p = supabase_client.table('pago').select('monto_pagado, monto_moneda_venta, tipo_pago').eq('id_venta', id_venta).execute()
+                monto_pagado = 0.0
+                for p in (res_p.data or []):
+                    m = float(p.get('monto_moneda_venta') or p.get('monto_pagado') or 0)
+                    if p.get('tipo_pago') == 'REEMBOLSO':
+                        m = -m
+                    monto_pagado += m
+                saldo = precio_venta - monto_pagado
+
+                cp1, cp2, cp3 = st.columns(3)
+                cp1.metric("💰 Precio de Venta", f"{moneda_venta} {precio_venta:,.2f}")
+                cp2.metric("✅ Pagado", f"{moneda_venta} {monto_pagado:,.2f}")
+                cp3.metric("⏳ Saldo Pendiente", f"{moneda_venta} {saldo:,.2f}")
+            except Exception as e:
+                st.caption(f"No se pudo cargar el estado de pago: {e}")
+
         c1, c2 = st.columns(2)
         
         with c1:
@@ -1157,7 +1182,7 @@ def reporte_operativo(controller):
                             # Enriquecer con celular
                             render_data['cliente_telefono'] = dr.get('Celular') or ""
                                 
-                            render_itinerary_simple_download(render_data)
+                            render_itinerary_simple_download(render_data, id_venta=sel_id_v, supabase_client=controller.client)
             else:
                 st.info("Seleccione un servicio con itinerario para ver su detalle.")
 
@@ -1380,7 +1405,7 @@ def dashboard_simulador_costos(controller):
                     # Renderizar los botones de descarga
                     if render_data:
                         with st.expander("📄 Ver Resumen de Itinerario (Simplificado)", expanded=False):
-                            render_itinerary_simple_download(render_data)
+                            render_itinerary_simple_download(render_data, id_venta=id_venta_act, supabase_client=controller.client)
         except Exception as e:
             st.warning(f"Nota: No se pudo cargar el resumen del itinerario PDF/Simple. ({e})")
         
