@@ -99,6 +99,12 @@
             border-top: 0.5px solid #ccc;
             padding-top: 2pt;
         }
+        .pago-info {
+            margin-top: 8pt;
+            font-size: 7pt;
+            color: #333;
+            text-align: right;
+        }
     </style>
 </head>
 <body>
@@ -149,6 +155,14 @@
     <div class="comentarios-box">
         <div class="comentarios-title">COMENTARIOS GENERALES / NOTAS OPERATIVAS:</div>
         <div style="font-size: 8pt;">{{ comentarios_generales|upper }}</div>
+    </div>
+    {% endif %}
+
+    {% if mostrar_pago %}
+    <div class="pago-info">
+        Precio de Venta: {{ moneda_venta }} {{ "%.2f"|format(precio_venta) }}
+        &nbsp;|&nbsp; Pagado: {{ moneda_venta }} {{ "%.2f"|format(monto_pagado_venta) }}
+        &nbsp;|&nbsp; Saldo Pendiente: {{ moneda_venta }} {{ "%.2f"|format(saldo_venta) }}
     </div>
     {% endif %}
 

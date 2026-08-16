@@ -78,7 +78,7 @@ class PDFController:
         }
         return self._render_pdf('itinerario_template.html', context)
 
-    def generar_itinerario_simple_pdf(self, datos_render: dict) -> BytesIO:
+    def generar_itinerario_simple_pdf(self, datos_render: dict, id_venta=None, supabase_client=None) -> BytesIO:
         """Genera un PDF de itinerario SIMPLE (Ink Saver)."""
         fecha_robusta = self._extraer_fecha_viaje_robusta(datos_render)
         precios = datos_render.get("precios", {})
@@ -124,6 +124,28 @@ class PDFController:
             
             itinerario_procesado.append(it_copy)
 
+        # --- Estado de pago real de la venta (solo si se indica id_venta) ---
+        mostrar_pago = False
+        precio_venta = monto_pagado_venta = saldo_venta = 0.0
+        moneda_venta = moneda_val
+        if id_venta and supabase_client:
+            try:
+                res_v = supabase_client.table('venta').select('precio_total_cierre, moneda').eq('id_venta', id_venta).single().execute()
+                v_data = res_v.data or {}
+                precio_venta = float(v_data.get('precio_total_cierre') or 0)
+                moneda_venta = v_data.get('moneda') or moneda_val
+
+                res_p = supabase_client.table('pago').select('monto_pagado, monto_moneda_venta, tipo_pago').eq('id_venta', id_venta).execute()
+                for p in (res_p.data or []):
+                    m = float(p.get('monto_moneda_venta') or p.get('monto_pagado') or 0)
+                    if p.get('tipo_pago') == 'REEMBOLSO':
+                        m = -m
+                    monto_pagado_venta += m
+                saldo_venta = precio_venta - monto_pagado_venta
+                mostrar_pago = True
+            except Exception as e:
+                print(f"Error obteniendo estado de pago para PDF simple: {e}")
+
         context = {
             "cliente_nombre": datos_render.get("nombre_pasajero") or "Pasajero",
             "cliente_telefono": datos_render.get("cliente_telefono") or datos_render.get("telefono") or "",
@@ -134,6 +156,11 @@ class PDFController:
             "comentarios_generales": datos_render.get("comentarios_generales", ""),
             "total": total_val,
             "moneda_total": moneda_val,
+            "mostrar_pago": mostrar_pago,
+            "precio_venta": precio_venta,
+            "monto_pagado_venta": monto_pagado_venta,
+            "saldo_venta": saldo_venta,
+            "moneda_venta": moneda_venta,
             "hoy": datetime.date.today().strftime("%d/%m/%Y")
         }
         return self._render_pdf('itinerario_simple_template.html', context)

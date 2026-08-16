@@ -206,7 +206,7 @@ def render_itinerary_simple_download(render, id_venta=None, supabase_client=None
         
         with c1:
             # Generar el PDF en memoria
-            pdf_buffer = pdf_ctrl.generar_itinerario_simple_pdf(render)
+            pdf_buffer = pdf_ctrl.generar_itinerario_simple_pdf(render, id_venta=id_venta, supabase_client=supabase_client)
             if pdf_buffer:
                 st.download_button(
                     label="📥 Bajar Resumen (PDF Simple)",

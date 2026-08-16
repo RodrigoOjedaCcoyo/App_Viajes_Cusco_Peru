@@ -572,6 +572,7 @@ class ExcelController:
         white_text = Font(color="FFFFFF", bold=True, size=9) # Letra 9 para que quepa mejor
         black_bold = Font(color="000000", bold=True, size=10)
         title_f = Font(bold=True, size=22)
+        detalle_font = Font(size=8)  # Letra más chica en la tabla de detalles para que no se agranden las filas
         
         border_style = Border(
             left=Side(style='thin', color='000000'), 
@@ -587,10 +588,11 @@ class ExcelController:
         pax = data_hoja.get('pasajeros', [])
         servicios = data_hoja.get('liquidaciones', [])
 
-        # --- 0. CONFIGURACIÓN DE COLUMNAS (14 COLUMNAS BALANCEADAS) ---
-        col_letters = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N']
-        # Anchos optimizados para 14 columnas
-        widths = [18, 10, 10, 10, 18, 10, 10, 10, 22, 10, 15, 18, 18, 25]
+        # --- 0. CONFIGURACIÓN DE COLUMNAS (15 COLUMNAS: A-N usadas por el encabezado, A-O por la tabla de detalles) ---
+        col_letters = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O']
+        # Anchos optimizados: se ensancharon OPERADOR (F), DESCRIPCIÓN (G) y se agregó OBSERVACION (O),
+        # que antes no tenía ancho definido y forzaba filas gigantes al envolver el texto.
+        widths = [20, 10, 10, 10, 18, 18, 16, 10, 22, 10, 15, 18, 18, 25, 20]
         for i, w in enumerate(widths):
             ws.column_dimensions[col_letters[i]].width = w
 
@@ -856,14 +858,19 @@ class ExcelController:
                 ws.cell(row=curr_row, column=13, value=f_conf).border = border_style
                 ws.cell(row=curr_row, column=14, value=clean(s.get('responsable_contratacion'))).border = border_style
                 ws.cell(row=curr_row, column=15, value=clean(s.get('observacion'))).border = border_style
-                
-                for c in range(1, 16): ws.cell(row=curr_row, column=c).alignment = center_al
+
+                for c in range(1, 16):
+                    cell_det = ws.cell(row=curr_row, column=c)
+                    cell_det.alignment = center_al
+                    cell_det.font = detalle_font
+                ws.row_dimensions[curr_row].height = 28  # Altura fija para que el ajuste de texto no dispare filas gigantes
                 curr_row += 1
         
         # Filas extra para completar el diseño (total 15 filas de tour)
         while curr_row < 25:
-            for c in range(1, 16): 
+            for c in range(1, 16):
                 ws.cell(row=curr_row, column=c).border = border_style
+            ws.row_dimensions[curr_row].height = 28
             curr_row += 1
 
         # --- 5. PASAJEROS / ROOMING LIST ---
