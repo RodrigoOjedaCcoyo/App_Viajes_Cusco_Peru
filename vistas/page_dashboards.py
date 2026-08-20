@@ -290,7 +290,14 @@ def render_contable_dashboard_visual(supabase_client):
 
     # Segmentadores
     st.markdown("### 🔍 Filtros del Dashboard")
-    c_tipo, c_mon = st.columns(2)
+    hoy = date.today()
+    primer_dia_mes = hoy.replace(day=1)
+
+    c_fini, c_ffin, c_tipo, c_mon = st.columns(4)
+    with c_fini:
+        fecha_ini = st.date_input("Fecha Inicio", value=primer_dia_mes, key="fin_fecha_ini")
+    with c_ffin:
+        fecha_fin = st.date_input("Fecha Fin", value=hoy, key="fin_fecha_fin")
     with c_tipo:
         filtro_tipo = st.selectbox("Tipo de Venta", ["Todos", "Directas (B2C)", "Agencias (B2B)"], key="fin_tipo_venta")
     with c_mon:
@@ -298,17 +305,22 @@ def render_contable_dashboard_visual(supabase_client):
 
     reporte_ctrl = ReporteController(supabase_client)
     from vistas.dashboard_analytics import render_financial_dashboard
-    
+
     df_ventas, df_reqs = reporte_ctrl.get_data_for_dashboard()
-    
+
     # Aplicar filtros a df_ventas
     if not df_ventas.empty:
+        # Filtro de Fecha (por fecha de venta)
+        if fecha_ini and fecha_fin:
+            fechas_venta = pd.to_datetime(df_ventas['fecha_venta'], errors='coerce').dt.date
+            df_ventas = df_ventas[(fechas_venta >= fecha_ini) & (fechas_venta <= fecha_fin)]
+
         # Filtro B2B/B2C
         if filtro_tipo == "Directas (B2C)":
             df_ventas = df_ventas[df_ventas['id_agencia_aliada'].isna() | (df_ventas['id_agencia_aliada'] == "")]
         elif filtro_tipo == "Agencias (B2B)":
             df_ventas = df_ventas[df_ventas['id_agencia_aliada'].notna() & (df_ventas['id_agencia_aliada'] != "")]
-            
+
         # Filtro Moneda
         if filtro_moneda == "Soles (PEN)":
             df_ventas = df_ventas[df_ventas['moneda'] == 'PEN']

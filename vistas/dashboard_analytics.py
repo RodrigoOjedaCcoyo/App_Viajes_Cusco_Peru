@@ -218,11 +218,10 @@ def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=Non
                 if ids_venta_filtradas is not None and p.get('id_venta') not in ids_venta_filtradas:
                     continue
 
+                # No se filtra por moneda del pago al proveedor: un pasajero puede pagar
+                # en soles y la agencia pagarle al proveedor en dólares (o viceversa) —
+                # ese costo sigue siendo real y debe contarse, convertido a moneda_destino.
                 moneda = str(p.get('moneda') or 'USD').strip().upper()
-
-                # Filtrar gastos por moneda
-                if filtro_moneda == "Soles (PEN)" and moneda != 'PEN': continue
-                if filtro_moneda == "Dólares (USD)" and moneda != 'USD': continue
 
                 monto = float(p.get('monto_pagado') or 0)
                 tc = float(p.get('tasa_cambio') or 3.80)
