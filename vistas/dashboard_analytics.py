@@ -175,7 +175,22 @@ def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=Non
     """Genera el Dashboard Financiero con gastos reales desde pago_operativo."""
     st.subheader("Resultados Financieros")
 
-    # --- INGRESOS: suma de precio_total_cierre normalizado a USD ---
+    # --- Moneda de presentación: sigue al filtro "Moneda Original" ---
+    # Solo cuando se elige explícitamente Dólares se muestra en USD; Soles y Ambas se muestran en Soles.
+    if filtro_moneda == "Dólares (USD)":
+        moneda_destino, simbolo = 'USD', '$'
+    else:
+        moneda_destino, simbolo = 'PEN', 'S/'
+
+    def _convertir(monto, moneda_origen, tc):
+        moneda_origen = (moneda_origen or 'USD').strip().upper()
+        if moneda_origen == moneda_destino:
+            return monto
+        if moneda_destino == 'PEN':
+            return monto * tc  # USD -> PEN
+        return monto / tc  # PEN -> USD
+
+    # --- INGRESOS: suma de precio_total_cierre normalizado a la moneda destino ---
     total_ingresos = 0.0
     if not df_ventas.empty:
         for _, row in df_ventas.iterrows():
@@ -184,10 +199,7 @@ def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=Non
             tc = float(row.get('tipo_cambio') or 3.80)
             if tc <= 0:
                 tc = 3.80
-            if moneda == 'PEN':
-                total_ingresos += monto / tc
-            else:
-                total_ingresos += monto
+            total_ingresos += _convertir(monto, moneda, tc)
 
     # --- GASTOS: leer pago_operativo directamente desde Supabase ---
     # Se restringe a las ventas ya filtradas (tipo B2C/B2B + no canceladas)
@@ -216,10 +228,7 @@ def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=Non
                 tc = float(p.get('tasa_cambio') or 3.80)
                 if tc <= 0:
                     tc = 3.80
-                if moneda == 'PEN':
-                    total_gastos += monto / tc
-                else:
-                    total_gastos += monto
+                total_gastos += _convertir(monto, moneda, tc)
         except Exception as e:
             st.warning(f"No se pudieron cargar los gastos operativos: {e}")
     elif df_gastos_op is not None and not df_gastos_op.empty and 'total' in df_gastos_op.columns:
@@ -230,10 +239,10 @@ def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=Non
 
     # --- SCORECARDS ---
     sc1, sc2, sc3 = st.columns(3)
-    sc1.metric("Total Ingresos (Ventas)", f"${total_ingresos:,.2f}", delta="Cifra Bruta")
-    sc2.metric("Total Gastos Operativos", f"${total_gastos:,.2f}", delta_color="inverse",
+    sc1.metric("Total Ingresos (Ventas)", f"{simbolo}{total_ingresos:,.2f}", delta="Cifra Bruta")
+    sc2.metric("Total Gastos Operativos", f"{simbolo}{total_gastos:,.2f}", delta_color="inverse",
                help="Suma de todos los pagos a proveedores registrados en Pago Operativo")
-    sc3.metric("Utilidad Operativa", f"${utilidad:,.2f}", delta=f"{margen:.1f}% margen")
+    sc3.metric("Utilidad Operativa", f"{simbolo}{utilidad:,.2f}", delta=f"{margen:.1f}% margen")
 
     # --- WATERFALL CHART ---
     fig_wf = go.Figure(go.Waterfall(
@@ -241,14 +250,14 @@ def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=Non
         measure=["relative", "relative", "total"],
         x=["Ingresos Ventas", "Costos Operativos", "Utilidad Neta"],
         textposition="outside",
-        text=[f"${total_ingresos/1000:.1f}k", f"-${total_gastos/1000:.1f}k", f"${utilidad/1000:.1f}k"],
+        text=[f"{simbolo}{total_ingresos/1000:.1f}k", f"-{simbolo}{total_gastos/1000:.1f}k", f"{simbolo}{utilidad/1000:.1f}k"],
         y=[total_ingresos, -total_gastos, utilidad],
         connector={"line": {"color": "rgb(63, 63, 63)"}},
         decreasing={"marker": {"color": "#EF5350"}},
         increasing={"marker": {"color": "#66BB6A"}},
         totals={"marker": {"color": "#42A5F5"}}
     ))
-    fig_wf.update_layout(title="Cascada de Rentabilidad Global (USD)", showlegend=False, height=420)
+    fig_wf.update_layout(title=f"Cascada de Rentabilidad Global ({moneda_destino})", showlegend=False, height=420)
     st.plotly_chart(fig_wf, use_container_width=True)
     
     st.divider()
