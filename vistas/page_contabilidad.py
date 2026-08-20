@@ -858,6 +858,7 @@ def render_reporte_maestro_cobranzas(supabase_client):
 
         # 3. Construir filas del reporte
         data_maestra = []
+        totales_por_moneda = {}
         for v in ventas:
             # Extraer Nacionalidad (Prioridad: Pasajero Principal > Lead > Blanco)
             nacionalidad = ""
@@ -873,7 +874,8 @@ def render_reporte_maestro_cobranzas(supabase_client):
             # Datos base de la venta
             monto_total = float(v.get('precio_total_cierre') or 0)
             moneda = v.get('moneda', 'USD')
-            
+            totales_por_moneda[moneda] = totales_por_moneda.get(moneda, 0.0) + monto_total
+
             fila = {
                 "ID": v['id_venta'],
                 "FECHA REG.": v['fecha_venta'],
@@ -928,11 +930,13 @@ def render_reporte_maestro_cobranzas(supabase_client):
             key="maestro_cobranzas_editor"
         )
         
-        # 5. Métricas de Resumen
+        # 5. Métricas de Resumen (separadas por moneda: no se debe sumar USD + PEN en un solo total)
         c1, c2, c3 = st.columns(3)
-        total_proyectado = sum(d['total_num'] for d in data_maestra)
-        c1.metric("Proyectado Total", f"$ {total_proyectado:,.2f}")
-        
+        total_usd = totales_por_moneda.get('USD', 0.0)
+        total_pen = totales_por_moneda.get('PEN', 0.0)
+        c1.metric("Proyectado Total (USD)", f"$ {total_usd:,.2f}")
+        c2.metric("Proyectado Total (PEN)", f"S/ {total_pen:,.2f}")
+
         # Exportar a Excel
         import io
         output = io.BytesIO()

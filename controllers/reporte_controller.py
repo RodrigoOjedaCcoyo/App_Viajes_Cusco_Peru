@@ -85,9 +85,10 @@ class ReporteController:
 
     def get_data_for_dashboard(self):
         """Devuelve dataframes para dashboards financieros."""
-        # 1. Ventas
+        # 1. Ventas (excluye canceladas: no deben contarse como ingreso real)
         try:
-            ventas = self.venta_model.get_all()
+            res_ventas = self.client.table('venta').select('*').neq('estado_venta', 'CANCELADO').execute()
+            ventas = res_ventas.data or []
             df_ventas = pd.DataFrame(ventas) if ventas else pd.DataFrame()
             if not df_ventas.empty:
                 df_ventas['monto_total'] = df_ventas.get('precio_total_cierre', 0)

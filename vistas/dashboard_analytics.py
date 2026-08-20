@@ -190,15 +190,24 @@ def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=Non
                 total_ingresos += monto
 
     # --- GASTOS: leer pago_operativo directamente desde Supabase ---
+    # Se restringe a las ventas ya filtradas (tipo B2C/B2B + no canceladas)
+    # para que Ingresos y Gastos siempre correspondan al mismo conjunto de ventas.
+    ids_venta_filtradas = None
+    if not df_ventas.empty and 'id_venta' in df_ventas.columns:
+        ids_venta_filtradas = set(df_ventas['id_venta'].dropna().tolist())
+
     total_gastos = 0.0
     if supabase_client is not None:
         try:
             res_op = supabase_client.table('pago_operativo').select(
-                'monto_pagado, moneda, tasa_cambio'
+                'id_venta, monto_pagado, moneda, tasa_cambio'
             ).execute()
             for p in (res_op.data or []):
+                if ids_venta_filtradas is not None and p.get('id_venta') not in ids_venta_filtradas:
+                    continue
+
                 moneda = str(p.get('moneda') or 'USD').strip().upper()
-                
+
                 # Filtrar gastos por moneda
                 if filtro_moneda == "Soles (PEN)" and moneda != 'PEN': continue
                 if filtro_moneda == "Dólares (USD)" and moneda != 'USD': continue
