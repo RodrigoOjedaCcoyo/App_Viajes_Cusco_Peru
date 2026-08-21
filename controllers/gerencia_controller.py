@@ -212,7 +212,7 @@ class GerenciaController:
             return pd.DataFrame(data)
         except Exception as e:
             print(f"Error Desempeño Vendedores: {e}")
-            return pd.DataFrame()
+            raise  # Temporal: dejar ver el error real en pantalla
 
     def get_distribucion_origen_leads(self, fecha_inicio=None, fecha_fin=None):
         """Obtiene la cantidad de leads por origen (MMM)."""
