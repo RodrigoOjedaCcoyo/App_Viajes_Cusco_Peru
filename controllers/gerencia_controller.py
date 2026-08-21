@@ -156,7 +156,7 @@ class GerenciaController:
                     axis=1
                 )
 
-            df['fecha_venta'] = pd.to_datetime(df['fecha_venta'])
+            df['fecha_venta'] = pd.to_datetime(df['fecha_venta'], format='mixed', errors='coerce')
             df['Mes'] = df['fecha_venta'].dt.strftime('%Y-%m')
             
             resumen = df.groupby('Mes')['monto_dest'].sum().reset_index()
@@ -173,7 +173,7 @@ class GerenciaController:
             res_leads = self.client.table('lead').select('id_vendedor, fecha_creacion').execute()
             df_leads = pd.DataFrame(res_leads.data or [])
             if not df_leads.empty and fecha_inicio and fecha_fin:
-                df_leads['fecha_creacion'] = pd.to_datetime(df_leads['fecha_creacion']).dt.date
+                df_leads['fecha_creacion'] = pd.to_datetime(df_leads['fecha_creacion'], format='mixed', errors='coerce').dt.date
                 df_leads = df_leads[(df_leads['fecha_creacion'] >= fecha_inicio) & (df_leads['fecha_creacion'] <= fecha_fin)]
             
             # 2. Obtener Ventas con vendedor
@@ -181,7 +181,7 @@ class GerenciaController:
             df_ventas = pd.DataFrame(res_ventas.data or [])
             if not df_ventas.empty:
                 if fecha_inicio and fecha_fin:
-                    df_ventas['fecha_venta'] = pd.to_datetime(df_ventas['fecha_venta']).dt.date
+                    df_ventas['fecha_venta'] = pd.to_datetime(df_ventas['fecha_venta'], format='mixed', errors='coerce').dt.date
                     df_ventas = df_ventas[(df_ventas['fecha_venta'] >= fecha_inicio) & (df_ventas['fecha_venta'] <= fecha_fin)]
                 if segmento == 'B2C':
                     df_ventas = df_ventas[df_ventas['id_agencia_aliada'].isna()]
@@ -221,7 +221,7 @@ class GerenciaController:
             df = pd.DataFrame(res.data or [])
             if df.empty: return pd.DataFrame()
             if fecha_inicio and fecha_fin:
-                df['fecha_creacion'] = pd.to_datetime(df['fecha_creacion']).dt.date
+                df['fecha_creacion'] = pd.to_datetime(df['fecha_creacion'], format='mixed', errors='coerce').dt.date
                 df = df[(df['fecha_creacion'] >= fecha_inicio) & (df['fecha_creacion'] <= fecha_fin)]
             
             resumen = df.groupby('red_social').size().reset_index()
@@ -237,7 +237,7 @@ class GerenciaController:
             df = pd.DataFrame(res.data or [])
             if df.empty: return pd.DataFrame()
             if fecha_inicio and fecha_fin:
-                df['fecha_venta'] = pd.to_datetime(df['fecha_venta']).dt.date
+                df['fecha_venta'] = pd.to_datetime(df['fecha_venta'], format='mixed', errors='coerce').dt.date
                 df = df[(df['fecha_venta'] >= fecha_inicio) & (df['fecha_venta'] <= fecha_fin)]
             if segmento == 'B2C':
                 df = df[df['id_agencia_aliada'].isna()]
@@ -280,7 +280,7 @@ class GerenciaController:
             df = pd.DataFrame(res.data or [])
             if df.empty: return pd.DataFrame()
             if fecha_inicio and fecha_fin:
-                df['fecha_venta'] = pd.to_datetime(df['fecha_venta']).dt.date
+                df['fecha_venta'] = pd.to_datetime(df['fecha_venta'], format='mixed', errors='coerce').dt.date
                 df = df[(df['fecha_venta'] >= fecha_inicio) & (df['fecha_venta'] <= fecha_fin)]
             if segmento == 'B2C':
                 df = df[df['id_agencia_aliada'].isna()]
@@ -302,7 +302,7 @@ class GerenciaController:
             df_v = pd.DataFrame(res_v.data or [])
             if df_v.empty: return df_v
             if fecha_inicio and fecha_fin:
-                df_v['fecha_venta'] = pd.to_datetime(df_v['fecha_venta']).dt.date
+                df_v['fecha_venta'] = pd.to_datetime(df_v['fecha_venta'], format='mixed', errors='coerce').dt.date
                 df_v = df_v[(df_v['fecha_venta'] >= fecha_inicio) & (df_v['fecha_venta'] <= fecha_fin)]
             if segmento == 'B2C':
                 df_v = df_v[df_v['id_agencia_aliada'].isna()]
