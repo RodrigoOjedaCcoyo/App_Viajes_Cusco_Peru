@@ -170,11 +170,11 @@ class GerenciaController:
         """Calcula Leads vs Ventas por cada vendedor."""
         try:
             # 1. Obtener Leads con vendedor
-            res_leads = self.client.table('lead').select('id_vendedor, fecha_registro').execute()
+            res_leads = self.client.table('lead').select('id_vendedor, fecha_creacion').execute()
             df_leads = pd.DataFrame(res_leads.data or [])
             if not df_leads.empty and fecha_inicio and fecha_fin:
-                df_leads['fecha_registro'] = pd.to_datetime(df_leads['fecha_registro']).dt.date
-                df_leads = df_leads[(df_leads['fecha_registro'] >= fecha_inicio) & (df_leads['fecha_registro'] <= fecha_fin)]
+                df_leads['fecha_creacion'] = pd.to_datetime(df_leads['fecha_creacion']).dt.date
+                df_leads = df_leads[(df_leads['fecha_creacion'] >= fecha_inicio) & (df_leads['fecha_creacion'] <= fecha_fin)]
             
             # 2. Obtener Ventas con vendedor
             res_ventas = self.client.table('venta').select('id_vendedor, fecha_venta, id_agencia_aliada').execute()
@@ -212,17 +212,17 @@ class GerenciaController:
             return pd.DataFrame(data)
         except Exception as e:
             print(f"Error Desempeño Vendedores: {e}")
-            raise  # Temporal: dejar que el error real se vea en pantalla para diagnosticar
+            return pd.DataFrame()
 
     def get_distribucion_origen_leads(self, fecha_inicio=None, fecha_fin=None):
         """Obtiene la cantidad de leads por origen (MMM)."""
         try:
-            res = self.client.table('lead').select('red_social, fecha_registro').execute()
+            res = self.client.table('lead').select('red_social, fecha_creacion').execute()
             df = pd.DataFrame(res.data or [])
             if df.empty: return pd.DataFrame()
             if fecha_inicio and fecha_fin:
-                df['fecha_registro'] = pd.to_datetime(df['fecha_registro']).dt.date
-                df = df[(df['fecha_registro'] >= fecha_inicio) & (df['fecha_registro'] <= fecha_fin)]
+                df['fecha_creacion'] = pd.to_datetime(df['fecha_creacion']).dt.date
+                df = df[(df['fecha_creacion'] >= fecha_inicio) & (df['fecha_creacion'] <= fecha_fin)]
             
             resumen = df.groupby('red_social').size().reset_index()
             resumen.columns = ['Origen', 'Cantidad']
