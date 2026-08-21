@@ -288,56 +288,63 @@ def render_contable_dashboard_visual(supabase_client):
         from streamlit_autorefresh import st_autorefresh
         st_autorefresh(interval=60 * 1000, key="fin_refresh_counter")
 
-    # Segmentadores
-    st.markdown("### 🔍 Filtros del Dashboard")
-    hoy = date.today()
-    primer_dia_mes = hoy.replace(day=1)
+    tab_resultados, tab_informe_mensual = st.tabs(["📈 Resultados Financieros", "📊 Informe Mensual (Vendido/Operado)"])
 
-    c_fini, c_ffin, c_tipo, c_mon = st.columns(4)
-    with c_fini:
-        fecha_ini = st.date_input("Fecha Inicio", value=primer_dia_mes, key="fin_fecha_ini")
-    with c_ffin:
-        fecha_fin = st.date_input("Fecha Fin", value=hoy, key="fin_fecha_fin")
-    with c_tipo:
-        filtro_tipo = st.selectbox("Tipo de Venta", ["Todos", "Directas (B2C)", "Agencias (B2B)"], key="fin_tipo_venta")
-    with c_mon:
-        filtro_moneda = st.selectbox("Moneda Original", ["Ambas", "Soles (PEN)", "Dólares (USD)"], key="fin_moneda_base")
+    with tab_resultados:
+        # Segmentadores
+        st.markdown("### 🔍 Filtros del Dashboard")
+        hoy = date.today()
+        primer_dia_mes = hoy.replace(day=1)
 
-    reporte_ctrl = ReporteController(supabase_client)
-    from vistas.dashboard_analytics import render_financial_dashboard
+        c_fini, c_ffin, c_tipo, c_mon = st.columns(4)
+        with c_fini:
+            fecha_ini = st.date_input("Fecha Inicio", value=primer_dia_mes, key="fin_fecha_ini")
+        with c_ffin:
+            fecha_fin = st.date_input("Fecha Fin", value=hoy, key="fin_fecha_fin")
+        with c_tipo:
+            filtro_tipo = st.selectbox("Tipo de Venta", ["Todos", "Directas (B2C)", "Agencias (B2B)"], key="fin_tipo_venta")
+        with c_mon:
+            filtro_moneda = st.selectbox("Moneda Original", ["Ambas", "Soles (PEN)", "Dólares (USD)"], key="fin_moneda_base")
 
-    df_ventas, df_reqs = reporte_ctrl.get_data_for_dashboard()
+        reporte_ctrl = ReporteController(supabase_client)
+        from vistas.dashboard_analytics import render_financial_dashboard
 
-    # Aplicar filtros a df_ventas
-    if not df_ventas.empty:
-        # Filtro de Fecha (por fecha de venta)
-        if fecha_ini and fecha_fin:
-            fechas_venta = pd.to_datetime(df_ventas['fecha_venta'], errors='coerce').dt.date
-            df_ventas = df_ventas[(fechas_venta >= fecha_ini) & (fechas_venta <= fecha_fin)]
+        df_ventas, df_reqs = reporte_ctrl.get_data_for_dashboard()
 
-        # Filtro B2B/B2C
-        if filtro_tipo == "Directas (B2C)":
-            df_ventas = df_ventas[df_ventas['id_agencia_aliada'].isna() | (df_ventas['id_agencia_aliada'] == "")]
-        elif filtro_tipo == "Agencias (B2B)":
-            df_ventas = df_ventas[df_ventas['id_agencia_aliada'].notna() & (df_ventas['id_agencia_aliada'] != "")]
+        # Aplicar filtros a df_ventas
+        if not df_ventas.empty:
+            # Filtro de Fecha (por fecha de venta)
+            if fecha_ini and fecha_fin:
+                fechas_venta = pd.to_datetime(df_ventas['fecha_venta'], errors='coerce').dt.date
+                df_ventas = df_ventas[(fechas_venta >= fecha_ini) & (fechas_venta <= fecha_fin)]
 
-        # Filtro Moneda
-        if filtro_moneda == "Soles (PEN)":
-            df_ventas = df_ventas[df_ventas['moneda'] == 'PEN']
-        elif filtro_moneda == "Dólares (USD)":
-            df_ventas = df_ventas[df_ventas['moneda'] == 'USD']
+            # Filtro B2B/B2C
+            if filtro_tipo == "Directas (B2C)":
+                df_ventas = df_ventas[df_ventas['id_agencia_aliada'].isna() | (df_ventas['id_agencia_aliada'] == "")]
+            elif filtro_tipo == "Agencias (B2B)":
+                df_ventas = df_ventas[df_ventas['id_agencia_aliada'].notna() & (df_ventas['id_agencia_aliada'] != "")]
 
-    render_financial_dashboard(df_ventas, df_reqs, supabase_client=supabase_client, filtro_moneda=filtro_moneda)
-    
-    st.divider()
-    st.write("### 📋 Últimas Transacciones")
-    if not df_ventas.empty:
-        # Usar nombres de columnas correctos según esquema SQL
-        cols_to_show = ['id_venta', 'monto_total', 'estado_venta', 'vendedor']
-        # Verificar que las columnas existan antes de filtrar (robusto)
-        available_cols = [c for c in cols_to_show if c in df_ventas.columns]
-        st.dataframe(df_ventas[available_cols].head(10), use_container_width=True, hide_index=True)
-        
+            # Filtro Moneda
+            if filtro_moneda == "Soles (PEN)":
+                df_ventas = df_ventas[df_ventas['moneda'] == 'PEN']
+            elif filtro_moneda == "Dólares (USD)":
+                df_ventas = df_ventas[df_ventas['moneda'] == 'USD']
+
+        render_financial_dashboard(df_ventas, df_reqs, supabase_client=supabase_client, filtro_moneda=filtro_moneda)
+
+        st.divider()
+        st.write("### 📋 Últimas Transacciones")
+        if not df_ventas.empty:
+            # Usar nombres de columnas correctos según esquema SQL
+            cols_to_show = ['id_venta', 'monto_total', 'estado_venta', 'vendedor']
+            # Verificar que las columnas existan antes de filtrar (robusto)
+            available_cols = [c for c in cols_to_show if c in df_ventas.columns]
+            st.dataframe(df_ventas[available_cols].head(10), use_container_width=True, hide_index=True)
+
+    with tab_informe_mensual:
+        from vistas.dashboard_analytics import render_informe_mensual_vendido_operado
+        render_informe_mensual_vendido_operado(supabase_client)
+
 
 
 def render_exec_dashboard_visual(supabase_client):
