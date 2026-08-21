@@ -305,32 +305,43 @@ def render_contable_dashboard_visual(supabase_client):
             filtro_tipo = st.selectbox("Tipo de Venta", ["Todos", "Directas (B2C)", "Agencias (B2B)"], key="fin_tipo_venta")
         with c_mon:
             filtro_moneda = st.selectbox("Moneda Original", ["Ambas", "Soles (PEN)", "Dólares (USD)"], key="fin_moneda_base")
+        st.caption("Ingresos = ventas registradas en este rango (fecha de venta). "
+                   "Gastos = costos de los pasajeros cuyo viaje inicia en este rango (fecha de inicio) — pueden ser grupos distintos.")
 
         reporte_ctrl = ReporteController(supabase_client)
         from vistas.dashboard_analytics import render_financial_dashboard
 
         df_ventas, df_reqs = reporte_ctrl.get_data_for_dashboard()
 
-        # Aplicar filtros a df_ventas
+        # Filtros comunes (tipo de venta y moneda), aplicados antes de separar por fecha
         if not df_ventas.empty:
-            # Filtro de Fecha (por fecha de venta)
-            if fecha_ini and fecha_fin:
-                fechas_venta = pd.to_datetime(df_ventas['fecha_venta'], errors='coerce').dt.date
-                df_ventas = df_ventas[(fechas_venta >= fecha_ini) & (fechas_venta <= fecha_fin)]
-
-            # Filtro B2B/B2C
             if filtro_tipo == "Directas (B2C)":
                 df_ventas = df_ventas[df_ventas['id_agencia_aliada'].isna() | (df_ventas['id_agencia_aliada'] == "")]
             elif filtro_tipo == "Agencias (B2B)":
                 df_ventas = df_ventas[df_ventas['id_agencia_aliada'].notna() & (df_ventas['id_agencia_aliada'] != "")]
 
-            # Filtro Moneda
             if filtro_moneda == "Soles (PEN)":
                 df_ventas = df_ventas[df_ventas['moneda'] == 'PEN']
             elif filtro_moneda == "Dólares (USD)":
                 df_ventas = df_ventas[df_ventas['moneda'] == 'USD']
 
-        render_financial_dashboard(df_ventas, df_reqs, supabase_client=supabase_client, filtro_moneda=filtro_moneda)
+        # Ingresos: ventas cuya FECHA DE VENTA cae en el rango
+        df_ventas_ingresos = df_ventas
+        if not df_ventas.empty and fecha_ini and fecha_fin:
+            fechas_venta = pd.to_datetime(df_ventas['fecha_venta'], errors='coerce').dt.date
+            df_ventas_ingresos = df_ventas[(fechas_venta >= fecha_ini) & (fechas_venta <= fecha_fin)]
+
+        # Gastos: ventas cuyo VIAJE (fecha_inicio) cae en el rango
+        df_ventas_gastos = df_ventas
+        if not df_ventas.empty and fecha_ini and fecha_fin:
+            fechas_viaje = pd.to_datetime(df_ventas['fecha_inicio'], errors='coerce').dt.date
+            df_ventas_gastos = df_ventas[(fechas_viaje >= fecha_ini) & (fechas_viaje <= fecha_fin)]
+
+        render_financial_dashboard(
+            df_ventas_ingresos, df_reqs, supabase_client=supabase_client,
+            filtro_moneda=filtro_moneda, df_ventas_gastos=df_ventas_gastos
+        )
+        df_ventas = df_ventas_ingresos  # para la tabla de "Últimas Transacciones" de abajo
 
         st.divider()
         st.write("### 📋 Últimas Transacciones")

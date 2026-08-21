@@ -171,7 +171,7 @@ def render_operations_dashboard(df_servicios):
         if not df_servicios.empty:
             st.write("Columnas disponibles:", df_servicios.columns.tolist())
 
-def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=None, filtro_moneda="Ambas"):
+def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=None, filtro_moneda="Ambas", df_ventas_gastos=None):
     """Genera el Dashboard Financiero con gastos reales desde pago_operativo."""
     st.subheader("Resultados Financieros")
 
@@ -202,11 +202,13 @@ def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=Non
             total_ingresos += _convertir(monto, moneda, tc)
 
     # --- GASTOS: leer pago_operativo directamente desde Supabase ---
-    # Se restringe a las ventas ya filtradas (tipo B2C/B2B + no canceladas)
-    # para que Ingresos y Gastos siempre correspondan al mismo conjunto de ventas.
+    # Se restringe a las ventas de "df_ventas_gastos" (filtradas por fecha de INICIO del viaje)
+    # si se provee; si no, cae de vuelta a df_ventas (mismo comportamiento de antes).
+    # Ingresos = por fecha de venta. Gastos = por fecha en que viaja el pasajero (egreso real del período).
+    df_scope_gastos = df_ventas_gastos if df_ventas_gastos is not None else df_ventas
     ids_venta_filtradas = None
-    if not df_ventas.empty and 'id_venta' in df_ventas.columns:
-        ids_venta_filtradas = set(df_ventas['id_venta'].dropna().tolist())
+    if not df_scope_gastos.empty and 'id_venta' in df_scope_gastos.columns:
+        ids_venta_filtradas = set(df_scope_gastos['id_venta'].dropna().tolist())
 
     total_gastos = 0.0
     if supabase_client is not None:
@@ -238,9 +240,11 @@ def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=Non
 
     # --- SCORECARDS ---
     sc1, sc2, sc3 = st.columns(3)
-    sc1.metric("Total Ingresos (Ventas)", f"{simbolo}{total_ingresos:,.2f}", delta="Cifra Bruta")
+    sc1.metric("Total Ingresos (Ventas)", f"{simbolo}{total_ingresos:,.2f}", delta="Cifra Bruta",
+               help="Ventas cuya fecha de VENTA cae en el rango seleccionado.")
     sc2.metric("Total Gastos Operativos", f"{simbolo}{total_gastos:,.2f}", delta_color="inverse",
-               help="Suma de todos los pagos a proveedores registrados en Pago Operativo")
+               help="Costos de las ventas cuyo VIAJE (fecha de inicio) cae en el rango seleccionado. "
+                    "No es necesariamente el mismo grupo de ventas que Ingresos.")
     sc3.metric("Utilidad Operativa", f"{simbolo}{utilidad:,.2f}", delta=f"{margen:.1f}% margen")
 
     # --- WATERFALL CHART ---
