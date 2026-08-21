@@ -391,7 +391,7 @@ def render_informe_mensual_vendido_operado(supabase_client):
     import calendar
 
     hoy = date.today()
-    c_anio, c_mes = st.columns(2)
+    c_anio, c_mes, c_tipo = st.columns(3)
     with c_anio:
         anio = c_anio.selectbox("Año", list(range(hoy.year - 2, hoy.year + 1)), index=2, key="inf_mv_anio")
     with c_mes:
@@ -399,6 +399,8 @@ def render_informe_mensual_vendido_operado(supabase_client):
                           "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
         mes_idx = c_mes.selectbox("Mes", list(range(1, 13)), index=hoy.month - 1,
                                    format_func=lambda m: meses_nombres[m - 1], key="inf_mv_mes")
+    with c_tipo:
+        filtro_tipo = c_tipo.selectbox("Tipo de Venta", ["Todos", "Directas (B2C)", "Agencias (B2B)"], key="inf_mv_tipo")
 
     fecha_ini = date(anio, mes_idx, 1)
     fecha_fin = date(anio, mes_idx, calendar.monthrange(anio, mes_idx)[1])
@@ -406,10 +408,10 @@ def render_informe_mensual_vendido_operado(supabase_client):
     tab_vend, tab_op = st.tabs(["🛍️ Pax Vendidos", "🧳 Pax Operados"])
 
     with tab_vend:
-        _render_pax_vendidos(supabase_client, fecha_ini, fecha_fin)
+        _render_pax_vendidos(supabase_client, fecha_ini, fecha_fin, filtro_tipo)
 
     with tab_op:
-        _render_pax_operados(supabase_client, fecha_ini, fecha_fin)
+        _render_pax_operados(supabase_client, fecha_ini, fecha_fin, filtro_tipo)
 
 
 def _nombre_cliente(v):
@@ -419,11 +421,20 @@ def _nombre_cliente(v):
     return cli.get('nombre') or 'Cliente'
 
 
-def _render_pax_vendidos(supabase_client, fecha_ini, fecha_fin):
+def _filtrar_tipo_venta(ventas, filtro_tipo):
+    """Filtra una lista de ventas (dicts) por segmento B2C/B2B según id_agencia_aliada."""
+    if filtro_tipo == "Directas (B2C)":
+        return [v for v in ventas if not v.get('id_agencia_aliada')]
+    if filtro_tipo == "Agencias (B2B)":
+        return [v for v in ventas if v.get('id_agencia_aliada')]
+    return ventas
+
+
+def _render_pax_vendidos(supabase_client, fecha_ini, fecha_fin, filtro_tipo="Todos"):
     """Ventas registradas (fecha_venta) dentro del período, por pasajero/grupo."""
     try:
         res = supabase_client.table('venta').select(
-            'id_venta, precio_total_cierre, moneda, num_pasajeros, fecha_venta, cliente(nombre)'
+            'id_venta, precio_total_cierre, moneda, num_pasajeros, fecha_venta, id_agencia_aliada, cliente(nombre)'
         ).neq('estado_venta', 'CANCELADO') \
          .gte('fecha_venta', fecha_ini.isoformat()) \
          .lte('fecha_venta', fecha_fin.isoformat()) \
@@ -432,7 +443,7 @@ def _render_pax_vendidos(supabase_client, fecha_ini, fecha_fin):
         st.error(f"No se pudo cargar Ventas: {e}")
         return
 
-    ventas = res.data or []
+    ventas = _filtrar_tipo_venta(res.data or [], filtro_tipo)
     if not ventas:
         st.info("No hay ventas registradas en este período.")
         return
@@ -483,12 +494,12 @@ def _render_pax_vendidos(supabase_client, fecha_ini, fecha_fin):
     )
 
 
-def _render_pax_operados(supabase_client, fecha_ini, fecha_fin):
+def _render_pax_operados(supabase_client, fecha_ini, fecha_fin, filtro_tipo="Todos"):
     """Ventas cuyo viaje (fecha_inicio) cae dentro del período: Ingreso, Costo y Utilidad por pasajero/grupo.
     El costo se convierte siempre a la moneda de la venta (nunca se descarta un costo por estar en otra moneda)."""
     try:
         res = supabase_client.table('venta').select(
-            'id_venta, precio_total_cierre, moneda, tipo_cambio, num_pasajeros, fecha_inicio, cliente(nombre)'
+            'id_venta, precio_total_cierre, moneda, tipo_cambio, num_pasajeros, fecha_inicio, id_agencia_aliada, cliente(nombre)'
         ).neq('estado_venta', 'CANCELADO') \
          .gte('fecha_inicio', fecha_ini.isoformat()) \
          .lte('fecha_inicio', fecha_fin.isoformat()) \
@@ -497,7 +508,7 @@ def _render_pax_operados(supabase_client, fecha_ini, fecha_fin):
         st.error(f"No se pudo cargar Operaciones: {e}")
         return
 
-    ventas = res.data or []
+    ventas = _filtrar_tipo_venta(res.data or [], filtro_tipo)
     if not ventas:
         st.info("No hay viajes operados en este período.")
         return
