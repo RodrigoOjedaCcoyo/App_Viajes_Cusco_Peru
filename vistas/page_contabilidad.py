@@ -101,25 +101,26 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, su
     st.markdown("---")
     
     if funcionalidad_seleccionada in ["Gestión de Registros", "Finanzas y Caja"]:
-        tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+        tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
             "📈 Reporte Maestro",
-            "📊 Estructurador Financiero", 
+            "📊 Estructurador Financiero",
             "💰 Cuentas por Cobrar",
             "🚐 Pagos Operativos (Proveedores)",
             "📅 Calendario Operativo",
             "🎫 Impresión de Vouchers",
-            "📊 Flujo de Caja (Caja Diaria)"
+            "📊 Flujo de Caja (Caja Diaria)",
+            "📊 Informe Mensual (Vendido/Operado)"
         ])
-        
+
         with tab1:
             render_reporte_maestro_cobranzas(supabase_client)
 
         with tab2:
             estructurador_liquidacion_pro(st.session_state['reporte_controller'])
-            
+
         with tab3:
             dashboard_cuentas_por_cobrar_unified(supabase_client)
-            
+
         with tab4:
             dashboard_pagos_operativos(supabase_client)
 
@@ -135,6 +136,10 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual=None, user_id=None, su
 
         with tab7:
             render_caja_diaria(supabase_client)
+
+        with tab8:
+            from vistas.dashboard_analytics import render_informe_mensual_vendido_operado
+            render_informe_mensual_vendido_operado(supabase_client)
     else:
         st.info("Utilice el Dashboard Contable para ver reportes.")
 

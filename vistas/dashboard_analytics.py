@@ -375,3 +375,176 @@ def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=Non
         
     else:
         st.info("No hay suficientes datos de ingresos o costos para generar el reporte comparativo mensual.")
+
+
+def render_informe_mensual_vendido_operado(supabase_client):
+    """Informe mensual para Contabilidad: Pax Vendidos vs Pax Operados, por pasajero/grupo.
+    Reemplaza el armado manual en Excel: jala los datos directo del sistema."""
+    st.subheader("📊 Informe Mensual: Vendidos vs Operados", divider='blue')
+    st.caption("Reemplaza el reporte manual de Excel. Los montos se muestran en su moneda original (no se mezcla USD con PEN).")
+
+    from datetime import date
+    import calendar
+
+    hoy = date.today()
+    c_anio, c_mes = st.columns(2)
+    with c_anio:
+        anio = c_anio.selectbox("Año", list(range(hoy.year - 2, hoy.year + 1)), index=2, key="inf_mv_anio")
+    with c_mes:
+        meses_nombres = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio",
+                          "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+        mes_idx = c_mes.selectbox("Mes", list(range(1, 13)), index=hoy.month - 1,
+                                   format_func=lambda m: meses_nombres[m - 1], key="inf_mv_mes")
+
+    fecha_ini = date(anio, mes_idx, 1)
+    fecha_fin = date(anio, mes_idx, calendar.monthrange(anio, mes_idx)[1])
+
+    tab_vend, tab_op = st.tabs(["🛍️ Pax Vendidos", "🧳 Pax Operados"])
+
+    with tab_vend:
+        _render_pax_vendidos(supabase_client, fecha_ini, fecha_fin)
+
+    with tab_op:
+        _render_pax_operados(supabase_client, fecha_ini, fecha_fin)
+
+
+def _nombre_cliente(v):
+    cli = v.get('cliente') or {}
+    if isinstance(cli, list):
+        cli = cli[0] if cli else {}
+    return cli.get('nombre') or 'Cliente'
+
+
+def _render_pax_vendidos(supabase_client, fecha_ini, fecha_fin):
+    """Ventas registradas (fecha_venta) dentro del período, por pasajero/grupo."""
+    try:
+        res = supabase_client.table('venta').select(
+            'id_venta, precio_total_cierre, moneda, num_pasajeros, fecha_venta, cliente(nombre)'
+        ).neq('estado_venta', 'CANCELADO') \
+         .gte('fecha_venta', fecha_ini.isoformat()) \
+         .lte('fecha_venta', fecha_fin.isoformat()) \
+         .execute()
+    except Exception as e:
+        st.error(f"No se pudo cargar Ventas: {e}")
+        return
+
+    ventas = res.data or []
+    if not ventas:
+        st.info("No hay ventas registradas en este período.")
+        return
+
+    rows = []
+    for v in ventas:
+        pax = v.get('num_pasajeros') or 1
+        rows.append({
+            "Pasajero": f"{_nombre_cliente(v)} X {pax}",
+            "Monto": float(v.get('precio_total_cierre') or 0),
+            "Moneda": str(v.get('moneda') or 'USD').strip().upper()
+        })
+
+    df = pd.DataFrame(rows)
+
+    tot_usd = df.loc[df['Moneda'] == 'USD', 'Monto'].sum()
+    tot_pen = df.loc[df['Moneda'] == 'PEN', 'Monto'].sum()
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Total Vendido (USD)", f"$ {tot_usd:,.2f}")
+    c2.metric("Total Vendido (PEN)", f"S/ {tot_pen:,.2f}")
+    c3.metric("Ventas del Período", f"{len(df):,}")
+
+    fig = px.bar(
+        df, x='Pasajero', y='Monto', color='Moneda', barmode='group',
+        title="Monto Vendido por Pasajero/Grupo",
+        color_discrete_map={'USD': '#42A5F5', 'PEN': '#66BB6A'}
+    )
+    fig.update_layout(xaxis_tickangle=-45, height=450)
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def _render_pax_operados(supabase_client, fecha_ini, fecha_fin):
+    """Ventas cuyo viaje (fecha_inicio) cae dentro del período: Ingreso, Costo y Utilidad por pasajero/grupo.
+    El costo se convierte siempre a la moneda de la venta (nunca se descarta un costo por estar en otra moneda)."""
+    try:
+        res = supabase_client.table('venta').select(
+            'id_venta, precio_total_cierre, moneda, tipo_cambio, num_pasajeros, fecha_inicio, cliente(nombre)'
+        ).neq('estado_venta', 'CANCELADO') \
+         .gte('fecha_inicio', fecha_ini.isoformat()) \
+         .lte('fecha_inicio', fecha_fin.isoformat()) \
+         .execute()
+    except Exception as e:
+        st.error(f"No se pudo cargar Operaciones: {e}")
+        return
+
+    ventas = res.data or []
+    if not ventas:
+        st.info("No hay viajes operados en este período.")
+        return
+
+    ids_venta = [v['id_venta'] for v in ventas]
+    costos_por_venta = {}
+    try:
+        res_costos = supabase_client.table('venta_servicio_proveedor').select(
+            'id_venta, costo_unitario, cantidad_pax, moneda'
+        ).in_('id_venta', ids_venta).execute()
+        for c in (res_costos.data or []):
+            vid = c['id_venta']
+            mon = str(c.get('moneda') or 'USD').strip().upper()
+            monto_c = float(c.get('costo_unitario') or 0) * int(c.get('cantidad_pax') or 1)
+            costos_por_venta.setdefault(vid, {}).setdefault(mon, 0.0)
+            costos_por_venta[vid][mon] += monto_c
+    except Exception as e:
+        st.warning(f"No se pudieron cargar los costos operativos: {e}")
+
+    rows = []
+    for v in ventas:
+        pax = v.get('num_pasajeros') or 1
+        ingreso = float(v.get('precio_total_cierre') or 0)
+        moneda_v = str(v.get('moneda') or 'USD').strip().upper()
+        tc = float(v.get('tipo_cambio') or 3.80) or 3.80
+
+        costo_total = 0.0
+        for mon_c, monto_c in costos_por_venta.get(v['id_venta'], {}).items():
+            if mon_c == moneda_v:
+                costo_total += monto_c
+            elif moneda_v == 'PEN':
+                costo_total += monto_c * tc  # costo en USD -> PEN
+            else:
+                costo_total += monto_c / tc  # costo en PEN -> USD
+
+        rows.append({
+            "Pasajero": f"{_nombre_cliente(v)} X {pax}",
+            "Ingreso": ingreso,
+            "Costo": costo_total,
+            "Utilidad": ingreso - costo_total,
+            "Moneda": moneda_v
+        })
+
+    df = pd.DataFrame(rows)
+
+    monedas_presentes = [m for m in ['USD', 'PEN'] if (df['Moneda'] == m).any()]
+    if not monedas_presentes:
+        st.info("No hay datos para mostrar.")
+        return
+
+    moneda_vista = st.radio(
+        "Ver en:", monedas_presentes,
+        format_func=lambda m: "Dólares (USD)" if m == 'USD' else "Soles (PEN)",
+        horizontal=True, key="inf_mv_moneda_op"
+    )
+    simbolo = '$' if moneda_vista == 'USD' else 'S/'
+
+    df_v = df[df['Moneda'] == moneda_vista]
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric(f"Ingreso Total ({moneda_vista})", f"{simbolo} {df_v['Ingreso'].sum():,.2f}")
+    c2.metric(f"Costo Total ({moneda_vista})", f"{simbolo} {df_v['Costo'].sum():,.2f}")
+    c3.metric(f"Utilidad Total ({moneda_vista})", f"{simbolo} {df_v['Utilidad'].sum():,.2f}")
+
+    df_melt = df_v.melt(id_vars=['Pasajero'], value_vars=['Ingreso', 'Costo', 'Utilidad'],
+                         var_name='Concepto', value_name='Monto')
+    fig = px.bar(
+        df_melt, x='Pasajero', y='Monto', color='Concepto', barmode='group',
+        title=f"Ingreso / Costo / Utilidad por Pasajero/Grupo Operado ({moneda_vista})",
+        color_discrete_map={'Ingreso': '#42A5F5', 'Costo': '#EF5350', 'Utilidad': '#66BB6A'}
+    )
+    fig.update_layout(xaxis_tickangle=-45, height=450)
+    st.plotly_chart(fig, use_container_width=True)
