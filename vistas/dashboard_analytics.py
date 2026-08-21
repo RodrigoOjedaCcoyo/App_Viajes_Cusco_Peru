@@ -459,6 +459,25 @@ def _render_pax_vendidos(supabase_client, fecha_ini, fecha_fin):
     fig.update_layout(xaxis_tickangle=-45, height=450)
     st.plotly_chart(fig, use_container_width=True)
 
+    # --- TABLA (mismo formato que el Excel: MONTO S/. | MONTO $) ---
+    st.markdown("##### 📋 Detalle en Tabla")
+    df_tabla = df.pivot_table(index='Pasajero', columns='Moneda', values='Monto', aggfunc='sum').reset_index()
+    df_tabla = df_tabla.rename(columns={'PEN': 'MONTO S/.', 'USD': 'MONTO $'})
+    for col in ['MONTO S/.', 'MONTO $']:
+        if col not in df_tabla.columns:
+            df_tabla[col] = 0.0
+    df_tabla = df_tabla[['Pasajero', 'MONTO S/.', 'MONTO $']].fillna(0.0)
+    fila_total = pd.DataFrame([{
+        'Pasajero': 'TOTAL',
+        'MONTO S/.': df_tabla['MONTO S/.'].sum(),
+        'MONTO $': df_tabla['MONTO $'].sum()
+    }])
+    df_tabla = pd.concat([df_tabla, fila_total], ignore_index=True)
+    st.dataframe(
+        df_tabla.style.format({'MONTO S/.': 'S/ {:,.2f}', 'MONTO $': '$ {:,.2f}'}),
+        use_container_width=True, hide_index=True
+    )
+
 
 def _render_pax_operados(supabase_client, fecha_ini, fecha_fin):
     """Ventas cuyo viaje (fecha_inicio) cae dentro del período: Ingreso, Costo y Utilidad por pasajero/grupo.
@@ -548,3 +567,19 @@ def _render_pax_operados(supabase_client, fecha_ini, fecha_fin):
     )
     fig.update_layout(xaxis_tickangle=-45, height=450)
     st.plotly_chart(fig, use_container_width=True)
+
+    # --- TABLA (mismo formato que el Excel: NOMBRE | MONTO | COSTO | UTILIDAD) ---
+    st.markdown("##### 📋 Detalle en Tabla")
+    df_tabla = df_v[['Pasajero', 'Ingreso', 'Costo', 'Utilidad']].copy()
+    fila_total = pd.DataFrame([{
+        'Pasajero': 'TOTAL',
+        'Ingreso': df_tabla['Ingreso'].sum(),
+        'Costo': df_tabla['Costo'].sum(),
+        'Utilidad': df_tabla['Utilidad'].sum()
+    }])
+    df_tabla = pd.concat([df_tabla, fila_total], ignore_index=True)
+    fmt = f"{simbolo} " + "{:,.2f}"
+    st.dataframe(
+        df_tabla.style.format({'Ingreso': fmt, 'Costo': fmt, 'Utilidad': fmt}),
+        use_container_width=True, hide_index=True
+    )
