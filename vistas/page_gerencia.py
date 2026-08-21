@@ -223,8 +223,19 @@ def auditoria_maestra(controller):
         top_canal = df_v_canal.iloc[0]['Canal'] if not df_v_canal.empty else "N/A"
         st.metric("Canal Líder", top_canal)
     with m2:
-        monto_avg = df_ventas_limpio['Monto'].mean() if not df_ventas_limpio.empty else 0
-        st.metric("Ticket Promedio", f"S/ {float(monto_avg or 0):,.2f}")
+        df_vl_validas = df_ventas_limpio[df_ventas_limpio['Estado'] != 'CANCELADO'] if not df_ventas_limpio.empty else df_ventas_limpio
+        if df_vl_validas is None or df_vl_validas.empty:
+            st.metric("Ticket Promedio", "S/ 0.00")
+        else:
+            # No se mezclan monedas: se promedia solo la divisa con más transacciones.
+            divisa_dom = df_vl_validas['Divisa'].value_counts().idxmax()
+            monto_avg = df_vl_validas.loc[df_vl_validas['Divisa'] == divisa_dom, 'Monto'].mean()
+            simbolo_dom = 'S/' if divisa_dom == 'PEN' else '$'
+            otras_divisas = df_vl_validas.loc[df_vl_validas['Divisa'] != divisa_dom]
+            ayuda = None
+            if not otras_divisas.empty:
+                ayuda = f"Excluye {len(otras_divisas)} venta(s) en otra(s) moneda(s) para no mezclar divisas."
+            st.metric(f"Ticket Promedio ({divisa_dom})", f"{simbolo_dom} {float(monto_avg or 0):,.2f}", help=ayuda)
     with m3:
         pax_total = controller.get_pax_totales()
         st.metric("PAX en Operación", f"{pax_total}")
@@ -398,6 +409,55 @@ def auditoria_maestra(controller):
         fig_conv.update_layout(height=300, margin=dict(l=0, r=0, t=10, b=0), coloraxis_showscale=False)
         st.plotly_chart(fig_conv, use_container_width=True)
 
+        # --- 4 gráficos adicionales de desempeño de vendedores ---
+        if df_ventas_limpio is not None and not df_ventas_limpio.empty:
+            df_vl_activas = df_ventas_limpio[df_ventas_limpio['Estado'] != 'CANCELADO'].copy()
+
+            vv3, vv4 = st.columns(2)
+            with vv3:
+                st.markdown("##### Monto Vendido por Vendedor")
+                df_monto_vend = df_vl_activas.groupby(['Vendedor', 'Divisa'])['Monto'].sum().reset_index()
+                fig_monto_vend = px.bar(
+                    df_monto_vend, x='Vendedor', y='Monto', color='Divisa', barmode='group',
+                    color_discrete_map={'USD': '#42A5F5', 'PEN': '#66BB6A'},
+                    text_auto='.2s'
+                )
+                fig_monto_vend.update_layout(height=350, margin=dict(l=0, r=0, t=10, b=0), legend_title='')
+                st.plotly_chart(fig_monto_vend, use_container_width=True)
+
+            with vv4:
+                st.markdown("##### Ticket Promedio por Vendedor")
+                df_ticket_vend = df_vl_activas.groupby(['Vendedor', 'Divisa'])['Monto'].mean().round(2).reset_index()
+                fig_ticket_vend = px.bar(
+                    df_ticket_vend, x='Vendedor', y='Monto', color='Divisa', barmode='group',
+                    color_discrete_map={'USD': '#42A5F5', 'PEN': '#66BB6A'},
+                    text_auto='.2s'
+                )
+                fig_ticket_vend.update_layout(height=350, margin=dict(l=0, r=0, t=10, b=0), legend_title='', yaxis_title='Ticket Promedio')
+                st.plotly_chart(fig_ticket_vend, use_container_width=True)
+
+            vv5, vv6 = st.columns(2)
+            with vv5:
+                st.markdown("##### Evolución de Ventas por Vendedor (Cantidad Diaria)")
+                df_evol_vend = df_vl_activas.groupby(['Fecha', 'Vendedor']).size().reset_index(name='Ventas')
+                fig_evol_vend = px.line(
+                    df_evol_vend, x='Fecha', y='Ventas', color='Vendedor', markers=True
+                )
+                fig_evol_vend.update_layout(height=350, margin=dict(l=0, r=0, t=10, b=0), legend_title='')
+                st.plotly_chart(fig_evol_vend, use_container_width=True)
+
+            with vv6:
+                st.markdown("##### Estado de Ventas por Vendedor")
+                df_estado_vend = df_ventas_limpio.groupby(['Vendedor', 'Estado']).size().reset_index(name='Cantidad')
+                fig_estado_vend = px.bar(
+                    df_estado_vend, x='Vendedor', y='Cantidad', color='Estado', barmode='stack',
+                    color_discrete_map={'CONFIRMADO': '#66BB6A', 'FINALIZADO': '#42A5F5', 'CANCELADO': '#EF5350'}
+                )
+                fig_estado_vend.update_layout(height=350, margin=dict(l=0, r=0, t=10, b=0), legend_title='')
+                st.plotly_chart(fig_estado_vend, use_container_width=True)
+        else:
+            st.info("Sin detalle de ventas para graficar el desempeño individual de vendedores.")
+
     st.markdown("---")
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -448,8 +508,8 @@ def auditoria_maestra(controller):
             hide_index=True,
             column_config={
                 "Fecha": st.column_config.DateColumn("📆 Fecha", format="DD/MM/YYYY"),
-                "Monto": st.column_config.NumberColumn("💰 Monto", format="S/ %.2f"),
-                "Divisa": st.column_config.TextColumn("💱"),
+                "Monto": st.column_config.NumberColumn("💰 Monto", format="%.2f"),
+                "Divisa": st.column_config.TextColumn("💱 Moneda"),
                 "Estado": st.column_config.TextColumn("📌 Estado"),
                 "Cliente": st.column_config.TextColumn("👤 Cliente"),
                 "Vendedor": st.column_config.TextColumn("👨‍💼 Vendedor")
@@ -485,7 +545,7 @@ def render_control_financiero_liquidaciones(supabase_client):
     elif tipo_venta == "👤 B2C (Directas)":
         with c_filtro:
             st.info("📋 Mostrando todas las ventas directas")
-        ventas_filtradas = vc.obtener_ventas_directas()
+        ventas_filtradas = vc.obtener_ventas_directas(incluir_finalizadas=False)
     
     id_venta = None
     if ventas_filtradas:
@@ -928,6 +988,75 @@ def panel_desempeno_operaciones(supabase_client):
         )
         st.plotly_chart(fig_lead, use_container_width=True)
 
+    st.markdown("---")
+
+    # ─────────────────────────────────────────────────────────────────
+    # 8. COSTO OPERATIVO DIARIO (TENDENCIA)
+    # ─────────────────────────────────────────────────────────────────
+    st.markdown("#### 📈 Costo Operativo Diario (USD)")
+    df_costo_dia = df_actual.copy()
+    df_costo_dia['fecha_servicio'] = pd.to_datetime(df_costo_dia['fecha_servicio']).dt.date
+    df_costo_dia_agg = df_costo_dia.groupby('fecha_servicio')['costo_usd'].sum().reset_index()
+    fig_costo_dia = px.area(
+        df_costo_dia_agg, x='fecha_servicio', y='costo_usd', markers=True,
+        color_discrete_sequence=['#EF5350'],
+        labels={'fecha_servicio': 'Fecha', 'costo_usd': 'Costo (USD)'}
+    )
+    fig_costo_dia.update_layout(height=320, margin=dict(l=0, r=0, t=20, b=0))
+    st.plotly_chart(fig_costo_dia, use_container_width=True)
+
+    st.markdown("---")
+
+    # ─────────────────────────────────────────────────────────────────
+    # 9. PAX ATENDIDOS POR DÍA
+    # ─────────────────────────────────────────────────────────────────
+    st.markdown("#### 🧑‍🤝‍🧑 Pax Atendidos por Día")
+    df_pax_dia = df_actual.copy()
+    df_pax_dia['fecha_servicio'] = pd.to_datetime(df_pax_dia['fecha_servicio']).dt.date
+    df_pax_dia_agg = df_pax_dia.groupby('fecha_servicio')['pax'].sum().reset_index()
+    fig_pax_dia = px.bar(
+        df_pax_dia_agg, x='fecha_servicio', y='pax', text='pax',
+        color_discrete_sequence=['#26A69A'],
+        labels={'fecha_servicio': 'Fecha', 'pax': 'Pax Atendidos'}
+    )
+    fig_pax_dia.update_layout(height=320, margin=dict(l=0, r=0, t=20, b=0))
+    st.plotly_chart(fig_pax_dia, use_container_width=True)
+
+    st.markdown("---")
+
+    # ─────────────────────────────────────────────────────────────────
+    # 10. COSTO PROMEDIO POR SERVICIO: B2B VS B2C
+    # ─────────────────────────────────────────────────────────────────
+    o1, o2 = st.columns(2)
+    with o1:
+        st.markdown("#### 💵 Costo Promedio por Servicio (B2B vs B2C)")
+        df_costo_seg = df_actual.groupby('tipo_venta')['costo_usd'].mean().round(2).reset_index()
+        fig_costo_seg = px.bar(
+            df_costo_seg, x='tipo_venta', y='costo_usd', text='costo_usd',
+            color='tipo_venta', color_discrete_map={'B2B': '#7E57C2', 'B2C': '#26A69A'},
+            labels={'tipo_venta': 'Segmento', 'costo_usd': 'Costo Promedio (USD)'}
+        )
+        fig_costo_seg.update_layout(height=320, margin=dict(l=0, r=0, t=20, b=0), showlegend=False)
+        st.plotly_chart(fig_costo_seg, use_container_width=True)
+
+        # ─────────────────────────────────────────────────────────────
+        # 11. % CUMPLIMIENTO EN EL TIEMPO
+        # ─────────────────────────────────────────────────────────────
+    with o2:
+        st.markdown("#### ✅ % Cumplimiento a lo Largo del Periodo")
+        df_cump = df_actual.copy()
+        df_cump['fecha_servicio'] = pd.to_datetime(df_cump['fecha_servicio']).dt.date
+        df_cump_agg = df_cump.groupby('fecha_servicio').apply(
+            lambda g: round((g['estado'] == 'TERMINADO').sum() / len(g) * 100, 1)
+        ).reset_index(name='pct_cumplido')
+        fig_cump = px.line(
+            df_cump_agg, x='fecha_servicio', y='pct_cumplido', markers=True,
+            color_discrete_sequence=['#66BB6A'],
+            labels={'fecha_servicio': 'Fecha', 'pct_cumplido': '% Cumplido'}
+        )
+        fig_cump.update_layout(height=320, margin=dict(l=0, r=0, t=20, b=0), yaxis_range=[0, 105])
+        st.plotly_chart(fig_cump, use_container_width=True)
+
 
 def panel_desempeno_contabilidad(supabase_client):
     """Panel exclusivo de Gerencia: desempeño financiero/contable, con selector de fechas, B2B/B2C y moneda."""
@@ -1135,6 +1264,83 @@ def panel_desempeno_contabilidad(supabase_client):
         fig_c.update_layout(height=380, margin=dict(l=0, r=0, t=20, b=0), coloraxis_showscale=False)
         fig_c.update_yaxes(title=None)
         st.plotly_chart(fig_c, use_container_width=True)
+
+    st.markdown("---")
+
+    # ─────────────────────────────────────────────────────────────────
+    # 8. UTILIDAD ACUMULADA DEL PERIODO
+    # ─────────────────────────────────────────────────────────────────
+    st.markdown("#### 📈 Utilidad Acumulada del Periodo")
+    if df_flujo.empty:
+        st.info("Sin movimientos para calcular la utilidad acumulada.")
+    else:
+        df_acum = df_flujo.copy()
+        df_acum['Utilidad'] = df_acum['Ingresos'] - df_acum['Gastos']
+        df_acum['Utilidad Acumulada'] = df_acum['Utilidad'].cumsum()
+        fig_acum = px.area(
+            df_acum, x='fecha', y='Utilidad Acumulada', markers=True,
+            color_discrete_sequence=['#66BB6A'],
+            labels={'fecha': 'Fecha', 'Utilidad Acumulada': f'Utilidad Acumulada ({moneda_dest})'}
+        )
+        fig_acum.update_layout(height=320, margin=dict(l=0, r=0, t=20, b=0))
+        st.plotly_chart(fig_acum, use_container_width=True)
+
+    st.markdown("---")
+
+    # ─────────────────────────────────────────────────────────────────
+    # 9. INGRESOS DIARIOS POR SEGMENTO B2B/B2C
+    # ─────────────────────────────────────────────────────────────────
+    n1, n2 = st.columns(2)
+    with n1:
+        st.markdown("#### 🏢 Ingresos Diarios por Segmento")
+        if df_ingresos.empty:
+            st.info("Sin ingresos registrados.")
+        else:
+            df_ing_seg = df_ingresos.groupby(['fecha', 'tipo_venta'])['monto'].sum().reset_index()
+            fig_ing_seg = px.bar(
+                df_ing_seg, x='fecha', y='monto', color='tipo_venta', barmode='stack',
+                color_discrete_map={'B2B': '#7E57C2', 'B2C': '#26A69A'},
+                labels={'fecha': 'Fecha', 'monto': f'Ingresos ({moneda_dest})', 'tipo_venta': 'Segmento'}
+            )
+            fig_ing_seg.update_layout(height=320, margin=dict(l=0, r=0, t=20, b=0), legend_title='')
+            st.plotly_chart(fig_ing_seg, use_container_width=True)
+
+        # ─────────────────────────────────────────────────────────────
+        # 10. MIX DE GASTOS B2B/B2C
+        # ─────────────────────────────────────────────────────────────
+    with n2:
+        st.markdown("#### 🏢 Mix de Gastos B2B / B2C")
+        if df_gastos.empty or 'tipo_venta' not in df_gastos.columns:
+            st.info("Sin gastos registrados.")
+        else:
+            df_mix_gas = df_gastos.groupby('tipo_venta')['monto'].sum().reset_index().rename(
+                columns={'tipo_venta': 'Tipo', 'monto': 'Monto'}
+            )
+            fig_mix_gas = px.pie(
+                df_mix_gas, names='Tipo', values='Monto', hole=0.5,
+                color='Tipo', color_discrete_map={'B2B': '#7E57C2', 'B2C': '#26A69A'}
+            )
+            fig_mix_gas.update_layout(height=320, margin=dict(l=0, r=0, t=20, b=0))
+            st.plotly_chart(fig_mix_gas, use_container_width=True)
+
+    st.markdown("---")
+
+    # ─────────────────────────────────────────────────────────────────
+    # 11. TOP PROVEEDORES POR CANTIDAD DE PAGOS
+    # ─────────────────────────────────────────────────────────────────
+    st.markdown("#### 🔢 Top Proveedores por Cantidad de Pagos")
+    if df_gastos.empty:
+        st.info("No hay pagos a proveedores en el rango seleccionado.")
+    else:
+        df_cant_prov = df_gastos.groupby('proveedor').size().reset_index(name='Cantidad de Pagos')
+        df_cant_prov = df_cant_prov.sort_values('Cantidad de Pagos', ascending=True).tail(10)
+        fig_cant_prov = px.bar(
+            df_cant_prov, x='Cantidad de Pagos', y='proveedor', orientation='h',
+            text='Cantidad de Pagos', color='Cantidad de Pagos', color_continuous_scale='Purples',
+        )
+        fig_cant_prov.update_layout(height=380, margin=dict(l=0, r=0, t=20, b=0), coloraxis_showscale=False)
+        fig_cant_prov.update_yaxes(title=None)
+        st.plotly_chart(fig_cant_prov, use_container_width=True)
 
 
 def panel_marketing(supabase_client):

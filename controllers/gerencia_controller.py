@@ -11,8 +11,8 @@ class GerenciaController:
     def get_kpis_financieros(self, moneda_destino: str = 'PEN'):
         """Calcula Ventas Totales, Recaudado y Pendiente, normalizado a la moneda de destino ('PEN' o 'USD')."""
         try:
-            # 1. Ventas Totales
-            res_ventas = self.client.table('venta').select('precio_total_cierre, moneda, tipo_cambio').execute()
+            # 1. Ventas Totales (excluye canceladas: no son ingreso real)
+            res_ventas = self.client.table('venta').select('precio_total_cierre, moneda, tipo_cambio').neq('estado_venta', 'CANCELADO').execute()
             ventas_data = res_ventas.data or []
             
             total_ventas = 0.0
@@ -135,7 +135,7 @@ class GerenciaController:
     def get_ventas_mensuales(self, moneda_destino: str = 'PEN'):
         """Agrupa ventas por mes para el gráfico de barras, normalizado a la moneda de destino ('PEN' o 'USD')."""
         try:
-            res_ventas = self.client.table('venta').select('precio_total_cierre, fecha_venta, moneda, tipo_cambio').execute()
+            res_ventas = self.client.table('venta').select('precio_total_cierre, fecha_venta, moneda, tipo_cambio').neq('estado_venta', 'CANCELADO').execute()
             if not res_ventas.data:
                 return pd.DataFrame()
 
@@ -233,7 +233,7 @@ class GerenciaController:
     def get_ventas_por_canal(self, moneda_destino: str = 'PEN', fecha_inicio=None, fecha_fin=None, segmento=None):
         """Obtiene el monto total de ventas por cada canal, excluyendo B2B del canal DIRECTO, normalizado a la moneda de destino ('PEN' o 'USD')."""
         try:
-            res = self.client.table('venta').select('canal_venta, precio_total_cierre, id_agencia_aliada, moneda, tipo_cambio, fecha_venta').execute()
+            res = self.client.table('venta').select('canal_venta, precio_total_cierre, id_agencia_aliada, moneda, tipo_cambio, fecha_venta').neq('estado_venta', 'CANCELADO').execute()
             df = pd.DataFrame(res.data or [])
             if df.empty: return pd.DataFrame()
             if fecha_inicio and fecha_fin:
@@ -415,6 +415,7 @@ class GerenciaController:
                     'monto': monto_dest,
                     'metodo_pago': g.get('metodo_pago') or 'OTRO',
                     'proveedor': prov.get('nombre_comercial') or 'Sin Proveedor',
+                    'tipo_venta': tipo,
                 })
             return pd.DataFrame(filas)
         except Exception as e:

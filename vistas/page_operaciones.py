@@ -1301,7 +1301,7 @@ def dashboard_simulador_costos(controller):
     elif tipo_venta == "👤 B2C (Directas)":
         with c_filtro:
             st.info("📋 Mostrando todas las ventas directas")
-        ventas_age = vc.obtener_ventas_directas()
+        ventas_age = vc.obtener_ventas_directas(incluir_finalizadas=False)
     
     # PASO 3: Seleccionar Venta Específica
     if ventas_age:

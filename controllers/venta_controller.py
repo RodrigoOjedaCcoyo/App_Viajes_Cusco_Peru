@@ -299,14 +299,17 @@ class VentaController:
             print(f"Error obteniendo ventas de agencia: {e}")
             return []
 
-    def obtener_ventas_directas(self) -> list:
-        """Obtiene las ventas directas (B2C) que NO tienen agencia aliada."""
+    def obtener_ventas_directas(self, incluir_finalizadas: bool = True) -> list:
+        """Obtiene las ventas directas (B2C) que NO tienen agencia aliada.
+        Siempre excluye CANCELADO (no son ventas reales). incluir_finalizadas=False
+        oculta además las ya liquidadas, para vistas de trabajo pendiente (Operaciones/Liquidaciones)."""
         try:
-            # Join con cliente - Excluir finalizadas
-            res = self.client.table('venta').select('*, cliente(nombre, lead(numero_celular, pais_origen))')\
+            query = self.client.table('venta').select('*, cliente(nombre, lead(numero_celular, pais_origen))')\
                 .is_('id_agencia_aliada', 'null')\
-                .neq('estado_venta', 'FINALIZADO')\
-                .order('fecha_venta', desc=True).execute()
+                .neq('estado_venta', 'CANCELADO')
+            if not incluir_finalizadas:
+                query = query.neq('estado_venta', 'FINALIZADO')
+            res = query.order('fecha_venta', desc=True).execute()
             
             data = []
             for v in (res.data or []):
