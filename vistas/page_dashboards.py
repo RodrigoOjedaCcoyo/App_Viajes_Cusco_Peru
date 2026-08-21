@@ -344,6 +344,65 @@ def render_contable_dashboard_visual(supabase_client):
         df_ventas = df_ventas_ingresos  # para la tabla de "Últimas Transacciones" de abajo
 
         st.divider()
+
+        # ─────────────────────────────────────────────────────────────
+        # INGRESOS Y GASTOS DIARIOS (por Fecha de Pago real)
+        # ─────────────────────────────────────────────────────────────
+        st.write("### 📅 Ingresos y Gastos Diarios (por Fecha de Pago)")
+        st.caption("A diferencia de arriba, esto se filtra por la fecha real en que se cobró/pagó cada movimiento, no por fecha de venta ni de viaje.")
+
+        c_pfini, c_pffin = st.columns(2)
+        with c_pfini:
+            fecha_pago_ini = st.date_input("Fecha Inicio (Pago)", value=primer_dia_mes, key="fin_pago_ini")
+        with c_pffin:
+            fecha_pago_fin = st.date_input("Fecha Fin (Pago)", value=hoy, key="fin_pago_fin")
+
+        moneda_diaria = 'PEN' if filtro_moneda != "Dólares (USD)" else 'USD'
+        simbolo_diario = 'S/' if moneda_diaria == 'PEN' else '$'
+        seg_diario = None if filtro_tipo == "Todos" else ("B2C" if filtro_tipo == "Directas (B2C)" else "B2B")
+
+        if fecha_pago_ini and fecha_pago_fin:
+            from controllers.gerencia_controller import GerenciaController
+            ger_ctrl = GerenciaController(supabase_client)
+            df_ing_pago = ger_ctrl.get_ingresos_detalle_periodo(fecha_pago_ini, fecha_pago_fin, segmento=seg_diario, moneda_destino=moneda_diaria)
+            df_gas_pago = ger_ctrl.get_gastos_detalle_periodo(fecha_pago_ini, fecha_pago_fin, segmento=seg_diario, moneda_destino=moneda_diaria)
+
+            import plotly.express as px
+
+            cdi1, cdi2 = st.columns(2)
+            with cdi1:
+                st.markdown(f"##### 💰 Ingresos Diarios ({moneda_diaria})")
+                if df_ing_pago.empty:
+                    st.info("Sin ingresos cobrados en este rango.")
+                else:
+                    df_ing_dia = df_ing_pago.groupby('fecha')['monto'].sum().reset_index()
+                    fig_ing_dia = px.bar(
+                        df_ing_dia, x='fecha', y='monto',
+                        text=df_ing_dia['monto'].apply(lambda v: f"{simbolo_diario}{v:,.0f}"),
+                        color_discrete_sequence=['#66BB6A'],
+                        labels={'fecha': 'Fecha', 'monto': f'Ingresos ({moneda_diaria})'}
+                    )
+                    fig_ing_dia.update_layout(height=350, margin=dict(l=0, r=0, t=10, b=0))
+                    st.plotly_chart(fig_ing_dia, use_container_width=True)
+                    st.metric(f"Total Ingresos ({moneda_diaria})", f"{simbolo_diario}{df_ing_pago['monto'].sum():,.2f}")
+
+            with cdi2:
+                st.markdown(f"##### 💸 Gastos Diarios ({moneda_diaria})")
+                if df_gas_pago.empty:
+                    st.info("Sin gastos pagados en este rango.")
+                else:
+                    df_gas_dia = df_gas_pago.groupby('fecha')['monto'].sum().reset_index()
+                    fig_gas_dia = px.bar(
+                        df_gas_dia, x='fecha', y='monto',
+                        text=df_gas_dia['monto'].apply(lambda v: f"{simbolo_diario}{v:,.0f}"),
+                        color_discrete_sequence=['#EF5350'],
+                        labels={'fecha': 'Fecha', 'monto': f'Gastos ({moneda_diaria})'}
+                    )
+                    fig_gas_dia.update_layout(height=350, margin=dict(l=0, r=0, t=10, b=0))
+                    st.plotly_chart(fig_gas_dia, use_container_width=True)
+                    st.metric(f"Total Gastos ({moneda_diaria})", f"{simbolo_diario}{df_gas_pago['monto'].sum():,.2f}")
+
+        st.divider()
         st.write("### 📋 Últimas Transacciones")
         if not df_ventas.empty:
             # Usar nombres de columnas correctos según esquema SQL
