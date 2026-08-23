@@ -115,6 +115,10 @@
         {% if cliente_telefono %}<p><strong>Celular:</strong> {{ cliente_telefono }}</p>{% endif %}
         <p><strong>Fecha Viaje:</strong> {{ fecha_viaje }}</p>
         <p><strong>Pax:</strong> {{ num_adultos + num_ninos }}</p>
+        {% if nro_vuelo %}<p><strong>Nro. Vuelo Internacional:</strong> {{ nro_vuelo }}</p>{% endif %}
+        {% if correo_cliente %}<p><strong>Correo:</strong> {{ correo_cliente }}</p>{% endif %}
+        {% if contacto_emergencia %}<p><strong>Contacto de Emergencia:</strong> {{ contacto_emergencia }}</p>{% endif %}
+        {% if telefono_emergencia %}<p><strong>Teléfono de Emergencia:</strong> {{ telefono_emergencia }}</p>{% endif %}
     </div>
 
     {% for tour in itinerario %}

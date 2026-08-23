@@ -128,12 +128,20 @@ class PDFController:
         mostrar_pago = False
         precio_venta = monto_pagado_venta = saldo_venta = 0.0
         moneda_venta = moneda_val
+        nro_vuelo = correo_cliente = contacto_emergencia = telefono_emergencia = ""
         if id_venta and supabase_client:
             try:
-                res_v = supabase_client.table('venta').select('precio_total_cierre, moneda').eq('id_venta', id_venta).single().execute()
+                res_v = supabase_client.table('venta').select(
+                    'precio_total_cierre, moneda, nro_vuelo_internacional, correo_cliente, '
+                    'nombre_contacto_emergencia, telefono_contacto_emergencia'
+                ).eq('id_venta', id_venta).single().execute()
                 v_data = res_v.data or {}
                 precio_venta = float(v_data.get('precio_total_cierre') or 0)
                 moneda_venta = v_data.get('moneda') or moneda_val
+                nro_vuelo = v_data.get('nro_vuelo_internacional') or ""
+                correo_cliente = v_data.get('correo_cliente') or ""
+                contacto_emergencia = v_data.get('nombre_contacto_emergencia') or ""
+                telefono_emergencia = v_data.get('telefono_contacto_emergencia') or ""
 
                 res_p = supabase_client.table('pago').select('monto_pagado, monto_moneda_venta, tipo_pago').eq('id_venta', id_venta).execute()
                 for p in (res_p.data or []):
@@ -161,6 +169,10 @@ class PDFController:
             "monto_pagado_venta": monto_pagado_venta,
             "saldo_venta": saldo_venta,
             "moneda_venta": moneda_venta,
+            "nro_vuelo": nro_vuelo,
+            "correo_cliente": correo_cliente,
+            "contacto_emergencia": contacto_emergencia,
+            "telefono_emergencia": telefono_emergencia,
             "hoy": datetime.date.today().strftime("%d/%m/%Y")
         }
         return self._render_pdf('itinerario_simple_template.html', context)
