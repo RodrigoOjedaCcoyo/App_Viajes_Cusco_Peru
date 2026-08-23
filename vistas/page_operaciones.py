@@ -439,23 +439,24 @@ def render_centro_alertas(controller):
             
         with tabs[2]:
             st.markdown("### 🔴 Alertas Críticas (0 a 2 días)")
-            st.caption("Servicios inminentes que no han sido marcados como 'Terminado'.")
-            mostrar_tabla_alertas(alertas['rojo'], "No hay alertas críticas pendientes.")
+            st.caption("Servicios inminentes que no han sido marcados como 'Terminado'. Marca ☑️ cuando ya esté resuelto.")
+            mostrar_tabla_alertas(alertas['rojo'], "No hay alertas críticas pendientes.", permitir_check=True)
 
         with tabs[3]:
             st.markdown("### ⚠️ Servicios Sin Asignar (Riesgo Alto)")
             st.error("Estos servicios están en el itinerario pero NO tienen costos ni proveedores registrados. Las alertas de colores NO funcionarán para estos casos si no se completan.")
+            st.caption("No se puede marcar check aquí: primero hay que asignar proveedor y costo en Operaciones — recién ahí pasan a las otras pestañas, donde sí se pueden cerrar.")
             mostrar_tabla_alertas(alertas['sin_asignar'], "Todos los servicios dentro de los próximos 10 días tienen asignaciones.")
             
         with tabs[4]:
             st.markdown("### 🟡 Alertas de Atención (3 a 5 días)")
-            st.caption("Servicios próximos que requieren verificación operativa.")
-            mostrar_tabla_alertas(alertas['amarillo'], "No hay alertas de atención pendientes.")
+            st.caption("Servicios próximos que requieren verificación operativa. Marca ☑️ cuando ya esté resuelto.")
+            mostrar_tabla_alertas(alertas['amarillo'], "No hay alertas de atención pendientes.", permitir_check=True)
             
         with tabs[5]:
             st.markdown("### 🟢 Alertas Preventivas (6 a 10 días)")
-            st.caption("Servicios programados para la próxima semana.")
-            mostrar_tabla_alertas(alertas['verde'], "No hay alertas preventivas pendientes.")
+            st.caption("Servicios programados para la próxima semana. Marca ☑️ cuando ya esté resuelto.")
+            mostrar_tabla_alertas(alertas['verde'], "No hay alertas preventivas pendientes.", permitir_check=True)
 
 # Dashboard 2: Tablero con vistas Duplicadas (Mensual/Semanal).
 def dashboard_tablero_diario(controller):
