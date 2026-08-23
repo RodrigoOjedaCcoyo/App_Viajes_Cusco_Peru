@@ -288,7 +288,9 @@ def render_contable_dashboard_visual(supabase_client):
         from streamlit_autorefresh import st_autorefresh
         st_autorefresh(interval=60 * 1000, key="fin_refresh_counter")
 
-    tab_resultados, tab_informe_mensual = st.tabs(["📈 Resultados Financieros", "📊 Informe Mensual (Vendido/Operado)"])
+    tab_resultados, tab_diario, tab_informe_mensual = st.tabs([
+        "📈 Resultados Financieros", "📅 Ingresos y Gastos Diarios", "📊 Informe Mensual (Vendido/Operado)"
+    ])
 
     with tab_resultados:
         # Segmentadores
@@ -344,12 +346,29 @@ def render_contable_dashboard_visual(supabase_client):
         df_ventas = df_ventas_ingresos  # para la tabla de "Últimas Transacciones" de abajo
 
         st.divider()
+        st.write("### 📋 Últimas Transacciones")
+        if not df_ventas.empty:
+            # Usar nombres de columnas correctos según esquema SQL
+            cols_to_show = ['id_venta', 'monto_total', 'estado_venta', 'vendedor']
+            # Verificar que las columnas existan antes de filtrar (robusto)
+            available_cols = [c for c in cols_to_show if c in df_ventas.columns]
+            st.dataframe(df_ventas[available_cols].head(10), use_container_width=True, hide_index=True)
 
+    with tab_diario:
         # ─────────────────────────────────────────────────────────────
         # INGRESOS Y GASTOS DIARIOS (por Fecha de Pago real)
         # ─────────────────────────────────────────────────────────────
         st.write("### 📅 Ingresos y Gastos Diarios (por Fecha de Pago)")
-        st.caption("A diferencia de arriba, esto se filtra por la fecha real en que se cobró/pagó cada movimiento, no por fecha de venta ni de viaje.")
+        st.caption("A diferencia de la pestaña anterior, esto se filtra por la fecha real en que se cobró/pagó cada movimiento, no por fecha de venta ni de viaje.")
+
+        hoy = date.today()
+        primer_dia_mes = hoy.replace(day=1)
+
+        c_ftipo, c_fmon = st.columns(2)
+        with c_ftipo:
+            filtro_tipo_diario = st.selectbox("Tipo de Venta", ["Todos", "Directas (B2C)", "Agencias (B2B)"], key="fin_diario_tipo")
+        with c_fmon:
+            filtro_moneda_diario = st.selectbox("Moneda", ["Soles (PEN)", "Dólares (USD)"], key="fin_diario_moneda")
 
         c_pfini, c_pffin = st.columns(2)
         with c_pfini:
@@ -357,9 +376,9 @@ def render_contable_dashboard_visual(supabase_client):
         with c_pffin:
             fecha_pago_fin = st.date_input("Fecha Fin (Pago)", value=hoy, key="fin_pago_fin")
 
-        moneda_diaria = 'PEN' if filtro_moneda != "Dólares (USD)" else 'USD'
+        moneda_diaria = 'PEN' if filtro_moneda_diario != "Dólares (USD)" else 'USD'
         simbolo_diario = 'S/' if moneda_diaria == 'PEN' else '$'
-        seg_diario = None if filtro_tipo == "Todos" else ("B2C" if filtro_tipo == "Directas (B2C)" else "B2B")
+        seg_diario = None if filtro_tipo_diario == "Todos" else ("B2C" if filtro_tipo_diario == "Directas (B2C)" else "B2B")
 
         if fecha_pago_ini and fecha_pago_fin:
             from controllers.gerencia_controller import GerenciaController
@@ -401,15 +420,6 @@ def render_contable_dashboard_visual(supabase_client):
                     fig_gas_dia.update_layout(height=350, margin=dict(l=0, r=0, t=10, b=0))
                     st.plotly_chart(fig_gas_dia, use_container_width=True)
                     st.metric(f"Total Gastos ({moneda_diaria})", f"{simbolo_diario}{df_gas_pago['monto'].sum():,.2f}")
-
-        st.divider()
-        st.write("### 📋 Últimas Transacciones")
-        if not df_ventas.empty:
-            # Usar nombres de columnas correctos según esquema SQL
-            cols_to_show = ['id_venta', 'monto_total', 'estado_venta', 'vendedor']
-            # Verificar que las columnas existan antes de filtrar (robusto)
-            available_cols = [c for c in cols_to_show if c in df_ventas.columns]
-            st.dataframe(df_ventas[available_cols].head(10), use_container_width=True, hide_index=True)
 
     with tab_informe_mensual:
         from vistas.dashboard_analytics import render_informe_mensual_vendido_operado
