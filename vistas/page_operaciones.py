@@ -285,7 +285,7 @@ def render_centro_alertas(controller):
         
         tabs = st.tabs([t_com, t_mp, t_r, t_sa, t_a, t_v])
         
-        def mostrar_tabla_alertas(lista_alertas, empty_msg, show_proveedor=True, permitir_check=False):
+        def mostrar_tabla_alertas(lista_alertas, empty_msg, show_proveedor=True, permitir_check=False, categoria="general"):
             if not lista_alertas:
                 st.info(empty_msg)
                 return
@@ -308,7 +308,7 @@ def render_centro_alertas(controller):
                     c4.write(item.get("proveedor", "---"))
                     c5.write(f"{item.get('dias', 0)} d")
                     if item.get("id") is not None:
-                        if c6.button("☑️", key=f"chk_alerta_{item['id']}", help="Marcar como terminado (desaparece de la lista)"):
+                        if c6.button("☑️", key=f"chk_alerta_{categoria}_{item['id']}", help="Marcar como terminado (desaparece de la lista)"):
                             try:
                                 controller.client.table('venta_servicio_proveedor').update({'terminado': True}).eq('id', item['id']).execute()
                                 st.success("✅ Marcado como terminado.")
@@ -435,12 +435,12 @@ def render_centro_alertas(controller):
         with tabs[1]:
             st.markdown("### 🏛️ Tickets Machu Picchu (MINISTERIO)")
             st.caption("Todos los ingresos pendientes asignados al proveedor del estado. Marca ☑️ cuando ya se gestionó el ticket para que desaparezca de la lista.")
-            mostrar_tabla_alertas(alertas['machupicchu'], "No hay tickets de MP pendientes.", permitir_check=True)
+            mostrar_tabla_alertas(alertas['machupicchu'], "No hay tickets de MP pendientes.", permitir_check=True, categoria='mp')
             
         with tabs[2]:
             st.markdown("### 🔴 Alertas Críticas (0 a 2 días)")
             st.caption("Servicios inminentes que no han sido marcados como 'Terminado'. Marca ☑️ cuando ya esté resuelto.")
-            mostrar_tabla_alertas(alertas['rojo'], "No hay alertas críticas pendientes.", permitir_check=True)
+            mostrar_tabla_alertas(alertas['rojo'], "No hay alertas críticas pendientes.", permitir_check=True, categoria='rojo')
 
         with tabs[3]:
             st.markdown("### ⚠️ Servicios Sin Asignar (Riesgo Alto)")
@@ -451,12 +451,12 @@ def render_centro_alertas(controller):
         with tabs[4]:
             st.markdown("### 🟡 Alertas de Atención (3 a 5 días)")
             st.caption("Servicios próximos que requieren verificación operativa. Marca ☑️ cuando ya esté resuelto.")
-            mostrar_tabla_alertas(alertas['amarillo'], "No hay alertas de atención pendientes.", permitir_check=True)
+            mostrar_tabla_alertas(alertas['amarillo'], "No hay alertas de atención pendientes.", permitir_check=True, categoria='amarillo')
             
         with tabs[5]:
             st.markdown("### 🟢 Alertas Preventivas (6 a 10 días)")
             st.caption("Servicios programados para la próxima semana. Marca ☑️ cuando ya esté resuelto.")
-            mostrar_tabla_alertas(alertas['verde'], "No hay alertas preventivas pendientes.", permitir_check=True)
+            mostrar_tabla_alertas(alertas['verde'], "No hay alertas preventivas pendientes.", permitir_check=True, categoria='verde')
 
 # Dashboard 2: Tablero con vistas Duplicadas (Mensual/Semanal).
 def dashboard_tablero_diario(controller):
