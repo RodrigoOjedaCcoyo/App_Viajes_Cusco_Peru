@@ -285,15 +285,45 @@ def render_centro_alertas(controller):
         
         tabs = st.tabs([t_com, t_mp, t_r, t_sa, t_a, t_v])
         
-        def mostrar_tabla_alertas(lista_alertas, empty_msg, show_proveedor=True):
+        def mostrar_tabla_alertas(lista_alertas, empty_msg, show_proveedor=True, permitir_check=False):
             if not lista_alertas:
                 st.info(empty_msg)
                 return
-            
+
+            if permitir_check:
+                lista_ordenada = sorted(lista_alertas, key=lambda x: x["dias"])
+                h1, h2, h3, h4, h5, h6 = st.columns([1, 3, 2, 2.5, 1, 1])
+                h1.markdown("**📅 Fecha**")
+                h2.markdown("**🚙 Servicio / Tour**")
+                h3.markdown("**👤 Cliente**")
+                h4.markdown("**🤝 Proveedor**")
+                h5.markdown("**⏰ Días**")
+                h6.markdown("**✅**")
+                st.divider()
+                for item in lista_ordenada:
+                    c1, c2, c3, c4, c5, c6 = st.columns([1, 3, 2, 2.5, 1, 1])
+                    c1.write(item.get("fecha", "---"))
+                    c2.write(item.get("servicio", "---"))
+                    c3.write(item.get("cliente", "---"))
+                    c4.write(item.get("proveedor", "---"))
+                    c5.write(f"{item.get('dias', 0)} d")
+                    if item.get("id") is not None:
+                        if c6.button("☑️", key=f"chk_alerta_{item['id']}", help="Marcar como terminado (desaparece de la lista)"):
+                            try:
+                                controller.client.table('venta_servicio_proveedor').update({'terminado': True}).eq('id', item['id']).execute()
+                                st.success("✅ Marcado como terminado.")
+                                st.rerun()
+                            except Exception as ex:
+                                st.error(f"Error al marcar: {ex}")
+                    else:
+                        c6.caption("—")
+                    st.divider()
+                return
+
             df = pd.DataFrame(lista_alertas)
             # Ordenar por días
             df = df.sort_values(by="dias")
-            
+
             cols = ["fecha", "servicio", "cliente", "proveedor", "dias"]
             if not show_proveedor:
                 cols.remove("proveedor")
@@ -404,8 +434,8 @@ def render_centro_alertas(controller):
 
         with tabs[1]:
             st.markdown("### 🏛️ Tickets Machu Picchu (MINISTERIO)")
-            st.caption("Todos los ingresos pendientes asignados al proveedor del estado.")
-            mostrar_tabla_alertas(alertas['machupicchu'], "No hay tickets de MP pendientes.")
+            st.caption("Todos los ingresos pendientes asignados al proveedor del estado. Marca ☑️ cuando ya se gestionó el ticket para que desaparezca de la lista.")
+            mostrar_tabla_alertas(alertas['machupicchu'], "No hay tickets de MP pendientes.", permitir_check=True)
             
         with tabs[2]:
             st.markdown("### 🔴 Alertas Críticas (0 a 2 días)")
