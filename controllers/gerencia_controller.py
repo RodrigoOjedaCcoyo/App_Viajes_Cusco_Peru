@@ -556,6 +556,79 @@ class GerenciaController:
         )
         return resumen.sort_values('Monto', ascending=False).head(top_n)
 
+    def get_pareto_vendedores(self, fecha_inicio=None, fecha_fin=None):
+        """Ventas totales (USD) por vendedor en el rango — para detectar concentración de riesgo
+        (¿qué % de tus ingresos depende de un solo vendedor?). Incluye B2B y B2C."""
+        try:
+            res_v = self.client.table('venta').select(
+                'id_vendedor, precio_total_cierre, moneda, tipo_cambio, fecha_venta, vendedor(nombre)'
+            ).neq('estado_venta', 'CANCELADO').execute()
+            df = pd.DataFrame(res_v.data or [])
+            if df.empty:
+                return pd.DataFrame()
+
+            df['fecha_venta'] = pd.to_datetime(df['fecha_venta'], format='mixed', errors='coerce')
+            df = df.dropna(subset=['fecha_venta'])
+            if fecha_inicio and fecha_fin:
+                df = df[(df['fecha_venta'].dt.date >= fecha_inicio) & (df['fecha_venta'].dt.date <= fecha_fin)]
+            if df.empty:
+                return pd.DataFrame()
+
+            def _a_usd(row):
+                monto = float(row.get('precio_total_cierre') or 0)
+                moneda = str(row.get('moneda') or 'USD').strip().upper()
+                tc = float(row.get('tipo_cambio') or 3.80) or 3.80
+                return monto / tc if moneda == 'PEN' else monto
+
+            df['precio_usd'] = df.apply(_a_usd, axis=1)
+
+            def _nombre_vend(v):
+                vv = v or {}
+                if isinstance(vv, list):
+                    vv = vv[0] if vv else {}
+                return vv.get('nombre') or 'Sin Asignar'
+
+            df['Vendedor'] = df['vendedor'].apply(_nombre_vend)
+            resumen = df.groupby('Vendedor')['precio_usd'].sum().reset_index()
+            resumen.columns = ['Vendedor', 'Ventas_USD']
+            return resumen.sort_values('Ventas_USD', ascending=False)
+        except Exception as e:
+            print(f"Error Pareto Vendedores: {e}")
+            return pd.DataFrame()
+
+    def get_mix_persona_por_origen(self, ids_cliente, persona_map):
+        """
+        Dado un listado de id_cliente y su Persona ya clasificada (persona_map: {id_cliente: persona}),
+        devuelve un DataFrame Origen (red_social del lead) x Persona x Cantidad, para ver en qué tipo
+        de comprador termina convirtiéndose cada canal de captación de leads.
+        """
+        try:
+            if not ids_cliente:
+                return pd.DataFrame()
+            res_c = self.client.table('cliente').select('id_cliente, id_lead').in_('id_cliente', ids_cliente).execute()
+            cliente_lead = {c['id_cliente']: c.get('id_lead') for c in (res_c.data or []) if c.get('id_lead')}
+            ids_lead = list(set(cliente_lead.values()))
+            if not ids_lead:
+                return pd.DataFrame()
+
+            res_l = self.client.table('lead').select('id_lead, red_social').in_('id_lead', ids_lead).execute()
+            lead_origen = {l['id_lead']: (l.get('red_social') or 'Sin Dato') for l in (res_l.data or [])}
+
+            filas = []
+            for cid, lid in cliente_lead.items():
+                persona = persona_map.get(cid)
+                origen = lead_origen.get(lid)
+                if persona and origen:
+                    filas.append({'Origen': origen, 'Persona': persona})
+
+            if not filas:
+                return pd.DataFrame()
+            df = pd.DataFrame(filas)
+            return df.groupby(['Origen', 'Persona']).size().reset_index(name='Cantidad')
+        except Exception as e:
+            print(f"Error Mix Persona por Origen: {e}")
+            return pd.DataFrame()
+
     def get_marketing_dashboard_data(self, fecha_inicio=None, fecha_fin=None, segmento=None):
         """Procesa itinerarios digitales vinculados a leads para obtener métricas de Marketing."""
         import json
