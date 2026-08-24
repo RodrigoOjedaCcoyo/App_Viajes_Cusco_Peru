@@ -189,10 +189,10 @@ def dashboard_ejecutivo(controller):
     else:
         st.success("✅ No hay riesgos críticos detectados por ahora.")
 
-def auditoria_maestra(controller):
-    """Vista de auditoría visual avanzada y control de integridad."""
-    st.subheader("🕵️ Centro de Control de Auditoría", divider='orange')
-    
+def desempeno_vendedores_maestro(controller):
+    """Vista de desempeño del equipo de ventas: KPIs, vendedores, estado de ventas y registro maestro."""
+    st.subheader("👨‍💼 Desempeño de Vendedores", divider='orange')
+
     col_d1, col_d2, col_d3 = st.columns(3)
     with col_d1:
         f_inicio = st.date_input("Fecha Inicio", date.today().replace(day=1), key="auditoria_finicio")
@@ -200,29 +200,19 @@ def auditoria_maestra(controller):
         f_fin = st.date_input("Fecha Fin", date.today(), key="auditoria_ffin")
     with col_d3:
         segmento = st.selectbox("Segmento", ["Todos", "B2C", "Corporativo"], key="auditoria_seg")
-        
+
     seg_val = None if segmento == "Todos" else segmento
-    
-    with st.spinner("Generando análisis de integridad..."):
-        df_v_canal     = controller.get_ventas_por_canal(fecha_inicio=f_inicio, fecha_fin=f_fin, segmento=seg_val)
+
+    with st.spinner("Calculando desempeño de vendedores..."):
         df_v_estado    = controller.get_ventas_por_estado(fecha_inicio=f_inicio, fecha_fin=f_fin, segmento=seg_val)
         df_ventas_limpio = controller.get_detalle_ventas_limpio(fecha_inicio=f_inicio, fecha_fin=f_fin, segmento=seg_val)
         df_desempeno   = controller.get_desempeno_vendedores(fecha_inicio=f_inicio, fecha_fin=f_fin, segmento=seg_val)
-        df_leads_origen = controller.get_distribucion_origen_leads(fecha_inicio=f_inicio, fecha_fin=f_fin)
-        # Demografía de PASAJEROS
-        df_demo        = _cargar_demografia_clientes(controller.client, fecha_inicio=f_inicio, fecha_fin=f_fin, segmento=seg_val)
-        # TOP CLIENTES (por ventas realizadas)
-        df_top_clientes = _cargar_top_clientes(controller.client, fecha_inicio=f_inicio, fecha_fin=f_fin, segmento=seg_val)
 
     # ─────────────────────────────────────────────────────────────────────────
     # 0. KPIs RÁPIDOS
     # ─────────────────────────────────────────────────────────────────────────
-    total_pax = len(df_demo) if df_demo is not None and not df_demo.empty else 0
-    m1, m2, m3, m4 = st.columns(4)
+    m1, m2, m3 = st.columns(3)
     with m1:
-        top_canal = df_v_canal.iloc[0]['Canal'] if not df_v_canal.empty else "N/A"
-        st.metric("Canal Líder", top_canal)
-    with m2:
         df_vl_validas = df_ventas_limpio[df_ventas_limpio['Estado'] != 'CANCELADO'] if not df_ventas_limpio.empty else df_ventas_limpio
         if df_vl_validas is None or df_vl_validas.empty:
             st.metric("Ticket Promedio", "S/ 0.00")
@@ -236,126 +226,12 @@ def auditoria_maestra(controller):
             if not otras_divisas.empty:
                 ayuda = f"Excluye {len(otras_divisas)} venta(s) en otra(s) moneda(s) para no mezclar divisas."
             st.metric(f"Ticket Promedio ({divisa_dom})", f"{simbolo_dom} {float(monto_avg or 0):,.2f}", help=ayuda)
-    with m3:
+    with m2:
         pax_total = controller.get_pax_totales()
         st.metric("PAX en Operación", f"{pax_total}")
-    with m4:
-        n_clientes = len(df_top_clientes) if df_top_clientes is not None and not df_top_clientes.empty else 0
+    with m3:
+        n_clientes = df_ventas_limpio['Cliente'].nunique() if not df_ventas_limpio.empty else 0
         st.metric("Clientes con Ventas", f"{n_clientes}")
-
-    st.markdown("---")
-
-    # ─────────────────────────────────────────────────────────────────────────
-    # 1. DEMOGRAFÍA DE PASAJEROS
-    # ─────────────────────────────────────────────────────────────────────────
-    st.markdown("#### 🧑‍🤝‍🧑 Demografía de Pasajeros")
-    if df_demo is None or df_demo.empty:
-        st.info("Sin datos de pasajeros en el rango seleccionado.")
-    else:
-        da1, da2, da3 = st.columns(3)
-
-        # A) Diagrama circular de género
-        with da1:
-            st.markdown("##### Género")
-            df_g = df_demo.groupby("genero_norm").size().reset_index(name="Cantidad")
-            fig_g = px.pie(
-                df_g, names="genero_norm", values="Cantidad", hole=0.4,
-                color_discrete_sequence=px.colors.qualitative.Safe,
-            )
-            fig_g.update_layout(height=320, margin=dict(l=0, r=0, t=30, b=0), showlegend=True)
-            st.plotly_chart(fig_g, use_container_width=True)
-
-        # B) Barras de nacionalidad (top 10)
-        with da2:
-            st.markdown("##### Nacionalidad / País (Top 10)")
-            df_p = (
-                df_demo.groupby("pais_norm")
-                .size()
-                .reset_index(name="Cantidad")
-                .sort_values("Cantidad", ascending=False)
-                .head(10)
-            )
-            fig_p = px.bar(
-                df_p, x="pais_norm", y="Cantidad", text="Cantidad",
-                color="Cantidad",
-                color_continuous_scale="Purples",
-            )
-            fig_p.update_layout(height=320, margin=dict(l=0, r=0, t=30, b=0), coloraxis_showscale=False)
-            fig_p.update_xaxes(title=None)
-            st.plotly_chart(fig_p, use_container_width=True)
-
-        # C) Canal de captación (red_social)
-        with da3:
-            st.markdown("##### Edades de Pasajeros (Histograma)")
-            df_e = df_demo.dropna(subset=["edad_num"]).copy()
-            df_e = df_e[(df_e["edad_num"] >= 0) & (df_e["edad_num"] <= 120)]
-            if df_e.empty:
-                st.info("Sin edades registradas.")
-            else:
-                fig_e = px.histogram(
-                    df_e, x="edad_num", nbins=12,
-                    color_discrete_sequence=["#1E88E5"],
-                )
-                fig_e.update_layout(height=320, margin=dict(l=0, r=0, t=30, b=0))
-                fig_e.update_xaxes(title="Edad")
-                st.plotly_chart(fig_e, use_container_width=True)
-
-    # ─────────────────────────────────────────────────────────────────────────
-    # 1B. CLIENTES PRINCIPALES (pasajero es_principal=True)
-    # ─────────────────────────────────────────────────────────────────────────
-    n_principales = len(df_top_clientes) if df_top_clientes is not None and not df_top_clientes.empty else 0
-    st.markdown(f"#### 🏆 Demografía de Clientes Principales ({n_principales} registros — `es_principal = true`)")
-    if df_top_clientes is None or df_top_clientes.empty:
-        st.info("Sin datos de clientes principales en el rango seleccionado.")
-    else:
-        cp1, cp2, cp3 = st.columns(3)
-
-        # A) Género
-        with cp1:
-            st.markdown("##### Género")
-            df_cg = df_top_clientes.groupby("genero_norm").size().reset_index(name="Cantidad")
-            fig_cg = px.pie(
-                df_cg, names="genero_norm", values="Cantidad", hole=0.4,
-                color_discrete_sequence=px.colors.qualitative.Pastel,
-            )
-            fig_cg.update_layout(height=320, margin=dict(l=0, r=0, t=30, b=0), showlegend=True)
-            st.plotly_chart(fig_cg, use_container_width=True)
-
-        # B) Nacionalidad (top 10)
-        with cp2:
-            st.markdown("##### Nacionalidad / País (Top 10)")
-            df_cp = (
-                df_top_clientes.groupby("pais_norm")
-                .size()
-                .reset_index(name="Cantidad")
-                .sort_values("Cantidad", ascending=False)
-                .head(10)
-            )
-            fig_cp = px.bar(
-                df_cp, x="pais_norm", y="Cantidad", text="Cantidad",
-                color="Cantidad",
-                color_continuous_scale="Teal",
-            )
-            fig_cp.update_layout(height=320, margin=dict(l=0, r=0, t=30, b=0), coloraxis_showscale=False)
-            fig_cp.update_xaxes(title=None)
-            st.plotly_chart(fig_cp, use_container_width=True)
-
-        # C) Edades (histograma)
-        with cp3:
-            st.markdown("##### Edades (Histograma)")
-            df_ce = df_top_clientes.dropna(subset=["edad_num"]).copy()
-            df_ce = df_ce[(df_ce["edad_num"] >= 0) & (df_ce["edad_num"] <= 120)]
-            if df_ce.empty:
-                st.info("Sin edades registradas.")
-            else:
-                fig_ce = px.histogram(
-                    df_ce, x="edad_num", nbins=12,
-                    color_discrete_sequence=["#FF7043"],
-                )
-                fig_ce.update_layout(height=320, margin=dict(l=0, r=0, t=30, b=0))
-                fig_ce.update_xaxes(title="Edad")
-                st.plotly_chart(fig_ce, use_container_width=True)
-
 
     st.markdown("---")
 
@@ -461,126 +337,16 @@ def auditoria_maestra(controller):
     st.markdown("---")
 
     # ─────────────────────────────────────────────────────────────────────────
-    # 2B. ANTICIPACIÓN DE COMPRA (B2C vs B2B)
+    # VOLUMEN DE VENTAS POR ESTADO
     # ─────────────────────────────────────────────────────────────────────────
-    st.markdown("#### 📆 Anticipación de Compra (B2C vs B2B)")
-    st.caption("Cuántos días pasan entre que el cliente compra y el día que empieza su viaje. Se muestra siempre separado por segmento, porque agencias (B2B) y clientes directos (B2C) suelen reservar con anticipación muy distinta.")
-
-    with st.spinner("Calculando anticipación de compra..."):
-        df_antic = controller.get_anticipacion_compra(fecha_inicio=f_inicio, fecha_fin=f_fin)
-
-    if df_antic is None or df_antic.empty:
-        st.info("Sin datos suficientes de anticipación de compra en el rango seleccionado.")
+    st.markdown("#### 📊 Volumen de Ventas por Estado")
+    if not df_v_estado.empty:
+        fig_est = px.pie(df_v_estado, values='Cantidad', names='Estado', hole=0.5,
+                         color_discrete_sequence=px.colors.sequential.RdBu)
+        fig_est.update_layout(height=300, margin=dict(l=0, r=0, t=0, b=0))
+        st.plotly_chart(fig_est, use_container_width=True)
     else:
-        df_antic_b2c = df_antic[df_antic['Segmento'] == 'B2C']
-        df_antic_b2b = df_antic[df_antic['Segmento'] == 'B2B']
-
-        # --- KPIs ---
-        ka1, ka2, ka3, ka4 = st.columns(4)
-        ka1.metric("📅 Promedio B2C", f"{df_antic_b2c['dias_anticipacion'].mean():.0f} días" if not df_antic_b2c.empty else "—")
-        ka2.metric("📅 Mediana B2C", f"{df_antic_b2c['dias_anticipacion'].median():.0f} días" if not df_antic_b2c.empty else "—")
-        ka3.metric("📅 Promedio B2B", f"{df_antic_b2b['dias_anticipacion'].mean():.0f} días" if not df_antic_b2b.empty else "—")
-        ka4.metric("📅 Mediana B2B", f"{df_antic_b2b['dias_anticipacion'].median():.0f} días" if not df_antic_b2b.empty else "—")
-
-        # --- Histograma ---
-        st.markdown("##### Distribución de Días de Anticipación")
-        fig_hist_antic = px.histogram(
-            df_antic, x='dias_anticipacion', color='Segmento', barmode='overlay', opacity=0.65, nbins=30,
-            color_discrete_map={'B2B': '#7E57C2', 'B2C': '#26A69A'},
-            labels={'dias_anticipacion': 'Días de Anticipación'}
-        )
-        fig_hist_antic.update_layout(height=350, margin=dict(l=0, r=0, t=10, b=0), legend_title='')
-        st.plotly_chart(fig_hist_antic, use_container_width=True)
-
-        aa1, aa2 = st.columns(2)
-        with aa1:
-            st.markdown("##### Anticipación Promedio por Canal")
-            df_canal_antic = df_antic.groupby(['canal_venta', 'Segmento'])['dias_anticipacion'].mean().round(1).reset_index()
-            fig_canal_antic = px.bar(
-                df_canal_antic, x='canal_venta', y='dias_anticipacion', color='Segmento', barmode='group',
-                color_discrete_map={'B2B': '#7E57C2', 'B2C': '#26A69A'},
-                labels={'canal_venta': 'Canal', 'dias_anticipacion': 'Días (promedio)'}
-            )
-            fig_canal_antic.update_layout(height=350, margin=dict(l=0, r=0, t=10, b=0), legend_title='')
-            st.plotly_chart(fig_canal_antic, use_container_width=True)
-
-        with aa2:
-            st.markdown("##### Anticipación Promedio por Nacionalidad (Top 10)")
-            df_antic_nac = df_antic.copy()
-            df_antic_nac['pais_norm'] = df_antic_nac['nacionalidad'].apply(_normalizar_pais)
-            top_paises = df_antic_nac['pais_norm'].value_counts().head(10).index
-            df_nac_antic = (
-                df_antic_nac[df_antic_nac['pais_norm'].isin(top_paises)]
-                .groupby(['pais_norm', 'Segmento'])['dias_anticipacion'].mean().round(1).reset_index()
-            )
-            fig_nac_antic = px.bar(
-                df_nac_antic, x='pais_norm', y='dias_anticipacion', color='Segmento', barmode='group',
-                color_discrete_map={'B2B': '#7E57C2', 'B2C': '#26A69A'},
-                labels={'pais_norm': 'País', 'dias_anticipacion': 'Días (promedio)'}
-            )
-            fig_nac_antic.update_layout(height=350, margin=dict(l=0, r=0, t=10, b=0), legend_title='')
-            st.plotly_chart(fig_nac_antic, use_container_width=True)
-
-        st.markdown("##### Anticipación Promedio por Tour/Paquete (Top 10)")
-        top_tours = df_antic['tour_nombre'].value_counts().head(10).index
-        df_tour_antic = (
-            df_antic[df_antic['tour_nombre'].isin(top_tours)]
-            .groupby(['tour_nombre', 'Segmento'])['dias_anticipacion'].mean().round(1).reset_index()
-        )
-        fig_tour_antic = px.bar(
-            df_tour_antic, x='tour_nombre', y='dias_anticipacion', color='Segmento', barmode='group',
-            color_discrete_map={'B2B': '#7E57C2', 'B2C': '#26A69A'},
-            labels={'tour_nombre': 'Tour / Paquete', 'dias_anticipacion': 'Días (promedio)'}
-        )
-        fig_tour_antic.update_layout(height=380, margin=dict(l=0, r=0, t=10, b=0), legend_title='', xaxis_tickangle=-30)
-        st.plotly_chart(fig_tour_antic, use_container_width=True)
-
-        st.markdown("##### Tendencia Mensual de Anticipación")
-        df_mes_antic = df_antic.groupby(['Mes', 'Segmento'])['dias_anticipacion'].mean().round(1).reset_index()
-        fig_mes_antic = px.line(
-            df_mes_antic, x='Mes', y='dias_anticipacion', color='Segmento', markers=True,
-            color_discrete_map={'B2B': '#7E57C2', 'B2C': '#26A69A'},
-            labels={'Mes': 'Mes', 'dias_anticipacion': 'Días (promedio)'}
-        )
-        fig_mes_antic.update_layout(height=320, margin=dict(l=0, r=0, t=10, b=0), legend_title='')
-        st.plotly_chart(fig_mes_antic, use_container_width=True)
-
-    st.markdown("---")
-
-    # ─────────────────────────────────────────────────────────────────────────
-    # 3. DISTRIBUCIÓN POR CANAL Y ESTADO
-    # ─────────────────────────────────────────────────────────────────────────
-    st.markdown("#### 📊 Análisis de Ventas")
-    g1, g2 = st.columns(2)
-    with g1:
-        st.markdown("##### Distribución Económica por Canal")
-        if not df_v_canal.empty:
-            fig_canal = px.bar(df_v_canal, x='Canal', y='Monto', color='Canal',
-                               color_discrete_sequence=px.colors.qualitative.Pastel,
-                               text_auto=True)
-            fig_canal.update_layout(showlegend=False, height=300, margin=dict(l=0, r=0, t=0, b=0))
-            st.plotly_chart(fig_canal, use_container_width=True)
-        else:
-            st.info("Sin datos de canales.")
-
-    with g2:
-        st.markdown("##### Volumen de Ventas por Estado")
-        if not df_v_estado.empty:
-            fig_est = px.pie(df_v_estado, values='Cantidad', names='Estado', hole=0.5,
-                             color_discrete_sequence=px.colors.sequential.RdBu)
-            fig_est.update_layout(height=300, margin=dict(l=0, r=0, t=0, b=0))
-            st.plotly_chart(fig_est, use_container_width=True)
-        else:
-            st.info("Sin datos de estados.")
-
-    # Leads por canal social
-    if not df_leads_origen.empty:
-        st.markdown("##### Leads por Canal Social")
-        fig_leads = px.bar(df_leads_origen, x='Origen', y='Cantidad',
-                           color='Cantidad', color_continuous_scale='Blues',
-                           text='Cantidad')
-        fig_leads.update_layout(height=280, margin=dict(l=0, r=0, t=0, b=0), coloraxis_showscale=False)
-        st.plotly_chart(fig_leads, use_container_width=True)
+        st.info("Sin datos de estados.")
 
     st.markdown("---")
 
@@ -604,6 +370,7 @@ def auditoria_maestra(controller):
         )
     else:
         st.info("No hay ventas para auditar.")
+
 
 def render_control_financiero_liquidaciones(supabase_client):
     """Interfaz para que Gerencia complete costos y monedas de las liquidaciones."""
@@ -1442,7 +1209,7 @@ def panel_marketing(supabase_client):
     from controllers.gerencia_controller import GerenciaController
     controller = GerenciaController(supabase_client)
     
-    tab_vend, tab_bp, tab_intencion = st.tabs(["📈 Panel de Vendedores", "🧑‍🤝‍🧑 Buyer Persona", "🎯 Intención de Venta"])
+    tab_vend, tab_bp, tab_intencion, tab_audiencia = st.tabs(["📈 Panel de Vendedores", "🧑‍🤝‍🧑 Buyer Persona", "🎯 Intención de Venta", "👥 Audiencia y Demografía"])
 
     with tab_bp:
         # ═══════════════════════════════════════════════════════════════
@@ -1911,6 +1678,255 @@ def panel_marketing(supabase_client):
 
 
 
+
+    with tab_audiencia:
+        st.markdown("### 👥 Audiencia y Demografía")
+        st.caption("Quién es tu cliente (demografía), de dónde viene (canal) y cuánto se anticipa a comprar.")
+
+        ad1, ad2, ad3 = st.columns(3)
+        with ad1:
+            aud_f_inicio = st.date_input("Fecha Inicio", date.today().replace(day=1), key="mkt_aud_finicio")
+        with ad2:
+            aud_f_fin = st.date_input("Fecha Fin", date.today(), key="mkt_aud_ffin")
+        with ad3:
+            aud_segmento = st.selectbox("Segmento", ["Todos", "B2C", "Corporativo"], key="mkt_aud_seg")
+        aud_seg_val = None if aud_segmento == "Todos" else aud_segmento
+
+        with st.spinner("Cargando audiencia y demografía..."):
+            df_v_canal      = controller.get_ventas_por_canal(fecha_inicio=aud_f_inicio, fecha_fin=aud_f_fin, segmento=aud_seg_val)
+            df_leads_origen = controller.get_distribucion_origen_leads(fecha_inicio=aud_f_inicio, fecha_fin=aud_f_fin)
+            df_demo         = _cargar_demografia_clientes(controller.client, fecha_inicio=aud_f_inicio, fecha_fin=aud_f_fin, segmento=aud_seg_val)
+            df_top_clientes = _cargar_top_clientes(controller.client, fecha_inicio=aud_f_inicio, fecha_fin=aud_f_fin, segmento=aud_seg_val)
+
+        top_canal = df_v_canal.iloc[0]['Canal'] if not df_v_canal.empty else "N/A"
+        st.metric("📣 Canal Líder", top_canal)
+
+        st.markdown("---")
+
+        # ─────────────────────────────────────────────────────────────────────────
+        # 1. DEMOGRAFÍA DE PASAJEROS
+        # ─────────────────────────────────────────────────────────────────────────
+        st.markdown("#### 🧑‍🤝‍🧑 Demografía de Pasajeros")
+        if df_demo is None or df_demo.empty:
+            st.info("Sin datos de pasajeros en el rango seleccionado.")
+        else:
+            da1, da2, da3 = st.columns(3)
+
+            # A) Diagrama circular de género
+            with da1:
+                st.markdown("##### Género")
+                df_g = df_demo.groupby("genero_norm").size().reset_index(name="Cantidad")
+                fig_g = px.pie(
+                    df_g, names="genero_norm", values="Cantidad", hole=0.4,
+                    color_discrete_sequence=px.colors.qualitative.Safe,
+                )
+                fig_g.update_layout(height=320, margin=dict(l=0, r=0, t=30, b=0), showlegend=True)
+                st.plotly_chart(fig_g, use_container_width=True)
+
+            # B) Barras de nacionalidad (top 10)
+            with da2:
+                st.markdown("##### Nacionalidad / País (Top 10)")
+                df_p = (
+                    df_demo.groupby("pais_norm")
+                    .size()
+                    .reset_index(name="Cantidad")
+                    .sort_values("Cantidad", ascending=False)
+                    .head(10)
+                )
+                fig_p = px.bar(
+                    df_p, x="pais_norm", y="Cantidad", text="Cantidad",
+                    color="Cantidad",
+                    color_continuous_scale="Purples",
+                )
+                fig_p.update_layout(height=320, margin=dict(l=0, r=0, t=30, b=0), coloraxis_showscale=False)
+                fig_p.update_xaxes(title=None)
+                st.plotly_chart(fig_p, use_container_width=True)
+
+            # C) Canal de captación (red_social)
+            with da3:
+                st.markdown("##### Edades de Pasajeros (Histograma)")
+                df_e = df_demo.dropna(subset=["edad_num"]).copy()
+                df_e = df_e[(df_e["edad_num"] >= 0) & (df_e["edad_num"] <= 120)]
+                if df_e.empty:
+                    st.info("Sin edades registradas.")
+                else:
+                    fig_e = px.histogram(
+                        df_e, x="edad_num", nbins=12,
+                        color_discrete_sequence=["#1E88E5"],
+                    )
+                    fig_e.update_layout(height=320, margin=dict(l=0, r=0, t=30, b=0))
+                    fig_e.update_xaxes(title="Edad")
+                    st.plotly_chart(fig_e, use_container_width=True)
+
+        # ─────────────────────────────────────────────────────────────────────────
+        # 1B. CLIENTES PRINCIPALES (pasajero es_principal=True)
+        # ─────────────────────────────────────────────────────────────────────────
+        n_principales = len(df_top_clientes) if df_top_clientes is not None and not df_top_clientes.empty else 0
+        st.markdown(f"#### 🏆 Demografía de Clientes Principales ({n_principales} registros — `es_principal = true`)")
+        if df_top_clientes is None or df_top_clientes.empty:
+            st.info("Sin datos de clientes principales en el rango seleccionado.")
+        else:
+            cp1, cp2, cp3 = st.columns(3)
+
+            # A) Género
+            with cp1:
+                st.markdown("##### Género")
+                df_cg = df_top_clientes.groupby("genero_norm").size().reset_index(name="Cantidad")
+                fig_cg = px.pie(
+                    df_cg, names="genero_norm", values="Cantidad", hole=0.4,
+                    color_discrete_sequence=px.colors.qualitative.Pastel,
+                )
+                fig_cg.update_layout(height=320, margin=dict(l=0, r=0, t=30, b=0), showlegend=True)
+                st.plotly_chart(fig_cg, use_container_width=True)
+
+            # B) Nacionalidad (top 10)
+            with cp2:
+                st.markdown("##### Nacionalidad / País (Top 10)")
+                df_cp = (
+                    df_top_clientes.groupby("pais_norm")
+                    .size()
+                    .reset_index(name="Cantidad")
+                    .sort_values("Cantidad", ascending=False)
+                    .head(10)
+                )
+                fig_cp = px.bar(
+                    df_cp, x="pais_norm", y="Cantidad", text="Cantidad",
+                    color="Cantidad",
+                    color_continuous_scale="Teal",
+                )
+                fig_cp.update_layout(height=320, margin=dict(l=0, r=0, t=30, b=0), coloraxis_showscale=False)
+                fig_cp.update_xaxes(title=None)
+                st.plotly_chart(fig_cp, use_container_width=True)
+
+            # C) Edades (histograma)
+            with cp3:
+                st.markdown("##### Edades (Histograma)")
+                df_ce = df_top_clientes.dropna(subset=["edad_num"]).copy()
+                df_ce = df_ce[(df_ce["edad_num"] >= 0) & (df_ce["edad_num"] <= 120)]
+                if df_ce.empty:
+                    st.info("Sin edades registradas.")
+                else:
+                    fig_ce = px.histogram(
+                        df_ce, x="edad_num", nbins=12,
+                        color_discrete_sequence=["#FF7043"],
+                    )
+                    fig_ce.update_layout(height=320, margin=dict(l=0, r=0, t=30, b=0))
+                    fig_ce.update_xaxes(title="Edad")
+                    st.plotly_chart(fig_ce, use_container_width=True)
+
+
+        st.markdown("---")
+
+        # ─────────────────────────────────────────────────────────────────────────
+        # 2B. ANTICIPACIÓN DE COMPRA (B2C vs B2B)
+        # ─────────────────────────────────────────────────────────────────────────
+        st.markdown("#### 📆 Anticipación de Compra (B2C vs B2B)")
+        st.caption("Cuántos días pasan entre que el cliente compra y el día que empieza su viaje. Se muestra siempre separado por segmento, porque agencias (B2B) y clientes directos (B2C) suelen reservar con anticipación muy distinta.")
+
+        with st.spinner("Calculando anticipación de compra..."):
+            df_antic = controller.get_anticipacion_compra(fecha_inicio=aud_f_inicio, fecha_fin=aud_f_fin)
+
+        if df_antic is None or df_antic.empty:
+            st.info("Sin datos suficientes de anticipación de compra en el rango seleccionado.")
+        else:
+            df_antic_b2c = df_antic[df_antic['Segmento'] == 'B2C']
+            df_antic_b2b = df_antic[df_antic['Segmento'] == 'B2B']
+
+            # --- KPIs ---
+            ka1, ka2, ka3, ka4 = st.columns(4)
+            ka1.metric("📅 Promedio B2C", f"{df_antic_b2c['dias_anticipacion'].mean():.0f} días" if not df_antic_b2c.empty else "—")
+            ka2.metric("📅 Mediana B2C", f"{df_antic_b2c['dias_anticipacion'].median():.0f} días" if not df_antic_b2c.empty else "—")
+            ka3.metric("📅 Promedio B2B", f"{df_antic_b2b['dias_anticipacion'].mean():.0f} días" if not df_antic_b2b.empty else "—")
+            ka4.metric("📅 Mediana B2B", f"{df_antic_b2b['dias_anticipacion'].median():.0f} días" if not df_antic_b2b.empty else "—")
+
+            # --- Histograma ---
+            st.markdown("##### Distribución de Días de Anticipación")
+            fig_hist_antic = px.histogram(
+                df_antic, x='dias_anticipacion', color='Segmento', barmode='overlay', opacity=0.65, nbins=30,
+                color_discrete_map={'B2B': '#7E57C2', 'B2C': '#26A69A'},
+                labels={'dias_anticipacion': 'Días de Anticipación'}
+            )
+            fig_hist_antic.update_layout(height=350, margin=dict(l=0, r=0, t=10, b=0), legend_title='')
+            st.plotly_chart(fig_hist_antic, use_container_width=True)
+
+            aa1, aa2 = st.columns(2)
+            with aa1:
+                st.markdown("##### Anticipación Promedio por Canal")
+                df_canal_antic = df_antic.groupby(['canal_venta', 'Segmento'])['dias_anticipacion'].mean().round(1).reset_index()
+                fig_canal_antic = px.bar(
+                    df_canal_antic, x='canal_venta', y='dias_anticipacion', color='Segmento', barmode='group',
+                    color_discrete_map={'B2B': '#7E57C2', 'B2C': '#26A69A'},
+                    labels={'canal_venta': 'Canal', 'dias_anticipacion': 'Días (promedio)'}
+                )
+                fig_canal_antic.update_layout(height=350, margin=dict(l=0, r=0, t=10, b=0), legend_title='')
+                st.plotly_chart(fig_canal_antic, use_container_width=True)
+
+            with aa2:
+                st.markdown("##### Anticipación Promedio por Nacionalidad (Top 10)")
+                df_antic_nac = df_antic.copy()
+                df_antic_nac['pais_norm'] = df_antic_nac['nacionalidad'].apply(_normalizar_pais)
+                top_paises = df_antic_nac['pais_norm'].value_counts().head(10).index
+                df_nac_antic = (
+                    df_antic_nac[df_antic_nac['pais_norm'].isin(top_paises)]
+                    .groupby(['pais_norm', 'Segmento'])['dias_anticipacion'].mean().round(1).reset_index()
+                )
+                fig_nac_antic = px.bar(
+                    df_nac_antic, x='pais_norm', y='dias_anticipacion', color='Segmento', barmode='group',
+                    color_discrete_map={'B2B': '#7E57C2', 'B2C': '#26A69A'},
+                    labels={'pais_norm': 'País', 'dias_anticipacion': 'Días (promedio)'}
+                )
+                fig_nac_antic.update_layout(height=350, margin=dict(l=0, r=0, t=10, b=0), legend_title='')
+                st.plotly_chart(fig_nac_antic, use_container_width=True)
+
+            st.markdown("##### Anticipación Promedio por Tour/Paquete (Top 10)")
+            top_tours = df_antic['tour_nombre'].value_counts().head(10).index
+            df_tour_antic = (
+                df_antic[df_antic['tour_nombre'].isin(top_tours)]
+                .groupby(['tour_nombre', 'Segmento'])['dias_anticipacion'].mean().round(1).reset_index()
+            )
+            fig_tour_antic = px.bar(
+                df_tour_antic, x='tour_nombre', y='dias_anticipacion', color='Segmento', barmode='group',
+                color_discrete_map={'B2B': '#7E57C2', 'B2C': '#26A69A'},
+                labels={'tour_nombre': 'Tour / Paquete', 'dias_anticipacion': 'Días (promedio)'}
+            )
+            fig_tour_antic.update_layout(height=380, margin=dict(l=0, r=0, t=10, b=0), legend_title='', xaxis_tickangle=-30)
+            st.plotly_chart(fig_tour_antic, use_container_width=True)
+
+            st.markdown("##### Tendencia Mensual de Anticipación")
+            df_mes_antic = df_antic.groupby(['Mes', 'Segmento'])['dias_anticipacion'].mean().round(1).reset_index()
+            fig_mes_antic = px.line(
+                df_mes_antic, x='Mes', y='dias_anticipacion', color='Segmento', markers=True,
+                color_discrete_map={'B2B': '#7E57C2', 'B2C': '#26A69A'},
+                labels={'Mes': 'Mes', 'dias_anticipacion': 'Días (promedio)'}
+            )
+            fig_mes_antic.update_layout(height=320, margin=dict(l=0, r=0, t=10, b=0), legend_title='')
+            st.plotly_chart(fig_mes_antic, use_container_width=True)
+
+        st.markdown("---")
+
+        # ─────────────────────────────────────────────────────────────────────────
+        # CANALES DE CAPTACIÓN
+        # ─────────────────────────────────────────────────────────────────────────
+        st.markdown("#### 📊 Canales de Captación")
+        st.markdown("##### Distribución Económica por Canal")
+        if not df_v_canal.empty:
+            fig_canal = px.bar(df_v_canal, x='Canal', y='Monto', color='Canal',
+                               color_discrete_sequence=px.colors.qualitative.Pastel,
+                               text_auto=True)
+            fig_canal.update_layout(showlegend=False, height=300, margin=dict(l=0, r=0, t=0, b=0))
+            st.plotly_chart(fig_canal, use_container_width=True)
+        else:
+            st.info("Sin datos de canales.")
+        # Leads por canal social
+        if not df_leads_origen.empty:
+            st.markdown("##### Leads por Canal Social")
+            fig_leads = px.bar(df_leads_origen, x='Origen', y='Cantidad',
+                               color='Cantidad', color_continuous_scale='Blues',
+                               text='Cantidad')
+            fig_leads.update_layout(height=280, margin=dict(l=0, r=0, t=0, b=0), coloraxis_showscale=False)
+            st.plotly_chart(fig_leads, use_container_width=True)
+
+
 def panel_comunicados_gerencia(supabase_client):
     """Panel de administración y auditoría de comunicados de todas las áreas."""
     st.subheader("📢 Administración de Comunicados del Sistema", divider='blue')
@@ -2025,8 +2041,8 @@ def mostrar_pagina(funcionalidad_seleccionada, rol_actual, user_id, supabase_cli
         panel_marketing(supabase_client)
     elif funcionalidad_seleccionada in ["Comunicados", "Tablero de Comunicados"]:
         panel_comunicados_gerencia(supabase_client)
-    elif funcionalidad_seleccionada in ["Auditoría de Gestión", "Gestión de Registros", "Gestión Ejecutiva"]:
-        auditoria_maestra(controller)
+    elif funcionalidad_seleccionada in ["Desempeño de Vendedores", "Auditoría de Gestión", "Gestión de Registros", "Gestión Ejecutiva"]:
+        desempeno_vendedores_maestro(controller)
     elif funcionalidad_seleccionada in ["Control de Liquidaciones"]:
         render_control_financiero_liquidaciones(supabase_client)
     elif funcionalidad_seleccionada in ["Revisión de Pasajeros", "Panel de Revisión", "Revisión Operativa"]:
