@@ -294,6 +294,64 @@ class GerenciaController:
             print(f"Error Ventas por Estado: {e}")
             return pd.DataFrame()
 
+    def get_anticipacion_compra(self, fecha_inicio=None, fecha_fin=None):
+        """
+        Calcula días de anticipación de compra (fecha_inicio del viaje - fecha_venta) por venta.
+        Usa el pasajero principal (es_principal=True) para traer también la nacionalidad.
+        Excluye ventas CANCELADO, sin fecha_inicio, y anticipaciones negativas o > 730 días
+        (probables errores de captura de fecha).
+        """
+        try:
+            res = (
+                self.client.table('pasajero')
+                .select('nacionalidad, venta(fecha_venta, fecha_inicio, id_agencia_aliada, canal_venta, tour_nombre, estado_venta)')
+                .eq('es_principal', True)
+                .execute()
+            )
+            filas = []
+            for p in (res.data or []):
+                v = p.get('venta') or {}
+                if isinstance(v, list):
+                    v = v[0] if v else {}
+                if not v or v.get('estado_venta') == 'CANCELADO':
+                    continue
+                if not v.get('fecha_venta') or not v.get('fecha_inicio'):
+                    continue
+                filas.append({
+                    'fecha_venta': v.get('fecha_venta'),
+                    'fecha_inicio': v.get('fecha_inicio'),
+                    'id_agencia_aliada': v.get('id_agencia_aliada'),
+                    'canal_venta': v.get('canal_venta') or 'DIRECTO',
+                    'tour_nombre': v.get('tour_nombre') or 'Sin Tour',
+                    'nacionalidad': p.get('nacionalidad') or 'SIN DATO',
+                })
+
+            df = pd.DataFrame(filas)
+            if df.empty:
+                return df
+
+            df['fecha_venta'] = pd.to_datetime(df['fecha_venta'], format='mixed', errors='coerce')
+            df['fecha_inicio'] = pd.to_datetime(df['fecha_inicio'], format='mixed', errors='coerce')
+            df = df.dropna(subset=['fecha_venta', 'fecha_inicio'])
+            if df.empty:
+                return df
+
+            if fecha_inicio and fecha_fin:
+                df = df[(df['fecha_venta'].dt.date >= fecha_inicio) & (df['fecha_venta'].dt.date <= fecha_fin)]
+
+            df['dias_anticipacion'] = (df['fecha_inicio'] - df['fecha_venta']).dt.days
+            df = df[(df['dias_anticipacion'] >= 0) & (df['dias_anticipacion'] <= 730)]
+            if df.empty:
+                return df
+
+            df['Segmento'] = df['id_agencia_aliada'].apply(lambda x: 'B2B' if x else 'B2C')
+            df['Mes'] = df['fecha_venta'].dt.strftime('%Y-%m')
+
+            return df[['dias_anticipacion', 'Segmento', 'canal_venta', 'tour_nombre', 'Mes', 'nacionalidad']]
+        except Exception as e:
+            print(f"Error Anticipación Compra: {e}")
+            return pd.DataFrame()
+
     def get_detalle_ventas_limpio(self, fecha_inicio=None, fecha_fin=None, segmento=None):
         """Retorna el DataFrame de ventas con nombres de clientes y vendedores para la tabla."""
         try:
@@ -592,7 +650,7 @@ class GerenciaController:
                     'Precio_Total_USD': float(precio),
                     'Fecha_Cotizacion': fecha_gen
                 })
-                
+
                 # 6. Tours individuales detallados
                 itinerario_lista = render.get('itinerario') or render.get('days') or render.get('itinerario_detalles') or []
                 if isinstance(itinerario_lista, list):
@@ -601,8 +659,213 @@ class GerenciaController:
                             titulo_tour = dia.get('titulo')
                             if titulo_tour:
                                 resultados_tours.append({'Tour': str(titulo_tour).upper().strip()})
-                
+
             return total_leads, total_itinerarios, pd.DataFrame(resultados_paquetes), pd.DataFrame(resultados_tours)
         except Exception as e:
             print(f"Error Marketing Dashboard Data: {e}")
+            return 0, 0, pd.DataFrame(), pd.DataFrame()
+
+    # ------------------------------------------------------------------
+    # BUYER PERSONA (Panel de Gerencia de Marketing)
+    # ------------------------------------------------------------------
+
+    def get_buyer_persona_data(self, fecha_inicio=None, fecha_fin=None):
+        """
+        Construye el dataset de Buyer Persona: SOLO B2C, una fila por venta (df_ventas)
+        y una fila por cliente ya clasificado en una Persona (df_clientes).
+        Excluye CANCELADO. La Ganancia solo se calcula para viajes con fecha_inicio pasada
+        (los futuros aún no tienen costos cargados por Operaciones).
+        Devuelve (df_clientes, df_ventas). Ambos vacíos si no hay datos.
+        """
+        import numpy as np
+        try:
+            hoy = date.today()
+
+            res_v = self.client.table('venta').select(
+                'id_venta, id_cliente, fecha_venta, fecha_inicio, fecha_fin, precio_total_cierre, '
+                'moneda, tipo_cambio, num_pasajeros, tour_nombre, id_itinerario_digital, id_agencia_aliada, estado_venta'
+            ).is_('id_agencia_aliada', 'null').neq('estado_venta', 'CANCELADO').execute()
+
+            ventas = res_v.data or []
+            if not ventas:
+                return pd.DataFrame(), pd.DataFrame()
+
+            df_v = pd.DataFrame(ventas)
+            df_v['fecha_venta'] = pd.to_datetime(df_v['fecha_venta'], format='mixed', errors='coerce')
+            df_v['fecha_inicio_dt'] = pd.to_datetime(df_v['fecha_inicio'], format='mixed', errors='coerce')
+            df_v['fecha_fin_dt'] = pd.to_datetime(df_v['fecha_fin'], format='mixed', errors='coerce')
+            df_v = df_v.dropna(subset=['fecha_venta', 'id_cliente'])
+
+            if fecha_inicio and fecha_fin:
+                df_v = df_v[(df_v['fecha_venta'].dt.date >= fecha_inicio) & (df_v['fecha_venta'].dt.date <= fecha_fin)]
+
+            if df_v.empty:
+                return pd.DataFrame(), pd.DataFrame()
+
+            def _a_usd(row):
+                monto = float(row.get('precio_total_cierre') or 0)
+                moneda = str(row.get('moneda') or 'USD').upper()
+                tc = float(row.get('tipo_cambio') or 3.80) or 3.80
+                return monto / tc if moneda == 'PEN' else monto
+
+            df_v['precio_usd'] = df_v.apply(_a_usd, axis=1)
+            df_v['pax'] = pd.to_numeric(df_v['num_pasajeros'], errors='coerce').fillna(1).clip(lower=1)
+            df_v['ticket_pax'] = df_v['precio_usd'] / df_v['pax']
+
+            df_v['anticipacion'] = (df_v['fecha_inicio_dt'] - df_v['fecha_venta']).dt.days
+            df_v['duracion_viaje'] = (df_v['fecha_fin_dt'] - df_v['fecha_inicio_dt']).dt.days + 1
+            df_v.loc[(df_v['anticipacion'] < 0) | (df_v['anticipacion'] > 730), 'anticipacion'] = np.nan
+            df_v.loc[(df_v['duracion_viaje'] < 1) | (df_v['duracion_viaje'] > 60), 'duracion_viaje'] = np.nan
+
+            ids_venta = df_v['id_venta'].dropna().tolist()
+
+            # --- Demografía: pasajero principal por venta ---
+            nacionalidad_map, edad_map, genero_map, cuidado_map = {}, {}, {}, {}
+            try:
+                res_p = (
+                    self.client.table('pasajero')
+                    .select('id_venta, nacionalidad, edad, genero, cuidados_especiales, es_principal')
+                    .eq('es_principal', True)
+                    .in_('id_venta', ids_venta)
+                    .execute()
+                )
+                for p in (res_p.data or []):
+                    nacionalidad_map[p['id_venta']] = p.get('nacionalidad')
+                    edad_map[p['id_venta']] = p.get('edad')
+                    genero_map[p['id_venta']] = p.get('genero')
+                    cuidado_map[p['id_venta']] = bool(p.get('cuidados_especiales'))
+            except Exception as e:
+                print(f"Buyer Persona - error pasajero: {e}")
+
+            # --- Geografía: origen del itinerario (Nacional/Extranjero/Mixto) ---
+            origen_map = {}
+            ids_itin = [x for x in df_v['id_itinerario_digital'].dropna().unique().tolist()]
+            if ids_itin:
+                try:
+                    res_it = (
+                        self.client.table('itinerario_digital')
+                        .select('id_itinerario_digital, datos_render')
+                        .in_('id_itinerario_digital', ids_itin)
+                        .execute()
+                    )
+                    for it in (res_it.data or []):
+                        render = it.get('datos_render') or {}
+                        if isinstance(render, str):
+                            import json
+                            try:
+                                render = json.loads(render)
+                            except Exception:
+                                render = {}
+                        val = str(render.get('origen') or '').strip().upper()
+                        origen_map[it['id_itinerario_digital']] = val or None
+                except Exception as e:
+                    print(f"Buyer Persona - error itinerario: {e}")
+
+            # --- Psicografía: dificultad del tour, vía venta_tour -> tour ---
+            dificultad_map = {}
+            try:
+                res_vt = (
+                    self.client.table('venta_tour')
+                    .select('id_venta, id_tour, tour(dificultad)')
+                    .in_('id_venta', ids_venta)
+                    .execute()
+                )
+                orden_dificultad = {'FACIL': 1, 'MODERADO': 2, 'DIFICIL': 3, 'EXTREMO': 4}
+                for vt in (res_vt.data or []):
+                    t = vt.get('tour') or {}
+                    if isinstance(t, list):
+                        t = t[0] if t else {}
+                    dif = str((t or {}).get('dificultad') or '').strip().upper()
+                    if dif:
+                        actual = dificultad_map.get(vt['id_venta'])
+                        if actual is None or orden_dificultad.get(dif, 0) > orden_dificultad.get(actual, 0):
+                            dificultad_map[vt['id_venta']] = dif
+            except Exception as e:
+                print(f"Buyer Persona - error tour dificultad: {e}")
+
+            # --- Conductual: Ganancia, solo viajes cuyo fecha_inicio ya pasó ---
+            ganancia_map = {}
+            ids_venta_pasadas = df_v.loc[df_v['fecha_inicio_dt'] < pd.Timestamp(hoy), 'id_venta'].dropna().tolist()
+            if ids_venta_pasadas:
+                try:
+                    res_c = (
+                        self.client.table('venta_servicio_proveedor')
+                        .select('id_venta, costo_unitario, cantidad_pax, moneda')
+                        .in_('id_venta', ids_venta_pasadas)
+                        .execute()
+                    )
+                    costos_por_venta = {}
+                    for c in (res_c.data or []):
+                        vid = c['id_venta']
+                        mon = str(c.get('moneda') or 'USD').strip().upper()
+                        monto = float(c.get('costo_unitario') or 0) * int(c.get('cantidad_pax') or 1)
+                        monto_usd = monto if mon == 'USD' else monto / 3.80
+                        costos_por_venta[vid] = costos_por_venta.get(vid, 0.0) + monto_usd
+                    precio_por_venta = dict(zip(df_v['id_venta'], df_v['precio_usd']))
+                    for vid in ids_venta_pasadas:
+                        if vid in precio_por_venta:
+                            ganancia_map[vid] = precio_por_venta[vid] - costos_por_venta.get(vid, 0.0)
+                except Exception as e:
+                    print(f"Buyer Persona - error ganancia: {e}")
+
+            df_v['nacionalidad'] = df_v['id_venta'].map(nacionalidad_map)
+            df_v['edad'] = pd.to_numeric(df_v['id_venta'].map(edad_map), errors='coerce')
+            df_v['genero'] = df_v['id_venta'].map(genero_map)
+            df_v['tiene_cuidado_especial'] = df_v['id_venta'].map(cuidado_map).fillna(False)
+            df_v['origen_grupo'] = df_v['id_itinerario_digital'].map(origen_map)
+            df_v['dificultad_tour'] = df_v['id_venta'].map(dificultad_map)
+            df_v['ganancia_usd'] = df_v['id_venta'].map(ganancia_map)
+
+            # --- Agregación a nivel CLIENTE ---
+            agg = df_v.groupby('id_cliente').agg(
+                n_compras=('id_venta', 'count'),
+                ticket_pax_prom=('ticket_pax', 'mean'),
+                gasto_total_usd=('precio_usd', 'sum'),
+                anticipacion_prom=('anticipacion', 'mean'),
+                duracion_prom=('duracion_viaje', 'mean'),
+                pax_prom=('pax', 'mean'),
+                edad_prom=('edad', 'mean'),
+                ultima_compra=('fecha_venta', 'max'),
+                ganancia_total_usd=('ganancia_usd', 'sum'),
+                n_viajes_con_costo=('ganancia_usd', 'count'),
+            ).reset_index()
+
+            def _moda(serie):
+                serie = serie.dropna()
+                return serie.mode().iloc[0] if not serie.empty else None
+
+            modas = df_v.groupby('id_cliente').agg(
+                genero=('genero', _moda),
+                nacionalidad=('nacionalidad', _moda),
+                origen_grupo=('origen_grupo', _moda),
+                dificultad_tour=('dificultad_tour', _moda),
+                tour_frecuente=('tour_nombre', _moda),
+            ).reset_index()
+
+            df_cli = agg.merge(modas, on='id_cliente')
+            cuidado_por_cliente = df_v.groupby('id_cliente')['tiene_cuidado_especial'].any()
+            df_cli['tiene_cuidado_especial'] = df_cli['id_cliente'].map(cuidado_por_cliente)
+            df_cli['recencia_dias'] = (pd.Timestamp(hoy) - df_cli['ultima_compra']).dt.days
+            df_cli['cliente_recurrente'] = df_cli['n_compras'] > 1
+
+            # --- Clasificación en Persona (reglas por prioridad, umbrales por percentil) ---
+            umbral_premium = df_cli['ticket_pax_prom'].quantile(0.67) if df_cli['ticket_pax_prom'].notna().any() else float('inf')
+            mediana_anticipacion = df_cli['anticipacion_prom'].median()
+
+            def _clasificar(row):
+                if row['pax_prom'] >= 3:
+                    return 'Familiar/Grupo'
+                if pd.notna(row['ticket_pax_prom']) and row['ticket_pax_prom'] >= umbral_premium:
+                    return 'Premium'
+                if row['pax_prom'] == 2 and pd.notna(row['anticipacion_prom']) and pd.notna(mediana_anticipacion) and row['anticipacion_prom'] >= mediana_anticipacion:
+                    return 'Pareja Planificadora'
+                return 'Mochilero/Last-Minute'
+
+            df_cli['persona'] = df_cli.apply(_clasificar, axis=1)
+            df_v['id_cliente_persona'] = df_v['id_cliente'].map(dict(zip(df_cli['id_cliente'], df_cli['persona'])))
+
+            return df_cli, df_v
+        except Exception as e:
+            print(f"Error Buyer Persona Data: {e}")
+            return pd.DataFrame(), pd.DataFrame()
             return 0, 0, pd.DataFrame(), pd.DataFrame()

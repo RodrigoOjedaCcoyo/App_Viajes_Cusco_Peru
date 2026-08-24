@@ -461,6 +461,93 @@ def auditoria_maestra(controller):
     st.markdown("---")
 
     # ─────────────────────────────────────────────────────────────────────────
+    # 2B. ANTICIPACIÓN DE COMPRA (B2C vs B2B)
+    # ─────────────────────────────────────────────────────────────────────────
+    st.markdown("#### 📆 Anticipación de Compra (B2C vs B2B)")
+    st.caption("Cuántos días pasan entre que el cliente compra y el día que empieza su viaje. Se muestra siempre separado por segmento, porque agencias (B2B) y clientes directos (B2C) suelen reservar con anticipación muy distinta.")
+
+    with st.spinner("Calculando anticipación de compra..."):
+        df_antic = controller.get_anticipacion_compra(fecha_inicio=f_inicio, fecha_fin=f_fin)
+
+    if df_antic is None or df_antic.empty:
+        st.info("Sin datos suficientes de anticipación de compra en el rango seleccionado.")
+    else:
+        df_antic_b2c = df_antic[df_antic['Segmento'] == 'B2C']
+        df_antic_b2b = df_antic[df_antic['Segmento'] == 'B2B']
+
+        # --- KPIs ---
+        ka1, ka2, ka3, ka4 = st.columns(4)
+        ka1.metric("📅 Promedio B2C", f"{df_antic_b2c['dias_anticipacion'].mean():.0f} días" if not df_antic_b2c.empty else "—")
+        ka2.metric("📅 Mediana B2C", f"{df_antic_b2c['dias_anticipacion'].median():.0f} días" if not df_antic_b2c.empty else "—")
+        ka3.metric("📅 Promedio B2B", f"{df_antic_b2b['dias_anticipacion'].mean():.0f} días" if not df_antic_b2b.empty else "—")
+        ka4.metric("📅 Mediana B2B", f"{df_antic_b2b['dias_anticipacion'].median():.0f} días" if not df_antic_b2b.empty else "—")
+
+        # --- Histograma ---
+        st.markdown("##### Distribución de Días de Anticipación")
+        fig_hist_antic = px.histogram(
+            df_antic, x='dias_anticipacion', color='Segmento', barmode='overlay', opacity=0.65, nbins=30,
+            color_discrete_map={'B2B': '#7E57C2', 'B2C': '#26A69A'},
+            labels={'dias_anticipacion': 'Días de Anticipación'}
+        )
+        fig_hist_antic.update_layout(height=350, margin=dict(l=0, r=0, t=10, b=0), legend_title='')
+        st.plotly_chart(fig_hist_antic, use_container_width=True)
+
+        aa1, aa2 = st.columns(2)
+        with aa1:
+            st.markdown("##### Anticipación Promedio por Canal")
+            df_canal_antic = df_antic.groupby(['canal_venta', 'Segmento'])['dias_anticipacion'].mean().round(1).reset_index()
+            fig_canal_antic = px.bar(
+                df_canal_antic, x='canal_venta', y='dias_anticipacion', color='Segmento', barmode='group',
+                color_discrete_map={'B2B': '#7E57C2', 'B2C': '#26A69A'},
+                labels={'canal_venta': 'Canal', 'dias_anticipacion': 'Días (promedio)'}
+            )
+            fig_canal_antic.update_layout(height=350, margin=dict(l=0, r=0, t=10, b=0), legend_title='')
+            st.plotly_chart(fig_canal_antic, use_container_width=True)
+
+        with aa2:
+            st.markdown("##### Anticipación Promedio por Nacionalidad (Top 10)")
+            df_antic_nac = df_antic.copy()
+            df_antic_nac['pais_norm'] = df_antic_nac['nacionalidad'].apply(_normalizar_pais)
+            top_paises = df_antic_nac['pais_norm'].value_counts().head(10).index
+            df_nac_antic = (
+                df_antic_nac[df_antic_nac['pais_norm'].isin(top_paises)]
+                .groupby(['pais_norm', 'Segmento'])['dias_anticipacion'].mean().round(1).reset_index()
+            )
+            fig_nac_antic = px.bar(
+                df_nac_antic, x='pais_norm', y='dias_anticipacion', color='Segmento', barmode='group',
+                color_discrete_map={'B2B': '#7E57C2', 'B2C': '#26A69A'},
+                labels={'pais_norm': 'País', 'dias_anticipacion': 'Días (promedio)'}
+            )
+            fig_nac_antic.update_layout(height=350, margin=dict(l=0, r=0, t=10, b=0), legend_title='')
+            st.plotly_chart(fig_nac_antic, use_container_width=True)
+
+        st.markdown("##### Anticipación Promedio por Tour/Paquete (Top 10)")
+        top_tours = df_antic['tour_nombre'].value_counts().head(10).index
+        df_tour_antic = (
+            df_antic[df_antic['tour_nombre'].isin(top_tours)]
+            .groupby(['tour_nombre', 'Segmento'])['dias_anticipacion'].mean().round(1).reset_index()
+        )
+        fig_tour_antic = px.bar(
+            df_tour_antic, x='tour_nombre', y='dias_anticipacion', color='Segmento', barmode='group',
+            color_discrete_map={'B2B': '#7E57C2', 'B2C': '#26A69A'},
+            labels={'tour_nombre': 'Tour / Paquete', 'dias_anticipacion': 'Días (promedio)'}
+        )
+        fig_tour_antic.update_layout(height=380, margin=dict(l=0, r=0, t=10, b=0), legend_title='', xaxis_tickangle=-30)
+        st.plotly_chart(fig_tour_antic, use_container_width=True)
+
+        st.markdown("##### Tendencia Mensual de Anticipación")
+        df_mes_antic = df_antic.groupby(['Mes', 'Segmento'])['dias_anticipacion'].mean().round(1).reset_index()
+        fig_mes_antic = px.line(
+            df_mes_antic, x='Mes', y='dias_anticipacion', color='Segmento', markers=True,
+            color_discrete_map={'B2B': '#7E57C2', 'B2C': '#26A69A'},
+            labels={'Mes': 'Mes', 'dias_anticipacion': 'Días (promedio)'}
+        )
+        fig_mes_antic.update_layout(height=320, margin=dict(l=0, r=0, t=10, b=0), legend_title='')
+        st.plotly_chart(fig_mes_antic, use_container_width=True)
+
+    st.markdown("---")
+
+    # ─────────────────────────────────────────────────────────────────────────
     # 3. DISTRIBUCIÓN POR CANAL Y ESTADO
     # ─────────────────────────────────────────────────────────────────────────
     st.markdown("#### 📊 Análisis de Ventas")
@@ -1504,6 +1591,223 @@ def panel_marketing(supabase_client):
                      "Fecha_Cotizacion": st.column_config.TextColumn("📆 Fecha Cot.", width="small"),
                  })
 
+    # ═══════════════════════════════════════════════════════════════
+    # BUYER PERSONA (ventas B2C reales, no cotizaciones)
+    # ═══════════════════════════════════════════════════════════════
+    st.markdown("---")
+    st.markdown("### 🧑‍🤝‍🧑 Buyer Persona (Clientes B2C — ventas reales)")
+    st.caption("A diferencia de las secciones de arriba (que usan cotizaciones/intención), esto se basa en ventas ya cerradas. Se recalcula solo con cada dato nuevo, no es una foto fija.")
+
+    bp1, bp2 = st.columns(2)
+    with bp1:
+        bp_fecha_ini = st.date_input("Fecha Inicio (Venta)", value=date.today().replace(day=1) - timedelta(days=365), key="bp_fecha_ini")
+    with bp2:
+        bp_fecha_fin = st.date_input("Fecha Fin (Venta)", value=date.today(), key="bp_fecha_fin")
+
+    with st.spinner("Calculando Buyer Persona..."):
+        df_cli, df_v_bp = controller.get_buyer_persona_data(fecha_inicio=bp_fecha_ini, fecha_fin=bp_fecha_fin)
+
+    if df_cli.empty:
+        st.info("No hay suficientes datos de clientes B2C en este rango para el análisis de Buyer Persona.")
+    else:
+        n_clientes = len(df_cli)
+        if n_clientes < 15:
+            st.warning(f"⚠️ Muestra pequeña (N={n_clientes} clientes) — interpreta estos resultados con cautela; la mediana y los percentiles pueden no ser representativos todavía.")
+
+        COLORES_PERSONA = {
+            'Mochilero/Last-Minute': '#26A69A',
+            'Pareja Planificadora': '#7E57C2',
+            'Familiar/Grupo': '#FFA726',
+            'Premium': '#EF5350',
+        }
+        ICONOS_PERSONA = {
+            'Mochilero/Last-Minute': '🎒',
+            'Pareja Planificadora': '💑',
+            'Familiar/Grupo': '👨‍👩‍👧',
+            'Premium': '💎',
+        }
+
+        # --- 1. Panorama general ---
+        st.markdown("#### 🥧 Distribución de Personas")
+        df_dist = df_cli['persona'].value_counts().reset_index()
+        df_dist.columns = ['Persona', 'Cantidad']
+        fig_dist = px.pie(df_dist, names='Persona', values='Cantidad', hole=0.45,
+                           color='Persona', color_discrete_map=COLORES_PERSONA)
+        fig_dist.update_layout(height=350, margin=dict(l=0, r=0, t=10, b=0))
+        st.plotly_chart(fig_dist, use_container_width=True)
+
+        # --- 2. Matriz / Scatter con cuadrantes ---
+        st.markdown("#### 🎯 Matriz de Compradores: Anticipación vs Ticket")
+        df_scatter = df_cli.dropna(subset=['anticipacion_prom', 'ticket_pax_prom'])
+        if df_scatter.empty:
+            st.info("No hay suficientes datos de anticipación/ticket para graficar la matriz.")
+        else:
+            med_x = df_scatter['anticipacion_prom'].median()
+            med_y = df_scatter['ticket_pax_prom'].median()
+            fig_scatter = px.scatter(
+                df_scatter, x='anticipacion_prom', y='ticket_pax_prom', color='persona',
+                size='pax_prom', size_max=22, opacity=0.7,
+                color_discrete_map=COLORES_PERSONA,
+                hover_data={'n_compras': True, 'gasto_total_usd': ':.0f'},
+                labels={'anticipacion_prom': 'Anticipación Promedio (días)', 'ticket_pax_prom': 'Ticket Promedio ($/pax)', 'persona': 'Persona'}
+            )
+            fig_scatter.add_vline(x=med_x, line_dash='dash', line_color='gray')
+            fig_scatter.add_hline(y=med_y, line_dash='dash', line_color='gray')
+            anot_kwargs = dict(showarrow=False, xref='paper', yref='paper', font=dict(size=10, color='gray'))
+            fig_scatter.add_annotation(x=0.02, y=0.98, xanchor='left', yanchor='top', text="💎 Impulsivo de Alto Valor", **anot_kwargs)
+            fig_scatter.add_annotation(x=0.98, y=0.98, xanchor='right', yanchor='top', text="💎 Premium Planificado", **anot_kwargs)
+            fig_scatter.add_annotation(x=0.02, y=0.02, xanchor='left', yanchor='bottom', text="🎒 Last-Minute Económico", **anot_kwargs)
+            fig_scatter.add_annotation(x=0.98, y=0.02, xanchor='right', yanchor='bottom', text="🎒 Económico Planificado", **anot_kwargs)
+            fig_scatter.update_layout(height=500, margin=dict(l=0, r=0, t=20, b=0))
+            st.plotly_chart(fig_scatter, use_container_width=True)
+
+        st.markdown("---")
+
+        # --- 3. Tarjetas de Perfil ---
+        st.markdown("#### 🪪 Tarjetas de Perfil por Persona")
+        personas_orden = ['Premium', 'Pareja Planificadora', 'Familiar/Grupo', 'Mochilero/Last-Minute']
+        cols_cards = st.columns(2)
+        for i, persona_nombre in enumerate(personas_orden):
+            df_p = df_cli[df_cli['persona'] == persona_nombre]
+            with cols_cards[i % 2]:
+                with st.container(border=True):
+                    pct = (len(df_p) / n_clientes * 100) if n_clientes else 0
+                    st.markdown(f"##### {ICONOS_PERSONA.get(persona_nombre, '👤')} {persona_nombre} — {pct:.0f}% ({len(df_p)} clientes)")
+                    if df_p.empty:
+                        st.caption("Sin clientes en este período.")
+                    else:
+                        edad_txt = f"{df_p['edad_prom'].mean():.0f} años" if df_p['edad_prom'].notna().any() else "Sin dato"
+                        genero_txt = df_p['genero'].mode().iloc[0] if not df_p['genero'].dropna().empty else "Sin dato"
+                        origen_txt = df_p['origen_grupo'].mode().iloc[0] if not df_p['origen_grupo'].dropna().empty else "Sin dato"
+                        nac_txt = df_p['nacionalidad'].mode().iloc[0] if not df_p['nacionalidad'].dropna().empty else "Sin dato"
+                        dif_txt = df_p['dificultad_tour'].mode().iloc[0] if not df_p['dificultad_tour'].dropna().empty else "Sin dato"
+                        cuidado_pct = df_p['tiene_cuidado_especial'].mean() * 100
+                        antic_txt = f"{df_p['anticipacion_prom'].mean():.0f} días" if df_p['anticipacion_prom'].notna().any() else "Sin dato"
+                        ticket_txt = f"${df_p['ticket_pax_prom'].mean():.0f}/pax" if df_p['ticket_pax_prom'].notna().any() else "Sin dato"
+                        dur_txt = f"{df_p['duracion_prom'].mean():.1f} días" if df_p['duracion_prom'].notna().any() else "Sin dato"
+                        recurrente_pct = df_p['cliente_recurrente'].mean() * 100
+
+                        st.markdown(f"**👤 Demografía:** {edad_txt} · {genero_txt}")
+                        st.markdown(f"**🌍 Geografía:** {origen_txt} · País top: {nac_txt}")
+                        st.markdown(f"**🎯 Psicografía:** Tours {dif_txt} · {cuidado_pct:.0f}% con necesidades especiales")
+                        st.markdown(f"**📊 Conductual:** {antic_txt} anticipación · {ticket_txt} · Viaje {dur_txt} · {recurrente_pct:.0f}% recurrente")
+
+        st.markdown("---")
+
+        # --- 4. Comparativas entre Personas ---
+        st.markdown("#### 📊 Comparativa entre Personas")
+        cc1, cc2, cc3 = st.columns(3)
+        metricas_comp = [
+            (cc1, 'anticipacion_prom', 'Anticipación (días)'),
+            (cc2, 'ticket_pax_prom', 'Ticket ($/pax)'),
+            (cc3, 'duracion_prom', 'Duración viaje (días)'),
+        ]
+        for col_widget, campo, etiqueta in metricas_comp:
+            with col_widget:
+                df_comp = df_cli.groupby('persona')[campo].mean().reset_index()
+                fig_comp = px.bar(df_comp, x='persona', y=campo, color='persona',
+                                   color_discrete_map=COLORES_PERSONA, text_auto='.0f')
+                fig_comp.update_layout(height=300, margin=dict(l=0, r=0, t=30, b=0), showlegend=False,
+                                        title=etiqueta, xaxis_title='')
+                st.plotly_chart(fig_comp, use_container_width=True)
+
+        df_gan = df_cli[df_cli['n_viajes_con_costo'] > 0]
+        if not df_gan.empty:
+            st.markdown("##### 💰 Ganancia Promedio por Persona (solo viajes ya realizados)")
+            df_gan_agg = df_gan.groupby('persona')['ganancia_total_usd'].mean().reset_index()
+            fig_gan = px.bar(df_gan_agg, x='persona', y='ganancia_total_usd', color='persona',
+                              color_discrete_map=COLORES_PERSONA, text_auto='.0f')
+            fig_gan.update_layout(height=320, margin=dict(l=0, r=0, t=10, b=0), showlegend=False,
+                                   xaxis_title='', yaxis_title='Ganancia (USD)')
+            st.plotly_chart(fig_gan, use_container_width=True)
+        else:
+            st.info("Aún no hay viajes pasados con costos cargados para calcular ganancia por persona.")
+
+        st.markdown("---")
+
+        # --- 5. Curva de Pareto ---
+        st.markdown("#### 📈 Curva de Pareto — ¿Quién sostiene tu negocio?")
+        df_pareto = df_cli.sort_values('gasto_total_usd', ascending=False).reset_index(drop=True)
+        total_gasto = df_pareto['gasto_total_usd'].sum()
+        if total_gasto > 0:
+            df_pareto['pct_clientes'] = (df_pareto.index + 1) / len(df_pareto) * 100
+            df_pareto['pct_ingresos_acum'] = df_pareto['gasto_total_usd'].cumsum() / total_gasto * 100
+            fig_pareto = px.line(df_pareto, x='pct_clientes', y='pct_ingresos_acum')
+            fig_pareto.add_hline(y=80, line_dash='dash', line_color='#EF5350')
+            idx_80_arr = df_pareto.index[df_pareto['pct_ingresos_acum'] >= 80]
+            if len(idx_80_arr) > 0:
+                pct_clientes_80 = df_pareto.loc[idx_80_arr[0], 'pct_clientes']
+                fig_pareto.add_vline(x=pct_clientes_80, line_dash='dash', line_color='#EF5350')
+                st.caption(f"El **{pct_clientes_80:.0f}%** de tus clientes genera el **80%** de tus ingresos.")
+            fig_pareto.update_layout(height=350, margin=dict(l=0, r=0, t=10, b=0),
+                                      xaxis_title='% de Clientes (de mayor a menor gasto)',
+                                      yaxis_title='% de Ingresos Acumulado')
+            st.plotly_chart(fig_pareto, use_container_width=True)
+        else:
+            st.info("Sin datos de gasto suficientes para la curva de Pareto.")
+
+        st.markdown("---")
+
+        # --- 6. RFM simplificado ---
+        st.markdown("#### 🔁 RFM: Recencia, Frecuencia y Monto")
+        df_rfm = df_cli.dropna(subset=['recencia_dias'])
+        if df_rfm.empty:
+            st.info("Sin datos suficientes para RFM.")
+        else:
+            fig_rfm = px.scatter(
+                df_rfm, x='recencia_dias', y='n_compras', size='gasto_total_usd', color='persona',
+                color_discrete_map=COLORES_PERSONA, size_max=25, opacity=0.7,
+                labels={'recencia_dias': 'Días desde su última compra', 'n_compras': 'N° de Compras (Frecuencia)'}
+            )
+            fig_rfm.update_layout(height=400, margin=dict(l=0, r=0, t=10, b=0))
+            st.plotly_chart(fig_rfm, use_container_width=True)
+            st.caption("Abajo-derecha = compraron seguido pero hace tiempo no vuelven (riesgo de perderlos). Arriba-izquierda = leales activos.")
+
+        st.markdown("---")
+
+        # --- 7. Matriz BCG de Tours ---
+        st.markdown("#### 🐄 Matriz de Tours: Volumen vs Rentabilidad")
+        if not df_v_bp.empty:
+            df_tour_bcg = df_v_bp.groupby('tour_nombre').agg(
+                volumen=('id_venta', 'count'),
+                rentabilidad_prom=('ganancia_usd', 'mean'),
+                n_con_costo=('ganancia_usd', 'count'),
+            ).reset_index()
+            df_tour_bcg = df_tour_bcg[df_tour_bcg['n_con_costo'] >= 3]
+            if df_tour_bcg.empty:
+                st.info("Aún no hay suficientes tours con ganancia calculada (viajes pasados con costo cargado) para esta matriz.")
+            else:
+                med_vol = df_tour_bcg['volumen'].median()
+                med_rent = df_tour_bcg['rentabilidad_prom'].median()
+                fig_bcg = px.scatter(
+                    df_tour_bcg, x='volumen', y='rentabilidad_prom', size='volumen', text='tour_nombre',
+                    color='rentabilidad_prom', color_continuous_scale='RdYlGn', size_max=40
+                )
+                fig_bcg.add_vline(x=med_vol, line_dash='dash', line_color='gray')
+                fig_bcg.add_hline(y=med_rent, line_dash='dash', line_color='gray')
+                fig_bcg.update_traces(textposition='top center', textfont_size=8)
+                fig_bcg.update_layout(height=500, margin=dict(l=0, r=0, t=10, b=0),
+                                       xaxis_title='Volumen de Ventas', yaxis_title='Rentabilidad Promedio (USD)',
+                                       coloraxis_showscale=False)
+                st.plotly_chart(fig_bcg, use_container_width=True)
+                st.caption("⭐ Arriba-derecha: Estrella · 🐄 Abajo-derecha: Vaca Lechera · ❓ Arriba-izquierda: Interrogante · 🐕 Abajo-izquierda: Perro (candidato a descontinuar)")
+
+        st.markdown("---")
+
+        # --- 8. Mapa de Estacionalidad ---
+        st.markdown("#### 🗓️ Estacionalidad por Persona")
+        if not df_v_bp.empty:
+            df_v_mes = df_v_bp.dropna(subset=['fecha_venta']).copy()
+            df_v_mes['Mes'] = df_v_mes['fecha_venta'].dt.strftime('%Y-%m')
+            df_heat = df_v_mes.groupby(['Mes', 'id_cliente_persona']).size().reset_index(name='Ventas')
+            if not df_heat.empty:
+                df_heat_pivot = df_heat.pivot(index='id_cliente_persona', columns='Mes', values='Ventas').fillna(0)
+                fig_heat = px.imshow(df_heat_pivot, color_continuous_scale='YlOrRd', aspect='auto',
+                                      labels=dict(x='Mes', y='Persona', color='Ventas'))
+                fig_heat.update_layout(height=350, margin=dict(l=0, r=0, t=10, b=0))
+                st.plotly_chart(fig_heat, use_container_width=True)
+            else:
+                st.info("Sin datos suficientes para el mapa de estacionalidad.")
 
 
 def panel_comunicados_gerencia(supabase_client):
