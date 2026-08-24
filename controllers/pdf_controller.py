@@ -177,11 +177,6 @@ class PDFController:
         }
         return self._render_pdf('itinerario_simple_template.html', context)
 
-    def generar_voucher_endose_pdf(self, data: dict) -> BytesIO:
-        """Genera un Vale de Endose para un proveedor específico."""
-        data['hoy'] = datetime.date.today().strftime("%d/%m/%Y")
-        return self._render_pdf('voucher_endose_template.html', data)
-
     def generar_voucher_reserva_pdf(self, data: dict) -> BytesIO:
         """
         Genera un Voucher de Reserva profesional para el cliente.

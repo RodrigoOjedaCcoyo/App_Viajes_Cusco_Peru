@@ -230,7 +230,7 @@ def desempeno_vendedores_maestro(controller):
         pax_total = controller.get_pax_totales()
         st.metric("PAX en Operación", f"{pax_total}")
     with m3:
-        n_clientes = df_ventas_limpio['Cliente'].nunique() if not df_ventas_limpio.empty else 0
+        n_clientes = df_vl_validas['Cliente'].nunique() if df_vl_validas is not None and not df_vl_validas.empty else 0
         st.metric("Clientes con Ventas", f"{n_clientes}")
 
     st.markdown("---")
@@ -1417,8 +1417,15 @@ def panel_marketing(supabase_client):
             # --- 8. Mapa de Estacionalidad ---
             st.markdown("#### 🗓️ Estacionalidad por Persona")
             if not df_v_bp.empty:
-                df_v_mes = df_v_bp.dropna(subset=['fecha_venta']).copy()
-                df_v_mes['Mes'] = df_v_mes['fecha_venta'].dt.strftime('%Y-%m')
+                campo_fecha_est = st.radio(
+                    "Ver estacionalidad por:",
+                    ["🛍️ Fecha de Venta (cuándo compra)", "✈️ Fecha de Inicio de Viaje (cuándo viaja)"],
+                    horizontal=True, key="bp_estacionalidad_campo"
+                )
+                col_fecha_est = 'fecha_venta' if "Venta" in campo_fecha_est else 'fecha_inicio_dt'
+
+                df_v_mes = df_v_bp.dropna(subset=[col_fecha_est]).copy()
+                df_v_mes['Mes'] = df_v_mes[col_fecha_est].dt.strftime('%Y-%m')
                 df_heat = df_v_mes.groupby(['Mes', 'id_cliente_persona']).size().reset_index(name='Ventas')
                 if not df_heat.empty:
                     df_heat_pivot = df_heat.pivot(index='id_cliente_persona', columns='Mes', values='Ventas').fillna(0)
@@ -1428,6 +1435,32 @@ def panel_marketing(supabase_client):
                     st.plotly_chart(fig_heat, use_container_width=True)
                 else:
                     st.info("Sin datos suficientes para el mapa de estacionalidad.")
+
+                st.markdown("---")
+
+                # --- 9. Día de la Semana Preferido para Iniciar el Viaje ---
+                st.markdown("#### 📅 Día de la Semana Preferido para Iniciar el Viaje")
+                st.caption("¿La gente arranca su viaje más los lunes, los viernes...? Útil para planificar capacidad operativa por día.")
+                df_dow = df_v_bp.dropna(subset=['fecha_inicio_dt']).copy()
+                if df_dow.empty:
+                    st.info("Sin datos suficientes de fecha de inicio de viaje.")
+                else:
+                    dias_es = {
+                        'Monday': 'Lunes', 'Tuesday': 'Martes', 'Wednesday': 'Miércoles',
+                        'Thursday': 'Jueves', 'Friday': 'Viernes', 'Saturday': 'Sábado', 'Sunday': 'Domingo'
+                    }
+                    orden_dias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+                    df_dow['DiaSemana'] = df_dow['fecha_inicio_dt'].dt.day_name().map(dias_es)
+                    df_dow_agg = df_dow.groupby(['DiaSemana', 'id_cliente_persona']).size().reset_index(name='Viajes')
+                    df_dow_agg['DiaSemana'] = pd.Categorical(df_dow_agg['DiaSemana'], categories=orden_dias, ordered=True)
+                    df_dow_agg = df_dow_agg.sort_values('DiaSemana')
+                    fig_dow = px.bar(
+                        df_dow_agg, x='DiaSemana', y='Viajes', color='id_cliente_persona', barmode='stack',
+                        color_discrete_map=COLORES_PERSONA,
+                        labels={'DiaSemana': 'Día de la Semana', 'id_cliente_persona': 'Persona'}
+                    )
+                    fig_dow.update_layout(height=350, margin=dict(l=0, r=0, t=10, b=0), legend_title='')
+                    st.plotly_chart(fig_dow, use_container_width=True)
 
 
 

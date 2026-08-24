@@ -28,10 +28,6 @@ class LeadController:
         else:
             return False, "Error al registrar en la base de datos."
 
-    def obtener_leads_del_vendedor(self, vendedor):
-        """Devuelve todos los leads asignados a un vendedor específico."""
-        return self.model.get_leads_by_vendedor(vendedor)
-
     def obtener_todos_leads(self):
         """Devuelve TODOS los leads del sistema (Vista General)."""
         return self.model.get_all_leads()
@@ -40,6 +36,3 @@ class LeadController:
         """Devuelve diccionario {id: nombre} de vendedores."""
         return self.model.get_vendedores_mapping()
 
-    def actualizar_estado_lead(self, lead_id, nuevo_estado): 
-        """Operación no soportada en el esquema resumido."""
-        return False, "La tabla Lead ya no tiene columna de Estado."

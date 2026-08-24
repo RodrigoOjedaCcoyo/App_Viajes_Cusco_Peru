@@ -252,25 +252,6 @@ class VentaController:
             print(f"Error obteniendo agencias: {e}")
             return []
 
-    def obtener_catalogo_opciones(self) -> list:
-        """Obtiene una lista combinada de Tours y Paquetes para selectores."""
-        opciones = []
-        try:
-            # 1. Obtener Tours
-            tours = self.client.table('tour').select('id_tour, nombre').execute().data or []
-            for t in tours:
-                opciones.append({"id": f"T-{t['id_tour']}", "nombre": f"TOUR: {t['nombre']}"})
-            
-            # 2. Obtener Paquetes
-            paquetes = self.client.table('paquete').select('id_paquete, nombre').execute().data or []
-            for p in paquetes:
-                opciones.append({"id": f"P-{p['id_paquete']}", "nombre": f"PAQUETE: {p['nombre']}"})
-                
-            return opciones
-        except Exception as e:
-            print(f"Error obteniendo catálogo: {e}")
-            return []
-
     def obtener_ventas_agencia(self, id_agencia: int) -> list:
         """Obtiene las ventas vinculadas a una agencia aliada específica con nombre de cliente."""
         try:
@@ -545,49 +526,6 @@ class VentaController:
             import traceback
             detalle = traceback.format_exc()[-400:]
             return False, f"Error durante la sincronizacion: {str(e)}\n\nDetalle tecnico:\n{detalle}"
-
-    def agregar_servicio_operativo(self, id_venta: int, id_tour: int, fecha: str, observacion: str, cantidad: int = 1) -> tuple[bool, str]:
-        """Añade un servicio manualmente a la logística de una venta."""
-        try:
-            # 1. Calcular n_linea (el máximo + 1)
-            res_max = self.client.table('venta_tour').select('n_linea').eq('id_venta', id_venta).order('n_linea', desc=True).limit(1).execute()
-            next_line = (res_max.data[0]['n_linea'] + 1) if res_max.data else 1
-            
-            # 2. Preparar datos
-            payload = {
-                "id_venta": id_venta,
-                "n_linea": next_line,
-                "id_tour": id_tour,
-                "fecha_servicio": fecha,
-                "observacion": observacion,
-                "cantidad": cantidad,
-                "precio_applied": 0, # Se puede ajustar luego
-                "precio_vendedor": 0
-            }
-            
-            # 3. Insertar
-            self.client.table('venta_tour').insert(payload).execute()
-            return True, f"Servicio '{observacion}' añadido correctamente al Día {next_line}."
-            
-        except Exception as e:
-            return False, f"Error al añadir servicio: {e}"
-
-    def eliminar_servicio_operativo(self, id_venta: int, n_linea: int) -> tuple[bool, str]:
-        """Elimina un servicio específico de la logística."""
-        try:
-            res = self.client.table('venta_tour').delete().eq('id_venta', id_venta).eq('n_linea', n_linea).execute()
-            return True, f"Día {n_linea} eliminado de la logística."
-        except Exception as e:
-            return False, f"Error al eliminar servicio: {e}"
-
-    def actualizar_servicio_operativo(self, id_venta: int, n_linea: int, update_data: dict) -> tuple[bool, str]:
-        """Actualiza los datos de un servicio existente."""
-        try:
-            res = self.client.table('venta_tour').update(update_data).eq('id_venta', id_venta).eq('n_linea', n_linea).execute()
-            return True, f"Día {n_linea} actualizado correctamente."
-        except Exception as e:
-            return False, f"Error al actualizar servicio: {e}"
-
 
     def obtener_todas_ventas_b2b(self) -> list:
         """Obtiene todas las ventas registradas vía agencias aliadas para el dashboard global."""

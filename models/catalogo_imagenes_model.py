@@ -21,13 +21,3 @@ class CatalogoImagenesModel(BaseModel):
             print(f"Error cargando imágenes del tour {id_tour}: {e}")
             return []
             
-    def actualizar_imagenes_tour(self, id_tour: int, urls: List[str]) -> bool:
-        """Actualiza o inserta las imágenes de un tour."""
-        try:
-            data = {"id_tour": id_tour, "urls_imagenes": urls}
-            # Usamos upsert de Supabase via client directamente para mayor facilidad con id_tour como PK
-            res = self.client.table(self.table_name).upsert(data).execute()
-            return len(res.data) > 0
-        except Exception as e:
-            print(f"Error actualizando catálogo de imágenes: {e}")
-            return False

@@ -627,18 +627,6 @@ def dashboard_tablero_diario(controller):
 
         st.info("💡 Haz clic en '📁 Maestro' para descargar el expediente completo del pasajero.")
 
-def generar_mensaje_whatsapp(data):
-    """Genera un link de WhatsApp con el mensaje formateado."""
-    texto = f"Hola, soy de la Agencia. Aquí el detalle de tu servicio:\n\n"
-    texto += f"Servicio: {data['Servicio']}\n"
-    texto += f"Cliente: {data['Cliente']}\n"
-    texto += f"Fecha: {data['Fecha']}\n"
-    texto += f"Guía: {data['Guía']}"
-    
-    url = f"https://wa.me/?text={urllib.parse.quote(texto)}"
-    return url
-
-
 def registro_ventas_proveedores(supabase_client):
     from controllers.itinerario_digital_controller import ItinerarioDigitalController
     from controllers.lead_controller import LeadController

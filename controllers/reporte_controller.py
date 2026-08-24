@@ -57,32 +57,6 @@ class ReporteController:
             print(f"Error obtener_resumen_ventas: {e}")
             return {"total_ventas_registradas": 0, "monto_total_acumulado": 0, "detalle_ventas": []}
 
-    def obtener_detalle_auditoria(self):
-        """Devuelve las ventas con nombre de cliente para auditoría."""
-        try:
-            ventas = self.venta_model.get_all()
-            if not ventas: return []
-            
-            res_c = self.client.table('cliente').select('id_cliente, nombre, lead(numero_celular, pais_origen)').execute()
-            cli_map = {}
-            tel_map = {}
-            for c in res_c.data:
-                cli_map[c['id_cliente']] = c['nombre']
-                # Extraer celular
-                l_info = c.get('lead') or {}
-                if isinstance(l_info, list) and len(l_info) > 0:
-                    tel_map[c['id_cliente']] = l_info[0].get('numero_celular', '---')
-                else:
-                    tel_map[c['id_cliente']] = l_info.get('numero_celular', '---')
-                    
-            for v in ventas:
-                v['cliente_nombre'] = cli_map.get(v.get('id_cliente'), "Desconocido")
-                v['telefono'] = tel_map.get(v.get('id_cliente'), "---")
-            return ventas
-        except Exception as e:
-            print(f"Error auditoría: {e}")
-            return []
-
     def get_data_for_dashboard(self):
         """Devuelve dataframes para dashboards financieros."""
         # 1. Ventas (excluye canceladas: no deben contarse como ingreso real)

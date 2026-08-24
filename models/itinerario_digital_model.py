@@ -17,22 +17,6 @@ class ItinerarioDigitalModel(BaseModel):
         # El UUID se genera en Supabase por defecto, save() de BaseModel lo recuperará.
         return self.save(data)
 
-    def obtener_por_lead(self, id_lead: int) -> Optional[Dict[str, Any]]:
-        """Obtiene el último itinerario generado para un lead específico."""
-        try:
-            res = (
-                self.client.table(self.table_name)
-                .select('*')
-                .eq('id_lead', id_lead)
-                .order('fecha_generacion', desc=True)
-                .limit(1)
-                .execute()
-            )
-            return res.data[0] if res.data else None
-        except Exception as e:
-            print(f"Error obteniendo itinerario digital: {e}")
-            return None
-
     def obtener_todos_por_lead(self, id_lead: int) -> list:
         """Obtiene todos los itinerarios generados para un lead específico."""
         try:

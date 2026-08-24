@@ -1000,55 +1000,6 @@ class OperacionesController:
         except Exception as e:
             print(f"Error borrando pasajeros: {e}")
 
-    def obtener_data_hoja_servicio_maestra(self, id_venta):
-        """
-        Recopila toda la información de la operación para el Reporte Maestro.
-        """
-        # 1. Obtener Datos de la Venta básica
-        res_v = self.client.table('venta').select('*, cliente(nombre, lead(numero_celular, pais_origen))').eq('id_venta', id_venta).single().execute()
-        if not res_v.data:
-            raise Exception("No se pudo recuperar la información de la venta.")
-            
-        v_raw = res_v.data
-        cliente_nest = v_raw.get('cliente', {})
-        lead_nest = cliente_nest.get('lead', {}) if isinstance(cliente_nest, dict) else {}
-        
-        v_data = {
-            "id_venta": v_raw['id_venta'],
-            "nombre_cliente": cliente_nest.get('nombre', 'Desconocido') if isinstance(cliente_nest, dict) else 'Desconocido',
-            "telefono": lead_nest.get('numero_celular', '---') if isinstance(lead_nest, dict) else '---',
-            "tour_nombre": v_raw.get('tour_nombre', 'Sin Tour'),
-            "fecha_inicio": v_raw.get('fecha_inicio'),
-            "fecha_fin": v_raw.get('fecha_fin'),
-            "num_pasajeros": v_raw.get('num_pasajeros', 1),
-            "vendedor": "---", 
-            "moneda": v_raw.get('moneda', 'USD'),
-            "monto_total": v_raw.get('precio_total_cierre', 0),
-            "monto_pagado": 0 
-        }
-
-        # 2. Calcular Pagos
-        res_p = self.client.table('pago').select('monto_pagado').eq('id_venta', id_venta).execute()
-        v_data['monto_pagado'] = sum(float(p['monto_pagado'] or 0) for p in res_p.data)
-
-        # 3. Obtener Itinerario Logístico (Con proveedores asignados)
-        itinerario = self.get_servicios_rango_fechas(date(2000,1,1), date(2100,1,1))
-        it_venta = [s for s in itinerario if s['ID Venta'] == id_venta]
-
-        # 4. Obtener Pasajeros
-        pasajeros = self.pasajero_model.get_by_venta_id(id_venta)
-
-        # 5. Obtener Liquidación Detallada (Costos)
-        liquidaciones = self.get_liquidaciones_venta(id_venta)
-
-        # 6. Empaquetar
-        return {
-            "venta": v_data,
-            "itinerario": it_venta,
-            "pasajeros": pasajeros,
-            "liquidaciones": liquidaciones
-        }
-
     def actualizar_campos_liquidacion(self, id_registro: int, campos: dict):
         """
         Actualiza campos de un registro en venta_servicio_proveedor y sincroniza con venta_tour si es costo/pax.
