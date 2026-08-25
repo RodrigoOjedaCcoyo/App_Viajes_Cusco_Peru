@@ -2243,7 +2243,54 @@ def dashboard_simulador_costos(controller):
                     st.write(f"**Fecha Inicio:** {venta.get('fecha_inicio') or '---'}")
                     st.write(f"**Fecha Fin:** {venta.get('fecha_fin') or '---'}")
                     st.write(f"**Total Pax:** {venta.get('num_pasajeros') or len(pasajeros)} PAX")
-                
+
+                # ═══════════════════════════════════════════════════════════════
+                # 1B. DESHACER CANCELACIÓN (si esta venta ya está cancelada)
+                # ═══════════════════════════════════════════════════════════════
+                if venta.get('estado_venta') == 'CANCELADO':
+                    st.error("⚠️ Esta venta ya está marcada como CANCELADA.")
+                    st.caption(
+                        "Los servicios volverán a 'PENDIENTE' (no se puede recuperar su estado exacto de antes). "
+                        "Si se registró un reembolso, bórralo abajo en 'Pagos de esta venta' — esto NO lo borra solo."
+                    )
+                    confirm_undo_total = st.checkbox(
+                        "Confirmo que esta cancelación fue un error y quiero reactivar la venta",
+                        key=f"confirm_undo_total_{id_actual}"
+                    )
+                    if st.button("🔄 Deshacer Cancelación y Reactivar Venta", type="primary",
+                                 disabled=not confirm_undo_total, use_container_width=True,
+                                 key=f"btn_undo_total_{id_actual}"):
+                        exito_u, msg_u = controller.deshacer_cancelacion_total(id_actual)
+                        if exito_u:
+                            st.success(msg_u)
+                            st.rerun()
+                        else:
+                            st.error(msg_u)
+
+                # ═══════════════════════════════════════════════════════════════
+                # 1C. PAGOS DE ESTA VENTA (para borrar un reembolso registrado por error)
+                # ═══════════════════════════════════════════════════════════════
+                with st.expander("💳 Pagos de esta venta (borrar un reembolso registrado por error)", expanded=False):
+                    if not pagos:
+                        st.caption("Sin pagos registrados.")
+                    else:
+                        for p in pagos:
+                            cp1, cp2 = st.columns([5, 1])
+                            with cp1:
+                                st.write(f"#{p['id_pago']} · {p['fecha_pago']} · {p['tipo_pago']} · {p['moneda']} {p['monto']:,.2f}")
+                            with cp2:
+                                if st.button("🗑️", key=f"del_pago_total_{id_actual}_{p['id_pago']}", help="Eliminar este pago"):
+                                    from controllers.venta_controller import VentaController
+                                    vc_del = VentaController(supabase_client)
+                                    ok_del, msg_del = vc_del.eliminar_pago(p['id_pago'])
+                                    if ok_del:
+                                        st.success(msg_del)
+                                        st.rerun()
+                                    else:
+                                        st.error(msg_del)
+
+                st.divider()
+
                 # ═══════════════════════════════════════════════════════════════
                 # 2. DETALLE DE LIQUIDACIÓN Y COSTOS (Tabla)
                 # ═══════════════════════════════════════════════════════════════
@@ -2448,9 +2495,45 @@ def render_modulo_cancelacion_parcial(controller, id_venta):
     ya_cancelados = [p for p in todos if str(p.get('estado_pasajero') or '').upper() == 'CANCELADO']
 
     if ya_cancelados:
-        with st.expander(f"Ver {len(ya_cancelados)} pasajero(s) ya cancelados en esta venta", expanded=False):
-            for p in ya_cancelados:
-                st.write(f"• {p.get('nombre_completo', '---')} — {p.get('fecha_cancelacion', '')[:10] if p.get('fecha_cancelacion') else 'sin fecha'}")
+        with st.expander(f"🔄 Reactivar pasajero cancelado por error ({len(ya_cancelados)} cancelado(s) en esta venta)", expanded=False):
+            opciones_reactivar = {
+                f"{p.get('nombre_completo', 'Sin nombre')} — cancelado el {p.get('fecha_cancelacion', '')[:10] if p.get('fecha_cancelacion') else 'sin fecha'}": int(p['id_pasajero'])
+                for p in ya_cancelados
+            }
+            sel_reactivar = st.selectbox(
+                "Pasajero a reactivar", ["--- Seleccione ---"] + list(opciones_reactivar.keys()),
+                key=f"sel_reactivar_{id_venta}"
+            )
+            if sel_reactivar != "--- Seleccione ---":
+                st.caption("Esto lo vuelve a marcar ACTIVO y devuelve +1 al contador de pax de la venta y del itinerario. Si hubo un reembolso registrado, bórralo abajo en 'Pagos de esta venta' — esto no lo borra solo.")
+                if st.button("🔄 Reactivar Pasajero", type="primary", use_container_width=True, key=f"btn_reactivar_{id_venta}"):
+                    id_pax_reactivar = opciones_reactivar[sel_reactivar]
+                    exito_r, msg_r = controller.reactivar_pasajero_cancelado(id_venta, id_pax_reactivar)
+                    if exito_r:
+                        st.success(msg_r)
+                        st.rerun()
+                    else:
+                        st.error(msg_r)
+
+        with st.expander("💳 Pagos de esta venta (borrar un reembolso registrado por error)", expanded=False):
+            pagos_venta = res_base.get('pagos') or []
+            if not pagos_venta:
+                st.caption("Sin pagos registrados.")
+            else:
+                for p in pagos_venta:
+                    cp1, cp2 = st.columns([5, 1])
+                    with cp1:
+                        st.write(f"#{p['id_pago']} · {p['fecha_pago']} · {p['tipo_pago']} · {p['moneda']} {p['monto']:,.2f}")
+                    with cp2:
+                        if st.button("🗑️", key=f"del_pago_parcial_{id_venta}_{p['id_pago']}", help="Eliminar este pago"):
+                            from controllers.venta_controller import VentaController
+                            vc_del = VentaController(controller.client)
+                            ok_del, msg_del = vc_del.eliminar_pago(p['id_pago'])
+                            if ok_del:
+                                st.success(msg_del)
+                                st.rerun()
+                            else:
+                                st.error(msg_del)
 
     if not activos:
         st.info("No hay pasajeros activos en esta venta. Todos fueron cancelados o no hay rooming cargado.")
