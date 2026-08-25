@@ -259,12 +259,45 @@ def render_ops_dashboard_visual(supabase_client):
         servicios_hoy = controller.get_servicios_por_fecha(date.today())
         len_hoy = len(servicios_hoy) if servicios_hoy else 0
         st.metric("Servicios para Hoy", len_hoy)
-        
+
+        st.markdown("---")
+
+        # --- Pasajeros que vienen (por Fecha de Inicio de Viaje) ---
+        st.markdown("#### 🧳 Pasajeros que Vienen (por Fecha de Inicio de Viaje)")
+        pr1, pr2 = st.columns(2)
+        with pr1:
+            rango_pax_ini = st.date_input("Fecha Inicio", value=date.today(), key="ops_rango_pax_ini")
+        with pr2:
+            rango_pax_fin = st.date_input("Fecha Fin", value=date.today() + timedelta(days=7), key="ops_rango_pax_fin")
+
+        if rango_pax_ini and rango_pax_fin:
+            df_pax_rango = controller.get_pasajeros_por_rango_fecha(rango_pax_ini, rango_pax_fin)
+            if df_pax_rango.empty:
+                st.info("No hay pasajeros con viaje iniciando en este rango de fechas.")
+            else:
+                st.caption(f"{len(df_pax_rango)} grupo(s) — {int(df_pax_rango['Pax'].sum())} pasajeros en total")
+                st.dataframe(
+                    df_pax_rango,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Fecha Inicio": st.column_config.DateColumn("📅 Inicio", format="DD/MM/YYYY"),
+                        "Fecha Fin": st.column_config.TextColumn("📅 Fin"),
+                        "Cliente/Grupo": st.column_config.TextColumn("👤 Cliente/Grupo", width="medium"),
+                        "Pax": st.column_config.NumberColumn("👥 Pax"),
+                        "Tour": st.column_config.TextColumn("🚙 Tour", width="medium"),
+                        "Teléfono": st.column_config.TextColumn("📞 Teléfono"),
+                        "Tipo": st.column_config.TextColumn("Tipo"),
+                        "Estado": st.column_config.TextColumn("📌 Estado"),
+                    }
+                )
+
+        st.markdown("---")
+
         from vistas.dashboard_analytics import render_operations_dashboard
         data_ops = controller.get_data_for_analytics()
         df_servicios = pd.DataFrame(data_ops) if data_ops else pd.DataFrame()
         render_operations_dashboard(df_servicios)
-        
 
 
     with t2:

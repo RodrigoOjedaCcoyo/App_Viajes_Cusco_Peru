@@ -441,6 +441,47 @@ class OperacionesController:
             print(f"Error en Tablero Diario: {e}")
             return []
 
+    def get_pasajeros_por_rango_fecha(self, fecha_ini: date, fecha_fin: date):
+        """Lista de pasajeros/grupos cuyo VIAJE (fecha_inicio) cae dentro del rango dado.
+        Excluye ventas CANCELADO. Ordenado por fecha de inicio."""
+        try:
+            res = (
+                self.client.table('venta')
+                .select(
+                    'id_venta, fecha_inicio, fecha_fin, num_pasajeros, tour_nombre, '
+                    'estado_venta, id_agencia_aliada, cliente(nombre, lead(numero_celular))'
+                )
+                .neq('estado_venta', 'CANCELADO')
+                .gte('fecha_inicio', fecha_ini.isoformat())
+                .lte('fecha_inicio', fecha_fin.isoformat())
+                .order('fecha_inicio')
+                .execute()
+            )
+
+            filas = []
+            for v in (res.data or []):
+                cli = v.get('cliente') or {}
+                if isinstance(cli, list):
+                    cli = cli[0] if cli else {}
+                lead_info = cli.get('lead') or {}
+                if isinstance(lead_info, list):
+                    lead_info = lead_info[0] if lead_info else {}
+
+                filas.append({
+                    'Fecha Inicio': v.get('fecha_inicio'),
+                    'Fecha Fin': v.get('fecha_fin') or '---',
+                    'Cliente/Grupo': cli.get('nombre') or 'Desconocido',
+                    'Pax': v.get('num_pasajeros') or 1,
+                    'Tour': v.get('tour_nombre') or 'Sin Tour',
+                    'Teléfono': lead_info.get('numero_celular') or '---',
+                    'Tipo': '🏢 B2B' if v.get('id_agencia_aliada') else '👤 B2C',
+                    'Estado': v.get('estado_venta'),
+                })
+            return pd.DataFrame(filas)
+        except Exception as e:
+            print(f"Error get_pasajeros_por_rango_fecha: {e}")
+            return pd.DataFrame()
+
     def get_data_for_analytics(self):
         try:
             res = self.client.table('venta_tour').select('*').execute()
