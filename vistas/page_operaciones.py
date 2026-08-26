@@ -2250,7 +2250,8 @@ def dashboard_simulador_costos(controller):
                 if venta.get('estado_venta') == 'CANCELADO':
                     st.error("⚠️ Esta venta ya está marcada como CANCELADA.")
                     st.caption(
-                        "Los servicios volverán a 'PENDIENTE' (no se puede recuperar su estado exacto de antes). "
+                        "Esto SOLO cambia la venta de vuelta a CONFIRMADO — no toca el estado de los servicios "
+                        "operativos ni ningún contador de pax, revísalos a mano si hace falta. "
                         "Si se registró un reembolso, bórralo abajo en 'Pagos de esta venta' — esto NO lo borra solo."
                     )
                     confirm_undo_total = st.checkbox(
@@ -2505,7 +2506,7 @@ def render_modulo_cancelacion_parcial(controller, id_venta):
                 key=f"sel_reactivar_{id_venta}"
             )
             if sel_reactivar != "--- Seleccione ---":
-                st.caption("Esto lo vuelve a marcar ACTIVO y devuelve +1 al contador de pax de la venta y del itinerario. Si hubo un reembolso registrado, bórralo abajo en 'Pagos de esta venta' — esto no lo borra solo.")
+                st.caption("Esto SOLO marca al pasajero de vuelta como ACTIVO — no toca el contador de pax de la venta ni del itinerario, revísalos a mano si hace falta. Si hubo un reembolso registrado, bórralo abajo en 'Pagos de esta venta' — esto no lo borra solo.")
                 if st.button("🔄 Reactivar Pasajero", type="primary", use_container_width=True, key=f"btn_reactivar_{id_venta}"):
                     id_pax_reactivar = opciones_reactivar[sel_reactivar]
                     exito_r, msg_r = controller.reactivar_pasajero_cancelado(id_venta, id_pax_reactivar)

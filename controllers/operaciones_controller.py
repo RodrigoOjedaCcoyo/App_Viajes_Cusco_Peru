@@ -1651,13 +1651,11 @@ class OperacionesController:
 
     def deshacer_cancelacion_total(self, id_venta: int):
         """
-        Revierte una cancelación TOTAL hecha por error: reactiva la venta y sus servicios.
-        Limitación honesta: el estado anterior de cada servicio en 'venta_tour'
-        (PENDIENTE/CONFIRMADO/EN_CURSO/COMPLETADO) no se guardó en ningún lado antes de
-        cancelar, así que todos vuelven a 'PENDIENTE' — hay que revisarlos y re-confirmar
-        manualmente los que ya estaban confirmados. El reembolso registrado en 'pago'
-        (si lo hubo) NO se borra automáticamente aquí, para no eliminar un pago real por
-        accidente; se borra aparte desde la lista de pagos de la venta.
+        Revierte una cancelación TOTAL hecha por error: SOLO cambia la etiqueta de estado
+        de la venta de vuelta a activa. A propósito, no toca nada más (no ajusta
+        venta_tour.estado_servicio ni ningún contador) — eso se revisa a mano si hace falta,
+        para mantener esta acción simple y predecible. El reembolso registrado en 'pago'
+        (si lo hubo) tampoco se borra aquí; se borra aparte desde la lista de pagos.
         """
         try:
             res_v = self.client.table('venta').select('estado_venta').eq('id_venta', id_venta).single().execute()
@@ -1672,24 +1670,20 @@ class OperacionesController:
                 "fecha_cancelacion": None,
             }).eq('id_venta', id_venta).execute()
 
-            self.client.table('venta_tour').update({
-                "estado_servicio": "PENDIENTE"
-            }).eq('id_venta', id_venta).execute()
-
             return True, (
-                "✅ Venta reactivada. Todos los servicios operativos volvieron a 'PENDIENTE' "
-                "(no se puede recuperar su estado exacto antes de la cancelación — revísalos y "
-                "re-confirma manualmente los que correspondan). Si se había registrado un reembolso, "
-                "bórralo en la sección de pagos de abajo."
+                "✅ Venta marcada como activa de nuevo (CONFIRMADO). No se tocó el estado de "
+                "los servicios operativos ni ningún contador — revísalos a mano si hace falta. "
+                "Si se había registrado un reembolso, bórralo en la sección de pagos de abajo."
             )
         except Exception as e:
             return False, f"Error al deshacer la cancelación: {e}"
 
     def reactivar_pasajero_cancelado(self, id_venta: int, id_pasajero: int):
         """
-        Revierte una cancelación PARCIAL de un pasajero hecha por error: lo vuelve a
-        marcar ACTIVO y devuelve +1 al conteo de pax de la venta y de cada día del
-        itinerario. El reembolso registrado en 'pago' (si lo hubo) no se borra aquí.
+        Revierte una cancelación PARCIAL de un pasajero hecha por error: SOLO cambia la
+        etiqueta de estado del pasajero de vuelta a ACTIVO. A propósito, no ajusta
+        venta.num_pasajeros ni venta_tour.cantidad — eso se revisa a mano si hace falta.
+        El reembolso registrado en 'pago' (si lo hubo) tampoco se borra aquí.
         """
         try:
             res_p = self.client.table('pasajero').select('estado_pasajero, nombre_completo').eq('id_pasajero', id_pasajero).single().execute()
@@ -1705,19 +1699,10 @@ class OperacionesController:
                 "observaciones_cancelacion": None,
             }).eq('id_pasajero', id_pasajero).execute()
 
-            res_v = self.client.table('venta').select('num_pasajeros').eq('id_venta', id_venta).single().execute()
-            if res_v.data:
-                nuevo_num = int(res_v.data.get('num_pasajeros') or 0) + 1
-                self.client.table('venta').update({"num_pasajeros": nuevo_num}).eq('id_venta', id_venta).execute()
-
-            res_vt = self.client.table('venta_tour').select('n_linea, cantidad').eq('id_venta', id_venta).execute()
-            for vt in (res_vt.data or []):
-                nueva_cant = int(vt.get('cantidad') or 0) + 1
-                self.client.table('venta_tour').update({"cantidad": nueva_cant}).eq('id_venta', id_venta).eq('n_linea', vt['n_linea']).execute()
-
             nombre = res_p.data.get('nombre_completo', 'Pasajero')
             return True, (
-                f"✅ {nombre} reactivado. Se sumó +1 al contador de pax de la venta y del itinerario. "
+                f"✅ {nombre} marcado como ACTIVO de nuevo. No se tocó el contador de pax de la "
+                "venta ni del itinerario — revísalos a mano si hace falta. "
                 "Si se había registrado un reembolso, bórralo en la sección de pagos de abajo."
             )
         except Exception as e:
