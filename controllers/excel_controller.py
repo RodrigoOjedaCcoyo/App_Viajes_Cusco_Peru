@@ -1074,4 +1074,174 @@ class ExcelController:
         output.seek(0)
         return output
 
+    def generar_informe_avance_pasajeros_xlsx(self, supabase_client) -> BytesIO:
+        """Genera un informe (una fila por pasajero) de en qué etapa quedó cada uno:
+        pago, itinerario armado, servicios operativos y estado final de la venta."""
+        import openpyxl
+        from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+        import datetime
+
+        try:
+            res_v = supabase_client.table('venta').select(
+                'id_venta, fecha_venta, fecha_inicio, fecha_fin, tour_nombre, precio_total_cierre, '
+                'moneda, estado_pago, estado_venta, canal_venta, id_agencia_aliada, cancelada, '
+                'id_itinerario_digital, cliente(nombre), vendedor(nombre), agencia_aliada(nombre)'
+            ).order('fecha_venta', desc=True).execute()
+            ventas = {v['id_venta']: v for v in (res_v.data or [])}
+
+            res_p = supabase_client.table('pasajero').select(
+                'id_pasajero, id_venta, nombre_completo, apellidos, nacionalidad, es_principal, '
+                'estado_pasajero, fecha_cancelacion'
+            ).execute()
+            pasajeros = res_p.data or []
+
+            res_vt = supabase_client.table('venta_tour').select('id_venta, estado_servicio').execute()
+            servicios_por_venta = {}
+            for s in (res_vt.data or []):
+                d = servicios_por_venta.setdefault(s['id_venta'], {"total": 0, "completados": 0})
+                d["total"] += 1
+                if s.get('estado_servicio') == 'COMPLETADO':
+                    d["completados"] += 1
+        except Exception as e:
+            print(f"Error obteniendo datos para informe de avance por pasajero: {e}")
+            ventas, pasajeros, servicios_por_venta = {}, [], {}
+
+        hoy = datetime.date.today()
+
+        def parse_fecha(s):
+            if not s:
+                return None
+            try:
+                return datetime.date.fromisoformat(str(s)[:10])
+            except Exception:
+                return None
+
+        def etapa_avance(venta, pax):
+            estado_venta = venta.get('estado_venta') or 'CONFIRMADO'
+            if venta.get('cancelada') or estado_venta == 'CANCELADO':
+                return "Cancelado"
+            if pax.get('estado_pasajero') == 'CANCELADO':
+                return "Cancelado (pasajero individual)"
+            if estado_venta == 'COMPLETADO':
+                return "Viaje Finalizado"
+            if estado_venta == 'EN_VIAJE':
+                return "Viaje en Curso"
+            f_ini = parse_fecha(venta.get('fecha_inicio'))
+            if f_ini and f_ini < hoy:
+                return "Confirmado (fecha de viaje ya pasó — revisar estado)"
+            if f_ini and (f_ini - hoy).days <= 15:
+                return "Confirmado — Próximo a Viajar"
+            return "Confirmado — En Preparación"
+
+        def observaciones(venta, servicios):
+            obs = []
+            if venta.get('estado_pago') == 'PENDIENTE':
+                f_ini = parse_fecha(venta.get('fecha_inicio'))
+                if f_ini and f_ini < hoy:
+                    obs.append("Viaje ya pasó y sigue con pago PENDIENTE")
+            if not venta.get('id_itinerario_digital'):
+                obs.append("Sin itinerario digital armado")
+            if servicios.get('total', 0) > 0 and servicios['completados'] < servicios['total'] and venta.get('estado_venta') == 'COMPLETADO':
+                obs.append(f"Venta COMPLETADO pero solo {servicios['completados']}/{servicios['total']} servicios en COMPLETADO")
+            return "; ".join(obs)
+
+        filas = []
+        for pax in pasajeros:
+            venta = ventas.get(pax.get('id_venta'))
+            if not venta:
+                continue
+            servicios = servicios_por_venta.get(pax['id_venta'], {"total": 0, "completados": 0})
+            cliente = venta.get('cliente') or {}
+            vendedor = venta.get('vendedor') or {}
+            agencia = venta.get('agencia_aliada') or {}
+            nombre_pax = " ".join(filter(None, [pax.get('nombre_completo'), pax.get('apellidos')])).strip()
+
+            filas.append({
+                "ID Venta": venta['id_venta'],
+                "Titular de la Venta": cliente.get('nombre') or "",
+                "Pasajero": nombre_pax or "(sin nombre)",
+                "Es Titular": "Sí" if pax.get('es_principal') else "No",
+                "Nacionalidad": pax.get('nacionalidad') or "",
+                "Tour": venta.get('tour_nombre') or "",
+                "Fecha Inicio Viaje": venta.get('fecha_inicio') or "",
+                "Fecha Fin Viaje": venta.get('fecha_fin') or "",
+                "Fecha de Venta": venta.get('fecha_venta') or "",
+                "Vendedor": vendedor.get('nombre') or "",
+                "Tipo": "B2B" if venta.get('id_agencia_aliada') else "B2C",
+                "Agencia Aliada": agencia.get('nombre') or "",
+                "Canal de Venta": venta.get('canal_venta') or "",
+                "Estado de la Venta": venta.get('estado_venta') or "",
+                "Estado del Pasajero": pax.get('estado_pasajero') or "ACTIVO",
+                "Estado de Pago": venta.get('estado_pago') or "",
+                "Precio Total": float(venta.get('precio_total_cierre') or 0),
+                "Moneda": venta.get('moneda') or "",
+                "Itinerario Digital": "Sí" if venta.get('id_itinerario_digital') else "No",
+                "Servicios Operativos": f"{servicios['completados']}/{servicios['total']}" if servicios['total'] else "N/A",
+                "Etapa de Avance": etapa_avance(venta, pax),
+                "Observaciones": observaciones(venta, servicios),
+            })
+
+        filas.sort(key=lambda r: (r["Fecha Inicio Viaje"] or "", r["ID Venta"]), reverse=True)
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Avance por Pasajero"
+
+        headers = list(filas[0].keys()) if filas else [
+            "ID Venta", "Titular de la Venta", "Pasajero", "Es Titular", "Nacionalidad", "Tour",
+            "Fecha Inicio Viaje", "Fecha Fin Viaje", "Fecha de Venta", "Vendedor", "Tipo",
+            "Agencia Aliada", "Canal de Venta", "Estado de la Venta", "Estado del Pasajero",
+            "Estado de Pago", "Precio Total", "Moneda", "Itinerario Digital", "Servicios Operativos",
+            "Etapa de Avance", "Observaciones"
+        ]
+        header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+        header_font = Font(color="FFFFFF", bold=True)
+        thin = Side(style="thin", color="D9D9D9")
+        border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+        for c, h in enumerate(headers, start=1):
+            cell = ws.cell(row=1, column=c, value=h)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            cell.border = border
+
+        estado_colors = {
+            "Cancelado": "F8CBAD",
+            "Cancelado (pasajero individual)": "F8CBAD",
+            "Viaje Finalizado": "C6E0B4",
+            "Viaje en Curso": "FFE699",
+            "Confirmado — Próximo a Viajar": "BDD7EE",
+            "Confirmado — En Preparación": "D9D9D9",
+            "Confirmado (fecha de viaje ya pasó — revisar estado)": "FF9999",
+        }
+
+        for r, fila in enumerate(filas, start=2):
+            for c, h in enumerate(headers, start=1):
+                cell = ws.cell(row=r, column=c, value=fila[h])
+                cell.border = border
+                cell.alignment = Alignment(vertical="center", wrap_text=(h == "Observaciones"))
+                if h == "Etapa de Avance":
+                    color = estado_colors.get(fila[h])
+                    if color:
+                        cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
+
+        widths = {
+            "ID Venta": 9, "Titular de la Venta": 24, "Pasajero": 24, "Es Titular": 9,
+            "Nacionalidad": 14, "Tour": 28, "Fecha Inicio Viaje": 13, "Fecha Fin Viaje": 13,
+            "Fecha de Venta": 13, "Vendedor": 18, "Tipo": 7, "Agencia Aliada": 18,
+            "Canal de Venta": 14, "Estado de la Venta": 14, "Estado del Pasajero": 14,
+            "Estado de Pago": 13, "Precio Total": 12, "Moneda": 8, "Itinerario Digital": 12,
+            "Servicios Operativos": 13, "Etapa de Avance": 30, "Observaciones": 45,
+        }
+        for c, h in enumerate(headers, start=1):
+            ws.column_dimensions[openpyxl.utils.get_column_letter(c)].width = widths.get(h, 15)
+
+        ws.freeze_panes = "A2"
+        ws.auto_filter.ref = ws.dimensions
+
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        return output
 

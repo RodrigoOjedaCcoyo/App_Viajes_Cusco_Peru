@@ -180,6 +180,14 @@ class PDFController:
         }
         return self._render_pdf('itinerario_simple_template.html', context)
 
+    def generar_informe_avance_areas_pdf(self, contenido: dict) -> BytesIO:
+        """Genera un informe (memo) de avance por área. 'contenido' debe traer:
+        periodo, para_nombre, para_cargo, de_nombre, de_cargo, asunto, fecha, intro,
+        areas: [{nombre, features: [{titulo, mes, descripcion, bullets}], nota}]."""
+        context = dict(contenido)
+        context["logo_base64"] = self._get_logo_base64()
+        return self._render_pdf('informe_avance_areas_template.html', context)
+
     def generar_voucher_reserva_pdf(self, data: dict) -> BytesIO:
         """
         Genera un Voucher de Reserva profesional para el cliente.
