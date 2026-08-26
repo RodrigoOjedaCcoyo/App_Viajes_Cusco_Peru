@@ -147,11 +147,11 @@ def render_sales_dashboard_visual(supabase_client):
         st.write("### 📜 Registro Consolidado de Ventas")
         st.caption("Visualización de las ventas más recientes (B2C y B2B).")
         
-        col_excel, col_excel2 = st.columns(2)
+        col_excel, _ = st.columns([1, 2])
         from controllers.excel_controller import ExcelController
         xl_ctrl = ExcelController()
         excel_buffer = xl_ctrl.generar_reporte_ventas_consolidado_xlsx(supabase_client)
-
+        
         col_excel.download_button(
             label="📥 Descargar Reporte Maestro de Ventas (Excel)",
             data=excel_buffer.getvalue(),
@@ -160,16 +160,7 @@ def render_sales_dashboard_visual(supabase_client):
             use_container_width=True,
             type="primary"
         )
-
-        avance_buffer = xl_ctrl.generar_informe_avance_pasajeros_xlsx(supabase_client)
-        col_excel2.download_button(
-            label="🧭 Descargar Informe de Avance por Pasajero (Excel)",
-            data=avance_buffer.getvalue(),
-            file_name=f"informe_avance_pasajeros_{date.today().isoformat()}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True
-        )
-
+        
         # 1. Obtener Ventas B2C
         ventas_b2c = venta_ctrl.obtener_ventas_directas() or []
         # 2. Obtener Ventas B2B
