@@ -207,7 +207,10 @@ def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=Non
     # Ingresos = por fecha de venta. Gastos = por fecha en que viaja el pasajero (egreso real del período).
     df_scope_gastos = df_ventas_gastos if df_ventas_gastos is not None else df_ventas
     ids_venta_filtradas = None
-    if not df_scope_gastos.empty and 'id_venta' in df_scope_gastos.columns:
+    if 'id_venta' in df_scope_gastos.columns:
+        # OJO: no usar "not df_scope_gastos.empty" aquí — si el filtro (moneda/fecha) no
+        # deja NINGUNA venta, esto debe dar un set() vacío (0 gastos), no None (que el
+        # loop de abajo interpreta como "sin filtro" y suma TODOS los pago_operativo).
         ids_venta_filtradas = set(df_scope_gastos['id_venta'].dropna().tolist())
 
     total_gastos = 0.0
