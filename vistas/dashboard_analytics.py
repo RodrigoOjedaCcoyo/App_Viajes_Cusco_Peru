@@ -171,7 +171,7 @@ def render_operations_dashboard(df_servicios):
         if not df_servicios.empty:
             st.write("Columnas disponibles:", df_servicios.columns.tolist())
 
-def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=None, filtro_moneda="Ambas", df_ventas_gastos=None):
+def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=None, filtro_moneda="Soles (PEN)", df_ventas_gastos=None):
     """Genera el Dashboard Financiero con gastos reales desde pago_operativo."""
     st.subheader("Resultados Financieros")
 

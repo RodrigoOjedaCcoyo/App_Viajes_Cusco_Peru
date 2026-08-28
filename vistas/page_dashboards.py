@@ -339,7 +339,12 @@ def render_contable_dashboard_visual(supabase_client):
         with c_tipo:
             filtro_tipo = st.selectbox("Tipo de Venta", ["Todos", "Directas (B2C)", "Agencias (B2B)"], key="fin_tipo_venta")
         with c_mon:
-            filtro_moneda = st.selectbox("Moneda Original", ["Ambas", "Soles (PEN)", "Dólares (USD)"], key="fin_moneda_base")
+            filtro_moneda = st.segmented_control(
+                "Moneda Original", ["Soles (PEN)", "Dólares (USD)"],
+                default="Soles (PEN)", key="fin_moneda_base"
+            )
+            if not filtro_moneda:
+                filtro_moneda = "Soles (PEN)"
         st.caption("Ingresos = ventas registradas en este rango (fecha de venta). "
                    "Gastos = costos de los pasajeros cuyo viaje inicia en este rango (fecha de inicio) — pueden ser grupos distintos.")
 
