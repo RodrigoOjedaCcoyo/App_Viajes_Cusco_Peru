@@ -262,17 +262,17 @@ def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=Non
             moneda = str(row.get('moneda') or 'USD').strip().upper()
             tc = float(row.get('tipo_cambio') or 3.80)
             if tc <= 0: tc = 3.80
-            
-            monto_usd = monto / tc if moneda == 'PEN' else monto
-            
+
+            monto_conv = _convertir(monto, moneda, tc)
+
             fecha_str = row.get('fecha_venta')
             if pd.isna(fecha_str) or not fecha_str:
                 continue
-            
+
             try:
                 # Extraemos 'YYYY-MM'
                 mes = pd.to_datetime(str(fecha_str).split('T')[0]).strftime('%Y-%m')
-                ingresos_list.append({'mes': mes, 'Ingresos': monto_usd})
+                ingresos_list.append({'mes': mes, 'Ingresos': monto_conv})
             except:
                 pass
 
@@ -286,25 +286,23 @@ def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=Non
                 'id_venta, fecha_pago, monto_pagado, moneda, tasa_cambio'
             ).in_('id_venta', list(ids_venta_filtradas)).execute()
             for p in (res_op.data or []):
+                # No se descarta ningún costo por estar en otra moneda — se convierte a
+                # moneda_destino, igual que "Total Gastos Operativos" de arriba.
                 moneda = str(p.get('moneda') or 'USD').strip().upper()
-                
-                # Filtrar gastos por moneda para la gráfica mensual
-                if filtro_moneda == "Soles (PEN)" and moneda != 'PEN': continue
-                if filtro_moneda == "Dólares (USD)" and moneda != 'USD': continue
 
                 monto = float(p.get('monto_pagado') or 0)
                 tc = float(p.get('tasa_cambio') or 3.80)
                 if tc <= 0: tc = 3.80
-                
-                monto_usd = monto / tc if moneda == 'PEN' else monto
-                
+
+                monto_conv = _convertir(monto, moneda, tc)
+
                 fecha_str = p.get('fecha_pago')
                 if not fecha_str:
                     continue
-                    
+
                 try:
                     mes = pd.to_datetime(str(fecha_str).split('T')[0]).strftime('%Y-%m')
-                    gastos_list.append({'mes': mes, 'Costos': monto_usd})
+                    gastos_list.append({'mes': mes, 'Costos': monto_conv})
                 except:
                     pass
         except Exception as e:
@@ -339,14 +337,14 @@ def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=Non
         # Pivotar para que las columnas sean los meses y las filas los conceptos
         df_pivot = df_mensual.set_index('Mes_Nombre')[['Ingresos', 'Costos']].T
 
-        st.markdown("**1. Tabla Resumen por Mes (USD)**")
-        st.dataframe(df_pivot.style.format("${:,.2f}"), use_container_width=True)
+        st.markdown(f"**1. Tabla Resumen por Mes ({moneda_destino})**")
+        st.dataframe(df_pivot.style.format(f"{simbolo} " + "{:,.2f}"), use_container_width=True)
 
         # --- GRÁFICA DE LÍNEAS TIPO CURVA ---
         st.markdown("**2. Evolución de Ingresos y Costos**")
         fig_line = px.line(df_mensual, x='Mes_Nombre', y=['Ingresos', 'Costos'],
                            markers=True,
-                           labels={'value': 'Monto (USD)', 'Mes_Nombre': 'Mes', 'variable': 'Categoría'},
+                           labels={'value': f'Monto ({moneda_destino})', 'Mes_Nombre': 'Mes', 'variable': 'Categoría'},
                            color_discrete_sequence=['#42A5F5', '#EF5350'])
         fig_line.update_traces(line_shape='spline', line_width=3, marker=dict(size=8)) # Curvas suaves como en el boceto
         fig_line.update_layout(legend_title_text='Flujo', hovermode="x unified")
@@ -356,7 +354,7 @@ def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=Non
         st.markdown("**3. Comparativo Anual de Barras**")
         fig_bar = px.bar(df_mensual, x='Mes_Nombre', y=['Ingresos', 'Costos'],
                          barmode='group',
-                         labels={'value': 'Monto (USD)', 'Mes_Nombre': 'Mes', 'variable': 'Categoría'},
+                         labels={'value': f'Monto ({moneda_destino})', 'Mes_Nombre': 'Mes', 'variable': 'Categoría'},
                          color_discrete_sequence=['#90CAF9', '#EF9A9A'])
         fig_bar.update_layout(legend_title_text='Flujo')
         st.plotly_chart(fig_bar, use_container_width=True)
