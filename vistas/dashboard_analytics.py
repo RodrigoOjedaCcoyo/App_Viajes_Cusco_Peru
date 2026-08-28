@@ -249,7 +249,10 @@ def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=Non
     # INFORME FINANCIERO COMPARATIVO MENSUAL (SEÚN BOCETO)
     # =========================================================
     st.subheader("📅 Informe Financiero Mensual (Comparativo Anual)")
-    st.caption("Comparativa de Ingresos, Costos y Utilidad (Ganancia) mes a mes. Basado en fechas de ventas y pagos operativos.")
+    st.caption(
+        "Comparativa de Ingresos y Costos mes a mes, dentro del mismo rango de fechas y mismo alcance "
+        "que los totales de arriba (Ingresos por fecha de venta, Costos de las ventas cuyo viaje cae en el rango)."
+    )
     
     # 1. Extraer y agrupar Ingresos por Mes
     ingresos_list = []
@@ -274,10 +277,14 @@ def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=Non
                 pass
 
     # 2. Extraer y agrupar Gastos por Mes
+    # Mismo alcance que "Total Gastos Operativos" de arriba: solo las ventas cuyo VIAJE
+    # (fecha_inicio) cae en el rango filtrado (ids_venta_filtradas) — así ambos números coinciden.
     gastos_list = []
-    if supabase_client is not None:
+    if supabase_client is not None and ids_venta_filtradas:
         try:
-            res_op = supabase_client.table('pago_operativo').select('fecha_pago, monto_pagado, moneda, tasa_cambio').execute()
+            res_op = supabase_client.table('pago_operativo').select(
+                'id_venta, fecha_pago, monto_pagado, moneda, tasa_cambio'
+            ).in_('id_venta', list(ids_venta_filtradas)).execute()
             for p in (res_op.data or []):
                 moneda = str(p.get('moneda') or 'USD').strip().upper()
                 
