@@ -235,34 +235,14 @@ def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=Non
     elif df_gastos_op is not None and not df_gastos_op.empty and 'total' in df_gastos_op.columns:
         total_gastos = float(df_gastos_op['total'].sum())
 
-    utilidad = total_ingresos - total_gastos
-    margen = (utilidad / total_ingresos * 100) if total_ingresos > 0 else 0
-
     # --- SCORECARDS ---
-    sc1, sc2, sc3 = st.columns(3)
+    sc1, sc2 = st.columns(2)
     sc1.metric("Total Ingresos (Ventas)", f"{simbolo}{total_ingresos:,.2f}", delta="Cifra Bruta",
                help="Ventas cuya fecha de VENTA cae en el rango seleccionado.")
     sc2.metric("Total Gastos Operativos", f"{simbolo}{total_gastos:,.2f}", delta_color="inverse",
                help="Costos de las ventas cuyo VIAJE (fecha de inicio) cae en el rango seleccionado. "
                     "No es necesariamente el mismo grupo de ventas que Ingresos.")
-    sc3.metric("Utilidad Operativa", f"{simbolo}{utilidad:,.2f}", delta=f"{margen:.1f}% margen")
 
-    # --- WATERFALL CHART ---
-    fig_wf = go.Figure(go.Waterfall(
-        name="Flujo", orientation="v",
-        measure=["relative", "relative", "total"],
-        x=["Ingresos Ventas", "Costos Operativos", "Utilidad Neta"],
-        textposition="outside",
-        text=[f"{simbolo}{total_ingresos/1000:.1f}k", f"-{simbolo}{total_gastos/1000:.1f}k", f"{simbolo}{utilidad/1000:.1f}k"],
-        y=[total_ingresos, -total_gastos, utilidad],
-        connector={"line": {"color": "rgb(63, 63, 63)"}},
-        decreasing={"marker": {"color": "#EF5350"}},
-        increasing={"marker": {"color": "#66BB6A"}},
-        totals={"marker": {"color": "#42A5F5"}}
-    ))
-    fig_wf.update_layout(title=f"Cascada de Rentabilidad Global ({moneda_destino})", showlegend=False, height=420)
-    st.plotly_chart(fig_wf, use_container_width=True)
-    
     st.divider()
 
     # =========================================================
@@ -340,9 +320,6 @@ def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=Non
     df_mensual = pd.merge(df_ingresos, df_gastos, on='mes', how='outer').fillna(0).sort_values('mes')
     
     if not df_mensual.empty:
-        # Calcular Utilidad (Ingresos - Costos)
-        df_mensual['Utilidad'] = df_mensual['Ingresos'] - df_mensual['Costos']
-        
         # Mapear nombres de meses legibles
         meses_nombres = {
             '01': 'Enero', '02': 'Febrero', '03': 'Marzo', '04': 'Abril',
@@ -350,30 +327,30 @@ def render_financial_dashboard(df_ventas, df_gastos_op=None, supabase_client=Non
             '09': 'Septiembre', '10': 'Octubre', '11': 'Noviembre', '12': 'Diciembre'
         }
         df_mensual['Mes_Nombre'] = df_mensual['mes'].apply(lambda x: f"{meses_nombres.get(x.split('-')[1], '')} {x.split('-')[0]}")
-        
+
         # --- TABLA COMPARATIVA (TIPO BOCETO) ---
         # Pivotar para que las columnas sean los meses y las filas los conceptos
-        df_pivot = df_mensual.set_index('Mes_Nombre')[['Ingresos', 'Costos', 'Utilidad']].T
-        
+        df_pivot = df_mensual.set_index('Mes_Nombre')[['Ingresos', 'Costos']].T
+
         st.markdown("**1. Tabla Resumen por Mes (USD)**")
         st.dataframe(df_pivot.style.format("${:,.2f}"), use_container_width=True)
-        
+
         # --- GRÁFICA DE LÍNEAS TIPO CURVA ---
-        st.markdown("**2. Evolución y Tendencia de Utilidad**")
-        fig_line = px.line(df_mensual, x='Mes_Nombre', y=['Ingresos', 'Costos', 'Utilidad'], 
+        st.markdown("**2. Evolución de Ingresos y Costos**")
+        fig_line = px.line(df_mensual, x='Mes_Nombre', y=['Ingresos', 'Costos'],
                            markers=True,
                            labels={'value': 'Monto (USD)', 'Mes_Nombre': 'Mes', 'variable': 'Categoría'},
-                           color_discrete_sequence=['#42A5F5', '#EF5350', '#66BB6A'])
+                           color_discrete_sequence=['#42A5F5', '#EF5350'])
         fig_line.update_traces(line_shape='spline', line_width=3, marker=dict(size=8)) # Curvas suaves como en el boceto
         fig_line.update_layout(legend_title_text='Flujo', hovermode="x unified")
         st.plotly_chart(fig_line, use_container_width=True)
-        
+
         # --- GRÁFICO COMPARATIVO DE BARRAS ---
         st.markdown("**3. Comparativo Anual de Barras**")
-        fig_bar = px.bar(df_mensual, x='Mes_Nombre', y=['Ingresos', 'Costos', 'Utilidad'], 
+        fig_bar = px.bar(df_mensual, x='Mes_Nombre', y=['Ingresos', 'Costos'],
                          barmode='group',
                          labels={'value': 'Monto (USD)', 'Mes_Nombre': 'Mes', 'variable': 'Categoría'},
-                         color_discrete_sequence=['#90CAF9', '#EF9A9A', '#A5D6A7'])
+                         color_discrete_sequence=['#90CAF9', '#EF9A9A'])
         fig_bar.update_layout(legend_title_text='Flujo')
         st.plotly_chart(fig_bar, use_container_width=True)
         
