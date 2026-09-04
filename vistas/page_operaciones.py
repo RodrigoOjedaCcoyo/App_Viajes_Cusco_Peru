@@ -1110,6 +1110,7 @@ def registro_ventas_proveedores(supabase_client):
                         id_itinerario_digital=id_itinerario_dig,
                         id_lead=None,
                         tipo_comprobante=tipo_comp,
+                        moneda=moneda_sel,
                         tipo_cambio=tipo_cambio,
                         items_ingreso=items_ingreso if items_ingreso else None,
                         metodo_pago=metodo_pago,

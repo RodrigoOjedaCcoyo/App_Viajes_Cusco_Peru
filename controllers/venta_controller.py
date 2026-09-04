@@ -175,6 +175,7 @@ class VentaController:
                                   id_itinerario_digital: Optional[str] = None,
                                   id_lead: Optional[int] = None,
                                   tipo_comprobante: str = "RECIBO",
+                                  moneda: str = "USD",
                                   tipo_cambio: Optional[float] = None,
                                   items_ingreso: Optional[list] = None,
                                   metodo_pago: str = "OTRO",
@@ -209,6 +210,7 @@ class VentaController:
                 "cantidad": cantidad_pax,
                 "id_itinerario_digital": id_itinerario_digital,
                 "tipo_comprobante": tipo_comprobante,
+                "moneda": moneda,
                 "tipo_cambio": tipo_cambio,
                 "items_ingreso": items_ingreso,
                 "metodo_pago": metodo_pago,
@@ -219,7 +221,7 @@ class VentaController:
                 "comentarios": comentarios,
                 "fecha_registro": fecha_venta
             }
-            
+
             res_id = self.model.create_venta(venta_data)
             
             if res_id:
