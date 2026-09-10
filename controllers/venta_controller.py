@@ -687,6 +687,112 @@ class VentaController:
         
         return {"exitos": exitos, "errores": errores}
 
+    def registrar_pago_global_agencia(self, id_agencia_aliada: int, monto_deposito: float, moneda_deposito: str,
+                                       tasa_cambio: float, fecha_pago: str, metodo_pago: str,
+                                       observaciones: str = None) -> dict:
+        """Registra un depósito global de una agencia B2B y lo reparte automáticamente entre sus
+        ventas activas pendientes, de la más antigua a la más nueva (FIFO por fecha_venta).
+        Usa primero el saldo a favor previo de la agencia (en la misma moneda del depósito),
+        y guarda lo que sobre como saldo a favor para su próxima venta."""
+        try:
+            moneda_deposito = (moneda_deposito or 'USD').strip().upper()
+            tasa_cambio = float(tasa_cambio or 0)
+
+            # 1. Crédito previo de la agencia en esa moneda
+            res_ag = self.client.table('agencia_aliada').select('*').eq('id_agencia', id_agencia_aliada).single().execute()
+            agencia = res_ag.data or {}
+            campo_credito = 'credito_pen' if moneda_deposito == 'PEN' else 'credito_usd'
+            credito_previo = float(agencia.get(campo_credito) or 0)
+
+            pool_inicial = round(float(monto_deposito) + credito_previo, 2)
+            pool = pool_inicial
+
+            # 2. Ventas activas de la agencia, más antigua primero
+            res_v = self.client.table('venta').select(
+                'id_venta, precio_total_cierre, moneda, fecha_venta, tour_nombre'
+            ).eq('id_agencia_aliada', id_agencia_aliada).neq('estado_venta', 'CANCELADO') \
+             .order('fecha_venta').execute()
+            ventas = res_v.data or []
+
+            if not ventas:
+                return {"exito": False, "mensaje": "Esta agencia no tiene ventas activas.", "detalle": [], "sobrante": pool_inicial}
+
+            ids_venta = [v['id_venta'] for v in ventas]
+            res_p = self.client.table('pago').select('id_venta, monto_moneda_venta, tipo_pago').in_('id_venta', ids_venta).execute()
+            pagado_por_venta = {}
+            for p in (res_p.data or []):
+                m = float(p.get('monto_moneda_venta') or 0)
+                if p.get('tipo_pago') == 'REEMBOLSO':
+                    m = -m
+                pagado_por_venta[p['id_venta']] = pagado_por_venta.get(p['id_venta'], 0) + m
+
+            detalle = []
+            for v in ventas:
+                if pool <= 0.01:
+                    break
+
+                precio = float(v.get('precio_total_cierre') or 0)
+                pagado = pagado_por_venta.get(v['id_venta'], 0)
+                saldo_venta = round(precio - pagado, 2)
+                if saldo_venta <= 0.01:
+                    continue
+
+                moneda_venta = v.get('moneda') or 'USD'
+                if moneda_venta == moneda_deposito:
+                    necesario_en_pool = saldo_venta
+                else:
+                    if tasa_cambio <= 0:
+                        # No se puede convertir sin tasa de cambio: se salta esta venta.
+                        continue
+                    necesario_en_pool = round(saldo_venta * tasa_cambio, 2)
+
+                aplicar = min(pool, necesario_en_pool)
+                if aplicar <= 0.01:
+                    continue
+
+                tipo_pago = 'TOTAL' if aplicar >= necesario_en_pool - 0.01 else 'PARCIAL'
+                nota = f"Aplicado desde depósito global de agencia ({fecha_pago})"
+                if observaciones:
+                    nota += f" — {observaciones}"
+
+                ok, _ = self.registrar_pago(
+                    id_venta=v['id_venta'], monto_pagado=aplicar, moneda_pago=moneda_deposito,
+                    tasa_cambio=tasa_cambio if moneda_venta != moneda_deposito else 1.0,
+                    fecha_pago=fecha_pago, metodo=metodo_pago, tipo_pago=tipo_pago,
+                    observaciones_contables=nota
+                )
+                if ok:
+                    pool = round(pool - aplicar, 2)
+                    detalle.append({
+                        "id_venta": v['id_venta'],
+                        "tour": v.get('tour_nombre'),
+                        "aplicado": aplicar,
+                        "tipo_pago": tipo_pago,
+                    })
+
+            sobrante = pool
+
+            # 3. Registrar el depósito global (trazabilidad)
+            deposito_data = {
+                "id_agencia_aliada": id_agencia_aliada,
+                "fecha": fecha_pago,
+                "monto": monto_deposito,
+                "moneda": moneda_deposito,
+                "tipo_cambio": tasa_cambio if tasa_cambio > 0 else None,
+                "metodo_pago": metodo_pago,
+                "observaciones": observaciones,
+                "monto_aplicado": round(pool_inicial - sobrante, 2),
+                "monto_sobrante": sobrante,
+            }
+            self.client.table('deposito_agencia').insert(deposito_data).execute()
+
+            # 4. Actualizar el saldo a favor de la agencia en esa moneda
+            self.client.table('agencia_aliada').update({campo_credito: sobrante}).eq('id_agencia', id_agencia_aliada).execute()
+
+            return {"exito": True, "detalle": detalle, "sobrante": sobrante, "moneda": moneda_deposito}
+        except Exception as e:
+            return {"exito": False, "mensaje": f"Error registrando el depósito global: {e}", "detalle": []}
+
     def actualizar_pago(self, id_pago: int, campos: dict) -> tuple[bool, str]:
         """Actualiza un registro de pago de cliente."""
         try:

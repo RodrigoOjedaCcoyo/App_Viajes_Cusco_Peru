@@ -725,9 +725,127 @@ def herramienta_carga_masiva_pagos(supabase_client, key_suffix=""):
                     st.error(f"❌ Error al procesar pagos masivos: {str(e)}")
                     st.warning("Si el problema persiste, contacte a soporte.")
 
+def panel_pago_global_agencia(supabase_client, key_suffix=""):
+    st.markdown("### 🏦 Pago Global por Agencia (Depósito sin identificar de qué venta es)")
+    st.caption(
+        "Para cuando una agencia deposita dinero y no se sabe de antemano a qué venta corresponde. "
+        "El monto se reparte automáticamente entre sus ventas pendientes, de la más antigua a la más nueva, "
+        "hasta que se acaba el depósito. Lo que sobre queda como saldo a favor para su próxima venta."
+    )
+
+    vc = VentaController(supabase_client)
+    agencias = vc.obtener_agencias_aliadas()
+    if not agencias:
+        st.info("No hay agencias aliadas registradas.")
+        return
+
+    mapa_ag = {a['nombre']: a for a in agencias}
+    nombre_sel = st.selectbox("Agencia", ["--- Seleccione ---"] + list(mapa_ag.keys()), key=f"pga_agencia_{key_suffix}")
+
+    if nombre_sel == "--- Seleccione ---":
+        return
+
+    agencia_sel = mapa_ag[nombre_sel]
+    id_agencia = agencia_sel['id_agencia']
+
+    ventas = vc.obtener_ventas_agencia(id_agencia)
+    ventas_activas = [v for v in ventas if v.get('estado_venta') != 'CANCELADO']
+
+    if not ventas_activas:
+        st.warning("Esta agencia no tiene ventas activas con saldo pendiente.")
+    else:
+        ids_v = [v['id_venta'] for v in ventas_activas]
+        pagos = supabase_client.table('pago').select('id_venta, monto_moneda_venta, tipo_pago').in_('id_venta', ids_v).execute().data
+        mapa_p = {}
+        for p in (pagos or []):
+            m = p.get('monto_moneda_venta') or 0
+            if p.get('tipo_pago') == 'REEMBOLSO':
+                m = -m
+            mapa_p[p['id_venta']] = mapa_p.get(p['id_venta'], 0) + m
+
+        filas = []
+        deuda_pen, deuda_usd = 0.0, 0.0
+        for v in sorted(ventas_activas, key=lambda x: x.get('fecha_venta') or ''):
+            precio = float(v.get('precio_total_cierre') or 0)
+            pagado = float(mapa_p.get(v['id_venta'], 0))
+            saldo = round(precio - pagado, 2)
+            if saldo <= 0.01:
+                continue
+            moneda_v = v.get('moneda') or 'USD'
+            if moneda_v == 'PEN':
+                deuda_pen += saldo
+            else:
+                deuda_usd += saldo
+            filas.append({
+                "Venta": v['id_venta'], "Fecha Venta": v.get('fecha_venta'),
+                "Tour": v.get('tour_nombre'), "Moneda": moneda_v, "Saldo Pendiente": saldo
+            })
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Deuda Pendiente (PEN)", f"S/ {deuda_pen:,.2f}")
+        c2.metric("Deuda Pendiente (USD)", f"$ {deuda_usd:,.2f}")
+        c3.metric("Saldo a Favor (PEN)", f"S/ {float(agencia_sel.get('credito_pen') or 0):,.2f}")
+        c4.metric("Saldo a Favor (USD)", f"$ {float(agencia_sel.get('credito_usd') or 0):,.2f}")
+
+        if filas:
+            st.caption("Ventas pendientes de esta agencia (orden en que se aplicará el depósito):")
+            st.dataframe(pd.DataFrame(filas), use_container_width=True, hide_index=True)
+        else:
+            st.success("Esta agencia no tiene saldo pendiente en ninguna venta activa.")
+
+    st.markdown("##### 💵 Registrar Depósito")
+    with st.form(f"form_pago_global_{key_suffix}"):
+        colf1, colf2, colf3 = st.columns(3)
+        monto_dep = colf1.number_input("Monto Depositado", min_value=0.0, format="%.2f", key=f"pga_monto_{key_suffix}")
+        moneda_dep = colf2.selectbox("Moneda del Depósito", ["USD", "PEN"], key=f"pga_moneda_{key_suffix}")
+        fecha_dep = colf3.date_input("Fecha", value=date.today(), key=f"pga_fecha_{key_suffix}")
+
+        colf4, colf5 = st.columns(2)
+        tc_dep = colf4.number_input(
+            "Tipo de Cambio", min_value=0.0, format="%.3f", key=f"pga_tc_{key_suffix}",
+            help="Solo se usa si esta agencia tiene ventas en la otra moneda. Ingresa cuántas unidades de "
+                 "la moneda del depósito equivalen a 1 unidad de la moneda de la venta (ej. si depositan en "
+                 "soles y hay una venta en dólares, pon cuántos soles vale 1 dólar)."
+        )
+        metodo_dep = colf5.selectbox(
+            "Método de Pago", ["TRANSFERENCIA", "EFECTIVO", "YAPE", "PLIN", "TARJETA", "PAYPAL", "OTRO"],
+            key=f"pga_metodo_{key_suffix}"
+        )
+        obs_dep = st.text_area("Observaciones (opcional)", key=f"pga_obs_{key_suffix}")
+
+        submitted = st.form_submit_button("✅ Registrar y Aplicar a las Ventas", type="primary", use_container_width=True)
+
+        if submitted:
+            if monto_dep <= 0:
+                st.error("El monto depositado debe ser mayor a 0.")
+            else:
+                resultado = vc.registrar_pago_global_agencia(
+                    id_agencia_aliada=id_agencia, monto_deposito=monto_dep, moneda_deposito=moneda_dep,
+                    tasa_cambio=tc_dep, fecha_pago=fecha_dep.isoformat(), metodo_pago=metodo_dep,
+                    observaciones=obs_dep or None
+                )
+                if resultado.get("exito"):
+                    detalle = resultado.get("detalle") or []
+                    simbolo = "S/" if moneda_dep == "PEN" else "$"
+                    if detalle:
+                        st.success(f"✅ Depósito aplicado a {len(detalle)} venta(s):")
+                        for d in detalle:
+                            st.write(f"— Venta #{d['id_venta']} ({d.get('tour') or ''}): {simbolo} {d['aplicado']:,.2f} ({d['tipo_pago']})")
+                    else:
+                        st.warning("No se pudo aplicar el depósito a ninguna venta (revisa si hay ventas pendientes o si falta el tipo de cambio para otra moneda).")
+                    sobrante = resultado.get("sobrante") or 0
+                    if sobrante > 0.01:
+                        st.info(f"💰 Sobraron {simbolo} {sobrante:,.2f} — quedan guardados como saldo a favor de {nombre_sel} para su próxima venta.")
+                    st.rerun()
+                else:
+                    st.error(resultado.get("mensaje") or "No se pudo registrar el depósito.")
+
+
 def dashboard_cuentas_por_cobrar_unified(supabase_client):
     st.subheader("💰 Cuentas por Cobrar", divider='orange')
     herramienta_carga_masiva_pagos(supabase_client, "unified")
+    st.divider()
+    panel_pago_global_agencia(supabase_client, "unified")
     st.divider()
 
     tipo_vista = st.radio("Seleccione el tipo de cobro:", ["💎 B2B (Agencias)", "👤 B2C (Directas)"], horizontal=True)
