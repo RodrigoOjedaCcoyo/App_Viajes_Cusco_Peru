@@ -270,7 +270,8 @@ class ExcelController:
         
         ingreso_real = float(v.get('monto_pagado') or 0)
         reembolsos = float(v.get('total_reembolsado') or 0)
-        
+        saldo_pendiente = round(monto_venta - ingreso_real, 2)
+
         if es_cancelado:
             utilidad = round(ingreso_real - reembolsos - costo_total_liq, 2)
             rentabilidad_str = "N/A"
@@ -296,7 +297,7 @@ class ExcelController:
             ["", "", ""],
             ["RESUMEN FINANCIERO", "", ""],
             ["Moneda Venta", v_moneda, "Monto Venta"],
-            ["Tipo de Cambio Venta", v_tc_venta, ""],
+            ["Tipo de Cambio Venta", v_tc_venta, monto_venta],
         ]
         
         if es_cancelado:
@@ -315,6 +316,7 @@ class ExcelController:
             datos_v.extend([
                 ["Total Depositado", v.get('monto_pagado') or 0, "DEPOSITOS"],
                 ["Total Reembolsado", v.get('total_reembolsado') or 0, "EGRESOS"],
+                ["Saldo Pendiente (Pasajero)", saldo_pendiente, ""],
                 ["1º Método Pago", v.get('metodo_pago_primer'), f"DEP 1: {v.get('monto_primer_deposito')}"],
                 ["2º Método Pago", v.get('metodo_pago_segundo'), f"DEP 2: {v.get('monto_segundo_deposito')}"],
                 ["Costo Total", costo_total_liq, "COSTO NETO"],
@@ -345,7 +347,11 @@ class ExcelController:
                             # Resaltado premium en rojo para cancelaciones
                             cell.fill = PatternFill(start_color="FEE2E2", end_color="FEE2E2", fill_type="solid")
                             cell.font = Font(color="991B1B", bold=True)
-                        elif c_idx % 2 != 0: 
+                        elif row[0] == "Saldo Pendiente (Pasajero)" and c_idx == 2 and isinstance(val, (int, float)) and val > 0.01:
+                            # Resaltado en ámbar: el pasajero todavía debe dinero
+                            cell.fill = PatternFill(start_color="FEF3C7", end_color="FEF3C7", fill_type="solid")
+                            cell.font = Font(color="92400E", bold=True)
+                        elif c_idx % 2 != 0:
                             cell.fill = subheader_fill
                             cell.font = bold_font
                         
