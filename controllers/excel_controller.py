@@ -356,7 +356,13 @@ class ExcelController:
                             cell.font = bold_font
                         
                         # NUEVO: Formato de número de dos decimales para celdas numéricas de dinero
-                        if isinstance(val, (int, float)) and row[0] not in ["ID Venta", "Tipo de Cambio Venta", "Porcentaje de Comisión Pasarela"]:
+                        if row[0] == "Tipo de Cambio Venta" and c_idx == 2 and isinstance(val, (int, float)):
+                            # Tipo de Cambio: 3 decimales
+                            cell.number_format = '#,##0.000'
+                        elif row[0] == "Tipo de Cambio Venta" and c_idx == 3 and isinstance(val, (int, float)):
+                            # Monto Venta (comparte fila con Tipo de Cambio en esta plantilla): 2 decimales siempre
+                            cell.number_format = '#,##0.00'
+                        elif isinstance(val, (int, float)) and row[0] not in ["ID Venta", "Porcentaje de Comisión Pasarela"]:
                             cell.number_format = '#,##0.00'
             current_row += 1
 
