@@ -350,6 +350,10 @@ class ExcelController:
                         elif row[0] == "Saldo Pendiente (Pasajero)" and c_idx == 2 and isinstance(val, (int, float)) and abs(val) <= 0.01:
                             # Amarillo cuando el saldo es 0 (pasajero al día); si hay monto, queda sin resaltar
                             cell.fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+                        elif row[0] == "Saldo Pendiente (Pasajero)" and c_idx == 2 and isinstance(val, (int, float)):
+                            # Con monto pendiente: rojo con letras blancas
+                            cell.fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
+                            cell.font = Font(color="FFFFFF", bold=True)
                         elif c_idx % 2 != 0:
                             cell.fill = subheader_fill
                             cell.font = bold_font
