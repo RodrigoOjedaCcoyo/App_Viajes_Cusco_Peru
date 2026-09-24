@@ -347,10 +347,9 @@ class ExcelController:
                             # Resaltado premium en rojo para cancelaciones
                             cell.fill = PatternFill(start_color="FEE2E2", end_color="FEE2E2", fill_type="solid")
                             cell.font = Font(color="991B1B", bold=True)
-                        elif row[0] == "Saldo Pendiente (Pasajero)" and c_idx == 2 and isinstance(val, (int, float)) and val > 0.01:
-                            # Resaltado en ámbar: el pasajero todavía debe dinero
-                            cell.fill = PatternFill(start_color="FEF3C7", end_color="FEF3C7", fill_type="solid")
-                            cell.font = Font(color="92400E", bold=True)
+                        elif row[0] == "Saldo Pendiente (Pasajero)" and c_idx == 2 and isinstance(val, (int, float)) and abs(val) <= 0.01:
+                            # Amarillo cuando el saldo es 0 (pasajero al día); si hay monto, queda sin resaltar
+                            cell.fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
                         elif c_idx % 2 != 0:
                             cell.fill = subheader_fill
                             cell.font = bold_font
