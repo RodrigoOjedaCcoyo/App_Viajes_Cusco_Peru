@@ -34,8 +34,13 @@ class CotizacionController:
             return []
 
     def guardar_cotizacion(self, nombre: str, creado_por: Optional[str], items: List[Dict],
-                            moneda: str, total_estimado: float) -> Tuple[bool, Optional[str]]:
-        """Guarda una cotización de costos armada en el Cotizador."""
+                            moneda: str, total_estimado: float,
+                            totales_por_moneda: Optional[Dict[str, float]] = None) -> Tuple[bool, Optional[str]]:
+        """
+        Guarda una cotización de costos armada en el Cotizador.
+        total_estimado es el total de la moneda principal; los totales de cada moneda van aparte
+        (antes se sumaban USD + PEN como si fueran la misma moneda).
+        """
         try:
             data = {
                 "nombre": nombre.strip(),
@@ -44,7 +49,16 @@ class CotizacionController:
                 "moneda": moneda,
                 "total_estimado": round(total_estimado, 2)
             }
-            res = self.client.table('cotizacion_costos').insert(data).execute()
+            if totales_por_moneda:
+                data["totales_por_moneda"] = {k: round(v, 2) for k, v in totales_por_moneda.items()}
+            try:
+                res = self.client.table('cotizacion_costos').insert(data).execute()
+            except Exception as e_col:
+                # Si todavía no se ejecutó la migración (falta la columna), se guarda sin ella.
+                if 'totales_por_moneda' not in str(e_col):
+                    raise
+                data.pop("totales_por_moneda", None)
+                res = self.client.table('cotizacion_costos').insert(data).execute()
             if res.data:
                 return True, res.data[0].get('id_cotizacion')
             return False, None

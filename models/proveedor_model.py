@@ -8,10 +8,13 @@ class ProveedorModel(BaseModel):
     def __init__(self, supabase_client: SupabaseClient):
         super().__init__(table_name='proveedor', supabase_client=supabase_client, primary_key='id_proveedor')
 
-    def obtener_todos(self) -> List[Dict[str, Any]]:
-        """Obtiene la lista de todos los proveedores activos."""
+    def obtener_todos(self, incluir_inactivos: bool = False) -> List[Dict[str, Any]]:
+        """Obtiene los proveedores activos (o todos, si incluir_inactivos=True)."""
         try:
-            res = self.client.table(self.table_name).select('*').eq('activo', True).order('nombre_comercial').execute()
+            q = self.client.table(self.table_name).select('*')
+            if not incluir_inactivos:
+                q = q.eq('activo', True)
+            res = q.order('nombre_comercial').execute()
             return res.data or []
         except Exception as e:
             print(f"Error al obtener proveedores: {e}")

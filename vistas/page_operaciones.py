@@ -2813,6 +2813,193 @@ def render_modulo_cancelacion_parcial(controller, id_venta):
         else:
             st.error(msg)
 
+def _lista_json(valor, claves):
+    """Lista de textos desde los JSON variados del catálogo de tours (lista, {"incluye": [...]}, texto)."""
+    if not valor:
+        return []
+    if isinstance(valor, list):
+        return [str(x).strip() for x in valor if str(x).strip()]
+    if isinstance(valor, dict):
+        for k in claves:
+            if isinstance(valor.get(k), list):
+                return [str(x).strip() for x in valor[k] if str(x).strip()]
+        for v in valor.values():
+            if isinstance(v, list):
+                return [str(x).strip() for x in v if str(x).strip()]
+        return []
+    if isinstance(valor, str):
+        return [x.strip() for x in valor.split(",") if x.strip()]
+    return []
+
+
+def _form_tarifa_tour(prefijo, inicial, tours_opciones, id_proveedor, es_nueva):
+    """
+    Formulario de la tarifa de un proveedor para un tour (tabla proveedor_tour).
+    Devuelve (accion, data) donde accion es "guardar" | "eliminar" | None.
+    """
+    with st.form(f"form_{prefijo}", clear_on_submit=False):
+        if es_nueva:
+            nombres = list(tours_opciones.keys())
+            tour_sel = st.selectbox("Tour del catálogo*", nombres, key=f"{prefijo}_tour",
+                                    help="Escribe para buscar. La tarifa queda vinculada al tour, no a un texto.")
+            id_tour = tours_opciones[tour_sel]['id_tour'] if tour_sel else None
+        else:
+            id_tour = inicial['id_tour']
+
+        modalidad_lbl = st.radio("¿Cómo cobra?", ["Por pasajero", "Por grupo / unidad"], horizontal=True,
+                                 index=0 if inicial.get('modalidad', 'PAX') == 'PAX' else 1, key=f"{prefijo}_mod")
+        modalidad = "PAX" if modalidad_lbl == "Por pasajero" else "GRUPO"
+
+        st.caption("Por pasajero: Nacional en S/, Extranjero y CAN en $. Vacío = se calcula con la regla de siempre.")
+        c1, c2, c3 = st.columns(3)
+        a_nac = c1.number_input("Adulto Nac (S/)", min_value=0.0, step=1.0, value=float(inicial.get('costo_adulto_nac') or 0), key=f"{prefijo}_an")
+        a_ext = c2.number_input("Adulto Ext ($)", min_value=0.0, step=1.0, value=float(inicial.get('costo_adulto_ext') or 0), key=f"{prefijo}_ae")
+        a_can = c3.number_input("Adulto CAN ($)", min_value=0.0, step=1.0, value=float(inicial.get('costo_adulto_can') or 0), key=f"{prefijo}_ac",
+                                help="0 = igual que el extranjero")
+        opc = {}
+        for cat, etiqueta in [("estudiante", "Estudiante"), ("nino", "Niño"), ("pcd", "PcD")]:
+            k1, k2, k3 = st.columns(3)
+            for col, mon, sim in [(k1, "nac", "S/"), (k2, "ext", "$"), (k3, "can", "$")]:
+                campo = f"costo_{cat}_{mon}"
+                v = inicial.get(campo)
+                opc[campo] = col.number_input(f"{etiqueta} {mon.upper()} ({sim})", min_value=0.0, step=1.0,
+                                              value=float(v) if v is not None else None, placeholder="auto",
+                                              key=f"{prefijo}_{campo}")
+
+        st.caption("Por grupo: precio de UNA unidad (van, guía privado) y cuántos pax lleva. El Constructor calcula cuántas hacen falta.")
+        g1, g2, g3 = st.columns(3)
+        g_nac = g1.number_input("Unidad (S/)", min_value=0.0, step=1.0,
+                                value=float(inicial['costo_grupo_nac']) if inicial.get('costo_grupo_nac') is not None else None,
+                                placeholder="—", key=f"{prefijo}_gn")
+        g_ext = g2.number_input("Unidad ($)", min_value=0.0, step=1.0,
+                                value=float(inicial['costo_grupo_ext']) if inicial.get('costo_grupo_ext') is not None else None,
+                                placeholder="—", key=f"{prefijo}_ge")
+        cap = g3.number_input("Pax por unidad", min_value=1, step=1, value=int(inicial.get('capacidad_grupo') or 4), key=f"{prefijo}_cap")
+
+        i1, i2 = st.columns(2)
+        incluye = i1.text_area("✅ Incluye (uno por línea)", value="\n".join(inicial.get('incluye') or []), height=150, key=f"{prefijo}_inc")
+        no_incluye = i2.text_area("❌ No incluye (uno por línea)", value="\n".join(inicial.get('no_incluye') or []), height=150, key=f"{prefijo}_noinc")
+        st.caption("Estas inclusiones reemplazan a las del tour en el PDF cuando el vendedor elige este proveedor.")
+
+        h1, h2, h3 = st.columns(3)
+        hora = h1.text_input("⏰ Hora de recojo", value=inicial.get('hora_recojo') or "", placeholder="04:00 AM", key=f"{prefijo}_hora")
+        desde = h2.date_input("Vigente desde", value=pd.to_datetime(inicial['vigente_desde']).date() if inicial.get('vigente_desde') else None,
+                              key=f"{prefijo}_desde", format="DD/MM/YYYY")
+        hasta = h3.date_input("Vigente hasta", value=pd.to_datetime(inicial['vigente_hasta']).date() if inicial.get('vigente_hasta') else None,
+                              key=f"{prefijo}_hasta", format="DD/MM/YYYY")
+        notas = st.text_input("Notas internas", value=inicial.get('notas') or "", key=f"{prefijo}_notas")
+        t1, t2 = st.columns(2)
+        preferido = t1.toggle("⭐ Proveedor preferido de este tour", value=bool(inicial.get('preferido')), key=f"{prefijo}_pref")
+        activo = t2.toggle("Tarifa activa", value=inicial.get('activo', True) is not False, key=f"{prefijo}_act")
+
+        b1, b2 = st.columns(2)
+        guardar = b1.form_submit_button("💾 Guardar tarifa", type="primary", use_container_width=True)
+        eliminar = (not es_nueva) and b2.form_submit_button("🗑️ Eliminar tarifa", use_container_width=True)
+
+    if eliminar:
+        return "eliminar", None
+    if not guardar:
+        return None, None
+    if not id_tour:
+        st.error("Elige el tour del catálogo.")
+        return None, None
+    if modalidad == "GRUPO" and not (g_nac or g_ext):
+        st.error("Para cobro por grupo indica el precio de la unidad en soles, en dólares o en ambos.")
+        return None, None
+    if desde and hasta and desde > hasta:
+        st.error("La vigencia 'desde' es posterior a 'hasta'.")
+        return None, None
+    data = {
+        "id_proveedor": int(id_proveedor),
+        "id_tour": int(id_tour),
+        "modalidad": modalidad,
+        "costo_adulto_nac": a_nac, "costo_adulto_ext": a_ext, "costo_adulto_can": a_can,
+        **opc,
+        "costo_grupo_nac": g_nac if modalidad == "GRUPO" else None,
+        "costo_grupo_ext": g_ext if modalidad == "GRUPO" else None,
+        "capacidad_grupo": int(cap) if modalidad == "GRUPO" else None,
+        "incluye": [x.strip() for x in incluye.split("\n") if x.strip()],
+        "no_incluye": [x.strip() for x in no_incluye.split("\n") if x.strip()],
+        "hora_recojo": hora.strip() or None,
+        "notas": notas.strip() or None,
+        "vigente_desde": desde.isoformat() if desde else None,
+        "vigente_hasta": hasta.isoformat() if hasta else None,
+        "preferido": bool(preferido),
+        "activo": bool(activo),
+    }
+    return "guardar", data
+
+
+def _render_tarifas_por_tour(prov_ctrl, supabase_client, id_proveedor, nombre_proveedor):
+    """Tours que opera el proveedor, con su costo e inclusiones (misma tabla que usa el Constructor)."""
+    ofertas = prov_ctrl.listar_ofertas(id_proveedor)
+    with st.expander(f"🗺️ Tours que opera — tarifas e inclusiones ({len(ofertas)} tours)", expanded=False):
+        st.caption("Cada tarifa queda vinculada a un tour del catálogo. En el Constructor de Itinerarios, el vendedor "
+                   "elige el proveedor de cada día y se cargan solos su costo y sus inclusiones. Se guarda al instante.")
+        try:
+            res_t = supabase_client.table('tour').select('id_tour, nombre, activo, servicios_incluidos, servicios_no_incluidos') \
+                .order('nombre').execute()
+            tours = [t for t in (res_t.data or []) if t.get('activo') is not False]
+        except Exception as e:
+            tours = []
+            st.warning(f"No se pudo cargar el catálogo de tours: {e}")
+
+        for o in ofertas:
+            tour = o.get('tour') or {}
+            if o.get('modalidad') == 'GRUPO':
+                costo_txt = " · ".join(x for x in [
+                    f"S/ {float(o['costo_grupo_nac']):,.2f}" if o.get('costo_grupo_nac') else "",
+                    f"$ {float(o['costo_grupo_ext']):,.2f}" if o.get('costo_grupo_ext') else ""] if x) + f" por unidad ({o.get('capacidad_grupo')} pax)"
+            else:
+                costo_txt = " · ".join(x for x in [
+                    f"S/ {float(o['costo_adulto_nac']):,.2f}" if float(o.get('costo_adulto_nac') or 0) else "",
+                    f"$ {float(o['costo_adulto_ext']):,.2f}" if float(o.get('costo_adulto_ext') or 0) else ""] if x) + " por pax"
+            titulo = f"{'⭐ ' if o.get('preferido') else ''}**{tour.get('nombre', 'Tour')}** — {costo_txt}{'' if o.get('activo', True) else ' (inactiva)'}"
+            # Streamlit no permite desplegables dentro de desplegables: recuadro + interruptor "Editar".
+            with st.container(border=True):
+                cA, cB = st.columns([4, 1])
+                cA.markdown(titulo)
+                cA.caption(f"✅ {len(o.get('incluye') or [])} incluye · ❌ {len(o.get('no_incluye') or [])} no incluye"
+                           + (f" · ⏰ {o['hora_recojo']}" if o.get('hora_recojo') else ""))
+                editar = cB.toggle("✏️ Editar", key=f"pt_edit_{o['id_proveedor_tour']}")
+                if not editar:
+                    continue
+                accion, data = _form_tarifa_tour(f"pt_{o['id_proveedor_tour']}", o, {}, id_proveedor, es_nueva=False)
+                if accion == "guardar":
+                    ok, msg = prov_ctrl.guardar_oferta(o['id_proveedor_tour'], data)
+                    (st.success if ok else st.error)(msg)
+                    if ok:
+                        st.rerun()
+                elif accion == "eliminar":
+                    ok, msg = prov_ctrl.eliminar_oferta(o['id_proveedor_tour'], id_proveedor)
+                    (st.success if ok else st.error)(msg)
+                    if ok:
+                        st.rerun()
+
+        st.markdown("**➕ Agregar un tour que opera**")
+        usados = {int(o['id_tour']) for o in ofertas}
+        disponibles = {t['nombre']: t for t in tours if int(t['id_tour']) not in usados}
+        if not disponibles:
+            st.info("Este proveedor ya tiene tarifa en todos los tours activos del catálogo.")
+            return
+        # El tour elegido define las inclusiones con que arranca el formulario (las del catálogo).
+        tour_base_nombre = st.selectbox("Tour (para copiar sus inclusiones como punto de partida)", list(disponibles.keys()),
+                                        key=f"pt_new_base_{id_proveedor}")
+        tb = disponibles[tour_base_nombre]
+        inicial = {
+            "modalidad": "PAX", "activo": True,
+            "incluye": _lista_json(tb.get('servicios_incluidos'), ["incluye", "servicios"]),
+            "no_incluye": _lista_json(tb.get('servicios_no_incluidos'), ["no_incluye", "no_incluidos"]),
+        }
+        accion, data = _form_tarifa_tour(f"pt_new_{id_proveedor}_{tb['id_tour']}", inicial,
+                                         {tour_base_nombre: tb}, id_proveedor, es_nueva=True)
+        if accion == "guardar":
+            ok, msg = prov_ctrl.guardar_oferta(None, data)
+            (st.success if ok else st.error)(msg)
+            if ok:
+                st.rerun()
+
+
 def render_directorio_proveedores(supabase_client):
     """Módulo profesional para la gestión de proveedores con soporte JSONB dinámico."""
     from controllers.proveedor_controller import ProveedorController
@@ -2849,7 +3036,7 @@ def render_directorio_proveedores(supabase_client):
             st.session_state.prov_draft = {
                 "nombre_comercial": "", "ruc": "", "email": "", "persona_contacto": "",
                 "contacto_telefono": "", "pais": "Perú", "url_drive": "",
-                "servicios_ofrecidos": ["GUIADO"], "cuentas_bancarias": [],
+                "servicios_ofrecidos": ["GUIA"], "cuentas_bancarias": [],
                 "puntos_operacion": [], "detalles_categoria": {}, "activo": True,
                 "tarifario": [], "tours_opera": []
             }
@@ -2872,7 +3059,7 @@ def render_directorio_proveedores(supabase_client):
         st.session_state.prov_draft = {
             "nombre_comercial": "", "ruc": "", "email": "", "persona_contacto": "",
             "contacto_telefono": "", "pais": "Perú", "url_drive": "",
-            "servicios_ofrecidos": ["GUIADO"], "cuentas_bancarias": [],
+            "servicios_ofrecidos": ["GUIA"], "cuentas_bancarias": [],
             "puntos_operacion": [], "detalles_categoria": {}, "activo": True,
             "tarifario": [], "tours_opera": []
         }
@@ -2950,8 +3137,21 @@ def render_directorio_proveedores(supabase_client):
     }
     UNIDADES_COBRO = ["Por Pax", "Por Grupo", "Por Día", "Por Noche", "Por Trayecto"]
 
+    _id_prov_guardado = st.session_state.prov_edit_id
+    _tours_tabla_ok = prov_ctrl.tabla_tours_disponible()
+
+    def _persistir_tarifario():
+        # Si el proveedor ya existe, el tarifario se guarda al instante (antes se perdía al cambiar de pestaña).
+        if _id_prov_guardado:
+            ok_t, msg_t = prov_ctrl.guardar_tarifario(_id_prov_guardado, draft['tarifario'])
+            if not ok_t:
+                st.error(msg_t)
+
     with st.expander(f"💵 Tarifario de Servicios ({len(draft['tarifario'])} items)", expanded=False):
-        st.caption("Precios de referencia de este proveedor por servicio. Sirven de base para futuras cotizaciones.")
+        st.caption("Precios de referencia de este proveedor por servicio (transporte, guiado, tickets...). "
+                   + ("Se guardan al instante." if _id_prov_guardado else "Se guardan al presionar GUARDAR CAMBIOS."))
+        if _tours_tabla_ok:
+            st.caption("🗺️ Los endoses (tours completos) ahora se cargan en **Tours que opera**, vinculados al catálogo.")
 
         if draft['tarifario']:
             for t_idx, item in enumerate(draft['tarifario']):
@@ -2962,7 +3162,31 @@ def render_directorio_proveedores(supabase_client):
                     c_t2.markdown(item.get('nombre', ''))
                     if c_t3.button("❌", key=f"del_tarif_{t_idx}"):
                         draft['tarifario'].pop(t_idx)
+                        _persistir_tarifario()
                         st.rerun()
+
+                    # Tarifa antigua de ENDOSE (texto libre): se puede vincular al tour del catálogo.
+                    if item.get('tipo_servicio') == 'ENDOSE' and _tours_tabla_ok:
+                        if not _id_prov_guardado:
+                            st.caption("⚠️ Sin vincular a un tour. Guarda el proveedor para poder vincularla.")
+                        else:
+                            try:
+                                _res_tv = supabase_client.table('tour').select('id_tour, nombre').eq('activo', True).order('nombre').execute()
+                                _tv = {t_['nombre']: t_['id_tour'] for t_ in (_res_tv.data or [])}
+                            except Exception:
+                                _tv = {}
+                            cv1, cv2 = st.columns([3, 1])
+                            _sel_v = cv1.selectbox("⚠️ Sin vincular — elige el tour del catálogo:", ["---"] + list(_tv.keys()),
+                                                   key=f"vinc_tour_{t_idx}")
+                            if cv2.button("🔗 Vincular", key=f"btn_vinc_{t_idx}", use_container_width=True) and _sel_v != "---":
+                                ok_v, msg_v, nuevo_tar = prov_ctrl.vincular_tarifa_a_tour(
+                                    _id_prov_guardado, draft['tarifario'], t_idx, _tv[_sel_v])
+                                if ok_v:
+                                    draft['tarifario'] = nuevo_tar
+                                    st.success(msg_v)
+                                    st.rerun()
+                                else:
+                                    st.error(msg_v)
 
                     moneda_it = item.get('moneda', 'USD')
                     if item.get('tipo_servicio') == 'TICKETS':
@@ -2980,8 +3204,9 @@ def render_directorio_proveedores(supabase_client):
         st.markdown("---")
         st.markdown("**➕ Agregar nueva tarifa**")
 
+        _tipos_nuevos = [k for k in TARIFARIO_LABELS if not (k == "ENDOSE" and _tours_tabla_ok)]
         tipo_sel = st.selectbox(
-            "Tipo de Servicio", list(TARIFARIO_LABELS.keys()),
+            "Tipo de Servicio", _tipos_nuevos,
             format_func=lambda k: TARIFARIO_LABELS[k], key="new_tarif_tipo"
         )
         nombre_tarif = st.text_input("Nombre / Descripción", placeholder="Ej: City Tour Cusco Full Day", key="new_tarif_nombre")
@@ -3044,29 +3269,37 @@ def render_directorio_proveedores(supabase_client):
                 }
                 if precio_tarif is not None:
                     nuevo_item["precio"] = precio_tarif
+                nuevo_item["id"] = str(__import__("uuid").uuid4())  # identificador propio de la tarifa
                 draft['tarifario'].append(nuevo_item)
+                _persistir_tarifario()
                 st.rerun()
 
-    # --- BLOQUE C.2: TOURS QUE OPERA ---
-    with st.expander(f"🗺️ Tours que Opera ({len(draft['tours_opera'])} tours)", expanded=False):
-        st.caption("Marca qué tours de tu catálogo puede operar este proveedor (para filtrar más adelante en cotizaciones).")
-        try:
-            res_tours = supabase_client.table('tour').select('id_tour, nombre').order('nombre').execute()
-            tours_disponibles = res_tours.data or []
-        except Exception as e:
-            tours_disponibles = []
-            st.warning(f"No se pudo cargar el catálogo de tours: {e}")
+    # --- BLOQUE C.2: TOURS QUE OPERA (con costo e inclusiones por tour) ---
+    if _tours_tabla_ok and _id_prov_guardado:
+        _render_tarifas_por_tour(prov_ctrl, supabase_client, _id_prov_guardado, draft.get('nombre_comercial', ''))
+    elif _tours_tabla_ok:
+        st.info("🗺️ Guarda primero el proveedor para cargar los tours que opera, con su costo e inclusiones.")
+    else:
+        with st.expander(f"🗺️ Tours que Opera ({len(draft['tours_opera'])} tours)", expanded=False):
+            st.caption("Marca qué tours de tu catálogo puede operar este proveedor (para filtrar más adelante en cotizaciones).")
+            try:
+                res_tours = supabase_client.table('tour').select('id_tour, nombre').order('nombre').execute()
+                tours_disponibles = res_tours.data or []
+            except Exception as e:
+                tours_disponibles = []
+                st.warning(f"No se pudo cargar el catálogo de tours: {e}")
 
-        tours_map = {t['nombre']: t['id_tour'] for t in tours_disponibles}
-        nombres_actuales = [nombre for nombre, tid in tours_map.items() if tid in (draft.get('tours_opera') or [])]
+            tours_map = {t['nombre']: t['id_tour'] for t in tours_disponibles}
+            nombres_actuales = [nombre for nombre, tid in tours_map.items() if tid in (draft.get('tours_opera') or [])]
 
-        seleccion_tours = st.multiselect(
-            "Tours que puede operar:",
-            options=list(tours_map.keys()),
-            default=nombres_actuales,
-            key="tours_opera_multiselect"
-        )
-        draft['tours_opera'] = [tours_map[n] for n in seleccion_tours]
+            seleccion_tours = st.multiselect(
+                "Tours que puede operar:",
+                options=list(tours_map.keys()),
+                default=nombres_actuales,
+                key="tours_opera_multiselect"
+            )
+            draft['tours_opera'] = [tours_map[n] for n in seleccion_tours]
+
 
     # --- BLOQUE D: CAMPOS INTELIGENTES POR CATEGORÍA ---
     # Detectar categoría principal para mostrar campos específicos
@@ -3083,7 +3316,10 @@ def render_directorio_proveedores(supabase_client):
     if any(s in servs for s in ["ALOJAMIENTO", "HOTEL"]):
         with st.expander("🏨 Detalles Especializados: HOTEL", expanded=True):
             ch1, ch2, ch3 = st.columns(3)
-            detalles['estrellas'] = ch1.selectbox("Categoría", ["1*", "2*", "3*", "4*", "5*", "Boutique", "Hostal"], index=2)
+            _cats_hotel = ["1*", "2*", "3*", "4*", "5*", "Boutique", "Hostal"]
+            _cat_guardada = detalles.get('estrellas', '3*')
+            detalles['estrellas'] = ch1.selectbox("Categoría", _cats_hotel,
+                                                  index=_cats_hotel.index(_cat_guardada) if _cat_guardada in _cats_hotel else 2)
             detalles['check_in'] = ch2.text_input("Hora Check-In", value=detalles.get('check_in', '12:00 PM'))
             detalles['desayuno'] = ch3.toggle("¿Incluye Desayuno?", value=detalles.get('desayuno', True))
 
@@ -3146,28 +3382,6 @@ def render_directorio_proveedores(supabase_client):
     # ═══════════════════════════════════════════════════════════════
     # 5. LISTADO GENERAL
     # ═══════════════════════════════════════════════════════════════
-    with st.expander("📜 Ver Directorio General Completo", expanded=False):
-        if not listado_prov:
-            st.info("Sin proveedores registrados.")
-        else:
-            df_view = pd.DataFrame(listado_prov)
-            # Limpiar servicios para vista
-            df_view['Servicios'] = df_view['servicios_ofrecidos'].apply(lambda x: ", ".join(x) if isinstance(x, list) else x)
-            st.dataframe(
-                df_view,
-                column_order=["nombre_comercial", "Servicios", "contacto_telefono", "ruc", "email", "activo"],
-                column_config={
-                    "nombre_comercial": "Proveedor",
-                    "contacto_telefono": "Teléfono",
-                    "ruc": "RUC",
-                    "email": "Email",
-                    "activo": st.column_config.CheckboxColumn("Activo")
-                },
-                use_container_width=True,
-                hide_index=True
-            )
-
-
     # ═══════════════════════════════════════════════════════════════
     # 3. TABLA DE PROVEEDORES EXISTENTES
     # ═══════════════════════════════════════════════════════════════
@@ -3198,20 +3412,30 @@ def render_directorio_proveedores(supabase_client):
         )
 
         st.write("---")
-        with st.expander("🗑️ Eliminar Proveedor", expanded=False):
-            st.warning("⚠️ Cuidado: Eliminar un proveedor es una acción irreversible.")
-            opciones_eliminar = {f"{p['nombre_comercial']} (RUC: {p.get('ruc', 'N/A')})": p['id_proveedor'] for p in proveedores}
-            prov_a_eliminar = st.selectbox("Seleccione un proveedor para eliminar:", ["---"] + list(opciones_eliminar.keys()), key="del_prov_sel")
-            
-            if prov_a_eliminar != "---":
-                if st.button("🚨 Confirmar Eliminación", type="primary", key="btn_del_prov"):
-                    id_eliminar = opciones_eliminar[prov_a_eliminar]
-                    exito, msg = prov_ctrl.eliminar_proveedor(id_eliminar)
+        with st.expander("🚫 Desactivar / Reactivar Proveedor", expanded=False):
+            st.info("Desactivar no borra nada: el proveedor deja de aparecer para trabajar, pero su historial de "
+                    "pagos, ventas y tarifas se conserva. (Antes 'Eliminar' borraba también sus pagos.)")
+            opciones_desactivar = {f"{p['nombre_comercial']} (RUC: {p.get('ruc', 'N/A')})": p['id_proveedor'] for p in proveedores}
+            prov_a_desactivar = st.selectbox("Proveedor a desactivar:", ["---"] + list(opciones_desactivar.keys()), key="del_prov_sel")
+            if prov_a_desactivar != "---":
+                if st.button("🚫 Confirmar desactivación", type="primary", key="btn_del_prov"):
+                    exito, msg = prov_ctrl.desactivar_proveedor(opciones_desactivar[prov_a_desactivar])
                     if exito:
                         st.success(msg)
                         st.rerun()
                     else:
                         st.error(msg)
+
+            inactivos = [p for p in prov_ctrl.obtener_proveedores(incluir_inactivos=True) if p.get('activo') is False]
+            if inactivos:
+                st.markdown("**Proveedores desactivados**")
+                opciones_reactivar = {p['nombre_comercial']: p['id_proveedor'] for p in inactivos}
+                prov_reac = st.selectbox("Reactivar:", ["---"] + list(opciones_reactivar.keys()), key="reac_prov_sel")
+                if prov_reac != "---" and st.button("✅ Reactivar", key="btn_reac_prov"):
+                    exito, msg = prov_ctrl.reactivar_proveedor(opciones_reactivar[prov_reac])
+                    (st.success if exito else st.error)(msg)
+                    if exito:
+                        st.rerun()
 
 
 def render_cotizador_costos(supabase_client):
@@ -3365,6 +3589,17 @@ def render_cotizador_costos(supabase_client):
                         f"Para {cantidad_pax} pax se necesitan **{unidades_necesarias} {etiqueta_capacidad}** "
                         f"({tarifa_elegida.get('moneda', 'USD')} {precio_unit:,.2f} c/u)."
                     )
+            elif unidad in ("Por Noche", "Por Día"):
+                etiqueta_tiempo = "Noches" if unidad == "Por Noche" else "Días"
+                ct1, ct2 = st.columns(2)
+                n_tiempo = ct1.number_input(etiqueta_tiempo, min_value=1, value=1, key="cot_n_tiempo")
+                n_unid = ct2.number_input(
+                    "Habitaciones" if tipo_sel == "ALOJAMIENTO" else "Unidades",
+                    min_value=1, value=1, key="cot_n_unid",
+                    help="Cuántas habitaciones / unidades de este precio se necesitan.")
+                unidades_necesarias = int(n_unid)
+                subtotal = precio_unit * int(n_tiempo) * int(n_unid)
+                st.caption(f"{precio_unit:,.2f} × {int(n_tiempo)} {etiqueta_tiempo.lower()} × {int(n_unid)} = {subtotal:,.2f}")
             else:
                 unidades_necesarias = 1
                 subtotal = precio_unit * cantidad_pax if unidad == "Por Pax" else precio_unit
@@ -3383,7 +3618,8 @@ def render_cotizador_costos(supabase_client):
                     "precio_unitario": precio_unit,
                     "unidad": unidad,
                     "moneda": tarifa_elegida.get('moneda', 'USD'),
-                    "subtotal": subtotal
+                    "subtotal": subtotal,
+                    "noches_o_dias": int(st.session_state.get("cot_n_tiempo", 1)) if unidad in ("Por Noche", "Por Día") else None
                 })
                 st.rerun()
 
@@ -3424,11 +3660,13 @@ def render_cotizador_costos(supabase_client):
             if not nombre_cot:
                 st.warning("Ponle un nombre a la cotización antes de guardarla.")
             else:
-                moneda_principal = list(total_por_moneda.keys())[0] if total_por_moneda else "USD"
+                # Moneda principal = la de mayor monto; cada moneda se guarda por separado (no se suman).
+                moneda_principal = max(total_por_moneda, key=total_por_moneda.get) if total_por_moneda else "USD"
                 creado_por = st.session_state.get('user_email') or st.session_state.get('user_id') or 'Sistema'
                 exito, _id = cot_ctrl.guardar_cotizacion(
                     nombre_cot, creado_por, st.session_state.cotizacion_items,
-                    moneda_principal, sum(total_por_moneda.values())
+                    moneda_principal, total_por_moneda.get(moneda_principal, 0),
+                    totales_por_moneda=total_por_moneda
                 )
                 if exito:
                     st.success(f"✅ Cotización '{nombre_cot}' guardada.")
@@ -3453,7 +3691,10 @@ def render_cotizador_costos(supabase_client):
     else:
         for cot in cotizaciones:
             fecha_txt = str(cot.get('created_at', ''))[:10]
-            with st.expander(f"{cot.get('nombre')} — {cot.get('moneda')} {cot.get('total_estimado', 0):,.2f} ({fecha_txt})"):
+            _tot = cot.get('totales_por_moneda') or {}
+            _tot_txt = " + ".join(f"{m} {float(v):,.2f}" for m, v in _tot.items()) if _tot \
+                else f"{cot.get('moneda')} {float(cot.get('total_estimado') or 0):,.2f}"
+            with st.expander(f"{cot.get('nombre')} — {_tot_txt} ({fecha_txt})"):
                 for it in (cot.get('items') or []):
                     detalle_unidades = ""
                     if it.get('unidades_necesarias', 1) > 1:

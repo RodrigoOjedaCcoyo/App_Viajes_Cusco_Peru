@@ -4,6 +4,7 @@ from .base_model import BaseModel
 from datetime import datetime, timedelta, date
 from supabase import Client
 from typing import Dict, Any, Optional
+from utils.costos_itinerario import datos_dia, prellenar_costos_dia
 
 class VentaModel(BaseModel):
     """Modelo para la gestión de Ventas (Conversiones de Leads)."""
@@ -420,7 +421,13 @@ class VentaModel(BaseModel):
                     "observacion": nombre_servicio_dia,
                     "id_itinerario_dia_index": i + 1
                 }
+                # Proveedor elegido en el Constructor: tour, proveedor y marca de endoso del día.
+                dia_itin = itin_detalles[i] if i < len(itin_detalles) and isinstance(itin_detalles[i], dict) else {}
+                detalle_tour.update(datos_dia(dia_itin))
                 self.client.table('venta_tour').insert(detalle_tour).execute()
+                # ...y su costo pasa solo al Estructurador de Gastos (si aún no está cargado).
+                if dia_itin:
+                    prellenar_costos_dia(self.client, nuevo_id_venta, i + 1, dia_itin)
         except Exception as e:
             print(f"Advertencia: Error expandiendo detalle tour: {e}")
 

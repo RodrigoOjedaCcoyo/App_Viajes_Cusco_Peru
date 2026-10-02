@@ -4,6 +4,7 @@ from models.venta_model import VentaModel
 from supabase import Client
 from datetime import date
 from typing import Optional, Any
+from utils.costos_itinerario import datos_dia, prellenar_costos_dia
 import threading
 import pandas as pd
 
@@ -480,12 +481,20 @@ class VentaController:
                     "id_itinerario_dia_index": n_linea
                 }
 
+                # Proveedor elegido en el Constructor (tour, proveedor y marca de endoso del día).
+                if isinstance(dia_info, dict):
+                    payload.update(datos_dia(dia_info))
+
                 if n_linea in lineas_actuales:
                     self.client.table('venta_tour').update(payload) \
                         .eq('id_venta', id_venta).eq('n_linea', n_linea).execute()
                 else:
                     payload.update({"id_venta": id_venta, "n_linea": n_linea})
                     self.client.table('venta_tour').insert(payload).execute()
+
+                # Costo del proveedor al Estructurador de Gastos, solo si ese día aún no lo tiene.
+                if isinstance(dia_info, dict):
+                    prellenar_costos_dia(self.client, id_venta, n_linea, dia_info)
 
             # PASO 7: Borrar lineas sobrantes
             lineas_a_borrar = lineas_actuales - lineas_procesadas
